@@ -1,0 +1,18 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements_mcp.txt .
+RUN pip install --no-cache-dir -r requirements_mcp.txt
+
+COPY mcp_server.py .
+COPY mcp_server_stdio.py .
+COPY mcp_shopro_server.py .
+COPY mcp_shopro_server_stdio.py .
+
+EXPOSE 8080
+
+ENV HOST=0.0.0.0
+ENV PORT=8080
+
+CMD ["python", "mcp_shopro_server.py"]

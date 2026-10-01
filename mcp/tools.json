@@ -1,0 +1,190 @@
+{
+  "tools": [
+    {
+      "name": "extract_product_highlights",
+      "description": "Extracts key selling points, target audience pain points, and core marketing angles from raw product descriptions or URL landing text using DeepSeek-V4-Pro.",
+      "inputSchema": {
+        "properties": {
+          "product_info": {
+            "title": "Product Info",
+            "type": "string"
+          }
+        },
+        "required": [
+          "product_info"
+        ],
+        "title": "extract_product_highlightsArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "generate_marketing_script",
+      "description": "Generates a structured TikTok/Douyin/Shorts style high-converting marketing script with detailed scene instructions (Hook, Pain Point, Solution, Call to Action) and digital human speech texts using DeepSeek-V4-Pro.",
+      "inputSchema": {
+        "properties": {
+          "product_highlights": {
+            "title": "Product Highlights",
+            "type": "string"
+          },
+          "target_audience": {
+            "title": "Target Audience",
+            "type": "string"
+          },
+          "platform": {
+            "default": "TikTok",
+            "title": "Platform",
+            "type": "string"
+          },
+          "language": {
+            "default": "Chinese",
+            "title": "Language",
+            "type": "string"
+          }
+        },
+        "required": [
+          "product_highlights",
+          "target_audience"
+        ],
+        "title": "generate_marketing_scriptArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "translate_marketing_script",
+      "description": "Translates the generated marketing script to a target language (e.g. Chinese to English, Spanish, etc.) while preserving scene instructions and placeholders intact using DeepSeek-V4-Pro.",
+      "inputSchema": {
+        "properties": {
+          "script": {
+            "title": "Script",
+            "type": "string"
+          },
+          "target_language": {
+            "title": "Target Language",
+            "type": "string"
+          }
+        },
+        "required": [
+          "script",
+          "target_language"
+        ],
+        "title": "translate_marketing_scriptArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "synthesize_voice_tts",
+      "description": "Synthesizes speech from a script line using StepAudio stepaudio-2.5-tts. Returns base64 encoded MP3 audio data.",
+      "inputSchema": {
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "voice_id": {
+            "default": "cixingnansheng",
+            "title": "Voice Id",
+            "type": "string"
+          },
+          "speed": {
+            "default": 1.0,
+            "title": "Speed",
+            "type": "number"
+          },
+          "volume": {
+            "default": 0.9,
+            "title": "Volume",
+            "type": "number"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "synthesize_voice_ttsArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "enhance_prompt",
+      "description": "Enhances/optimizes a raw prompt text into a detailed, high-quality prompt suitable for digital human or video generation using StepFun step-3.7-flash.",
+      "inputSchema": {
+        "properties": {
+          "prompt": {
+            "title": "Prompt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "title": "enhance_promptArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "submit_video_generation",
+      "description": "Submits a video generation task using Seedance 2.0. Requires prompt, duration, resolution, aspect ratio.",
+      "inputSchema": {
+        "properties": {
+          "prompt": {
+            "title": "Prompt",
+            "type": "string"
+          },
+          "duration": {
+            "default": 8,
+            "title": "Duration",
+            "type": "integer"
+          },
+          "resolution": {
+            "default": "720p",
+            "title": "Resolution",
+            "type": "string"
+          },
+          "ratio": {
+            "default": "16:9",
+            "title": "Ratio",
+            "type": "string"
+          },
+          "first_frame_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "First Frame Url"
+          },
+          "watermark": {
+            "default": false,
+            "title": "Watermark",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "title": "submit_video_generationArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "query_video_status",
+      "description": "Queries the status of a submitted video generation task by request_id.",
+      "inputSchema": {
+        "properties": {
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id"
+        ],
+        "title": "query_video_statusArguments",
+        "type": "object"
+      }
+    }
+  ]
+}
