@@ -1,0 +1,32 @@
+{
+  "rewrites": [
+    {
+      "source": "/glm-api/(.*)",
+      "destination": "https://www.sophnet.com/api/open-apis/$1"
+    },
+    {
+      "source": "/siliconflow-api/(.*)",
+      "destination": "https://api.siliconflow.cn/$1"
+    },
+    {
+      "source": "/tokendance-api/(.*)",
+      "destination": "https://tokendance.space/$1"
+    },
+    {
+      "source": "/dxkp-api/(.*)",
+      "destination": "/api/dxkp"
+    },
+    {
+      "source": "/api/dxkp/(.*)",
+      "destination": "/api/dxkp"
+    },
+    {
+      "source": "/mcp",
+      "destination": "/api/mcp"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
