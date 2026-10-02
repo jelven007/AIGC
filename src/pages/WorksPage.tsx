@@ -27,7 +27,7 @@ import {
 import { toast } from 'sonner';
 import { extractVideoMeta } from '@/lib/videoFrame';
 import type { VideoProject, Material } from '@/types/types';
-import { cn } from '@/lib/utils';
+import { cn, makeWorkTitle } from '@/lib/utils';
 import CoverCandidates from '@/components/CoverCandidates';
 
 // ── 状态配置 ──────────────────────────────────────────────────────────────
@@ -749,19 +749,19 @@ async function seedTestUserVideos(userId: string) {
   }
 }
 
-  const loadProjects = async () => {
-    setLoading(true);
+  const loadProjects = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     const { data } = await supabase.from('video_projects').select('*').order('created_at', { ascending: false });
     const formattedData = (data ?? [])
       .map((p: any) => ({
         ...p,
-        // 标题优先展示生成时对应的提示词
-        title: (p.prompt_text && String(p.prompt_text).trim()) ? String(p.prompt_text).trim() : p.title,
+        // 标题优先展示生成时输入的提示词，统一按去空白摘要规则兜底，空提示词展示“未命名作品”
+        title: makeWorkTitle((p.prompt_text && String(p.prompt_text).trim()) ? String(p.prompt_text) : p.title),
         // 封面只保留真实帧（首帧截图/用户上传），占位图一律清空待异步首帧提取
         thumbnail_url: isRealThumbnail(p.thumbnail_url) ? p.thumbnail_url : null,
       })) as VideoProject[];
     setProjects(formattedData);
-    setLoading(false);
+    if (!silent) setLoading(false);
     // 异步提取原始 AI 视频第一帧作为封面，并回写数据库保证后续加载一致
     formattedData.forEach(prj => {
       if (!prj.thumbnail_url && prj.video_url) {
@@ -773,9 +773,38 @@ async function seedTestUserVideos(userId: string) {
         });
       }
     });
-  };
+  }, []);
 
-  useEffect(() => { loadProjects(); }, []);
+  useEffect(() => { loadProjects(); }, [loadProjects]);
+
+  // ── 生成成功后作品列表自动同步（免手动刷新/切换页面触发）──
+  // 1) Supabase Realtime 监听 video_projects 的 INSERT/UPDATE（跨标签页/窗口生效）；
+  // 2) 工作台落库后派发的自定义事件，通知同标签页内已挂载的作品视图即时刷新；
+  // 3) 页面重新聚焦/可见时静默兜底刷新（覆盖 Realtime 断线场景）。
+  useEffect(() => {
+    if (!user) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleReload = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => { loadProjects(true); }, 600);
+    };
+    const channel = supabase
+      .channel(`works-page-video-projects-${user.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'video_projects', filter: `user_id=eq.${user.id}` }, scheduleReload)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'video_projects', filter: `user_id=eq.${user.id}` }, scheduleReload)
+      .subscribe();
+    const onVisible = () => { if (document.visibilityState === 'visible') scheduleReload(); };
+    window.addEventListener('focus', onVisible);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('shopro:works-updated', scheduleReload);
+    return () => {
+      if (timer) clearTimeout(timer);
+      supabase.removeChannel(channel);
+      window.removeEventListener('focus', onVisible);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('shopro:works-updated', scheduleReload);
+    };
+  }, [user, loadProjects]);
 
   // ── 素材库加载（切到素材Tab时懒加载）──
   const loadMaterials = useCallback(async () => {
@@ -1017,7 +1046,7 @@ async function seedTestUserVideos(userId: string) {
           </Button>
           {mainTab === 'works' ? (
             <>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={loadProjects} title="刷新">
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => loadProjects()} title="刷新">
                 <RefreshCw className="w-3.5 h-3.5" />
               </Button>
               <Button className="h-9" onClick={() => navigate('/video/create')}>
@@ -1142,7 +1171,7 @@ async function seedTestUserVideos(userId: string) {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filtered.map(p => (
                   <WorkCard key={p.id} project={p} onPreview={setPreviewProject} onDelete={setDeleteId}
-                    onAnalyze={id => navigate(`/data-feedback?projectId=${id}`)} onRetry={handleRetry} onReload={loadProjects}
+                    onAnalyze={id => navigate(`/data-feedback?projectId=${id}`)} onRetry={handleRetry} onReload={() => loadProjects(true)}
                     selectMode={selectMode} isSelected={selectedIds.has(p.id)} onToggleSelect={toggleSelectItem} />
                 ))}
               </div>
