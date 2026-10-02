@@ -1,32 +1,42 @@
 /**
- * MiniMax H3 Max 视频生成模型对接 (Tokendance Gateway)
- * Base URL: https://tokendance.space (Dev Proxy: /tokendance-api)
- * 采用 MiniMax 视频 V2 异步协议：
- *   - 提交任务: POST /gateway/minimax/v2/video_generation  -> { task_id }
- *   - 查询任务: GET  /gateway/minimax/v2/query/video_generation/{task_id} -> { task: { status, content: { url } } }
- * task.status 取值: queued / running / succeeded / failed / cancelled / expired
- * 任务成功后 task.content.url 为视频下载链接 (有效期 24 小时)。
- * 注意: API Key 仅通过 .env (VITE_MINIMAX_API_KEY) 注入，禁止在前端源码硬编码。
+ * MiniMax H3 视频生成模型对接 (OpenAI Next Gateway)
+ * Base URL: https://api.openai-next.com (Dev Proxy: /openai-next-api, Vercel Rewrite 同名)
+ * 采用 OpenAI 兼容视频异步协议（/v1/videos 标准入口，上游为 MiniMax 官方 V2 协议）：
+ *   - 提交任务: POST /v1/videos  -> { id, object: 'video', status: 'submitted' }
+ *   - 轮询结果: GET  /v1/videos/{task_id}/content
+ *       * HTTP 200 + content-type=video/mp4  → 任务完成，响应体为成片二进制
+ *       * HTTP 400 + "task status is NOT_START/IN_PROGRESS, not completed" → 排队/生成中
+ * 由于网关不回传视频直链（GET /v1/videos/{id} 状态接口不可用），完成后的二进制
+ * 需转存至 Supabase Storage(materials 公共桶)，以公开 URL 作为 video_url 落库，
+ * 同时保证作品封面 Canvas 抽帧不受上游 CORS 限制。
+ * 实测规格守卫（避免 400 "resolution must be 768P"）：
+ *   - MiniMax-H3 渠道 resolution 强制 768P（大写 P），duration 6 实测通过
+ *   - 该 key 网关目录中不存在 MiniMax-H3-Max（503 无渠道），仅有 MiniMax-H3
+ * 注意: API Key 仅通过 .env (VITE_OPENAI_NEXT_API_KEY) 注入，禁止在前端源码硬编码。
  */
+import { supabase } from '@/db/supabase';
 
-const DEFAULT_MINIMAX_BASE_URL = 'https://tokendance.space';
+const DEFAULT_OPENAI_NEXT_BASE_URL = 'https://api.openai-next.com';
 
-/** 读取 MiniMax 网关密钥（优先专用变量，回退通用命名） */
+/** OpenAI Next 网关上绑定的 MiniMax 视频渠道模型名（如后续开通 Max 只需改此常量） */
+export const MINIMAX_VIDEO_MODEL = 'MiniMax-H3';
+
+/** 读取 OpenAI Next 网关密钥（优先专用变量，回退历史命名） */
 function getApiKey(): string {
   return (
+    import.meta.env.VITE_OPENAI_NEXT_API_KEY ||
     import.meta.env.VITE_MINIMAX_API_KEY ||
-    import.meta.env.VITE_MINIMAX_GATEWAY_API_KEY ||
     ''
   );
 }
 
-/** 候选基础地址：代理前缀优先，最后回退直连，兼容开发/生产环境 */
+/** 候选基础地址：代理前缀优先，最后回退直连（无 CORS 头时直连会失败，仅兜底） */
 function getCandidateBaseUrls(): string[] {
-  const envUrl = import.meta.env.VITE_MINIMAX_BASE_URL;
+  const envUrl = import.meta.env.VITE_OPENAI_NEXT_BASE_URL;
   const urls: string[] = [];
   if (envUrl) urls.push(envUrl.replace(/\/+$/, ''));
-  urls.push('/tokendance-api');
-  urls.push(DEFAULT_MINIMAX_BASE_URL);
+  urls.push('/openai-next-api');
+  urls.push(DEFAULT_OPENAI_NEXT_BASE_URL);
   return Array.from(new Set(urls));
 }
 
@@ -44,7 +54,7 @@ export interface MiniMaxVideoPayload {
   prompt: string;
   /** 视频时长（秒），文档示例支持 6 / 8 等 */
   duration?: number;
-  /** 分辨率，例如 768P */
+  /** 分辨率（上游强制 768P，保留字段仅为接口兼容） */
   resolution?: string;
   /** 宽高比，纯文生视频必填且不能为 adaptive */
   ratio?: string;
@@ -74,7 +84,7 @@ export interface MiniMaxQueryResult {
   outcome?: { video_url?: string; thumbnail_image_url?: string };
 }
 
-/** MiniMax 支持的关键帧/参考素材清晰度守卫：确保纯文生视频时 ratio 必填 */
+/** 组装 OpenAI V2 多模态 content 数组（首帧/尾帧/参考素材角色与旧协议一致） */
 function buildContent(payload: MiniMaxVideoPayload): {
   content: MiniMaxContentItem[];
   hasVisualRef: boolean;
@@ -123,22 +133,22 @@ function buildContent(payload: MiniMaxVideoPayload): {
 }
 
 /**
- * 提交 MiniMax H3 Max 视频生成任务，带多端点回退。
- * 文生视频场景 ratio 必填且不能为 adaptive；含图片时宽高比由图片决定，无需传 ratio。
+ * 提交 MiniMax H3 视频生成任务（POST /v1/videos）。
+ * 网关无幂等键：提交发生网络异常时绝不自动重发，避免重复建任务计费；
+ * 仅在明确的路由错误（404/405）时切换下一个候选地址。
  */
 export async function submitMiniMaxVideo(
   payload: MiniMaxVideoPayload,
 ): Promise<MiniMaxSubmitResult> {
   const apiKey = getApiKey();
-  if (!apiKey) throw new Error('未配置 MiniMax API Key (VITE_MINIMAX_API_KEY)');
+  if (!apiKey) throw new Error('未配置 OpenAI Next API Key (VITE_OPENAI_NEXT_API_KEY)');
 
   const candidateUrls = getCandidateBaseUrls();
   const { content, hasVisualRef } = buildContent(payload);
 
   const requestBody: Record<string, unknown> = {
-    model: 'minimax-h3-max',
-    // 实测该网关模型仅配置了 768P 规格价格，传入 720P/1080P 会返回 HTTP 400，
-    // 因此统一收敛到受支持的 768P，确保提交稳定生效。
+    model: MINIMAX_VIDEO_MODEL,
+    // 实测上游 MiniMax 渠道强制 resolution=768P（大写 P），传入其它规格返回 400
     resolution: '768P',
     duration: Number(payload.duration) || 6,
     content,
@@ -152,9 +162,11 @@ export async function submitMiniMaxVideo(
 
   let lastError: Error | null = null;
 
-  for (const baseUrl of candidateUrls) {
+  for (let i = 0; i < candidateUrls.length; i++) {
+    const baseUrl = candidateUrls[i];
+    const isLastCandidate = i === candidateUrls.length - 1;
     try {
-      const response = await fetch(`${baseUrl}/gateway/minimax/v2/video_generation`, {
+      const response = await fetch(`${baseUrl}/v1/videos`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -163,119 +175,120 @@ export async function submitMiniMaxVideo(
         body: JSON.stringify(requestBody),
       });
 
-      const isLastCandidate = candidateUrls.indexOf(baseUrl) === candidateUrls.length - 1;
-
       // 405 / 404 表示该代理端点不支持此路径，尝试下一个候选地址
       if ((response.status === 405 || response.status === 404) && !isLastCandidate) {
-        console.warn(`[MiniMax] Base URL ${baseUrl} returned ${response.status}, trying fallback...`);
+        console.warn(`[MiniMax/OpenAI-Next] Base URL ${baseUrl} returned ${response.status}, trying fallback...`);
         continue;
       }
 
       if (!response.ok) {
         const errText = await response.text().catch(() => 'Unknown error');
-        throw new Error(`MiniMax H3 Max API HTTP ${response.status}: ${errText}`);
+        throw new Error(`MiniMax H3 API HTTP ${response.status}: ${errText}`);
       }
 
       const resData = await response.json();
-      const taskId = resData?.task_id || resData?.id || resData?.data?.task_id;
+      const taskId = resData?.id || resData?.task_id || resData?.data?.id;
 
       if (!taskId) {
-        throw new Error(`MiniMax 提交响应无效: ${JSON.stringify(resData)}`);
+        throw new Error(`MiniMax H3 提交响应无效: ${JSON.stringify(resData)}`);
       }
 
       return { task_id: taskId };
     } catch (err) {
       lastError = err as Error;
-      if (candidateUrls.indexOf(baseUrl) === candidateUrls.length - 1) {
-        throw err;
-      }
+      // 提交请求一旦可能已到达上游，网络异常绝不换地址重发（防重复计费），直接抛出
+      if (!(err instanceof TypeError) || isLastCandidate) throw err;
     }
   }
 
-  throw lastError || new Error('MiniMax H3 Max 视频提交失败（所有端点均不可用）。');
-}
-
-/** 将 MiniMax 原始状态映射为内部统一状态 */
-function mapStatus(raw: string): MiniMaxQueryStatus {
-  switch ((raw || '').toLowerCase()) {
-    case 'succeeded':
-    case 'success':
-      return 'success';
-    case 'failed':
-    case 'cancelled':
-    case 'expired':
-      return 'failed';
-    case 'queued':
-      return 'queued';
-    default:
-      return 'processing';
-  }
+  throw lastError || new Error('MiniMax H3 视频提交失败（所有端点均不可用）。');
 }
 
 /**
- * 查询 MiniMax H3 Max 视频生成任务状态，带多端点回退。
- * 成功时返回 video_url 与缩略图（复用首帧），供工作台轮询与存档使用。
+ * 将完成后的成片二进制转存 Supabase Storage（materials 公共桶），返回公开 URL。
+ * 路径按任务 ID 固定 + upsert，轮询期间重复调用是幂等的。
  */
-export async function queryMiniMaxVideo(taskId: string): Promise<MiniMaxQueryResult> {
+async function persistVideoToStorage(taskId: string, blob: Blob, userId?: string | null): Promise<string> {
+  const path = `generated-videos/${userId || 'anonymous'}/${taskId}.mp4`;
+  const { error: upErr } = await supabase.storage
+    .from('materials')
+    .upload(path, blob, { contentType: 'video/mp4', upsert: true });
+  if (upErr) throw new Error(`成片转存失败: ${upErr.message}`);
+  const { data: urlData } = supabase.storage.from('materials').getPublicUrl(path);
+  return urlData.publicUrl;
+}
+
+/**
+ * 轮询 MiniMax H3 任务结果：GET /v1/videos/{task_id}/content
+ *   - 200 且为视频二进制 → 转存 Storage → success + 公开 video_url
+ *   - 400 "not completed" → 按 NOT_START/IN_PROGRESS 映射 queued/processing
+ *   - 其它明确失败态 → failed
+ * GET 请求幂等，网络异常可安全切换候选地址重试。
+ */
+export async function queryMiniMaxVideo(taskId: string, userId?: string | null): Promise<MiniMaxQueryResult> {
   const apiKey = getApiKey();
-  if (!apiKey) throw new Error('未配置 MiniMax API Key (VITE_MINIMAX_API_KEY)');
+  if (!apiKey) throw new Error('未配置 OpenAI Next API Key (VITE_OPENAI_NEXT_API_KEY)');
 
   const candidateUrls = getCandidateBaseUrls();
   let lastError: Error | null = null;
 
-  for (const baseUrl of candidateUrls) {
+  for (let i = 0; i < candidateUrls.length; i++) {
+    const baseUrl = candidateUrls[i];
+    const isLastCandidate = i === candidateUrls.length - 1;
     try {
-      const response = await fetch(
-        `${baseUrl}/gateway/minimax/v2/query/video_generation/${taskId}`,
-        {
-          method: 'GET',
-          headers: { Authorization: `Bearer ${apiKey}` },
-        },
-      );
-
-      const isLastCandidate = candidateUrls.indexOf(baseUrl) === candidateUrls.length - 1;
+      const response = await fetch(`${baseUrl}/v1/videos/${taskId}/content`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
 
       if ((response.status === 405 || response.status === 404) && !isLastCandidate) {
-        console.warn(`[MiniMax] Query Base URL ${baseUrl} returned ${response.status}, trying fallback...`);
+        console.warn(`[MiniMax/OpenAI-Next] Query Base URL ${baseUrl} returned ${response.status}, trying fallback...`);
         continue;
+      }
+
+      if (response.status === 400) {
+        // 未完成（NOT_START / IN_PROGRESS）或其它构建失败：解析 JSON 错误信息区分状态
+        const errText = await response.text().catch(() => '');
+        if (/NOT_START/i.test(errText)) return { status: 'queued', progress: 5 };
+        if (/IN_PROGRESS/i.test(errText)) return { status: 'processing', progress: 10 };
+        if (/expired|cancelled|failed/i.test(errText)) {
+          return { status: 'failed', error: `MiniMax H3 视频生成任务失败: ${errText.slice(0, 160)}` };
+        }
+        return { status: 'processing', progress: 10 };
       }
 
       if (!response.ok) {
         const errText = await response.text().catch(() => 'Unknown error');
-        throw new Error(`MiniMax 查询失败 HTTP ${response.status}: ${errText}`);
+        throw new Error(`MiniMax H3 查询失败 HTTP ${response.status}: ${errText.slice(0, 160)}`);
       }
 
-      const resData = await response.json();
-      const task = resData?.task || resData?.data || resData;
-      const status = mapStatus(task?.status);
-
-      if (status === 'success') {
-        const videoUrl = task?.content?.url || task?.video_url || task?.result_url;
-        return {
-          status: 'success',
-          video_url: videoUrl,
-          outcome: {
-            video_url: videoUrl,
-            thumbnail_image_url: videoUrl ? `${videoUrl}?vframe/jpg/offset/1` : undefined,
-          },
-        };
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.startsWith('video/')) {
+        // 网关偶发返回 JSON 包装：尝试解析任务态
+        const text = await response.text();
+        try {
+          const j = JSON.parse(text);
+          const s = String(j?.status || '').toLowerCase();
+          if (s === 'failed' || s === 'cancelled' || s === 'expired') {
+            return { status: 'failed', error: j?.error?.message || 'MiniMax H3 视频生成任务失败' };
+          }
+        } catch { /* 非 JSON 内容按生成中处理 */ }
+        return { status: 'processing', progress: 10 };
       }
 
-      if (status === 'failed') {
-        return {
-          status: 'failed',
-          error: task?.fail_reason || task?.error_message || 'MiniMax 视频生成任务失败',
-        };
-      }
-
-      return { status, progress: status === 'queued' ? 5 : 10 };
+      const buffer = await response.arrayBuffer();
+      const blob = new Blob([buffer], { type: 'video/mp4' });
+      const publicUrl = await persistVideoToStorage(taskId, blob, userId);
+      return {
+        status: 'success',
+        video_url: publicUrl,
+        outcome: { video_url: publicUrl },
+      };
     } catch (err) {
       lastError = err as Error;
-      if (candidateUrls.indexOf(baseUrl) === candidateUrls.length - 1) {
-        throw err;
-      }
+      if (isLastCandidate) throw err;
     }
   }
 
-  throw lastError || new Error('MiniMax H3 Max 视频查询失败（所有端点均不可用）。');
+  throw lastError || new Error('MiniMax H3 视频查询失败（所有端点均不可用）。');
 }
