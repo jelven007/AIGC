@@ -82,7 +82,7 @@ const QUICK_TOOLS = [
 // 模型与对应后端标识
 type ModelId = 'Kling' | 'MiniMax' | 'Wan3' | 'SeedanceMini' | 'HappyHorse';
 const MODELS: { label: string; id: ModelId; vendor: string; iconSymbol: string; active?: boolean }[] = [
-  { label: 'MiniMax H3 Max', id: 'MiniMax', vendor: 'MiniMax', iconSymbol: '🚀', active: true },
+  { label: 'MiniMax H3', id: 'MiniMax', vendor: 'OpenAI Next', iconSymbol: '🚀', active: true },
   { label: 'Seedance 2.0', id: 'SeedanceMini', vendor: 'ByteDance Ark', iconSymbol: '⚡', active: true },
   { label: 'Wan3.0 Prime', id: 'Wan3', vendor: 'Qwen · Alibaba', iconSymbol: '🌀', active: true },
   { label: 'HappyHorse 1.1', id: 'HappyHorse', vendor: 'Alibaba', iconSymbol: '🐎', active: true },
@@ -193,7 +193,7 @@ const INSPIRE_VIDEOS = [
 ];
 
 const FILTER_CONFIG = [
-  { key: 'model', label: '模型', options: ['全部', 'Seedance 2.0', 'MiniMax H3 Max', 'Wan3.0 Prime', 'HappyHorse 1.1', 'Kling-V3'] },
+  { key: 'model', label: '模型', options: ['全部', 'Seedance 2.0', 'MiniMax H3', 'Wan3.0 Prime', 'HappyHorse 1.1', 'Kling-V3'] },
   { key: 'ratio', label: '比例', options: ['全部', '9:16', '16:9', '1:1', '3:4'] },
   { key: 'refImage', label: '参考图', options: ['全部', '有参考图', '无参考图'] },
   { key: 'firstLast', label: '首尾帧', options: ['全部', '有首尾帧', '无首尾帧'] },
@@ -553,8 +553,8 @@ export default function HomePage() {
     }
     return true;
   });
-  // 默认模型：列表首位 MiniMax H3 Max（第二位为 Seedance 2.0）
-  const [model, setModel] = useState<{ label: string; id: string }>({ label: 'MiniMax H3 Max', id: 'MiniMax' });
+  // 默认模型：列表首位 MiniMax H3（第二位为 Seedance 2.0）
+  const [model, setModel] = useState<{ label: string; id: string }>({ label: 'MiniMax H3', id: 'MiniMax' });
   const [resolution, setResolution] = useState('720P · 16:9 · 5s');
   const [modelOpen, setModelOpen] = useState(false);
   // 自定义模型（兼容 OpenAI API 端点）列表与配置弹窗状态
@@ -1103,7 +1103,7 @@ export default function HomePage() {
     }, 5000);
   }, [stopPoll, archiveCompletedVideo, resolveGeneratedVideoUrl]);
 
-  // 轮询 MiniMax H3 Max 任务（异步 V2 协议，成功后 task.content.url 为 24h 有效视频链接）
+  // 轮询 MiniMax H3 任务（OpenAI Next /v1/videos 异步协议，完成后转存 Storage 得到永久公开链接）
   const pollMiniMax = useCallback((taskId: string, dbProjectId?: string | null) => {
     let attempts = 0;
     pollRef.current = setInterval(async () => {
@@ -1118,14 +1118,14 @@ export default function HomePage() {
         return;
       }
       try {
-        const data = await queryMiniMaxVideo(taskId);
+        const data = await queryMiniMaxVideo(taskId, genCtxRef.current.userId);
         const status = data?.status;
         if (status === 'success') {
           stopPoll(); setGenerating(false); setGenProgress(100);
           const rawVideoUrl = data?.outcome?.video_url || data?.video_url || '/Video/CreatOK_2.mp4';
           const videoUrl = resolveGeneratedVideoUrl(rawVideoUrl);
           setResultVideo(videoUrl);
-          toast.success(genCtxRef.current.avatarName ? `已为您成功生成数字人「${genCtxRef.current.avatarName}」带货视频！` : 'MiniMax H3 Max 视频生成完成！');
+          toast.success(genCtxRef.current.avatarName ? `已为您成功生成数字人「${genCtxRef.current.avatarName}」带货视频！` : 'MiniMax H3 视频生成完成！');
           await archiveCompletedVideo(videoUrl, dbProjectId);
         } else if (status === 'failed') {
           stopPoll(); setGenerating(false); toast.error(`视频生成失败: ${data?.error || '模型生成出错'}`);
@@ -1443,7 +1443,7 @@ export default function HomePage() {
         setTaskId(reqId);
         pollSeedance(reqId, dbProjectId);
       } else if (model.id === 'MiniMax') {
-        // MiniMax H3 Max：真实对接 Tokendance 网关视频 V2 异步协议（提交 + 轮询）
+        // MiniMax H3：真实对接 OpenAI Next 网关 /v1/videos 异步协议（提交 + content 轮询 + 成片转存）
         dbProjectId = null;
         if (user) {
           try {
@@ -1454,7 +1454,7 @@ export default function HomePage() {
               video_style: model.label,
               duration: Number(activeDuration) || 8,
               aspect_ratio: activeRatio,
-              // MiniMax H3 Max 网关仅支持 768P 规格，存档如实记录实际生成分辨率
+              // MiniMax H3 (OpenAI Next) 上游强制 768P 规格，存档如实记录实际生成分辨率
               resolution: '768P',
               prompt_text: prompt,
               progress: 5,
@@ -1489,7 +1489,7 @@ export default function HomePage() {
           throw new Error('未获取到 MiniMax 任务ID');
         }
         setTaskId(taskId);
-        toast.info('MiniMax H3 Max 任务已提交，正在排队生成中...');
+        toast.info('MiniMax H3 任务已提交，正在排队生成中...');
         pollMiniMax(taskId, dbProjectId);
       } else if (model.id === 'Wan3') {
         // Qwen Wan3.0 Prime：真实对接 Tokendance 网关 /alibaba/wan3 异步协议（提交 + 轮询）

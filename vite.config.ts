@@ -81,6 +81,18 @@ export default defineConfig({
           });
         },
       },
+      '/openai-next-api': {
+        target: 'https://api.openai-next.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/openai-next-api/, ''),
+        secure: false,
+        configure: (proxy, _options) => {
+          proxy.on('proxyReq', (proxyReq) => {
+            proxyReq.removeHeader('origin');
+            proxyReq.removeHeader('referer');
+          });
+        },
+      },
     },
   },
 });
