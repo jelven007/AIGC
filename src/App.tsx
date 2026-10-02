@@ -27,6 +27,7 @@ const ProductSelectionPage = lazy(() => import("@/pages/ProductSelectionPage"));
 const AvatarsPage     = lazy(() => import("@/pages/AvatarsPage"));
 const TemplatesPage   = lazy(() => import("@/pages/TemplatesPage"));
 const CreditsPage     = lazy(() => import("@/pages/CreditsPage"));
+const AlipayReturnPage  = lazy(() => import("@/pages/AlipayReturnPage"));
 const ScriptPage      = lazy(() => import("@/pages/ScriptPage"));
 const StyleCopyPage   = lazy(() => import("@/pages/StyleCopyPage"));
 const KnowledgePage   = lazy(() => import("@/pages/KnowledgePage"));
@@ -233,6 +234,7 @@ function AppRoutes() {
                   <Route path="/avatars" element={<AvatarsPage />} />
                   <Route path="/templates" element={<TemplatesPage />} />
                   <Route path="/credits" element={<CreditsPage />} />
+                  <Route path="/alipay-return" element={<AlipayReturnPage />} />
                   <Route path="/script" element={<ScriptPage />} />
                   <Route path="/style-copy" element={<StyleCopyPage />} />
                   <Route path="/knowledge" element={<KnowledgePage />} />
