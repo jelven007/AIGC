@@ -85,10 +85,17 @@ function WorkCard({
   const [updatingCover, setUpdatingCover] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleVal, setTitleVal] = useState(project.title);
+  // 封面图加载失败标记：失败时不再回退任何占位网图，改由 <video> 原生渲染真实第一帧（要求1）
+  const [coverFailed, setCoverFailed] = useState(false);
 
   useEffect(() => {
     setTitleVal(project.title);
   }, [project.title]);
+
+  // 封面地址变化（上传新封面/首帧提取回写/重试）后重置失败标记，重新尝试加载真实封面
+  useEffect(() => {
+    setCoverFailed(false);
+  }, [project.thumbnail_url]);
 
   const handleSaveTitle = async () => {
     setIsEditingTitle(false);
@@ -188,7 +195,7 @@ function WorkCard({
           }
         }}
       >
-        {getValidWorkThumbnail(project) ? (
+        {!coverFailed && getValidWorkThumbnail(project) ? (
           <img
             src={getValidWorkThumbnail(project) ?? undefined}
             alt={project.title}
@@ -201,8 +208,9 @@ function WorkCard({
               else if (ratio < 1.2) setAspect('aspect-square');
               else setAspect('aspect-video');
             }}
-            onError={(e) => {
-              (e.currentTarget as HTMLImageElement).src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500&auto=format&fit=crop&q=80';
+            onError={() => {
+              // 封面图加载失败：严禁回退 unsplash/person 占位图，标记失败并降级到下方 <video> 原生第一帧
+              setCoverFailed(true);
             }}
           />
         ) : project.video_url ? (
