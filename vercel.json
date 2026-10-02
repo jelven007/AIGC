@@ -13,6 +13,10 @@
       "destination": "https://tokendance.space/$1"
     },
     {
+      "source": "/openai-next-api/(.*)",
+      "destination": "https://api.openai-next.com/$1"
+    },
+    {
       "source": "/dxkp-api/(.*)",
       "destination": "/api/dxkp"
     },
