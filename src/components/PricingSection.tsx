@@ -178,10 +178,8 @@ const PricingSection: React.FC = () => {
                       : "button-secondary"
                   )}
                   onClick={() => {
-                    document.getElementById('contact')?.scrollIntoView({ 
-                      behavior: 'smooth',
-                      block: 'start'
-                    });
+                    // 进入真实套餐页发起支付宝下单（未登录用户会被路由守卫引导至登录）
+                    window.location.assign("/credits?tab=plans");
                   }}
                 >
                   {plan.buttonText}

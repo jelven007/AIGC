@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import PaymentDialog from '@/components/common/PaymentDialog';
+import { createAlipayOrder, renderAndSubmitAlipayForm } from '@/api/alipay';
 import QRCodeDataUrl from '@/components/ui/qrcodedataurl';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -291,18 +292,33 @@ export default function CreditsPage() {
 
   const [payModalOpen, setPayModalOpen] = useState(false);
   const [selectedPayPkg, setSelectedPayPkg] = useState({ name: '专业版', price: '299', credits: '1000' });
+  const [alipaySubmitting, setAlipaySubmitting] = useState(false);
 
-  const handleSelectPlan = (plan: Plan | any) => {
+  // 支付宝 AI 付下单：服务端签名生成表单后整页跳转；失败时回退手动扫码支付弹窗
+  const handleSelectPlan = async (plan: Plan | any) => {
     if (plan.price === 0) {
       toast.info('您当前已在享有体验权益');
       return;
     }
+    if (alipaySubmitting) return;
     setSelectedPayPkg({
       name: plan.name,
       price: String(plan.price),
       credits: String(plan.credits || '500'),
     });
-    setPayModalOpen(true);
+    setAlipaySubmitting(true);
+    const toastId = toast.loading(`正在创建支付宝订单（${plan.name}）…`);
+    try {
+      const order = await createAlipayOrder(plan.id);
+      toast.success(`订单 ${order.order_no} 已创建，正在跳转支付宝支付 ¥${order.amount}…`, { id: toastId });
+      // 表单提交为整页跳转，支付完成后由 returnUrl 回跳 /alipay-return 查询最终结果
+      renderAndSubmitAlipayForm(order.payment_html);
+    } catch (e) {
+      toast.error(`支付宝下单失败：${e instanceof Error ? e.message : '未知错误'}，已切换为手动扫码支付`, { id: toastId });
+      setPayModalOpen(true);
+    } finally {
+      setAlipaySubmitting(false);
+    }
   };
 
   // 积分使用率
