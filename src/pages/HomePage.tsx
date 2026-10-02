@@ -16,6 +16,7 @@ import ProductVideoWizard from './VideoCreatePage';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { sendDeepSeekStreamRequest, sendStepAudioASR, submitSeedanceVideo, querySeedanceVideo, sendStepFlashStreamRequest } from '@/lib/sse';
 import { extractVideoFirstFrame, getVideoCoverImage } from '@/lib/videoFrame';
+import { makeWorkTitle } from '@/lib/utils';
 import CustomModelDialog from '@/components/common/CustomModelDialog';
 import { loadCustomModels, findCustomModel, invokeCustomChatModel, extractImageUrl, extractVideoUrl } from '@/lib/customModel';
 import type { CustomModelConfig, CustomModelKind } from '@/lib/customModel';
@@ -779,8 +780,9 @@ export default function HomePage() {
   }, [loadGeneratedVideos]);
 
   // ── 成片自动存档到作品素材库 ──────────────────────────────────────────────
-  // 轮询回调是稳定引用（deps 不包含表单状态），必须通过 ref 读取最新的用户与生成参数，
-  // 否则闭包过期会让 selectedAvatar / firstFrame 永远停在初始值，导致视频与封面丢失。
+  // 轮询回调是稳定引用（deps 不包含表单状态），必须通过 ref 读取用户与生成参数。
+  // 快照在提交生成任务的瞬间由 handleGenerate 写入：落库的标题/提示词/封面一律以
+  // “提交时”的表单内容为准，而非等待期间可能被改动后的最新表单值，保证作品信息与成片一致。
   const genCtxRef = useRef({
     userId: null as string | null,
     prompt: '',
@@ -792,17 +794,6 @@ export default function HomePage() {
     avatarImage: undefined as string | undefined,
     firstFrame: null as string | null,
   });
-  genCtxRef.current = {
-    userId: user?.id ?? null,
-    prompt,
-    modelLabel: model.label,
-    duration: Number(activeDuration) || 5,
-    ratio: activeRatio,
-    resolution: activeResolution,
-    avatarName: selectedAvatar?.name,
-    avatarImage: selectedAvatar?.preview_image,
-    firstFrame,
-  };
 
   /**
    * 生成成功后的统一落库：
@@ -812,24 +803,29 @@ export default function HomePage() {
   const archiveCompletedVideo = useCallback(async (videoUrl: string, dbProjectId?: string | null) => {
     const ctx = genCtxRef.current;
     if (!ctx.userId || !videoUrl) return;
-    // 封面严格取成片真实第一帧（Canvas 提取优先，见 lib/videoFrame）
-    const coverFrame = await getVideoCoverImage(videoUrl, ctx.avatarImage, ctx.firstFrame || undefined);
+    // 封面严格取成片真实第一帧（Canvas 提取优先，见 lib/videoFrame）；提取失败返回空串，不写占位图
+    const coverFrame = await getVideoCoverImage(videoUrl, ctx.firstFrame || undefined);
+    // 标题/提示词以提交任务瞬间的快照为准：优先展示用户输入提示词，空提示词兜底“未命名作品”
+    const workTitle = makeWorkTitle(ctx.prompt);
     try {
       if (dbProjectId) {
         const { error } = await supabase.from('video_projects').update({
           status: 'completed',
           progress: 100,
           video_url: videoUrl,
-          thumbnail_url: coverFrame,
+          title: workTitle,
+          prompt_text: ctx.prompt,
+          // 仅在成功提取到真实首帧时回写封面；空值保留待作品管理页异步抽帧重试
+          ...(coverFrame ? { thumbnail_url: coverFrame } : {}),
         }).eq('id', dbProjectId);
         if (error) console.error('更新作品存档失败:', error);
       } else {
         const { error } = await supabase.from('video_projects').insert({
           user_id: ctx.userId,
-          title: ctx.prompt.trim().slice(0, 60) || `${ctx.modelLabel} 视频`,
+          title: workTitle,
           prompt_text: ctx.prompt,
           video_url: videoUrl,
-          thumbnail_url: coverFrame,
+          thumbnail_url: coverFrame || null,
           status: 'completed',
           progress: 100,
           video_style: ctx.modelLabel,
@@ -843,6 +839,8 @@ export default function HomePage() {
       console.error('成片存档异常:', err);
     }
     loadGeneratedVideos();
+    // 通知同域已挂载的作品管理视图即时同步（免手动刷新/切换页面）
+    window.dispatchEvent(new CustomEvent('shopro:works-updated'));
   }, [loadGeneratedVideos]);
 
   // 选定数字人时优先使用与其形象匹配的素材，未选数字人时用模型真实成片
@@ -1346,6 +1344,20 @@ export default function HomePage() {
       toast.info(`⚡ 已扣除 ${VIDEO_GENERATE_COST} 积分，AI 视频生成任务已成功启动！`);
     }
 
+    // 提交瞬间对表单上下文做快照：后续轮询成功后的落库（标题/提示词/封面/参数）一律以快照为准，
+    // 避免生成等待期间用户改动输入框导致作品信息与成片不一致
+    genCtxRef.current = {
+      userId: user?.id ?? null,
+      prompt,
+      modelLabel: model.label,
+      duration: Number(activeDuration) || 5,
+      ratio: activeRatio,
+      resolution: activeResolution,
+      avatarName: selectedAvatar?.name,
+      avatarImage: selectedAvatar?.preview_image,
+      firstFrame,
+    };
+
     setGenerating(true); setResultVideo(null); setGenProgress(5); stopPoll();
 
     // 「扩展 (自动优化提示词)」开关生效：提交给模型的提示词统一做镜头与质感扩展，保证与设置面板一致
@@ -1380,7 +1392,7 @@ export default function HomePage() {
           try {
             const { data: projData, error: projErr } = await supabase.from('video_projects').insert({
               user_id: user.id,
-              title: prompt.trim() || `${model.label} 视频`,
+              title: makeWorkTitle(prompt),
               status: 'processing',
               video_style: model.label,
               duration: Number(activeDuration) || 8,
@@ -1437,7 +1449,7 @@ export default function HomePage() {
           try {
             const { data: projData, error: projErr } = await supabase.from('video_projects').insert({
               user_id: user.id,
-              title: prompt.trim() || `${model.label} 视频`,
+              title: makeWorkTitle(prompt),
               status: 'processing',
               video_style: model.label,
               duration: Number(activeDuration) || 8,
@@ -1486,7 +1498,7 @@ export default function HomePage() {
           try {
             const { data: projData, error: projErr } = await supabase.from('video_projects').insert({
               user_id: user.id,
-              title: prompt.trim() || `${model.label} 视频`,
+              title: makeWorkTitle(prompt),
               status: 'processing',
               video_style: model.label,
               duration: Number(activeDuration) || 8,
@@ -1533,7 +1545,7 @@ export default function HomePage() {
           try {
             const { data: projData, error: projErr } = await supabase.from('video_projects').insert({
               user_id: user.id,
-              title: prompt.trim() || `${model.label} 视频`,
+              title: makeWorkTitle(prompt),
               status: 'processing',
               video_style: model.label,
               duration: Number(activeDuration) || 5,
@@ -1583,7 +1595,7 @@ export default function HomePage() {
           try {
             const { data: projData, error: projErr } = await supabase.from('video_projects').insert({
               user_id: user.id,
-              title: prompt.trim() || `${model.label} 视频`,
+              title: makeWorkTitle(prompt),
               status: 'processing',
               video_style: model.label,
               duration: Number(activeDuration) || 5,
@@ -1630,7 +1642,7 @@ export default function HomePage() {
           try {
             const { data: projData, error: projErr } = await supabase.from('video_projects').insert({
               user_id: user.id,
-              title: prompt.trim() || `${model.label} 视频`,
+              title: makeWorkTitle(prompt),
               status: 'processing',
               video_style: model.label,
               duration: Number(activeDuration) || 8,

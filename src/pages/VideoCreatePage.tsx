@@ -1592,7 +1592,8 @@ function Step5Generate({ productData, promptConfig, shots, materials, onPrev, on
             status: 'completed',
             progress: 100,
             video_url: resultVideoUrl,
-            thumbnail_url: coverFrame
+            // 提取失败时保留空封面（由作品页异步抽帧重试），绝不写入空串或占位图
+            thumbnail_url: coverFrame || null
           })
           .eq('id', projectId).select().maybeSingle();
         setProgress(100);

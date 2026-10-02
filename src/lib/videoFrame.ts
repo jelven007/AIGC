@@ -77,7 +77,7 @@ export const VIDEO_COVER_MAP: Record<string, string> = {
   '/Video/CreatOK_11.mp4': '/Video/covers/CreatOK_11.webp',
 };
 
-export async function getVideoCoverImage(videoUrl: string, avatarImage?: string, firstFrame?: string): Promise<string> {
+export async function getVideoCoverImage(videoUrl: string, firstFrame?: string): Promise<string> {
   // 1. 首选：直接从成片 Canvas 抽取真实第一帧（保证封面就是视频本身画面）
   const extracted = await extractVideoFirstFrame(videoUrl);
   if (extracted && extracted.startsWith('data:image')) {
@@ -92,6 +92,7 @@ export async function getVideoCoverImage(videoUrl: string, avatarImage?: string,
     return VIDEO_COVER_MAP[videoUrl];
   }
 
-  // 4. 数字人头像兜底（头像即视频主体形象），并确保永远是合法 image 绝非 .mp4 视频文件
-  return avatarImage || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500&auto=format&fit=crop&q=80';
+  // 4. 提取失败时绝不使用头像/默认图/unsplash 占位图兜底（封面必须是视频真实第一帧），
+  //    返回空串由调用方保留空封面，待列表页异步首帧提取重试
+  return '';
 }
