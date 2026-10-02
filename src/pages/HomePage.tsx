@@ -535,6 +535,7 @@ export default function HomePage() {
   const [urlParseOpen, setUrlParseOpen] = useState(false);
   const [modalViewTab, setModalViewTab] = useState<'products' | 'videos'>('products');
   const [categoryVideos, setCategoryVideos] = useState<CategoryVideoItem[]>(INITIAL_CATEGORY_VIDEOS);
+  const [inspireVideos, setInspireVideos] = useState(INSPIRE_VIDEOS);
 
   // 解析并导入商品成功后的联合分发：同步注入商品列表与视频列表
   const handleImportProductSuccess = (newProd: Product) => {
