@@ -12,8 +12,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { deductUserCredits } from '@/hooks/useCredits';
 import { ensureCreditsForGeneration, openCreditsDialog, VIDEO_GENERATE_COST } from '@/lib/creditGuard';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import ProductVideoWizard from './VideoCreatePage';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { UrlProductImportDialog } from '@/components/UrlProductImportDialog';
 import { sendDeepSeekStreamRequest, sendStepAudioASR, submitSeedanceVideo, querySeedanceVideo, sendStepFlashStreamRequest } from '@/lib/sse';
 import { extractVideoFirstFrame, getVideoCoverImage } from '@/lib/videoFrame';
 import { makeWorkTitle } from '@/lib/utils';
@@ -203,6 +206,120 @@ const FILTER_CONFIG = [
 
 const MAIN_TABS = ['视频生成', '分镜编辑', '图片生成'];
 const INPUT_TABS = ['参考', '商品', '数字人', '首尾帧'];
+
+export interface CategoryVideoItem {
+  id: string;
+  name: string;
+  category: string;
+  url: string;
+  cover: string;
+  prompt: string;
+  model: string;
+  ratio: string;
+  duration?: string;
+}
+
+const INITIAL_CATEGORY_VIDEOS: CategoryVideoItem[] = [
+  {
+    id: 'vid-001',
+    name: '极简美学 冰感丝滑防晒外套',
+    category: '服装配饰',
+    url: '/Video/CreatOK_2.mp4',
+    cover: '/Video/covers/CreatOK_2.webp',
+    prompt: '【服装配饰·爆款带货】时尚秋季女款高质感冰感防晒外套，微风吹拂，高级面料垂坠感，光影自然流转，特写展示微孔透气原纱细节，高能引导下单。',
+    model: 'Seedance 2.0',
+    ratio: '9:16',
+    duration: '5s',
+  },
+  {
+    id: 'vid-002',
+    name: '光采焕亮 玻色因紧致精华眼霜',
+    category: '美妆护肤',
+    url: '/Video/CreatOK_4.mp4',
+    cover: '/Video/covers/CreatOK_4.webp',
+    prompt: '【美妆护肤·爆款带货】玻色因眼部精华护理，特写展示冰感金属按摩头紧致眼周轮廓，微距高光细腻质地渗透吸收，自然柔光，促成购买。',
+    model: 'MiniMax H3',
+    ratio: '16:9',
+    duration: '5s',
+  },
+  {
+    id: 'vid-003',
+    name: '空间声学 空间音频主动降噪耳机 Pro',
+    category: '数码电器',
+    url: '/Video/CreatOK_5.mp4',
+    cover: '/Video/covers/CreatOK_5.webp',
+    prompt: '【数码电器·爆款带货】深空灰智能降噪无线耳机，360度悬浮环绕运镜，碳纤维与金属质感高光反射，慢动作展示入耳贴合与震撼声学场。',
+    model: 'Kling-V3',
+    ratio: '1:1',
+    duration: '5s',
+  },
+  {
+    id: 'vid-004',
+    name: '高山原叶 手作冷萃白桃乌龙茶包',
+    category: '食品饮料',
+    url: '/Video/CreatOK_6.mp4',
+    cover: '/Video/covers/CreatOK_6.webp',
+    prompt: '【食品饮料·爆款带货】诱人冷萃白桃乌龙茶道特写，晶莹冰块碰击高脚杯，新鲜白桃果肉与茶汤交融，慢动作飞溅，清爽诱人食欲。',
+    model: 'Seedance 2.0',
+    ratio: '9:16',
+    duration: '5s',
+  },
+  {
+    id: 'vid-005',
+    name: '自然沉香 悬浮感天然慢回弹枕',
+    category: '家居用品',
+    url: '/Video/CreatOK_7.mp4',
+    cover: '/Video/covers/CreatOK_7.webp',
+    prompt: '【家居用品·爆款带货】北欧风极简温馨卧室，晨曦自然光线漫射，慢回弹记忆棉无重力托举颈椎弧度演示，亲肤天丝纹理特写。',
+    model: 'Seedance 2.0',
+    ratio: '16:9',
+    duration: '5s',
+  },
+  {
+    id: 'vid-006',
+    name: '潮流老爹鞋 减震缓震运动女鞋',
+    category: '服装配饰',
+    url: '/Video/CreatOK_8.mp4',
+    cover: '/Video/covers/CreatOK_8.webp',
+    prompt: '【服装配饰·爆款带货】运动女鞋减震气垫极限回弹测试，慢镜头水花飞溅，时尚穿搭立体展示。',
+    model: 'Seedance 2.0',
+    ratio: '9:16',
+    duration: '5s',
+  },
+  {
+    id: 'vid-007',
+    name: '奢金持色 丝绒哑光唇膏口红',
+    category: '美妆护肤',
+    url: '/Video/CreatOK_9.mp4',
+    cover: '/Video/covers/CreatOK_9.webp',
+    prompt: '【美妆护肤·爆款带货】法式高级丝绒哑光唇膏膏体特写，柔滑上色微距渲染，奢金外壳磁吸开合高光。',
+    model: 'Kling-V3',
+    ratio: '9:16',
+    duration: '5s',
+  },
+  {
+    id: 'vid-008',
+    name: '防水运动 钛金防水蓝牙运动耳机',
+    category: '数码电器',
+    url: '/Video/CreatOK_10.mp4',
+    cover: '/Video/covers/CreatOK_10.webp',
+    prompt: '【数码电器·爆款带货】无线运动耳机入水防汗冲击特写，深蓝光感氛围，水滴悬浮超高速摄影。',
+    model: 'Kling-V3',
+    ratio: '3:4',
+    duration: '5s',
+  },
+  {
+    id: 'vid-009',
+    name: '匠心现磨 意式浓缩特调咖啡豆',
+    category: '食品饮料',
+    url: '/Video/CreatOK_11.mp4',
+    cover: '/Video/covers/CreatOK_11.webp',
+    prompt: '【食品饮料·爆款带货】浓郁意式金黄咖啡油脂萃取，心形拉花丝滑成型，温暖晨光弥漫咖啡香气。',
+    model: 'Seedance 2.0',
+    ratio: '9:16',
+    duration: '5s',
+  }
+];
 
 // 预设高品质演示备选商品列表
 const MOCK_SELECTOR_PRODUCTS: Product[] = [
@@ -415,6 +532,76 @@ export default function HomePage() {
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [productSearch, setProductSearch] = useState('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('全部');
+  const [urlParseOpen, setUrlParseOpen] = useState(false);
+  const [modalViewTab, setModalViewTab] = useState<'products' | 'videos'>('products');
+  const [categoryVideos, setCategoryVideos] = useState<CategoryVideoItem[]>(INITIAL_CATEGORY_VIDEOS);
+
+  // 解析并导入商品成功后的联合分发：同步注入商品列表与视频列表
+  const handleImportProductSuccess = (newProd: Product) => {
+    // 1. 存入商品列表顶部
+    setProductsList(prev => [newProd, ...prev.filter(p => p.id !== newProd.id)]);
+
+    // 2. 生成对应带货视频卡片数据并存入视频列表顶部
+    const matchedVideoUrl =
+      newProd.category === '服装配饰' ? '/Video/CreatOK_2.mp4' :
+      newProd.category === '美妆护肤' ? '/Video/CreatOK_4.mp4' :
+      newProd.category === '数码电器' ? '/Video/CreatOK_5.mp4' :
+      newProd.category === '食品饮料' ? '/Video/CreatOK_6.mp4' :
+      newProd.category === '家居用品' ? '/Video/CreatOK_7.mp4' :
+      '/Video/CreatOK_2.mp4';
+
+    const matchedCover =
+      newProd.category === '服装配饰' ? '/Video/covers/CreatOK_2.webp' :
+      newProd.category === '美妆护肤' ? '/Video/covers/CreatOK_4.webp' :
+      newProd.category === '数码电器' ? '/Video/covers/CreatOK_5.webp' :
+      newProd.category === '食品饮料' ? '/Video/covers/CreatOK_6.webp' :
+      newProd.category === '家居用品' ? '/Video/covers/CreatOK_7.webp' :
+      '/Video/covers/CreatOK_2.webp';
+
+    const newVideoItem: CategoryVideoItem = {
+      id: 'vid-new-' + Date.now(),
+      name: newProd.name,
+      category: newProd.category || '服装配饰',
+      url: matchedVideoUrl,
+      cover: newProd.cover_image || matchedCover,
+      prompt: `【${newProd.category || '爆款商品'}】${newProd.name}，${newProd.selling_points?.[0] || newProd.description?.slice(0, 35) || '全网热销爆品'}，高清特写展示商品质感与核心卖点，镜头自然流转转场，高能引导下单。`,
+      model: 'MiniMax H3',
+      ratio: '9:16',
+      duration: '5s',
+    };
+
+    setCategoryVideos(prev => [newVideoItem, ...prev]);
+
+    // 3. 映射并注入主页灵感广场视频列表
+    const inspireCat =
+      newProd.category === '服装配饰' ? '服装' :
+      newProd.category === '美妆护肤' ? '美妆' :
+      newProd.category === '数码电器' ? '数码' :
+      newProd.category === '食品饮料' ? '食品' :
+      newProd.category === '家居用品' ? '家居' : '服装';
+
+    const newInspireItem = {
+      url: matchedVideoUrl,
+      cover: newProd.cover_image || matchedCover,
+      prompt: newVideoItem.prompt,
+      model: 'MiniMax H3',
+      ratio: '9:16',
+      refImage: '有参考图',
+      firstLast: '无首尾帧',
+      category: inspireCat,
+      language: '中文'
+    };
+    setInspireVideos(prev => [newInspireItem, ...prev]);
+
+    // 4. 自动激活该商品对应的分类
+    if (['服装配饰', '美妆护肤', '数码电器', '食品饮料', '家居用品'].includes(newProd.category)) {
+      setSelectedCategoryFilter(newProd.category);
+    }
+
+    toast.success(`🎉 商品 “${newProd.name.slice(0, 10)}...” 及视频已成功同步加载到商品列表与视频列表！`, {
+      duration: 4500,
+    });
+  };
 
   const loadProductsForSelector = useCallback(async () => {
     setLoadingProducts(true);
@@ -553,6 +740,18 @@ export default function HomePage() {
     }
     return true;
   });
+
+  const filteredCategoryVideos = categoryVideos.filter(vid => {
+    if (selectedCategoryFilter !== '全部' && vid.category !== selectedCategoryFilter) return false;
+    if (productSearch.trim()) {
+      const q = productSearch.toLowerCase();
+      const matchName = (vid.name || '').toLowerCase().includes(q);
+      const matchPrompt = (vid.prompt || '').toLowerCase().includes(q);
+      const matchCategory = (vid.category || '').toLowerCase().includes(q);
+      return matchName || matchPrompt || matchCategory;
+    }
+    return true;
+  });
   // 默认模型：列表首位 MiniMax H3（第二位为 Seedance 2.0）
   const [model, setModel] = useState<{ label: string; id: string }>({ label: 'MiniMax H3', id: 'MiniMax' });
   const [resolution, setResolution] = useState('720P · 16:9 · 5s');
@@ -573,7 +772,7 @@ export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
 
-  const filteredInspireVideos = INSPIRE_VIDEOS.filter(video => {
+  const filteredInspireVideos = inspireVideos.filter(video => {
     if (filterModel !== '全部' && video.model !== filterModel) return false;
     if (filterRatio !== '全部' && video.ratio !== filterRatio) return false;
     if (filterRefImage !== '全部' && video.refImage !== filterRefImage) return false;
@@ -3206,12 +3405,12 @@ export default function HomePage() {
                 <div>
                   <DialogTitle className="text-lg font-bold text-white flex items-center gap-2">
                     选择商品管理中的商品
-                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-violet-500/20 text-violet-300 font-medium border border-violet-500/30">
-                      {filteredSelectorProducts.length} 款可选用
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-violet-500/20 text-violet-300 font-medium border border-violet-500/30 font-mono">
+                      {modalViewTab === 'products' ? `${filteredSelectorProducts.length} 款商品` : `${filteredCategoryVideos.length} 条视频`}
                     </span>
                   </DialogTitle>
                   <p className="text-xs text-zinc-400 mt-0.5">
-                    选择商品后将自动提取标题、活动价格、核心卖点与详细描述，一键转换填充为带货脚本提示词
+                    选择商品或营销视频后将自动提取标题、活动价格、核心卖点与详细描述，一键转换填充为带货脚本提示词
                   </p>
                 </div>
               </div>
@@ -3219,8 +3418,8 @@ export default function HomePage() {
 
             {/* 搜索与分类筛选栏 */}
             <div className="p-4 border-b border-white/10 bg-white/[0.02] space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="relative flex-1">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <div className="relative flex-1 min-w-[200px]">
                   <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
@@ -3239,6 +3438,19 @@ export default function HomePage() {
                     </button>
                   )}
                 </div>
+
+                {/* 一键URL解析商品导入按钮 (样式与商品管理页面完全一致) */}
+                <Button
+                  onClick={() => setUrlParseOpen(true)}
+                  className="h-9 bg-gradient-to-r from-rose-500 via-pink-500 to-purple-600 hover:from-rose-600 hover:via-pink-600 hover:to-purple-700 text-white font-semibold shadow-sm gap-1.5 transition-all rounded-xl text-xs px-3.5 shrink-0"
+                >
+                  <Sparkles className="w-4 h-4 animate-pulse text-amber-300" />
+                  一键URL解析商品导入
+                  <Badge className="bg-white/20 text-white border-none text-[10px] ml-0.5 font-normal">
+                    AI 多模态
+                  </Badge>
+                </Button>
+
                 <button
                   type="button"
                   onClick={() => {
@@ -3252,136 +3464,266 @@ export default function HomePage() {
                 </button>
               </div>
 
-              {/* 分类切换 */}
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
-                {['全部', '服装配饰', '美妆护肤', '数码电器', '食品饮料', '家居用品'].map(cat => (
+              {/* 分类切换与列表模式切换 */}
+              <div className="flex items-center justify-between gap-3 pt-1 flex-wrap">
+                {/* 分类标签 */}
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5 flex-1 min-w-0">
+                  {['全部', '服装配饰', '美妆护肤', '数码电器', '食品饮料', '家居用品'].map(cat => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setSelectedCategoryFilter(cat)}
+                      className={cn(
+                        'px-3.5 py-1.5 rounded-xl text-xs transition-all shrink-0 border',
+                        selectedCategoryFilter === cat
+                          ? 'bg-violet-600 border-violet-500 text-white font-semibold shadow-md'
+                          : 'bg-white/5 border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 font-medium'
+                      )}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+
+                {/* 商品列表 / 视频列表 双视图切换 Tab */}
+                <div className="flex items-center bg-black/40 border border-white/10 p-1 rounded-xl shrink-0">
                   <button
-                    key={cat}
                     type="button"
-                    onClick={() => setSelectedCategoryFilter(cat)}
+                    onClick={() => setModalViewTab('products')}
                     className={cn(
-                      'px-3.5 py-1.5 rounded-xl text-xs transition-all shrink-0 border',
-                      selectedCategoryFilter === cat
-                        ? 'bg-violet-600 border-violet-500 text-white font-semibold shadow-md'
-                        : 'bg-white/5 border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 font-medium'
+                      'flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all',
+                      modalViewTab === 'products'
+                        ? 'bg-violet-600 text-white shadow-sm'
+                        : 'text-zinc-400 hover:text-white'
                     )}
                   >
-                    {cat}
+                    <Package className="w-3.5 h-3.5" />
+                    <span>商品列表</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/10 font-mono">
+                      {filteredSelectorProducts.length}
+                    </span>
                   </button>
-                ))}
+                  <button
+                    type="button"
+                    onClick={() => setModalViewTab('videos')}
+                    className={cn(
+                      'flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all',
+                      modalViewTab === 'videos'
+                        ? 'bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-sm'
+                        : 'text-zinc-400 hover:text-white'
+                    )}
+                  >
+                    <Video className="w-3.5 h-3.5" />
+                    <span>视频列表</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/10 font-mono">
+                      {filteredCategoryVideos.length}
+                    </span>
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* 商品列表 */}
-            <div className="flex-1 overflow-y-auto p-4 max-h-[460px] space-y-3">
-              {loadingProducts ? (
-                <div className="py-16 text-center text-zinc-400 space-y-2">
-                  <Loader2 className="w-7 h-7 animate-spin text-violet-400 mx-auto" />
-                  <p className="text-xs">正在加载商品管理库中的数据...</p>
-                </div>
-              ) : filteredSelectorProducts.length === 0 ? (
-                <div className="py-16 text-center text-zinc-400 space-y-3">
-                  <Package className="w-10 h-10 text-zinc-600 mx-auto" />
-                  <p className="text-sm">未搜索到相关商品</p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsProductModalOpen(false);
-                      navigate('/products');
-                    }}
-                    className="px-4 py-2 rounded-xl bg-violet-600 text-white font-semibold text-xs hover:bg-violet-500 transition-colors inline-flex items-center gap-1.5 shadow-md"
-                  >
-                    <Plus className="w-4 h-4" />
-                    前往「商品管理」添加商品
-                  </button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {filteredSelectorProducts.map(prod => {
-                    const isSelected = selectedProduct?.id === prod.id;
-                    const points = [...(prod.selling_points || []), ...(prod.ai_selling_points || [])].filter(Boolean);
-                    const price = prod.sale_price ?? prod.original_price;
-
-                    return (
+            {/* 列表内容区域：根据 modalViewTab 动态展示商品列表或视频列表 */}
+            {modalViewTab === 'videos' ? (
+              <div className="flex-1 overflow-y-auto p-4 max-h-[460px] space-y-3">
+                {filteredCategoryVideos.length === 0 ? (
+                  <div className="py-16 text-center text-zinc-400 space-y-3">
+                    <Video className="w-10 h-10 text-zinc-600 mx-auto" />
+                    <p className="text-sm">未搜索到相关视频</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {filteredCategoryVideos.map(vid => (
                       <div
-                        key={prod.id}
-                        onClick={() => handleSelectProduct(prod)}
-                        className={cn(
-                          'p-3.5 rounded-xl border transition-all cursor-pointer flex gap-3 group relative overflow-hidden shadow-sm',
-                          isSelected
-                            ? 'bg-emerald-950/20 border-emerald-500/60 ring-1 ring-emerald-500/40 shadow-lg'
-                            : 'bg-[#1a1829] border-zinc-800 hover:border-violet-500/40 hover:bg-[#211e35]'
-                        )}
+                        key={vid.id}
+                        className="p-3 rounded-xl border border-zinc-800 bg-[#1a1829] hover:border-violet-500/40 hover:bg-[#211e35] transition-all flex gap-3 group relative overflow-hidden shadow-sm"
                       >
-                        {/* 封面图 */}
-                        <div className="w-20 h-20 rounded-lg overflow-hidden bg-black/60 shrink-0 border border-white/10 relative">
+                        {/* 视频缩略图及悬停/点击播放 */}
+                        <div
+                          className="w-24 h-32 rounded-lg overflow-hidden bg-black shrink-0 border border-white/10 relative cursor-pointer group/vid"
+                          onClick={() => setActivePlayVideo(vid as any)}
+                        >
                           <img
-                            src={prod.cover_image || getCategoryFallbackImage(prod.category)}
-                            alt={prod.name}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            src={vid.cover}
+                            alt={vid.name}
+                            className="w-full h-full object-cover group-hover/vid:scale-105 transition-transform duration-300"
                             onError={(e) => {
-                              (e.target as HTMLImageElement).src = getCategoryFallbackImage(prod.category);
+                              (e.target as HTMLElement).style.display = 'none';
                             }}
                           />
+                          <div className="absolute inset-0 bg-black/30 flex items-center justify-center group-hover/vid:bg-black/10 transition-colors">
+                            <div className="w-8 h-8 rounded-full bg-white/30 backdrop-blur-md flex items-center justify-center text-white shadow-lg group-hover/vid:scale-110 transition-transform">
+                              <Play className="w-4 h-4 fill-white translate-x-0.5" />
+                            </div>
+                          </div>
                           <span className="absolute bottom-1 left-1 text-[9px] px-1.5 py-0.5 rounded bg-black/80 backdrop-blur-sm text-zinc-300 border border-white/15 font-medium">
-                            {prod.category}
+                            {vid.category}
+                          </span>
+                          <span className="absolute top-1 right-1 text-[9px] px-1.5 py-0.5 rounded bg-black/80 backdrop-blur-sm text-amber-300 border border-white/15 font-medium">
+                            {vid.model}
                           </span>
                         </div>
 
-                        {/* 描述信息 */}
+                        {/* 视频信息与操作 */}
                         <div className="flex-1 min-w-0 flex flex-col justify-between">
                           <div>
                             <h4 className="text-sm font-bold text-zinc-100 group-hover:text-white transition-colors line-clamp-1">
-                              {prod.name}
+                              {vid.name}
                             </h4>
-                            {price && (
-                              <div className="flex items-baseline gap-1.5 mt-0.5">
-                                <span className="text-base font-extrabold text-rose-400">¥{price}</span>
-                                {prod.original_price && prod.sale_price && prod.original_price > prod.sale_price && (
-                                  <span className="text-xs text-zinc-500 line-through">¥{prod.original_price}</span>
-                                )}
-                              </div>
-                            )}
-                            {points.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {points.slice(0, 2).map((pt, idx) => (
-                                  <span
-                                    key={idx}
-                                    className="text-[10px] px-2 py-0.5 rounded-md bg-indigo-500/15 text-indigo-300 border border-indigo-500/25 font-medium max-w-[135px] truncate"
-                                  >
-                                    ⚡ {pt}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
+                            <p className="text-xs text-zinc-400 mt-1 line-clamp-2 leading-relaxed">
+                              {vid.prompt}
+                            </p>
                           </div>
 
-                          <div className="flex items-center justify-between mt-2 pt-1 border-t border-white/5">
-                            <span className="text-[11px] text-zinc-400">
-                              月销: {prod.sales_count || 0}
-                            </span>
+                          <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-white/5">
                             <button
                               type="button"
-                              className={cn(
-                                'text-xs font-semibold px-3 py-1 rounded-xl transition-all flex items-center gap-1.5 shadow-sm',
-                                isSelected
-                                  ? 'bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold shadow-md'
-                                  : 'bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white border border-violet-400/30'
-                              )}
+                              onClick={() => setActivePlayVideo(vid as any)}
+                              className="text-xs text-zinc-400 hover:text-white flex items-center gap-1 font-medium transition-colors"
                             >
-                              {isSelected ? <Check className="w-3.5 h-3.5" /> : <Wand2 className="w-3.5 h-3.5" />}
-                              {isSelected ? '已选此商品' : '提取视频脚本'}
+                              <Play className="w-3 h-3" />
+                              预览播放
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPrompt(vid.prompt);
+                                triggerVideoTypingGlow();
+                                setIsProductModalOpen(false);
+                                toast.success(`已应用「${vid.name}」视频提示词到工作台！`);
+                              }}
+                              className="text-xs font-semibold px-3 py-1 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white flex items-center gap-1.5 shadow-sm transition-all border border-violet-400/30"
+                            >
+                              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                              采用提示词生成
                             </button>
                           </div>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* 商品列表 */
+              <div className="flex-1 overflow-y-auto p-4 max-h-[460px] space-y-3">
+                {loadingProducts ? (
+                  <div className="py-16 text-center text-zinc-400 space-y-2">
+                    <Loader2 className="w-7 h-7 animate-spin text-violet-400 mx-auto" />
+                    <p className="text-xs">正在加载商品管理库中的数据...</p>
+                  </div>
+                ) : filteredSelectorProducts.length === 0 ? (
+                  <div className="py-16 text-center text-zinc-400 space-y-3">
+                    <Package className="w-10 h-10 text-zinc-600 mx-auto" />
+                    <p className="text-sm">未搜索到相关商品</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsProductModalOpen(false);
+                        navigate('/products');
+                      }}
+                      className="px-4 py-2 rounded-xl bg-violet-600 text-white font-semibold text-xs hover:bg-violet-500 transition-colors inline-flex items-center gap-1.5 shadow-md"
+                    >
+                      <Plus className="w-4 h-4" />
+                      前往「商品管理」添加商品
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {filteredSelectorProducts.map(prod => {
+                      const isSelected = selectedProduct?.id === prod.id;
+                      const points = [...(prod.selling_points || []), ...(prod.ai_selling_points || [])].filter(Boolean);
+                      const price = prod.sale_price ?? prod.original_price;
+
+                      return (
+                        <div
+                          key={prod.id}
+                          onClick={() => handleSelectProduct(prod)}
+                          className={cn(
+                            'p-3.5 rounded-xl border transition-all cursor-pointer flex gap-3 group relative overflow-hidden shadow-sm',
+                            isSelected
+                              ? 'bg-emerald-950/20 border-emerald-500/60 ring-1 ring-emerald-500/40 shadow-lg'
+                              : 'bg-[#1a1829] border-zinc-800 hover:border-violet-500/40 hover:bg-[#211e35]'
+                          )}
+                        >
+                          {/* 封面图 */}
+                          <div className="w-20 h-20 rounded-lg overflow-hidden bg-black/60 shrink-0 border border-white/10 relative">
+                            <img
+                              src={prod.cover_image || getCategoryFallbackImage(prod.category)}
+                              alt={prod.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = getCategoryFallbackImage(prod.category);
+                              }}
+                            />
+                            <span className="absolute bottom-1 left-1 text-[9px] px-1.5 py-0.5 rounded bg-black/80 backdrop-blur-sm text-zinc-300 border border-white/15 font-medium">
+                              {prod.category}
+                            </span>
+                          </div>
+
+                          {/* 描述信息 */}
+                          <div className="flex-1 min-w-0 flex flex-col justify-between">
+                            <div>
+                              <h4 className="text-sm font-bold text-zinc-100 group-hover:text-white transition-colors line-clamp-1">
+                                {prod.name}
+                              </h4>
+                              {price && (
+                                <div className="flex items-baseline gap-1.5 mt-0.5">
+                                  <span className="text-base font-extrabold text-rose-400">¥{price}</span>
+                                  {prod.original_price && prod.sale_price && prod.original_price > prod.sale_price && (
+                                    <span className="text-xs text-zinc-500 line-through">¥{prod.original_price}</span>
+                                  )}
+                                </div>
+                              )}
+                              {points.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {points.slice(0, 2).map((pt, idx) => (
+                                    <span
+                                      key={idx}
+                                      className="text-[10px] px-2 py-0.5 rounded-md bg-indigo-500/15 text-indigo-300 border border-indigo-500/25 font-medium max-w-[135px] truncate"
+                                    >
+                                      ⚡ {pt}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex items-center justify-between mt-2 pt-1 border-t border-white/5">
+                              <span className="text-[11px] text-zinc-400">
+                                月销: {prod.sales_count || 0}
+                              </span>
+                              <button
+                                type="button"
+                                className={cn(
+                                  'text-xs font-semibold px-3 py-1 rounded-xl transition-all flex items-center gap-1.5 shadow-sm',
+                                  isSelected
+                                    ? 'bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold shadow-md'
+                                    : 'bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white border border-violet-400/30'
+                                )}
+                              >
+                                {isSelected ? <Check className="w-3.5 h-3.5" /> : <Wand2 className="w-3.5 h-3.5" />}
+                                {isSelected ? '已选此商品' : '提取视频脚本'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </DialogContent>
         </Dialog>
+
+        {/* 一键 URL / 口令解析商品导入弹窗 */}
+        <UrlProductImportDialog
+          open={urlParseOpen}
+          onOpenChange={setUrlParseOpen}
+          onSuccess={handleImportProductSuccess}
+          zIndexClass="z-[70]"
+        />
 
         {/* 自定义模型配置弹窗：顶层 Portal 模态（视频/图片两处下拉共用单一挂载点） */}
         <CustomModelDialog
