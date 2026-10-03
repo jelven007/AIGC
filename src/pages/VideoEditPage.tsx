@@ -1,17 +1,18 @@
-import {AlertCircle, AlignCenter,ArrowRight, BadgeCheck, BarChart2, BookOpen,Captions, Check, CheckCircle2, ChevronDown, ChevronRight,ChevronUp, Clock, Cloud, Copy, 
+import {
+  AlertCircle, AlignCenter, AlignLeft, AlignRight, ArrowRight, BadgeCheck, BarChart2, Bold, BookOpen, Captions, Check, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, Clock, Cloud, Copy, 
   CreditCard, Download, ExternalLink, Eye, 
   EyeOff, FileCheck2, 
-  Film, Flame, 
+  Film, Flame, FlipHorizontal, FlipVertical,
   FolderOpen, 
-  Grid3x3, GripVertical, Heart, ImageIcon, Info, 
-  Layers, List, Loader2,Lock, Maximize, 
-  Mic, Minimize, Move, Music, Music2, Package, Palette,Pause, 
+  Grid3x3, GripVertical, Heart, ImageIcon, Info, Italic,
+  Layers, List, Loader2, Lock, Maximize, 
+  Mic, Minimize, Move, Music, Music2, Package, Palette, Pause, 
   Play, Plus, Redo,
-  RefreshCw, RotateCcw, Save, Scan, 
+  RefreshCw, RotateCcw, RotateCw, Save, Scan, 
   Scissors, 
   Scissors as ScissorsIcon, Search, 
-  Settings2, ShoppingBag, ShoppingCart,SkipBack, SkipForward, SlidersHorizontal, Smile, Sparkles, Star, 
-  Tag, ToggleLeft, ToggleRight,Trash2, TrendingUp,Truck, Type, Undo, Upload,Volume2, Wand2,Waypoints, X, Zap,ZoomIn, ZoomOut 
+  Settings2, ShoppingBag, ShoppingCart, SkipBack, SkipForward, SlidersHorizontal, Smile, Sparkles, Star, 
+  Tag, ToggleLeft, ToggleRight, Trash2, TrendingUp, Truck, Type, Undo, Upload, Volume2, VolumeX, Wand2, Waypoints, X, Zap, ZoomIn, ZoomOut 
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -43,8 +44,38 @@ interface TrackItem {
   opacity?: number;
   volume?: number;
   speed?: number;
-  fontStyle?: string;
+  fontStyle?: any;
   keyframes?: Record<string, { pos: number; val: number }[]>;
+  // ── 专业视频画面属性 ──
+  x?: number;
+  y?: number;
+  rotation?: number;
+  flipH?: boolean;
+  flipV?: boolean;
+  filter?: string;
+  brightness?: number;
+  contrast?: number;
+  saturation?: number;
+  // ── 专业音频属性 ──
+  mute?: boolean;
+  fadeIn?: number;
+  fadeOut?: number;
+  pan?: number;
+  denoise?: string;
+  reverb?: string;
+  pitch?: number;
+  // ── 专业文案/字幕属性 ──
+  text?: string;
+  fontSize?: number;
+  fontColor?: string;
+  fontFamily?: string;
+  strokeColor?: string;
+  strokeWidth?: number;
+  bgColor?: string;
+  textAlign?: 'left' | 'center' | 'right';
+  isBold?: boolean;
+  isItalic?: boolean;
+  animation?: string;
 }
 
 export interface PipSettings {
@@ -3414,6 +3445,17 @@ export default function VideoEditPage() {
     }
   }, [selectedTrackObj?.id]);
 
+  const updateTrackItem = useCallback((id: string, updates: Partial<TrackItem>) => {
+    setTracks(prev => prev.map(t => {
+      if (t.id !== id) return t;
+      const updated = { ...t, ...updates };
+      if (updates.text !== undefined && updates.name === undefined) {
+        updated.name = updates.text.slice(0, 30) || '无标题文案';
+      }
+      return updated;
+    }));
+  }, []);
+
   const handleScaleChange = (val: number[]) => {
     setScale(val);
     const targetId = selectedTrackItem || selectedTrackObj?.id;
@@ -4727,9 +4769,9 @@ export default function VideoEditPage() {
                   className="w-full h-full object-contain bg-black cursor-pointer"
                   onClick={() => setIsPlaying(prev => !prev)}
                   style={{
-                    transform: `scale(${(selectedTrackObj?.scale ?? 100) / 100})`,
+                    transform: `scale(${(selectedTrackObj?.scale ?? 100) / 100}) rotate(${selectedTrackObj?.rotation ?? 0}deg) scaleX(${selectedTrackObj?.flipH ? -1 : 1}) scaleY(${selectedTrackObj?.flipV ? -1 : 1})`,
                     opacity: (selectedTrackObj?.opacity ?? 100) / 100,
-                    filter: getCssFilter(appliedFilter, filterIntensity[appliedFilter], aiBeautyEnabled) + (aiCutoutEnabled ? ' drop-shadow(0 0 12px rgba(99, 102, 241, 0.8))' : ''),
+                    filter: getCssFilter(selectedTrackObj?.filter || appliedFilter, filterIntensity[appliedFilter], aiBeautyEnabled) + (aiCutoutEnabled ? ' drop-shadow(0 0 12px rgba(99, 102, 241, 0.8))' : ''),
                   }}
                   onPlay={() => setIsPlaying(true)}
                   onPause={() => {
@@ -4838,18 +4880,21 @@ export default function VideoEditPage() {
               {activeTextClip && (
                 <div className="absolute bottom-16 inset-x-4 flex justify-center pointer-events-none z-30 transition-all">
                   <span
-                    className="px-4 py-1.5 rounded-lg text-center font-medium text-white max-w-[85%] leading-relaxed select-none shadow-2xl"
+                    className="px-4 py-1.5 rounded-lg max-w-[85%] leading-relaxed select-none shadow-2xl transition-all"
                     style={{
-                      fontSize: `${Math.max(13, Math.min(24, (activeTextClip.scale ?? 100) * 0.16))}px`,
-                      fontFamily: activeTextClip.fontStyle?.fontFamily || selectedFont || 'sans-serif',
-                      color: activeTextClip.fontStyle?.color || '#ffffff',
-                      backgroundColor: activeTextClip.fontStyle?.bg || 'rgba(0, 0, 0, 0.75)',
-                      textShadow: '0 2px 8px rgba(0,0,0,0.9), 0 0 4px rgba(0,0,0,0.8)',
+                      fontSize: activeTextClip.fontSize ? `${activeTextClip.fontSize}px` : `${Math.max(13, Math.min(24, (activeTextClip.scale ?? 100) * 0.16))}px`,
+                      fontFamily: activeTextClip.fontFamily || activeTextClip.fontStyle?.fontFamily || selectedFont || 'sans-serif',
+                      color: activeTextClip.fontColor || activeTextClip.fontStyle?.color || '#ffffff',
+                      backgroundColor: activeTextClip.bgColor || activeTextClip.fontStyle?.bg || 'rgba(0, 0, 0, 0.75)',
+                      textShadow: activeTextClip.strokeWidth ? `0 0 ${activeTextClip.strokeWidth}px ${activeTextClip.strokeColor || '#000000'}, 0 2px 8px rgba(0,0,0,0.9)` : '0 2px 8px rgba(0,0,0,0.9), 0 0 4px rgba(0,0,0,0.8)',
+                      fontWeight: activeTextClip.isBold ? 'bold' : '500',
+                      fontStyle: activeTextClip.isItalic ? 'italic' : 'normal',
+                      textAlign: activeTextClip.textAlign || 'center',
                       backdropFilter: 'blur(6px)',
                       border: '1px solid rgba(255,255,255,0.2)',
                     }}
                   >
-                    {activeTextClip.name}
+                    {activeTextClip.text || activeTextClip.name}
                   </span>
                 </div>
               )}
@@ -4905,75 +4950,657 @@ export default function VideoEditPage() {
           </div>
           <ScrollArea className="flex-1">
             {selectedTrackObj ? (
-              <div className="p-3 space-y-5">
-                <div className="bg-zinc-800/60 rounded-lg p-2.5 border border-zinc-700/60 flex items-center justify-between">
+              <div className="p-3 space-y-4">
+                {/* 顶部标题与轨道类型卡片 */}
+                <div className={`rounded-lg p-2.5 border flex items-center justify-between transition-colors ${
+                  selectedTrackObj.type === 'video' ? 'bg-indigo-950/40 border-indigo-500/40' :
+                  selectedTrackObj.type === 'audio' ? 'bg-emerald-950/40 border-emerald-500/40' :
+                  selectedTrackObj.type === 'text' ? 'bg-amber-950/40 border-amber-500/40' :
+                  'bg-purple-950/40 border-purple-500/40'
+                }`}>
                   <div className="flex items-center gap-2 overflow-hidden">
                     {selectedTrackObj.type === 'video' ? <Film className="w-4 h-4 text-indigo-400 shrink-0" /> :
                      selectedTrackObj.type === 'audio' ? <Music2 className="w-4 h-4 text-emerald-400 shrink-0" /> :
                      selectedTrackObj.type === 'text' ? <Type className="w-4 h-4 text-amber-400 shrink-0" /> :
                      <Sparkles className="w-4 h-4 text-purple-400 shrink-0" />}
                     <div className="truncate">
-                      <p className="text-xs font-medium text-zinc-200 truncate">{selectedTrackObj.name}</p>
+                      <p className="text-xs font-semibold text-zinc-100 truncate">{selectedTrackObj.name}</p>
                       <p className="text-[10px] text-zinc-400">
-                        {selectedTrackObj.type === 'video' ? '主视频轨道' : `${selectedTrackObj.duration}秒`}
+                        {selectedTrackObj.type === 'video' ? `主视频 · ${selectedTrackObj.duration}秒` :
+                         selectedTrackObj.type === 'audio' ? `音频声轨 · ${selectedTrackObj.duration}秒` :
+                         selectedTrackObj.type === 'text' ? `文案字幕 · ${selectedTrackObj.duration}秒` :
+                         `特效画面 · ${selectedTrackObj.duration}秒`}
                       </p>
                     </div>
                   </div>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shrink-0">
-                    {selectedTrackObj.type === 'video' ? '主轨' : selectedTrackObj.type}
+                  <span className={`text-[10px] px-2 py-0.5 rounded font-medium border shrink-0 ${
+                    selectedTrackObj.type === 'video' ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30' :
+                    selectedTrackObj.type === 'audio' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' :
+                    selectedTrackObj.type === 'text' ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' :
+                    'bg-purple-500/20 text-purple-300 border-purple-500/30'
+                  }`}>
+                    {selectedTrackObj.type === 'video' ? '主视频轨' :
+                     selectedTrackObj.type === 'audio' ? '音频轨' :
+                     selectedTrackObj.type === 'text' ? '文案轨' : '特效轨'}
                   </span>
                 </div>
-                <div className="space-y-3">
-                  <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">基础属性</p>
-                  <div className="space-y-2.5">
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-[11px] text-zinc-400">缩放</span>
-                        <span className="text-[10px] text-zinc-500">{scale[0]}%</span>
-                      </div>
-                      <Slider value={scale} onValueChange={handleScaleChange} min={10} max={300} className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3" />
-                    </div>
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-[11px] text-zinc-400">不透明度</span>
-                        <span className="text-[10px] text-zinc-500">{opacity[0]}%</span>
-                      </div>
-                      <Slider value={opacity} onValueChange={handleOpacityChange} max={100} className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3" />
-                    </div>
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">音频</p>
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[11px] text-zinc-400">音量</span>
-                      <span className="text-[10px] text-zinc-500">{volume[0]}%</span>
-                    </div>
-                    <Slider value={volume} onValueChange={handleVolumeChange} max={200} className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">变速</p>
-                  <div className="grid grid-cols-4 gap-1">
-                    {['0.5x', '1x', '1.5x', '2x'].map(s => {
-                      const numSpeed = parseFloat(s);
-                      const isSelected = speed === numSpeed;
-                      return (
-                        <Button
-                          key={s}
-                          variant={isSelected ? "default" : "outline"}
-                          size="sm"
-                          className={`h-7 text-[10px] ${isSelected ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-zinc-800 border-zinc-700 hover:bg-zinc-700 hover:text-white'}`}
-                          onClick={() => handleSpeedChange(numSpeed)}
+
+                {/* ══════════════════════════════════════════════════════════
+                    1. 主视频轨道 (Video) 专业设置面板
+                    ══════════════════════════════════════════════════════════ */}
+                {selectedTrackObj.type === 'video' && (
+                  <div className="space-y-4">
+                    {/* 画面变换 */}
+                    <div className="space-y-3 bg-zinc-950/40 p-2.5 rounded-lg border border-zinc-800/80">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-semibold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <SlidersHorizontal className="w-3 h-3" />画面变换与缩放
+                        </p>
+                        <button
+                          className="text-[9px] text-zinc-500 hover:text-zinc-300 underline"
+                          onClick={() => {
+                            handleScaleChange([100]);
+                            handleOpacityChange([100]);
+                            updateTrackItem(selectedTrackObj.id, { x: 0, y: 0, rotation: 0, flipH: false, flipV: false });
+                          }}
                         >
-                          {s}
-                        </Button>
-                      );
-                    })}
+                          重置变换
+                        </button>
+                      </div>
+                      <div className="space-y-2.5">
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[11px] text-zinc-400">画面缩放</span>
+                            <span className="text-[10px] text-indigo-400 font-mono font-medium">{scale[0]}%</span>
+                          </div>
+                          <Slider value={scale} onValueChange={handleScaleChange} min={10} max={300} className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3" />
+                        </div>
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[11px] text-zinc-400">不透明度</span>
+                            <span className="text-[10px] text-indigo-400 font-mono font-medium">{opacity[0]}%</span>
+                          </div>
+                          <Slider value={opacity} onValueChange={handleOpacityChange} max={100} className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3" />
+                        </div>
+                        <div className="pt-1 border-t border-zinc-800/60">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-[11px] text-zinc-400">旋转与翻转</span>
+                            <span className="text-[10px] text-zinc-500 font-mono">{selectedTrackObj.rotation ?? 0}°</span>
+                          </div>
+                          <div className="grid grid-cols-4 gap-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-[10px] bg-zinc-850 border-zinc-700 hover:bg-zinc-700 text-zinc-300"
+                              onClick={() => {
+                                const cur = selectedTrackObj.rotation ?? 0;
+                                updateTrackItem(selectedTrackObj.id, { rotation: (cur + 90) % 360 });
+                              }}
+                              title="顺时针旋转90°"
+                            >
+                              <RotateCw className="w-3 h-3 mr-1" />+90°
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-[10px] bg-zinc-850 border-zinc-700 hover:bg-zinc-700 text-zinc-300"
+                              onClick={() => {
+                                const cur = selectedTrackObj.rotation ?? 0;
+                                updateTrackItem(selectedTrackObj.id, { rotation: (cur - 90 + 360) % 360 });
+                              }}
+                              title="逆时针旋转90°"
+                            >
+                              <RotateCcw className="w-3 h-3 mr-1" />-90°
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant={selectedTrackObj.flipH ? "default" : "outline"}
+                              className={`h-7 text-[10px] ${selectedTrackObj.flipH ? 'bg-indigo-600 text-white' : 'bg-zinc-850 border-zinc-700 text-zinc-300 hover:bg-zinc-700'}`}
+                              onClick={() => updateTrackItem(selectedTrackObj.id, { flipH: !selectedTrackObj.flipH })}
+                              title="水平镜像翻转"
+                            >
+                              <FlipHorizontal className="w-3 h-3 mr-1" />水平
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant={selectedTrackObj.flipV ? "default" : "outline"}
+                              className={`h-7 text-[10px] ${selectedTrackObj.flipV ? 'bg-indigo-600 text-white' : 'bg-zinc-850 border-zinc-700 text-zinc-300 hover:bg-zinc-700'}`}
+                              onClick={() => updateTrackItem(selectedTrackObj.id, { flipV: !selectedTrackObj.flipV })}
+                              title="垂直镜像翻转"
+                            >
+                              <FlipVertical className="w-3 h-3 mr-1" />垂直
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 调色与风格滤镜 */}
+                    <div className="space-y-3 bg-zinc-950/40 p-2.5 rounded-lg border border-zinc-800/80">
+                      <p className="text-[10px] font-semibold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Palette className="w-3 h-3" />调色与电影感滤镜
+                      </p>
+                      <div className="grid grid-cols-3 gap-1">
+                        {['无', '电影质感', '温暖午后', '日系清新', '复古胶片', '清爽胶片'].map(f => {
+                          const curFilter = selectedTrackObj.filter || appliedFilter;
+                          const isSel = curFilter === f;
+                          return (
+                            <button
+                              key={f}
+                              className={`h-7 text-[10px] rounded border transition-all ${
+                                isSel
+                                  ? 'bg-indigo-600 text-white border-indigo-500 font-medium shadow-sm'
+                                  : 'bg-zinc-850 border-zinc-700/80 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+                              }`}
+                              onClick={() => {
+                                setAppliedFilter(f);
+                                updateTrackItem(selectedTrackObj.id, { filter: f });
+                              }}
+                            >
+                              {f}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* 原声音频 */}
+                    <div className="space-y-2.5 bg-zinc-950/40 p-2.5 rounded-lg border border-zinc-800/80">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-semibold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <Volume2 className="w-3 h-3" />视频原声音量
+                        </p>
+                        <button
+                          className={`text-[9px] px-1.5 py-0.5 rounded border transition-colors ${
+                            selectedTrackObj.mute
+                              ? 'bg-rose-950/80 text-rose-300 border-rose-500/50'
+                              : 'bg-zinc-800 text-zinc-400 border-zinc-700 hover:text-zinc-200'
+                          }`}
+                          onClick={() => {
+                            const newMute = !selectedTrackObj.mute;
+                            updateTrackItem(selectedTrackObj.id, { mute: newMute });
+                            handleVolumeChange(newMute ? [0] : [100]);
+                          }}
+                        >
+                          {selectedTrackObj.mute ? '已静音' : '开启原声'}
+                        </button>
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[11px] text-zinc-400">音量增益</span>
+                          <span className="text-[10px] text-zinc-400 font-mono">{volume[0]}%</span>
+                        </div>
+                        <Slider
+                          value={volume}
+                          onValueChange={(val) => {
+                            handleVolumeChange(val);
+                            if (selectedTrackObj.mute && val[0] > 0) {
+                              updateTrackItem(selectedTrackObj.id, { mute: false });
+                            }
+                          }}
+                          max={200}
+                          className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
+                        />
+                      </div>
+                    </div>
+
+                    {/* 视频变速 */}
+                    <div className="space-y-2 bg-zinc-950/40 p-2.5 rounded-lg border border-zinc-800/80">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-semibold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <Zap className="w-3 h-3" />视频变速调节
+                        </p>
+                        <span className="text-[10px] text-indigo-400 font-mono font-medium">{speed}x</span>
+                      </div>
+                      <div className="grid grid-cols-6 gap-1">
+                        {[0.5, 0.75, 1, 1.25, 1.5, 2].map(numSpeed => {
+                          const isSel = speed === numSpeed;
+                          return (
+                            <Button
+                              key={numSpeed}
+                              variant={isSel ? "default" : "outline"}
+                              size="sm"
+                              className={`h-7 px-0 text-[10px] ${
+                                isSel
+                                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                                  : 'bg-zinc-850 border-zinc-700/80 text-zinc-400 hover:bg-zinc-800 hover:text-white'
+                              }`}
+                              onClick={() => handleSpeedChange(numSpeed)}
+                            >
+                              {numSpeed}x
+                            </Button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">操作</p>
+                )}
+
+                {/* ══════════════════════════════════════════════════════════
+                    2. 音频轨道 (Audio) 专业设置面板 (绝不显示缩放/不透明度)
+                    ══════════════════════════════════════════════════════════ */}
+                {selectedTrackObj.type === 'audio' && (
+                  <div className="space-y-4">
+                    {/* 音量与左右声道控制 */}
+                    <div className="space-y-3 bg-zinc-950/40 p-2.5 rounded-lg border border-emerald-500/20">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <Music2 className="w-3 h-3" />音频音量与声学控制
+                        </p>
+                        <button
+                          className={`text-[9px] px-2 py-0.5 rounded border transition-colors flex items-center gap-1 ${
+                            selectedTrackObj.mute
+                              ? 'bg-rose-950/80 text-rose-300 border-rose-500/50'
+                              : 'bg-emerald-950/40 text-emerald-300 border-emerald-500/40 hover:bg-emerald-900/60'
+                          }`}
+                          onClick={() => {
+                            const newMute = !selectedTrackObj.mute;
+                            updateTrackItem(selectedTrackObj.id, { mute: newMute });
+                            handleVolumeChange(newMute ? [0] : [100]);
+                          }}
+                        >
+                          {selectedTrackObj.mute ? <VolumeX className="w-2.5 h-2.5" /> : <Volume2 className="w-2.5 h-2.5" />}
+                          {selectedTrackObj.mute ? '已静音' : '正常发声'}
+                        </button>
+                      </div>
+                      <div className="space-y-2.5">
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[11px] text-zinc-400">主音频音量</span>
+                            <span className="text-[10px] text-emerald-400 font-mono font-medium">{volume[0]}%</span>
+                          </div>
+                          <Slider
+                            value={volume}
+                            onValueChange={(val) => {
+                              handleVolumeChange(val);
+                              if (selectedTrackObj.mute && val[0] > 0) {
+                                updateTrackItem(selectedTrackObj.id, { mute: false });
+                              }
+                            }}
+                            max={200}
+                            className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
+                          />
+                        </div>
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[11px] text-zinc-400">左右声道平衡 (Pan)</span>
+                            <span className="text-[10px] text-zinc-400 font-mono">
+                              {(selectedTrackObj.pan ?? 0) === 0 ? '居中 0' : (selectedTrackObj.pan ?? 0) < 0 ? `左 ${Math.abs(selectedTrackObj.pan ?? 0)}%` : `右 ${selectedTrackObj.pan}%`}
+                            </span>
+                          </div>
+                          <Slider
+                            value={[selectedTrackObj.pan ?? 0]}
+                            onValueChange={(val) => updateTrackItem(selectedTrackObj.id, { pan: val[0] })}
+                            min={-100}
+                            max={100}
+                            step={5}
+                            className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 淡入淡出曲线控制 */}
+                    <div className="space-y-3 bg-zinc-950/40 p-2.5 rounded-lg border border-emerald-500/20">
+                      <p className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Waypoints className="w-3 h-3" />专业淡入淡出曲线 (防爆音)
+                      </p>
+                      <div className="space-y-2.5">
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[11px] text-zinc-400">音频开头淡入 (Fade-In)</span>
+                            <span className="text-[10px] text-emerald-400 font-mono">{(selectedTrackObj.fadeIn ?? 1.0).toFixed(1)}s</span>
+                          </div>
+                          <Slider
+                            value={[(selectedTrackObj.fadeIn ?? 1.0) * 10]}
+                            onValueChange={(val) => updateTrackItem(selectedTrackObj.id, { fadeIn: val[0] / 10 })}
+                            min={0}
+                            max={50}
+                            step={1}
+                            className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
+                          />
+                        </div>
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[11px] text-zinc-400">音频结尾淡出 (Fade-Out)</span>
+                            <span className="text-[10px] text-emerald-400 font-mono">{(selectedTrackObj.fadeOut ?? 1.5).toFixed(1)}s</span>
+                          </div>
+                          <Slider
+                            value={[(selectedTrackObj.fadeOut ?? 1.5) * 10]}
+                            onValueChange={(val) => updateTrackItem(selectedTrackObj.id, { fadeOut: val[0] / 10 })}
+                            min={0}
+                            max={50}
+                            step={1}
+                            className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* AI 降噪与空间混响 */}
+                    <div className="space-y-3 bg-zinc-950/40 p-2.5 rounded-lg border border-emerald-500/20">
+                      <p className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Wand2 className="w-3 h-3" />智能降噪与混响声场
+                      </p>
+                      <div>
+                        <span className="text-[10px] text-zinc-400 block mb-1.5">AI 智能降噪模式</span>
+                        <div className="grid grid-cols-3 gap-1">
+                          {['无降噪', '轻度去噪', '深度纯音'].map(d => {
+                            const cur = selectedTrackObj.denoise || '轻度去噪';
+                            const isSel = cur === d;
+                            return (
+                              <button
+                                key={d}
+                                className={`h-6 text-[10px] rounded border transition-all ${
+                                  isSel
+                                    ? 'bg-emerald-600 text-white border-emerald-500 font-medium'
+                                    : 'bg-zinc-850 border-zinc-700/80 text-zinc-400 hover:text-zinc-200'
+                                }`}
+                                onClick={() => updateTrackItem(selectedTrackObj.id, { denoise: d })}
+                              >
+                                {d}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-zinc-400 block mb-1.5">空间混响与音效</span>
+                        <div className="grid grid-cols-3 gap-1">
+                          {['原声纯净', '录音棚', 'KTV沉浸', '大厅空间', '广播电台', '温暖剧场'].map(r => {
+                            const cur = selectedTrackObj.reverb || '原声纯净';
+                            const isSel = cur === r;
+                            return (
+                              <button
+                                key={r}
+                                className={`h-6 text-[10px] rounded border transition-all ${
+                                  isSel
+                                    ? 'bg-emerald-600 text-white border-emerald-500 font-medium'
+                                    : 'bg-zinc-850 border-zinc-700/80 text-zinc-400 hover:text-zinc-200'
+                                }`}
+                                onClick={() => updateTrackItem(selectedTrackObj.id, { reverb: r })}
+                              >
+                                {r}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 音频变速 */}
+                    <div className="space-y-2 bg-zinc-950/40 p-2.5 rounded-lg border border-emerald-500/20">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <Zap className="w-3 h-3" />音频变速播放
+                        </p>
+                        <span className="text-[10px] text-emerald-400 font-mono font-medium">{speed}x</span>
+                      </div>
+                      <div className="grid grid-cols-6 gap-1">
+                        {[0.5, 0.8, 1, 1.2, 1.5, 2].map(numSpeed => {
+                          const isSel = speed === numSpeed;
+                          return (
+                            <Button
+                              key={numSpeed}
+                              variant={isSel ? "default" : "outline"}
+                              size="sm"
+                              className={`h-7 px-0 text-[10px] ${
+                                isSel
+                                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                                  : 'bg-zinc-850 border-zinc-700/80 text-zinc-400 hover:bg-zinc-800 hover:text-white'
+                              }`}
+                              onClick={() => handleSpeedChange(numSpeed)}
+                            >
+                              {numSpeed}x
+                            </Button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ══════════════════════════════════════════════════════════
+                    3. 文案/字幕轨道 (Text) 专业设置面板 (绝不显示缩放/音频音量)
+                    ══════════════════════════════════════════════════════════ */}
+                {selectedTrackObj.type === 'text' && (
+                  <div className="space-y-4">
+                    {/* 文案内容编辑 */}
+                    <div className="space-y-2.5 bg-zinc-950/40 p-2.5 rounded-lg border border-amber-500/20">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-semibold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <Type className="w-3 h-3" />文案内容与编辑
+                        </p>
+                        <span className="text-[9px] text-zinc-500 font-mono">{(selectedTrackObj.text || selectedTrackObj.name).length}字</span>
+                      </div>
+                      <textarea
+                        className="w-full bg-zinc-900 border border-zinc-700/80 rounded-md p-2 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-amber-500 resize-none h-20 leading-relaxed font-sans"
+                        placeholder="输入字幕或口播带货文案..."
+                        value={selectedTrackObj.text ?? selectedTrackObj.name}
+                        onChange={(e) => {
+                          const newText = e.target.value;
+                          updateTrackItem(selectedTrackObj.id, { text: newText, name: newText.slice(0, 30) || '无标题文案' });
+                        }}
+                      />
+                      <div className="flex flex-wrap gap-1">
+                        {['🔥爆款热卖中', '限时特惠手慢无', '点击左下角下单', '拍1发3立省百元', '官方正品包邮'].map(tag => (
+                          <button
+                            key={tag}
+                            className="text-[9px] bg-zinc-850 hover:bg-amber-950/60 hover:text-amber-300 text-zinc-400 border border-zinc-700/60 px-1.5 py-0.5 rounded transition-colors"
+                            onClick={() => {
+                              const cur = selectedTrackObj.text ?? selectedTrackObj.name;
+                              const updated = cur ? `${cur} · ${tag}` : tag;
+                              updateTrackItem(selectedTrackObj.id, { text: updated, name: updated.slice(0, 30) });
+                            }}
+                          >
+                            + {tag}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 字体与排版 */}
+                    <div className="space-y-3 bg-zinc-950/40 p-2.5 rounded-lg border border-amber-500/20">
+                      <p className="text-[10px] font-semibold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Captions className="w-3 h-3" />字体排版与样式
+                      </p>
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[11px] text-zinc-400">选择字体</span>
+                          <span className="text-[10px] text-amber-400">{selectedTrackObj.fontFamily || '默认黑体'}</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-1">
+                          {['默认黑体', '思源宋体', '快乐体', '抖音美好体', '手写体', '综艺体'].map(font => {
+                            const curFont = selectedTrackObj.fontFamily || '默认黑体';
+                            const isSel = curFont === font;
+                            return (
+                              <button
+                                key={font}
+                                className={`h-6 text-[10px] rounded border transition-all ${
+                                  isSel
+                                    ? 'bg-amber-600 text-white border-amber-500 font-medium'
+                                    : 'bg-zinc-850 border-zinc-700/80 text-zinc-400 hover:text-zinc-200'
+                                }`}
+                                onClick={() => updateTrackItem(selectedTrackObj.id, { fontFamily: font })}
+                              >
+                                {font}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[11px] text-zinc-400">文字字号</span>
+                          <span className="text-[10px] text-amber-400 font-mono">{selectedTrackObj.fontSize ?? 18}px</span>
+                        </div>
+                        <Slider
+                          value={[selectedTrackObj.fontSize ?? 18]}
+                          onValueChange={(val) => updateTrackItem(selectedTrackObj.id, { fontSize: val[0] })}
+                          min={12}
+                          max={64}
+                          className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between pt-1 border-t border-zinc-800/60">
+                        <span className="text-[11px] text-zinc-400">字重与对齐</span>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant={selectedTrackObj.isBold ? "default" : "outline"}
+                            className={`h-7 w-7 p-0 ${selectedTrackObj.isBold ? 'bg-amber-600 text-white' : 'bg-zinc-850 border-zinc-700 text-zinc-300'}`}
+                            onClick={() => updateTrackItem(selectedTrackObj.id, { isBold: !selectedTrackObj.isBold })}
+                            title="加粗"
+                          >
+                            <Bold className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={selectedTrackObj.isItalic ? "default" : "outline"}
+                            className={`h-7 w-7 p-0 ${selectedTrackObj.isItalic ? 'bg-amber-600 text-white' : 'bg-zinc-850 border-zinc-700 text-zinc-300'}`}
+                            onClick={() => updateTrackItem(selectedTrackObj.id, { isItalic: !selectedTrackObj.isItalic })}
+                            title="斜体"
+                          >
+                            <Italic className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={(selectedTrackObj.textAlign || 'center') === 'left' ? "default" : "outline"}
+                            className={`h-7 w-7 p-0 ${(selectedTrackObj.textAlign || 'center') === 'left' ? 'bg-amber-600 text-white' : 'bg-zinc-850 border-zinc-700 text-zinc-300'}`}
+                            onClick={() => updateTrackItem(selectedTrackObj.id, { textAlign: 'left' })}
+                            title="居左对齐"
+                          >
+                            <AlignLeft className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={(selectedTrackObj.textAlign || 'center') === 'center' ? "default" : "outline"}
+                            className={`h-7 w-7 p-0 ${(selectedTrackObj.textAlign || 'center') === 'center' ? 'bg-amber-600 text-white' : 'bg-zinc-850 border-zinc-700 text-zinc-300'}`}
+                            onClick={() => updateTrackItem(selectedTrackObj.id, { textAlign: 'center' })}
+                            title="居中对齐"
+                          >
+                            <AlignCenter className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={(selectedTrackObj.textAlign || 'center') === 'right' ? "default" : "outline"}
+                            className={`h-7 w-7 p-0 ${(selectedTrackObj.textAlign || 'center') === 'right' ? 'bg-amber-600 text-white' : 'bg-zinc-850 border-zinc-700 text-zinc-300'}`}
+                            onClick={() => updateTrackItem(selectedTrackObj.id, { textAlign: 'right' })}
+                            title="居右对齐"
+                          >
+                            <AlignRight className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 字色与描边样式 */}
+                    <div className="space-y-3 bg-zinc-950/40 p-2.5 rounded-lg border border-amber-500/20">
+                      <p className="text-[10px] font-semibold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Palette className="w-3 h-3" />字色、描边与底框
+                      </p>
+                      <div>
+                        <span className="text-[10px] text-zinc-400 block mb-1.5">文字颜色</span>
+                        <div className="flex items-center gap-1.5">
+                          {[
+                            { name: '纯白', color: '#ffffff' },
+                            { name: '爆款金黄', color: '#ffea00' },
+                            { name: '活力橙', color: '#ff7700' },
+                            { name: '醒目红', color: '#ff2d55' },
+                            { name: '科技青', color: '#00f0ff' },
+                            { name: '荧光绿', color: '#22c55e' },
+                            { name: '暗夜黑', color: '#18181b' },
+                          ].map(item => {
+                            const curColor = selectedTrackObj.fontColor || '#ffffff';
+                            const isSel = curColor === item.color;
+                            return (
+                              <button
+                                key={item.color}
+                                className={`w-6 h-6 rounded-full border-2 transition-transform ${isSel ? 'border-amber-400 scale-110 shadow-md ring-2 ring-amber-400/50' : 'border-zinc-700 hover:scale-105'}`}
+                                style={{ backgroundColor: item.color }}
+                                onClick={() => updateTrackItem(selectedTrackObj.id, { fontColor: item.color })}
+                                title={item.name}
+                              />
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[11px] text-zinc-400">描边粗细</span>
+                          <span className="text-[10px] text-zinc-400 font-mono">{selectedTrackObj.strokeWidth ?? 3}px</span>
+                        </div>
+                        <Slider
+                          value={[selectedTrackObj.strokeWidth ?? 3]}
+                          onValueChange={(val) => updateTrackItem(selectedTrackObj.id, { strokeWidth: val[0] })}
+                          min={0}
+                          max={8}
+                          className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-zinc-400 block mb-1.5">字幕背景底框</span>
+                        <div className="grid grid-cols-4 gap-1">
+                          {[
+                            { name: '半透黑', bg: 'rgba(0, 0, 0, 0.75)' },
+                            { name: '醒目红', bg: 'rgba(239, 68, 68, 0.85)' },
+                            { name: '渐变黄', bg: 'rgba(234, 179, 8, 0.85)' },
+                            { name: '纯透明', bg: 'transparent' },
+                          ].map(b => {
+                            const curBg = selectedTrackObj.bgColor || 'rgba(0, 0, 0, 0.75)';
+                            const isSel = curBg === b.bg;
+                            return (
+                              <button
+                                key={b.name}
+                                className={`h-6 text-[10px] rounded border transition-all ${
+                                  isSel
+                                    ? 'bg-amber-600 text-white border-amber-500 font-medium'
+                                    : 'bg-zinc-850 border-zinc-700/80 text-zinc-400 hover:text-zinc-200'
+                                }`}
+                                onClick={() => updateTrackItem(selectedTrackObj.id, { bgColor: b.bg })}
+                              >
+                                {b.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ══════════════════════════════════════════════════════════
+                    4. 特效 / 画中画 / 贴纸轨道专业设置面板
+                    ══════════════════════════════════════════════════════════ */}
+                {selectedTrackObj.type === 'image' && (
+                  <div className="space-y-4">
+                    <div className="space-y-3 bg-zinc-950/40 p-2.5 rounded-lg border border-purple-500/20">
+                      <p className="text-[10px] font-semibold text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Sparkles className="w-3 h-3" />特效画面与画中画参数
+                      </p>
+                      <div className="space-y-2.5">
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[11px] text-zinc-400">图层缩放</span>
+                            <span className="text-[10px] text-purple-400 font-mono font-medium">{scale[0]}%</span>
+                          </div>
+                          <Slider value={scale} onValueChange={handleScaleChange} min={10} max={300} className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3" />
+                        </div>
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[11px] text-zinc-400">不透明度</span>
+                            <span className="text-[10px] text-purple-400 font-mono font-medium">{opacity[0]}%</span>
+                          </div>
+                          <Slider value={opacity} onValueChange={handleOpacityChange} max={100} className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 底部通用片段操作栏 */}
+                <div className="space-y-2 pt-2 border-t border-zinc-800">
+                  <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">片段操作</p>
                   <div className="grid grid-cols-3 gap-1.5">
                     <Button size="sm" variant="ghost" className="h-8 text-zinc-400 hover:text-white border border-zinc-700 text-[10px]" onClick={handleSplit}>
                       <ScissorsIcon className="w-3 h-3 mr-1" />分割
@@ -5105,9 +5732,21 @@ export default function VideoEditPage() {
             <div className="p-1.5 space-y-1 relative z-10">
               {/* 主视频轨道 */}
               <div className="flex gap-1.5">
-                <div className="shrink-0 h-10 bg-zinc-900 border border-zinc-800 rounded flex flex-col items-center justify-center text-zinc-500 sticky left-0 z-10" style={{ width: TRACK_LABEL_W }}>
+                <div
+                  className={`shrink-0 h-10 border rounded flex flex-col items-center justify-center cursor-pointer transition-all sticky left-0 z-10 select-none ${
+                    selectedTrackObj?.type === 'video'
+                      ? 'border-indigo-500 bg-indigo-950/70 text-indigo-300 ring-1 ring-indigo-500/50'
+                      : 'border-zinc-800 bg-zinc-900 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'
+                  }`}
+                  style={{ width: TRACK_LABEL_W }}
+                  title="点击选中主轨道"
+                  onClick={() => {
+                    const track = tracks.find(t => t.type === 'video');
+                    if (track) setSelectedTrackItem(track.id);
+                  }}
+                >
                   <Film className="w-3.5 h-3.5 mb-0.5" />
-                  <span className="text-[8px]">主轨道</span>
+                  <span className="text-[8px] font-medium">主轨道</span>
                 </div>
                 <div className="relative h-10 bg-zinc-900/30 rounded border border-zinc-800/50" style={{ width: duration * pxPerSec }}>
                   {tracks.filter(item => item.type === 'video').map(item => (
@@ -5132,9 +5771,21 @@ export default function VideoEditPage() {
 
               {/* 音频轨道 */}
               <div className="flex gap-1.5">
-                <div className="shrink-0 h-8 bg-zinc-900 border border-zinc-800 rounded flex flex-col items-center justify-center text-zinc-500 sticky left-0 z-10" style={{ width: TRACK_LABEL_W }}>
+                <div
+                  className={`shrink-0 h-8 border rounded flex flex-col items-center justify-center cursor-pointer transition-all sticky left-0 z-10 select-none ${
+                    selectedTrackObj?.type === 'audio'
+                      ? 'border-emerald-500 bg-emerald-950/70 text-emerald-300 ring-1 ring-emerald-500/50'
+                      : 'border-zinc-800 bg-zinc-900 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'
+                  }`}
+                  style={{ width: TRACK_LABEL_W }}
+                  title="点击选中音频轨道"
+                  onClick={() => {
+                    const track = tracks.find(t => t.type === 'audio');
+                    if (track) setSelectedTrackItem(track.id);
+                  }}
+                >
                   <Music2 className="w-3.5 h-3.5 mb-0.5" />
-                  <span className="text-[8px]">音频</span>
+                  <span className="text-[8px] font-medium">音频</span>
                 </div>
                 <div className="relative h-8 bg-zinc-900/30 rounded border border-zinc-800/50" style={{ width: duration * pxPerSec }}>
                   {tracks.filter(item => item.type === 'audio').map(item => (
@@ -5157,10 +5808,23 @@ export default function VideoEditPage() {
                 </div>
               </div>
 
-              {/* 字幕轨道 */}
+              {/* 字幕文案轨道 */}
               <div className="flex gap-1.5">
-                <div className="shrink-0 h-7 bg-zinc-900 border border-zinc-800 rounded flex items-center justify-center text-zinc-500 sticky left-0 z-10" style={{ width: TRACK_LABEL_W }}>
-                  <Type className="w-3.5 h-3.5" />
+                <div
+                  className={`shrink-0 h-7 border rounded flex items-center justify-center cursor-pointer transition-all sticky left-0 z-10 select-none gap-1 ${
+                    selectedTrackObj?.type === 'text'
+                      ? 'border-amber-500 bg-amber-950/70 text-amber-300 ring-1 ring-amber-500/50'
+                      : 'border-zinc-800 bg-zinc-900 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'
+                  }`}
+                  style={{ width: TRACK_LABEL_W }}
+                  title="点击选中文案轨道"
+                  onClick={() => {
+                    const track = tracks.find(t => t.type === 'text');
+                    if (track) setSelectedTrackItem(track.id);
+                  }}
+                >
+                  <Type className="w-3 h-3" />
+                  <span className="text-[8px] font-medium">文案</span>
                 </div>
                 <div className="relative h-7 bg-zinc-900/30 rounded border border-zinc-800/50" style={{ width: duration * pxPerSec }}>
                   {tracks.filter(item => item.type === 'text').map(item => (
@@ -5185,8 +5849,21 @@ export default function VideoEditPage() {
 
               {/* 特效轨道 */}
               <div className="flex gap-1.5">
-                <div className="shrink-0 h-7 bg-zinc-900 border border-zinc-800 rounded flex items-center justify-center text-zinc-500 sticky left-0 z-10" style={{ width: TRACK_LABEL_W }}>
-                  <Sparkles className="w-3.5 h-3.5" />
+                <div
+                  className={`shrink-0 h-7 border rounded flex items-center justify-center cursor-pointer transition-all sticky left-0 z-10 select-none gap-1 ${
+                    selectedTrackObj?.type === 'image' || selectedTrackObj?.trackId === 'effects'
+                      ? 'border-purple-500 bg-purple-950/70 text-purple-300 ring-1 ring-purple-500/50'
+                      : 'border-zinc-800 bg-zinc-900 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'
+                  }`}
+                  style={{ width: TRACK_LABEL_W }}
+                  title="点击选中特效轨道"
+                  onClick={() => {
+                    const track = tracks.find(t => t.type === 'image' || t.trackId === 'effects');
+                    if (track) setSelectedTrackItem(track.id);
+                  }}
+                >
+                  <Sparkles className="w-3 h-3" />
+                  <span className="text-[8px] font-medium">特效</span>
                 </div>
                 <div className="relative h-7 bg-zinc-900/30 rounded border border-zinc-800/50" style={{ width: duration * pxPerSec }}>
                   {tracks.filter(item => item.type === 'image').map(item => (
