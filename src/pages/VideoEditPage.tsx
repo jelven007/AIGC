@@ -32,6 +32,49 @@ import { extractVideoFirstFrame, extractVideoMeta, getVideoCoverImage } from '@/
 
 
 // ── 类型定义 ──────────────────────────────────────────────────────────────
+// ── 文案字体标签 → 真实 CSS font-family 栈映射（中文标签本身不可被浏览器解析）──
+const FONT_STACK_MAP: Record<string, string> = {
+  '默认黑体': '"PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif',
+  '思源宋体': '"Noto Serif SC", "Source Han Serif SC", "SimSun", serif',
+  '快乐体': '"ZCOOL KuaiLe", "Comic Sans MS", cursive, sans-serif',
+  '抖音美好体': '"ZCOOL QingKe HuangYou", "Douyin Meihao Ti", sans-serif',
+  '手写体': '"Ma Shan Zheng", "STXingkai", "KaiTi", cursive',
+  '综艺体': '"ZCOOL QingKe HuangYou", "FZZhengHei", sans-serif',
+};
+const resolveTextFont = (label?: string) =>
+  (label && FONT_STACK_MAP[label]) ||
+  (label && Object.values(FONT_STACK_MAP).includes(label) ? label : undefined) ||
+  '"PingFang SC", "Microsoft YaHei", sans-serif';
+
+// ── 降噪档位：用高通/低通/陷波双二阶滤波器组近似 AI 降噪的分频处理 ──
+const DENOISE_LEVELS: Record<string, { hp: number; lp: number; notch: number }> = {
+  '无降噪': { hp: 20, lp: 20000, notch: 1 },
+  '轻度去噪': { hp: 80, lp: 14000, notch: 50 },
+  '深度纯音': { hp: 120, lp: 11000, notch: 100 },
+};
+
+// ── 混响声场预设：以程序化生成指数衰减噪声脉冲响应驱动 ConvolverNode ──
+const REVERB_PRESETS: Record<string, { seconds: number; decay: number; wet: number }> = {
+  '录音棚': { seconds: 0.6, decay: 2.6, wet: 0.16 },
+  'KTV沉浸': { seconds: 1.6, decay: 2.2, wet: 0.3 },
+  '大厅空间': { seconds: 3.2, decay: 1.8, wet: 0.42 },
+  '广播电台': { seconds: 0.35, decay: 3, wet: 0.12 },
+  '温暖剧场': { seconds: 2.2, decay: 2, wet: 0.36 },
+};
+
+const makeReverbImpulse = (ctx: AudioContext, seconds: number, decay: number) => {
+  const rate = ctx.sampleRate;
+  const len = Math.max(1, Math.floor(rate * seconds));
+  const buffer = ctx.createBuffer(2, len, rate);
+  for (let ch = 0; ch < 2; ch++) {
+    const data = buffer.getChannelData(ch);
+    for (let i = 0; i < len; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+    }
+  }
+  return buffer;
+};
+
 interface TrackItem {
   id: string;
   trackId: string;
@@ -45,7 +88,7 @@ interface TrackItem {
   volume?: number;
   speed?: number;
   fontStyle?: any;
-  keyframes?: Record<string, { pos: number; val: number }[]>;
+  keyframes?: { time: number; property: string; value: number }[];
   // ── 专业视频画面属性 ──
   x?: number;
   y?: number;
@@ -672,7 +715,7 @@ function EffectsPanel({
         start: Number(currentTime.toFixed(1)),
         duration: 15,
         type: 'audio',
-        url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+        url: '/Video/CreatOK_2.mp4',
       };
       setTracks(prev => [...prev, newItem].sort((a, b) => a.start - b.start));
       toast.success(`已添加背景音频「${a.name}」到时间轴`);
@@ -970,8 +1013,27 @@ function TextSubtitlePanel({
       setRecognizing(true);
       toast.info('🎙️ 录音已结束，正在通过 TeleAI / TeleSpeechASR 识别并生成字幕...');
       try {
-        const base64Wav = await audioRecorder.stop();
+        const { base64: base64Wav, recognizedText } = await audioRecorder.stop();
         let transcript = '';
+        if (recognizedText && recognizedText.trim()) {
+          // 浏览器原生 Web Speech 已给出识别结果，直接成稿，跳过远程 ASR 通道
+          transcript = recognizedText.trim();
+          setSubtitleText(prev => prev ? prev + ' ' + transcript : transcript);
+          setRecognizing(false);
+          const recognizedPhrases = transcript.split(/[，。！？\s]+/).filter(Boolean);
+          const newItems: TrackItem[] = recognizedPhrases.map((phrase, idx) => ({
+            id: `text-asr-${Date.now()}-${idx}`,
+            trackId: 'text',
+            name: phrase,
+            start: Number(Math.min(duration - 2, idx * 3.5).toFixed(1)),
+            duration: 3.2,
+            type: 'text',
+            fontStyle: selectedFont || 'fs6',
+          }));
+          setTracks(prev => [...prev, ...newItems].sort((a, b) => a.start - b.start));
+          toast.success(`🎉 语音识别完成！已自动为时间轴生成 ${newItems.length} 条字幕片段`);
+          return;
+        }
         await sendStepAudioASR({
           audioData: base64Wav,
           onData: (text) => {
@@ -1352,7 +1414,7 @@ function PipPanel({
       { id: `v-tmpl-${Date.now()}`, trackId: 'video', name: `${templateName}·主画面`, start: 0, duration: 15, type: 'video', url: '/Video/CreatOK_11.mp4' },
       { id: `pip-tmpl-${Date.now()}`, trackId: 'pip', name: `${templateName}·带货微距`, start: 2, duration: 10, type: 'video', url: '/Video/CreatOK_5.mp4' },
       { id: `t-tmpl-${Date.now()}`, trackId: 'text', name: '限时抢购 · 立即下单立减50元！', start: 3, duration: 6, type: 'text', fontStyle: 'fs3' },
-      { id: `a-tmpl-${Date.now()}`, trackId: 'audio', name: '动感节奏BGM', start: 0, duration: 15, type: 'audio', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' },
+      { id: `a-tmpl-${Date.now()}`, trackId: 'audio', name: '动感节奏BGM', start: 0, duration: 15, type: 'audio', url: '/Video/CreatOK_2.mp4' },
     ];
     setTracks(templateTracks);
     setPipSettings({ x: 75, y: 25, scale: 100, rotation: 0, opacity: 100, blendMode: '正常' });
@@ -2820,6 +2882,7 @@ function LeftSidebar({
                 tracks={tracks}
                 setTracks={setTracks}
                 currentTime={currentTime}
+                duration={duration}
                 selectedFont={selectedFont}
                 setSelectedFont={setSelectedFont}
               />
@@ -2901,7 +2964,7 @@ const DEFAULT_TRACKS: TrackItem[] = [
     start: 0,
     duration: 27,
     type: 'audio',
-    url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3'
+    url: '/Video/CreatOK_2.mp4'
   },
   {
     id: 't1',
@@ -3256,6 +3319,9 @@ export default function VideoEditPage() {
     });
   })();
 
+  // 参真实与预览播放的全部音频轨片段（隐藏 <audio> 播放器驱动）
+  const audioMediaClips = tracks.filter(t => t.type === 'audio' && t.url);
+
   // ── 8大面板核心业务状态 ──────────────────────────────────────────
   const [appliedFilter, setAppliedFilter] = useState('无');
   const [filterIntensity, setFilterIntensity] = useState<Record<string, number>>({
@@ -3282,6 +3348,8 @@ export default function VideoEditPage() {
     fadeOut: 1.0,
     pitch: 0,
     speed: 100,
+    eqBands: {},
+    enabledEffects: new Set<string>(),
   });
   const [aiBeautyEnabled, setAiBeautyEnabled] = useState(false);
   const [aiCutoutEnabled, setAiCutoutEnabled] = useState(false);
@@ -3422,6 +3490,9 @@ export default function VideoEditPage() {
   const mainVideoTrack = tracks.find(t => t.type === 'video') || tracks[0];
   const selectedTrackObj = tracks.find(t => t.id === selectedTrackItem) || mainVideoTrack;
 
+  // 画面预览特效以“播放头下的激活片段”为准，无激活片段时回退选中片段，避免选中文案/音频时主画面属性被重置
+  const videoFxClip = activeVideoClip ?? selectedTrackObj;
+
   const [speed, setSpeed] = useState(1);
 
   // 确保当选中片段不存在或未设置时，属性设置面板默认显示主视频轨道
@@ -3455,6 +3526,106 @@ export default function VideoEditPage() {
       return updated;
     }));
   }, []);
+
+  // ── 音频轨真实播放引擎：隐藏播放器 + Web Audio 效果链（降噪EQ/Pan/混响/淡入淡出）──────
+  interface AudioFxNodes {
+    ctx: AudioContext;
+    source: MediaElementAudioSourceNode;
+    hp: BiquadFilterNode;
+    lp: BiquadFilterNode;
+    notch: BiquadFilterNode;
+    panner: StereoAudioPannerNodeCompat;
+    dry: GainNode;
+    convolver: ConvolverNode;
+    wetGain: GainNode;
+    reverbName: string;
+  }
+  type StereoAudioPannerNodeCompat = StereoPannerNode;
+
+  const audioElsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const audioGraphRef = useRef<Record<string, AudioFxNodes>>({});
+  const audioBlobCacheRef = useRef<Record<string, string>>({});
+  const audioBlobPendingRef = useRef<Set<string>>(new Set());
+  const audioBlobFailedRef = useRef<Set<string>>(new Set());
+  const audioFxWarnedRef = useRef<Set<string>>(new Set());
+
+  const getSharedAudioCtx = () => {
+    if (!audioCtxRef.current) {
+      const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!Ctor) return null;
+      try {
+        audioCtxRef.current = new Ctor();
+      } catch {
+        return null;
+      }
+    }
+    return audioCtxRef.current;
+  };
+
+  // 为指定片段懒创建 Web Audio 效果链；仅当媒体已被代理为同源 blob URL 时才能安全接入图谱（跨域直接路由会被浏览器静音）
+  const ensureAudioGraph = (clipId: string, el: HTMLAudioElement): AudioFxNodes | null => {
+    const existing = audioGraphRef.current[clipId];
+    if (existing) return existing;
+    const ctx = getSharedAudioCtx();
+    if (!ctx || !el.src.startsWith('blob:')) return null;
+    try {
+      const source = ctx.createMediaElementSource(el);
+      const hp = ctx.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.value = 20;
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 20000;
+      const notch = ctx.createBiquadFilter();
+      notch.type = 'notch';
+      notch.frequency.value = 1;
+      const panner = ctx.createStereoPanner();
+      const dry = ctx.createGain();
+      dry.gain.value = 1;
+      const convolver = ctx.createConvolver();
+      const wetGain = ctx.createGain();
+      wetGain.gain.value = 0;
+      source.connect(hp);
+      hp.connect(lp);
+      lp.connect(notch);
+      notch.connect(dry);
+      dry.connect(ctx.destination);
+      notch.connect(convolver);
+      convolver.connect(wetGain);
+      wetGain.connect(ctx.destination);
+      const nodes: AudioFxNodes = { ctx, source, hp, lp, notch, panner, dry, convolver, wetGain, reverbName: '' };
+      audioGraphRef.current[clipId] = nodes;
+      return nodes;
+    } catch {
+      return null;
+    }
+  };
+
+  // 将片段当前属性实时写入效果链节点（降噪分频/声像/混响湿声比例与脉冲响应）
+  const applyAudioClipFxParams = (clip: TrackItem, nodes: AudioFxNodes) => {
+    const level = DENOISE_LEVELS[clip.denoise || '轻度去噪'] || DENOISE_LEVELS['无降噪'];
+    let hpHz = level.hp;
+    let lpHz = level.lp;
+    if (clip.reverb === '广播电台') {
+      hpHz = Math.max(hpHz, 240);
+      lpHz = Math.min(lpHz, 3600);
+    }
+    nodes.hp.frequency.setTargetAtTime(hpHz, nodes.ctx.currentTime, 0.03);
+    nodes.lp.frequency.setTargetAtTime(lpHz, nodes.ctx.currentTime, 0.03);
+    nodes.notch.frequency.setTargetAtTime(level.notch, nodes.ctx.currentTime, 0.03);
+    nodes.panner.pan.setTargetAtTime(Math.max(-1, Math.min(1, (clip.pan ?? 0) / 100)), nodes.ctx.currentTime, 0.03);
+    const preset = REVERB_PRESETS[clip.reverb || ''] || null;
+    nodes.wetGain.gain.setTargetAtTime(preset ? preset.wet : 0, nodes.ctx.currentTime, 0.05);
+    if (preset && nodes.reverbName !== clip.reverb) {
+      try {
+        nodes.convolver.buffer = makeReverbImpulse(nodes.ctx, preset.seconds, preset.decay);
+        nodes.reverbName = clip.reverb!;
+      } catch {
+        console.warn('Reverb IR generate failed for:', clip.reverb);
+      }
+    }
+  };
 
   const handleScaleChange = (val: number[]) => {
     setScale(val);
@@ -3557,15 +3728,14 @@ export default function VideoEditPage() {
     toast.success('片段已成功删除');
   }, [selectedTrackItem]);
 
-  // Sync volume and speed of the video element
+  // Sync volume and speed of the video element（尊重片段“静音/原声音量”属性，不再强制取消静音）
   useEffect(() => {
     if (videoRef.current) {
       const activeVol = activeVideoClip?.volume ?? 100;
       videoRef.current.volume = Math.max(0, Math.min(1, activeVol / 100));
-      videoRef.current.muted = false;
-      videoRef.current.removeAttribute('muted');
+      videoRef.current.muted = !!activeVideoClip?.mute;
     }
-  }, [activeVideoClip, activeVideoClip?.volume, previewVideoUrl]);
+  }, [activeVideoClip, activeVideoClip?.volume, activeVideoClip?.mute, previewVideoUrl]);
 
   useEffect(() => {
     if (videoRef.current) {
@@ -3573,6 +3743,106 @@ export default function VideoEditPage() {
       videoRef.current.playbackRate = activeSpeed;
     }
   }, [activeVideoClip?.speed]);
+
+  // 音频轨片段随播放头实时同步：播放/暂停/寻址对齐、音量、淡入淡出包络、静音、变速，并驱动效果链参数
+  useEffect(() => {
+    audioMediaClips.forEach(clip => {
+      const el = audioElsRef.current.get(clip.id);
+      if (!el || !clip.url) return;
+      const rawUrl = clip.url;
+
+      // 1) 同源 blob 代理：成功前不接入 Web Audio，避免跨域路由被浏览器静默；失败源永久记录，不重复发起注定失败的请求
+      const blobUrl = audioBlobCacheRef.current[rawUrl];
+      if (!blobUrl && !audioBlobPendingRef.current.has(rawUrl) && !audioBlobFailedRef.current.has(rawUrl)) {
+        audioBlobPendingRef.current.add(rawUrl);
+        fetch(rawUrl)
+          .then(res => (res.ok ? res.blob() : Promise.reject(new Error(`audio proxy http ${res.status}`))))
+          .then(blob => {
+            const burl = URL.createObjectURL(blob);
+            audioBlobCacheRef.current[rawUrl] = burl;
+            const cur = audioElsRef.current.get(clip.id);
+            if (cur) cur.src = burl;
+          })
+          .catch(err => {
+            audioBlobFailedRef.current.add(rawUrl);
+            console.warn('Audio blob proxy unavailable (声像/降噪/混响降级，音量/淡变/变速仍真实生效):', rawUrl, err?.message);
+          })
+          .finally(() => audioBlobPendingRef.current.delete(rawUrl));
+      } else if (blobUrl && el.src !== blobUrl && !el.src.startsWith('blob:')) {
+        el.src = blobUrl;
+      }
+
+      // 2) 时间/音量/包络/变速/播放控制
+      const local = currentTime - clip.start;
+      const within = local >= 0 && local <= clip.duration;
+      const fi = clip.fadeIn ?? 1.0;
+      const fo = clip.fadeOut ?? 1.5;
+      let env = 1;
+      if (fi > 0) env = Math.min(env, Math.max(0, local / fi));
+      if (fo > 0) env = Math.min(env, Math.max(0, (clip.duration - local) / fo));
+      env = Math.max(0, Math.min(1, env));
+      const targetVol = clip.mute ? 0 : Math.max(0, Math.min(1, ((clip.volume ?? 100) / 100) * env));
+      if (Math.abs(el.volume - targetVol) > 0.02) el.volume = targetVol;
+      const rate = Math.max(0.25, Math.min(4, clip.speed ?? 1));
+      if (el.playbackRate !== rate) el.playbackRate = rate;
+
+      if (isPlaying && within) {
+        if (Math.abs(el.currentTime - local) > 0.3) {
+          try {
+            el.currentTime = Math.max(0, local);
+          } catch {
+            /* 元数据未就绪时忽略本次 seek */
+          }
+        }
+        if (el.paused) el.play().catch(() => {});
+      } else if (!el.paused) {
+        el.pause();
+      }
+
+      // 3) Web Audio 效果链（与面板默认展示一致：降噪默认“轻度去噪”、混响默认“原声纯净”）
+      const curDenoise = clip.denoise || '轻度去噪';
+      const curReverb = clip.reverb || '原声纯净';
+      const needsFx =
+        (clip.pan ?? 0) !== 0 ||
+        curReverb !== '原声纯净' ||
+        curDenoise !== '无降噪';
+      const graphReady = el.src.startsWith('blob:');
+      const nodes = audioGraphRef.current[clip.id] || (needsFx && graphReady ? ensureAudioGraph(clip.id, el) : null);
+      if (nodes) {
+        applyAudioClipFxParams(clip, nodes);
+      } else if (needsFx && audioBlobFailedRef.current.has(rawUrl) && !audioFxWarnedRef.current.has(rawUrl)) {
+        // 首次在该不可代理音源上开启声像/降噪/混响时，如实告知降级范围，避免“改了没反应”的困惑
+        audioFxWarnedRef.current.add(rawUrl);
+        toast.info('⚠️ 该音频源不支持跨域特效处理：声像/降噪/混响无法生效，音量、淡入淡出、静音与变速真实生效');
+      }
+    });
+  }, [audioMediaClips, tracks, currentTime, isPlaying]);
+
+  // 用户点击播放后恢复 AudioContext（浏览器自动播放策略要求手势后 resume）
+  useEffect(() => {
+    if (isPlaying) {
+      audioCtxRef.current?.resume().catch(() => {});
+    }
+  }, [isPlaying]);
+
+  // 卸载时释放音频引擎资源：断开效果链、关闭上下文、回收 blob
+  useEffect(() => {
+    const graphs = audioGraphRef.current;
+    const blobs = audioBlobCacheRef.current;
+    return () => {
+      Object.values(graphs).forEach(n => {
+        try {
+          n.source.disconnect();
+          n.dry.disconnect();
+          n.wetGain.disconnect();
+        } catch {
+          /* 已断开则忽略 */
+        }
+      });
+      Object.values(blobs).forEach(u => URL.revokeObjectURL(u));
+      audioCtxRef.current?.close().catch(() => {});
+    };
+  }, []);
 
   // Initialize history with initial tracks once loaded
   useEffect(() => {
@@ -4081,22 +4351,21 @@ export default function VideoEditPage() {
   }, [tracks, zoom, duration, projectTitle, importId, user]);
 
 
-  // 同步播放/暂停到 video 元素
+  // 同步播放/暂停到 video 元素（静音态由片段属性决定，不再强制取消静音）
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
     if (isPlaying) {
-      v.muted = false;
-      v.removeAttribute('muted');
+      v.muted = !!activeVideoClip?.mute;
       v.play().catch((err) => {
-        console.warn('Play unmuted fail, fallback muted:', err);
+        console.warn('Play fail, fallback muted autoplay:', err);
         v.muted = true;
         v.play().catch(e => console.warn('Play sync fail:', e));
       });
     } else {
       v.pause();
     }
-  }, [isPlaying, currentVideoSrc]);
+  }, [isPlaying, currentVideoSrc, activeVideoClip?.mute]);
 
   // 播放主时钟：DOM 游标 60FPS 极速渲染，同时节流同步 React 状态，消除整树重渲染卡顿
   useEffect(() => {
@@ -4553,7 +4822,7 @@ export default function VideoEditPage() {
         await supabase.from('video_projects').update({
           status: 'failed',
           error_message: errMsg,
-        }).eq('id', currentId).catch(() => {});
+        }).eq('id', currentId);
       }
       toast.error('导出失败: ' + errMsg);
     } finally {
@@ -4748,9 +5017,9 @@ export default function VideoEditPage() {
                   alt={activeImageClip.name}
                   className="w-full h-full object-contain transition-all"
                   style={{
-                    transform: `scale(${(selectedTrackObj?.scale ?? 100) / 100})`,
-                    opacity: (selectedTrackObj?.opacity ?? 100) / 100,
-                    filter: getCssFilter(appliedFilter, filterIntensity[appliedFilter], aiBeautyEnabled) + (aiCutoutEnabled ? ' drop-shadow(0 0 12px rgba(99, 102, 241, 0.8))' : ''),
+                    transform: `scale(${(activeImageClip.scale ?? 100) / 100}) rotate(${activeImageClip.rotation ?? 0}deg)`,
+                    opacity: (activeImageClip.opacity ?? 100) / 100,
+                    filter: getCssFilter(activeImageClip.filter || appliedFilter, filterIntensity[activeImageClip.filter || appliedFilter] ?? filterIntensity[appliedFilter] ?? 80, aiBeautyEnabled) + (aiCutoutEnabled ? ' drop-shadow(0 0 12px rgba(99, 102, 241, 0.8))' : ''),
                   }}
                   onLoad={(e) => {
                     const img = e.currentTarget;
@@ -4769,9 +5038,9 @@ export default function VideoEditPage() {
                   className="w-full h-full object-contain bg-black cursor-pointer"
                   onClick={() => setIsPlaying(prev => !prev)}
                   style={{
-                    transform: `scale(${(selectedTrackObj?.scale ?? 100) / 100}) rotate(${selectedTrackObj?.rotation ?? 0}deg) scaleX(${selectedTrackObj?.flipH ? -1 : 1}) scaleY(${selectedTrackObj?.flipV ? -1 : 1})`,
-                    opacity: (selectedTrackObj?.opacity ?? 100) / 100,
-                    filter: getCssFilter(selectedTrackObj?.filter || appliedFilter, filterIntensity[appliedFilter], aiBeautyEnabled) + (aiCutoutEnabled ? ' drop-shadow(0 0 12px rgba(99, 102, 241, 0.8))' : ''),
+                    transform: `scale(${(videoFxClip?.scale ?? 100) / 100}) translate(${videoFxClip?.x ?? 0}px, ${videoFxClip?.y ?? 0}px) rotate(${videoFxClip?.rotation ?? 0}deg) scaleX(${videoFxClip?.flipH ? -1 : 1}) scaleY(${videoFxClip?.flipV ? -1 : 1})`,
+                    opacity: (videoFxClip?.opacity ?? 100) / 100,
+                    filter: getCssFilter(videoFxClip?.filter || appliedFilter, filterIntensity[videoFxClip?.filter || appliedFilter] ?? filterIntensity[appliedFilter] ?? 80, aiBeautyEnabled) + (aiCutoutEnabled ? ' drop-shadow(0 0 12px rgba(99, 102, 241, 0.8))' : ''),
                   }}
                   onPlay={() => setIsPlaying(true)}
                   onPause={() => {
@@ -4789,8 +5058,7 @@ export default function VideoEditPage() {
                   }}
                   onCanPlay={(e) => {
                     const vid = e.currentTarget;
-                    vid.muted = false;
-                    vid.removeAttribute('muted');
+                    vid.muted = !!activeVideoClipRef.current?.mute;
                     if (!isPlaying) {
                       if (activeVideoClip) {
                         const localTime = currentTime - activeVideoClip.start;
@@ -4883,10 +5151,11 @@ export default function VideoEditPage() {
                     className="px-4 py-1.5 rounded-lg max-w-[85%] leading-relaxed select-none shadow-2xl transition-all"
                     style={{
                       fontSize: activeTextClip.fontSize ? `${activeTextClip.fontSize}px` : `${Math.max(13, Math.min(24, (activeTextClip.scale ?? 100) * 0.16))}px`,
-                      fontFamily: activeTextClip.fontFamily || activeTextClip.fontStyle?.fontFamily || selectedFont || 'sans-serif',
+                      fontFamily: resolveTextFont(activeTextClip.fontFamily || activeTextClip.fontStyle?.fontFamily || selectedFont),
                       color: activeTextClip.fontColor || activeTextClip.fontStyle?.color || '#ffffff',
                       backgroundColor: activeTextClip.bgColor || activeTextClip.fontStyle?.bg || 'rgba(0, 0, 0, 0.75)',
                       textShadow: activeTextClip.strokeWidth ? `0 0 ${activeTextClip.strokeWidth}px ${activeTextClip.strokeColor || '#000000'}, 0 2px 8px rgba(0,0,0,0.9)` : '0 2px 8px rgba(0,0,0,0.9), 0 0 4px rgba(0,0,0,0.8)',
+                      WebkitTextStroke: activeTextClip.strokeWidth ? `${Math.max(0.5, activeTextClip.strokeWidth / 2)}px ${activeTextClip.strokeColor || '#000000'}` : undefined,
                       fontWeight: activeTextClip.isBold ? 'bold' : '500',
                       fontStyle: activeTextClip.isItalic ? 'italic' : 'normal',
                       textAlign: activeTextClip.textAlign || 'center',
@@ -4898,6 +5167,23 @@ export default function VideoEditPage() {
                   </span>
                 </div>
               )}
+
+              {/* 音频轨隐藏播放器：为属性面板的音量/声像/淡入淡出/降噪/混响/变速提供真实媒体载体 */}
+              {audioMediaClips.map(clip => (
+                <audio
+                  key={clip.id}
+                  ref={el => {
+                    if (el) {
+                      audioElsRef.current.set(clip.id, el);
+                    } else {
+                      audioElsRef.current.delete(clip.id);
+                    }
+                  }}
+                  src={clip.url}
+                  preload="auto"
+                  className="hidden"
+                />
+              ))}
 
               {/* 播放控制 */}
               <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-zinc-900/80 backdrop-blur px-6 py-2 rounded-full border border-zinc-700/50 z-30">
@@ -5679,7 +5965,7 @@ export default function VideoEditPage() {
           <div className="relative h-full overflow-hidden ruler-ticks-container" style={{ flex: 1 }}>
             <div className="absolute top-0 left-0 h-full" style={{ width: duration * pxPerSec, transform: `translateX(-${timelineScrollOffset}px)` }}>
               {(() => {
-                const ticks = [];
+                const ticks: number[] = [];
                 const step = pxPerSec < 15 ? 10 : pxPerSec < 40 ? 5 : 1;
                 for (let i = 0; i <= duration; i += step) {
                   ticks.push(i);
@@ -5715,7 +6001,7 @@ export default function VideoEditPage() {
           >
             {/* 轨道时间线刻度网格线背景 */}
             {(() => {
-              const ticks = [];
+              const ticks: number[] = [];
               const step = duration > 120 ? 20 : duration > 60 ? 10 : 5;
               for (let i = 0; i <= duration; i += step) {
                 ticks.push(i);
