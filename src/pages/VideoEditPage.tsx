@@ -2899,7 +2899,9 @@ export default function VideoEditPage() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(30);
   const [zoom, setZoom] = useState(0);
-  const [selectedTrackItem, setSelectedTrackItem] = useState<string | null>(null);
+  const [selectedTrackItem, setSelectedTrackItem] = useState<string | null>(() => {
+    return DEFAULT_TRACKS.find(t => t.type === 'video')?.id || 'v1';
+  });
   const [projectTitle, setProjectTitle] = useState('未命名项目');
   const [saving, setSaving] = useState(false);
   const [materials, setMaterials] = useState<{ id: string; name: string; url: string; type: string }[]>([]);
@@ -3094,9 +3096,10 @@ export default function VideoEditPage() {
 
   // Timeline layout constants — px-per-second based
   const TRACK_LABEL_W = 60; // width of the track icon label column in px
+  const TRACK_CONTENT_OFFSET = TRACK_LABEL_W + 12; // 60 + 6 (padding) + 6 (gap) = 72px
   const BASE_PX_PER_SEC = 20; // at zoom=0 each second = 20px
   const pxPerSec = BASE_PX_PER_SEC * (1 + zoom * 0.08); // zoom 0→100 scales 20→180px/s
-  const timelinePxWidth = TRACK_LABEL_W + 6 + duration * pxPerSec; // +6 for padding
+  const timelinePxWidth = TRACK_CONTENT_OFFSET + duration * pxPerSec;
   const timelineMinWidth = 600; // minimum scrollable width
 
 
@@ -3316,10 +3319,22 @@ export default function VideoEditPage() {
       ? undefined
       : (previewVideoUrl || undefined);
 
-  // Selected track item object
-  const selectedTrackObj = tracks.find(t => t.id === selectedTrackItem);
+  // Selected track item object (默认回退展示主视频轨道)
+  const mainVideoTrack = tracks.find(t => t.type === 'video') || tracks[0];
+  const selectedTrackObj = tracks.find(t => t.id === selectedTrackItem) || mainVideoTrack;
 
   const [speed, setSpeed] = useState(1);
+
+  // 确保当选中片段不存在或未设置时，属性设置面板默认显示主视频轨道
+  useEffect(() => {
+    if (tracks.length > 0) {
+      const exists = tracks.some(t => t.id === selectedTrackItem);
+      if (!exists) {
+        const main = tracks.find(t => t.type === 'video') || tracks[0];
+        if (main) setSelectedTrackItem(main.id);
+      }
+    }
+  }, [tracks, selectedTrackItem]);
 
   // Sync state with selected item attributes
   useEffect(() => {
@@ -3329,33 +3344,37 @@ export default function VideoEditPage() {
       setVolume([selectedTrackObj.volume ?? 100]);
       setSpeed(selectedTrackObj.speed ?? 1);
     }
-  }, [selectedTrackItem, selectedTrackObj]);
+  }, [selectedTrackObj?.id]);
 
   const handleScaleChange = (val: number[]) => {
     setScale(val);
-    if (selectedTrackItem) {
-      setTracks(prev => prev.map(t => t.id === selectedTrackItem ? { ...t, scale: val[0] } : t));
+    const targetId = selectedTrackItem || selectedTrackObj?.id;
+    if (targetId) {
+      setTracks(prev => prev.map(t => t.id === targetId ? { ...t, scale: val[0] } : t));
     }
   };
 
   const handleOpacityChange = (val: number[]) => {
     setOpacity(val);
-    if (selectedTrackItem) {
-      setTracks(prev => prev.map(t => t.id === selectedTrackItem ? { ...t, opacity: val[0] } : t));
+    const targetId = selectedTrackItem || selectedTrackObj?.id;
+    if (targetId) {
+      setTracks(prev => prev.map(t => t.id === targetId ? { ...t, opacity: val[0] } : t));
     }
   };
 
   const handleVolumeChange = (val: number[]) => {
     setVolume(val);
-    if (selectedTrackItem) {
-      setTracks(prev => prev.map(t => t.id === selectedTrackItem ? { ...t, volume: val[0] } : t));
+    const targetId = selectedTrackItem || selectedTrackObj?.id;
+    if (targetId) {
+      setTracks(prev => prev.map(t => t.id === targetId ? { ...t, volume: val[0] } : t));
     }
   };
 
   const handleSpeedChange = (val: number) => {
     setSpeed(val);
-    if (selectedTrackItem) {
-      setTracks(prev => prev.map(t => t.id === selectedTrackItem ? { ...t, speed: val } : t));
+    const targetId = selectedTrackItem || selectedTrackObj?.id;
+    if (targetId) {
+      setTracks(prev => prev.map(t => t.id === targetId ? { ...t, speed: val } : t));
     }
   };
 
@@ -3959,14 +3978,17 @@ export default function VideoEditPage() {
     if (isPlaying) {
       v.muted = false;
       v.removeAttribute('muted');
-      v.play().catch((err) => console.warn('Play sync fail:', err));
+      v.play().catch((err) => {
+        console.warn('Play unmuted fail, fallback muted:', err);
+        v.muted = true;
+        v.play().catch(e => console.warn('Play sync fail:', e));
+      });
     } else {
       v.pause();
     }
   }, [isPlaying, currentVideoSrc]);
 
-  // 播放主时钟：播放中优先以 <video> 元素原生时钟为准（requestAnimationFrame 帧同步），
-  // 墙钟仅作无视频载体/加载间隙的兜底推进，消除挂钟定时器与视频时钟漂移引发的高频纠错 seek 卡顿
+  // 播放主时钟：视频播放时优先以 <video> 元素的原生高精时钟推进，缓冲或无视频片段时以 requestAnimationFrame 平滑挂钟推进
   useEffect(() => {
     if (!isPlaying) return;
     let rafId = 0;
@@ -3976,16 +3998,20 @@ export default function VideoEditPage() {
       lastStamp = stamp;
       const v = videoRef.current;
       const clip = activeVideoClipRef.current;
-      const videoClockReady = !!v && !!v.currentSrc && v.readyState >= 2 && !v.seeking && !v.paused;
+      const isVideoPlaying = !!v && !!v.currentSrc && v.readyState >= 2 && !v.seeking && !v.paused;
       setCurrentTime(prev => {
-        const rate = v && Number.isFinite(v.playbackRate) ? Math.max(0.25, Math.min(4, v.playbackRate)) : 1;
-        let next = prev + delta * rate;
-        if (videoClockReady && v) {
-          const mapped = clip ? clip.start + v.currentTime : (previewVideoUrlRef.current ? v.currentTime : prev);
-          // 视频时钟与推进幅度一致时直接采用，片段切换/缓冲加载瞬间不回拨跳变
-          if (mapped >= prev - 0.35 && mapped <= prev + 1.2) next = mapped;
+        let next: number;
+        if (isVideoPlaying && v) {
+          const mapped = clip ? clip.start + v.currentTime : v.currentTime;
+          next = mapped;
+        } else {
+          const rate = v && Number.isFinite(v.playbackRate) ? Math.max(0.25, Math.min(4, v.playbackRate)) : 1;
+          next = prev + delta * rate;
         }
-        if (next >= duration) return duration;
+        if (next >= duration) {
+          setIsPlaying(false);
+          return duration;
+        }
         return next;
       });
       rafId = requestAnimationFrame(tick);
@@ -3993,6 +4019,21 @@ export default function VideoEditPage() {
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
   }, [isPlaying, duration]);
+
+  // 播放时自动同步时间轴横向滚动，确保播放竖线始终处于可视区域内
+  useEffect(() => {
+    if (!isPlaying) return;
+    const el = timelineScrollRef.current;
+    if (!el) return;
+    const playheadX = TRACK_CONTENT_OFFSET + currentTime * pxPerSec;
+    const viewLeft = el.scrollLeft;
+    const viewRight = el.scrollLeft + el.clientWidth;
+    if (playheadX > viewRight - 60) {
+      el.scrollLeft = playheadX - el.clientWidth / 2;
+    } else if (playheadX < viewLeft) {
+      el.scrollLeft = Math.max(0, playheadX - 60);
+    }
+  }, [currentTime, isPlaying, pxPerSec, TRACK_CONTENT_OFFSET]);
 
   // 播放到达时间轴末尾自动暂停（副作用移出 state updater，避免并发渲染下重复触发）
   useEffect(() => {
@@ -4006,7 +4047,7 @@ export default function VideoEditPage() {
     if (!v || v.seeking || v.readyState < 2) return;
     if (activeVideoClip) {
       const expectedLocalTime = currentTime - activeVideoClip.start;
-      if (Math.abs(v.currentTime - expectedLocalTime) > 0.3) {
+      if (Math.abs(v.currentTime - expectedLocalTime) > 1.5) {
         v.currentTime = Math.max(0, Math.min(activeVideoClip.duration, expectedLocalTime));
       }
     }
@@ -4560,16 +4601,28 @@ export default function VideoEditPage() {
                   ref={videoRef}
                   src={currentVideoSrc}
                   preload="auto"
-                  className="w-full h-full object-contain transition-all bg-black"
+                  className="w-full h-full object-contain transition-all bg-black cursor-pointer"
+                  onClick={() => setIsPlaying(prev => !prev)}
                   style={{
                     transform: `scale(${(selectedTrackObj?.scale ?? 100) / 100})`,
                     opacity: (selectedTrackObj?.opacity ?? 100) / 100,
                     filter: getCssFilter(appliedFilter, filterIntensity[appliedFilter], aiBeautyEnabled) + (aiCutoutEnabled ? ' drop-shadow(0 0 12px rgba(99, 102, 241, 0.8))' : ''),
                   }}
-                  onPlay={(e) => {
+                  onPlay={() => setIsPlaying(true)}
+                  onPause={() => {
+                    if (isPlaying && currentTime >= duration - 0.2) {
+                      setIsPlaying(false);
+                    }
+                  }}
+                  onTimeUpdate={(e) => {
                     const vid = e.currentTarget;
-                    vid.muted = false;
-                    vid.removeAttribute('muted');
+                    if (!vid.seeking && isPlaying) {
+                      const clip = activeVideoClipRef.current;
+                      const target = clip ? clip.start + vid.currentTime : vid.currentTime;
+                      if (Math.abs(target - currentTime) > 0.05) {
+                        setCurrentTime(target);
+                      }
+                    }
                   }}
                   onCanPlay={(e) => {
                     const vid = e.currentTarget;
@@ -4684,7 +4737,13 @@ export default function VideoEditPage() {
                   size="icon"
                   variant="ghost"
                   className="w-10 h-10 rounded-full bg-zinc-200 text-zinc-900 hover:bg-white hover:text-black"
-                  onClick={() => setIsPlaying(!isPlaying)}
+                  onClick={() => {
+                    if (!isPlaying && currentTime >= duration - 0.2) {
+                      setCurrentTime(0);
+                      if (videoRef.current) videoRef.current.currentTime = 0;
+                    }
+                    setIsPlaying(!isPlaying);
+                  }}
                 >
                   {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
                 </Button>
@@ -4706,12 +4765,37 @@ export default function VideoEditPage() {
 
         {/* 右侧属性面板 */}
         <div className="w-60 md:w-72 border-l border-zinc-800 bg-zinc-900 flex flex-col shrink-0">
-          <div className="h-10 border-b border-zinc-800 flex items-center px-4 text-xs font-medium text-zinc-200 shrink-0">
-            <Settings2 className="w-3.5 h-3.5 mr-2 text-zinc-400" />属性设置
+          <div className="h-10 border-b border-zinc-800 flex items-center justify-between px-4 text-xs font-medium text-zinc-200 shrink-0">
+            <div className="flex items-center">
+              <Settings2 className="w-3.5 h-3.5 mr-2 text-zinc-400" />
+              <span>属性设置</span>
+            </div>
+            {selectedTrackObj && (
+              <span className="text-[10px] text-indigo-400 bg-indigo-950/60 border border-indigo-500/30 px-2 py-0.5 rounded max-w-[120px] truncate">
+                {selectedTrackObj.type === 'video' ? '主视频轨道' : selectedTrackObj.name}
+              </span>
+            )}
           </div>
           <ScrollArea className="flex-1">
-            {selectedTrackItem ? (
+            {selectedTrackObj ? (
               <div className="p-3 space-y-5">
+                <div className="bg-zinc-800/60 rounded-lg p-2.5 border border-zinc-700/60 flex items-center justify-between">
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    {selectedTrackObj.type === 'video' ? <Film className="w-4 h-4 text-indigo-400 shrink-0" /> :
+                     selectedTrackObj.type === 'audio' ? <Music2 className="w-4 h-4 text-emerald-400 shrink-0" /> :
+                     selectedTrackObj.type === 'text' ? <Type className="w-4 h-4 text-amber-400 shrink-0" /> :
+                     <Sparkles className="w-4 h-4 text-purple-400 shrink-0" />}
+                    <div className="truncate">
+                      <p className="text-xs font-medium text-zinc-200 truncate">{selectedTrackObj.name}</p>
+                      <p className="text-[10px] text-zinc-400">
+                        {selectedTrackObj.type === 'video' ? '主视频轨道' : `${selectedTrackObj.duration}秒`}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shrink-0">
+                    {selectedTrackObj.type === 'video' ? '主轨' : selectedTrackObj.type}
+                  </span>
+                </div>
                 <div className="space-y-3">
                   <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">基础属性</p>
                   <div className="space-y-2.5">
@@ -4837,7 +4921,7 @@ export default function VideoEditPage() {
           onClick={handleRulerClick}
           onMouseDown={handleRulerMouseDown}
         >
-          <div className="shrink-0 h-full bg-zinc-900" style={{ width: TRACK_LABEL_W + 6 }} />
+          <div className="shrink-0 h-full bg-zinc-900" style={{ width: TRACK_CONTENT_OFFSET }} />
           <div className="relative h-full overflow-hidden ruler-ticks-container" style={{ flex: 1 }}>
             <div className="absolute top-0 left-0 h-full" style={{ width: duration * pxPerSec, transform: `translateX(-${timelineScrollOffset}px)` }}>
               {(() => {
@@ -4857,6 +4941,14 @@ export default function VideoEditPage() {
                   </div>
                 ));
               })()}
+              {/* 标尺上的播放指针游标 */}
+              <div
+                className="absolute top-0 bottom-0 pointer-events-none z-30"
+                style={{ left: `${currentTime * pxPerSec}px` }}
+              >
+                <div className="w-0 h-0 border-x-[5px] border-x-transparent border-t-[7px] border-t-orange-500 -translate-x-[5px]" />
+                <div className="w-px h-full bg-orange-500 shadow-[0_0_6px_rgba(249,115,22,0.9)]" />
+              </div>
             </div>
           </div>
         </div>
@@ -4877,7 +4969,7 @@ export default function VideoEditPage() {
                 <div
                   key={`grid-${sec}`}
                   className="absolute top-0 bottom-0 w-px border-l border-zinc-800/40 border-dashed pointer-events-none z-0"
-                  style={{ left: `${TRACK_LABEL_W + sec * pxPerSec}px` }}
+                  style={{ left: `${TRACK_CONTENT_OFFSET + sec * pxPerSec}px` }}
                 />
               ));
             })()}
@@ -4893,7 +4985,7 @@ export default function VideoEditPage() {
                   {tracks.filter(item => item.type === 'video').map(item => (
                     <div
                       key={item.id}
-                      className={`absolute top-1 bottom-1 bg-indigo-600/50 border border-indigo-400/60 rounded flex items-center px-2 cursor-pointer hover:bg-indigo-600/70 select-none ${selectedTrackItem === item.id ? 'ring-2 ring-indigo-400' : ''}`}
+                      className={`absolute top-1 bottom-1 bg-indigo-600/50 border border-indigo-400/60 rounded flex items-center px-2 cursor-pointer hover:bg-indigo-600/70 select-none ${(selectedTrackItem === item.id || (!selectedTrackItem && item.id === selectedTrackObj?.id)) ? 'ring-2 ring-indigo-400' : ''}`}
                       style={{
                         left: item.start * pxPerSec,
                         width: item.duration * pxPerSec,
@@ -4990,12 +5082,12 @@ export default function VideoEditPage() {
               </div>
             </div>
 
-            {/* 播放指针 */}
+            {/* 播放指针竖线 */}
             <div
-              className="absolute top-0 bottom-0 w-px bg-orange-500 z-20 pointer-events-none"
-              style={{ left: `${TRACK_LABEL_W + currentTime * pxPerSec}px` }}
+              className="absolute top-0 bottom-0 w-px bg-orange-500 z-20 pointer-events-none shadow-[0_0_8px_rgba(249,115,22,0.8)]"
+              style={{ left: `${TRACK_CONTENT_OFFSET + currentTime * pxPerSec}px` }}
             >
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3 h-3 rotate-45 bg-orange-500" />
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2.5 h-2.5 rotate-45 bg-orange-500 shadow-[0_0_6px_rgba(249,115,22,1)]" />
             </div>
           </div>
         </div>
