@@ -1093,7 +1093,7 @@ async function seedTestUserVideos(userId: string) {
 
       {/* ── 多选批量操作控制栏 ── */}
       {selectMode && (
-        <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-primary/10 border border-primary/30 backdrop-blur animate-in fade-in duration-200">
+        <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-primary/10 border border-primary/30 backdrop-blur animate-in fade-in duration-200 flex-wrap">
           <div className="flex items-center gap-3">
             <span className="text-sm font-medium text-foreground">
               已选择 <span className="text-primary font-bold text-base px-1">{selectedIds.size}</span> 项
@@ -1219,7 +1219,7 @@ async function seedTestUserVideos(userId: string) {
             <div className={cn('w-11 h-11 rounded-xl flex items-center justify-center transition-colors', uploading ? 'bg-primary/20' : 'bg-muted')}>
               <Upload className={cn('w-5 h-5', uploading ? 'text-primary animate-bounce' : 'text-muted-foreground')} />
             </div>
-            <p className="text-sm text-muted-foreground font-medium">
+            <p className="text-sm text-muted-foreground font-medium break-all px-4 text-center">
               {uploading && uploadProgress
                 ? `正在上传 ${uploadProgress.current}/${uploadProgress.total}：${uploadProgress.name.slice(0, 20)}`
                 : uploading ? '上传中，请稍候...' : '拖拽素材至此，或点击选择文件'}
@@ -1260,7 +1260,7 @@ async function seedTestUserVideos(userId: string) {
 
           {/* 素材网格 */}
           {matLoading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
               {[...Array(10)].map((_, i) => (
                 <div key={i} className="rounded-2xl overflow-hidden border border-border/60 bg-card flex flex-col h-full">
                   <Skeleton className="aspect-[4/3] w-full bg-muted" />
@@ -1272,7 +1272,7 @@ async function seedTestUserVideos(userId: string) {
               ))}
             </div>
           ) : filteredMaterials.length > 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
               {filteredMaterials.map(m => (
                 <MaterialCard key={m.id} material={m} onPreview={setMatPreview} onDownload={handleMatDownload} onDelete={setMatDeleteId}
                   selectMode={selectMode} isSelected={selectedIds.has(m.id)} onToggleSelect={toggleSelectItem} />
@@ -1299,13 +1299,14 @@ async function seedTestUserVideos(userId: string) {
               const isSquare = matPreviewAspect === 'aspect-square';
               return (
                 <DialogContent className={cn(
-                  "max-w-[calc(100%-2rem)]",
+                  "max-w-[calc(100%-2rem)] max-h-[92dvh] overflow-y-auto",
                   isVertical ? "md:max-w-[380px]" : isSquare ? "md:max-w-md" : "md:max-w-3xl"
                 )}>
                   <DialogHeader>
                     <DialogTitle className="truncate text-balance pr-6">{matPreview.name}</DialogTitle>
                   </DialogHeader>
-                  <div className={cn("rounded-xl overflow-hidden bg-black relative flex items-center justify-center", matPreviewAspect)}>
+                  {/* 移动端限制媒体最大高度，避免竖版素材把弹窗撑出屏幕 */}
+                  <div className={cn("rounded-xl overflow-hidden bg-black relative flex items-center justify-center max-h-[55dvh] md:max-h-none", matPreviewAspect)}>
                     {matPreview.type === 'image' ? (
                       <img
                         src={matPreview.url}
@@ -1379,13 +1380,14 @@ async function seedTestUserVideos(userId: string) {
           const isSquare = previewAspect === 'aspect-square';
           return (
             <DialogContent className={cn(
-              "max-w-[calc(100%-2rem)]",
+              "max-w-[calc(100%-2rem)] max-h-[92dvh] overflow-y-auto",
               isVertical ? "md:max-w-[380px]" : isSquare ? "md:max-w-md" : "md:max-w-3xl"
             )}>
               <DialogHeader>
                 <DialogTitle className="truncate text-balance pr-6">{previewProject.title}</DialogTitle>
               </DialogHeader>
-              <div className={cn("rounded-xl overflow-hidden bg-black relative flex items-center justify-center", previewAspect)}>
+              {/* 移动端限制媒体最大高度，避免竖版视频把弹窗撑出屏幕 */}
+              <div className={cn("rounded-xl overflow-hidden bg-black relative flex items-center justify-center max-h-[55dvh] md:max-h-none", previewAspect)}>
                 {(previewProject.video_url || previewProject.status === 'completed') ? (
                   <video
                     src={previewProject.video_url || '/Video/CreatOK_2.mp4'}
@@ -1587,7 +1589,8 @@ async function seedTestUserVideos(userId: string) {
 
       {/* ── 批量删除确认弹窗 ── */}
       <AlertDialog open={isBatchDeleteOpen} onOpenChange={setIsBatchDeleteOpen}>
-        <AlertDialogContent>
+        {/* 移动端收窄弹窗宽度，避免铺满整屏边缘 */}
+        <AlertDialogContent className="max-w-[calc(100%-2rem)]">
           <AlertDialogHeader>
             <AlertDialogTitle>确认批量删除</AlertDialogTitle>
             <AlertDialogDescription>

@@ -165,7 +165,8 @@ function ProductCard({ product, selected, onSelect, onEdit, onDelete, onToggle, 
           }
         </div>
         <div className="text-xs text-muted-foreground mb-3">库存：{product.stock} | 销量：{product.sales_count}</div>
-        <div className="flex items-center gap-1.5 mt-auto">
+        {/* 移动端窄卡片下允许按钮换行，避免溢出 */}
+        <div className="flex flex-wrap items-center gap-1.5 mt-auto">
           <Button size="sm" className="h-8 flex-1 text-xs bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-semibold shadow-sm" onClick={(e) => { e.stopPropagation(); onCreateVideo(product); }}>
             <Video className="w-3.5 h-3.5 mr-1 text-violet-200" />创建视频
           </Button>
@@ -1002,7 +1003,7 @@ JSON 字段要求如下：
 
       {/* 批量操作栏 */}
       {selected.size > 0 && (
-        <div className="flex items-center gap-3 bg-primary/10 border border-primary/20 p-3 rounded-xl">
+        <div className="flex flex-wrap items-center gap-3 bg-primary/10 border border-primary/20 p-3 rounded-xl">
           <span className="text-xs font-semibold text-primary">已选择 {selected.size} 个商品</span>
           <Button size="sm" variant="outline" className="h-7 text-xs" onClick={toggleAll}>
             {selected.size === filtered.length ? '取消全选' : '全选'}
@@ -1118,7 +1119,7 @@ JSON 字段要求如下：
       <Dialog open={dialogOpen} onOpenChange={v => { setDialogOpen(v); if (!v) { setFormStep(1); setImgUrlInput(''); } }}>
         <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-2xl max-h-[92dvh] flex flex-col p-0 overflow-hidden">
           {/* 弹窗头 */}
-          <DialogHeader className="px-6 pt-5 pb-0 shrink-0">
+          <DialogHeader className="px-4 sm:px-6 pt-5 pb-0 shrink-0">
             <div className="flex items-center justify-between gap-4 mb-1">
               <DialogTitle className="text-balance text-lg">
                 {editingProduct ? '编辑商品' : '新增商品'}
@@ -1145,7 +1146,7 @@ JSON 字段要求如下：
           </DialogHeader>
 
           {/* 滚动内容区 */}
-          <div className="flex-1 overflow-y-auto px-6 py-4">
+          <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
 
             {/* ── 编辑模式：显示完整表单 ─────────────────────────── */}
             {editingProduct ? (
@@ -1321,7 +1322,7 @@ JSON 字段要求如下：
           </div>
 
           {/* 底部操作栏 */}
-          <div className="shrink-0 px-6 py-4 border-t border-border/50 bg-background">
+          <div className="shrink-0 px-4 sm:px-6 py-4 border-t border-border/50 bg-background">
             {editingProduct ? (
               /* 编辑模式：简单保存/取消 */
               <div className="flex justify-end gap-2">
@@ -1337,7 +1338,7 @@ JSON 字段要求如下：
                 <Button variant="outline" className="h-9" onClick={formStep === 1 ? () => setDialogOpen(false) : goPrevStep}>
                   {formStep === 1 ? '取消' : '上一步'}
                 </Button>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   {/* 步骤2以后允许跳过 */}
                   {formStep >= 2 && (
                     <Button variant="ghost" className="h-9 text-muted-foreground" onClick={goNextStep}>
@@ -1353,7 +1354,7 @@ JSON 字段要求如下：
               /* 新增模式最后一步：保存 + 保存并继续 */
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <Button variant="outline" className="h-9" onClick={goPrevStep}>上一步</Button>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button variant="outline" className="h-9 text-sm" onClick={() => handleSave(true)} disabled={saving}>
                     {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <PlusCircle className="w-3.5 h-3.5 mr-1.5" />}
                     保存并继续新增
@@ -1494,9 +1495,10 @@ JSON 字段要求如下：
 
       {/* ── 一键 URL / 口令解析商品导入弹窗 (高亮亮彩电商风格) ───────────────────────────────────────────── */}
       <Dialog open={urlParseOpen} onOpenChange={setUrlParseOpen}>
-        <DialogContent className="sm:max-w-2xl bg-white text-slate-900 border-slate-200/90 p-6 rounded-3xl shadow-[0_25px_70px_-15px_rgba(0,0,0,0.35)] z-50 overflow-hidden">
+        {/* 移动端：宽度收窄、限高后内部滚动，避免内容被裁切；桌面端保持原有样式 */}
+        <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-2xl bg-white text-slate-900 border-slate-200/90 max-h-[85vh] flex flex-col p-4 sm:p-6 rounded-3xl shadow-[0_25px_70px_-15px_rgba(0,0,0,0.35)] z-50 overflow-hidden">
           <DialogHeader className="space-y-1.5 border-b border-slate-100 pb-3">
-            <div className="flex items-center gap-2.5">
+            <div className="flex flex-wrap items-center gap-2.5">
               <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-rose-500 to-purple-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-rose-500/20">
                 <Sparkles className="w-4 h-4 text-white animate-pulse" />
               </div>
@@ -1512,7 +1514,8 @@ JSON 字段要求如下：
             </p>
           </DialogHeader>
 
-          <div className="space-y-4 my-2">
+          {/* 中间内容区：移动端限高后改为内部滚动 */}
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-4 my-2">
             {/* 1. 目标平台选择 */}
             <div className="space-y-2">
               <label className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
@@ -1547,7 +1550,7 @@ JSON 字段要求如下：
 
             {/* 2. 输入链接/口令 */}
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-1.5">
                 <label className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
                   <span className="w-4 h-4 rounded-full bg-rose-500 text-white flex items-center justify-center text-[10px] font-extrabold shadow-xs">2</span>
                   粘贴商品详情 URL 或口令分享文本
@@ -1628,7 +1631,8 @@ JSON 字段要求如下：
                   </Badge>
                 </div>
 
-                <div className="flex gap-4 items-start">
+                {/* 移动端：封面与表单上下堆叠，sm 及以上恢复左右布局 */}
+                <div className="flex flex-col sm:flex-row gap-4 items-start">
                   {/* 封面预估与自定义选择 */}
                   <div className="w-28 shrink-0 space-y-1.5">
                     <div className="aspect-square rounded-xl overflow-hidden border border-slate-200 bg-white shadow-sm relative group">
@@ -1778,7 +1782,7 @@ JSON 字段要求如下：
             )}
           </div>
 
-          <DialogFooter className="border-t border-slate-100 pt-3 flex items-center justify-between">
+          <DialogFooter className="border-t border-slate-100 pt-3 flex flex-wrap items-center justify-between gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -1788,7 +1792,7 @@ JSON 字段要求如下：
               取消
             </Button>
             
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 size="sm"
                 variant="outline"

@@ -282,7 +282,7 @@ export default function DataFeedbackPage() {
   }));
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
+    <div className="space-y-6 p-3 sm:p-4 md:p-6">
       {/* 标题 */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
@@ -330,19 +330,19 @@ export default function DataFeedbackPage() {
       {linkedProject && (
         <Card className="bg-primary/5 border border-primary/20">
           <CardContent className="p-3.5 flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
               <div className="w-14 h-10 rounded-lg overflow-hidden bg-muted shrink-0">
                 <img src={linkedProject.thumbnail_url || '/person/girl1.png'} alt={linkedProject.title} className="w-full h-full object-cover" />
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/20 text-primary">当前分析视频</span>
-                  <p className="text-sm font-semibold text-foreground truncate">{linkedProject.title}</p>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/20 text-primary shrink-0">当前分析视频</span>
+                  <p className="text-sm font-semibold text-foreground truncate min-w-0">{linkedProject.title}</p>
                 </div>
-                <p className="text-xs text-muted-foreground mt-0.5">关联追踪 ID: {linkedProject.id} · 多渠道投放中</p>
+                <p className="text-xs text-muted-foreground mt-0.5 break-all">关联追踪 ID: {linkedProject.id} · 多渠道投放中</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Button size="sm" variant="outline" className="h-8 text-xs gap-1" onClick={() => navigate(`/video/edit?importId=${linkedProject.id}`)}>
                 <Scissors className="w-3.5 h-3.5" />去精修剪辑
               </Button>
@@ -382,9 +382,9 @@ export default function DataFeedbackPage() {
           { label: '总营收', val: `¥${totalRevenue.toLocaleString()}`, icon: DollarSign, color: 'text-warning' },
         ].map(m => (
           <Card key={m.label}>
-            <CardContent className="p-4 flex items-center gap-3">
+            <CardContent className="p-4 flex items-center gap-3 min-w-0">
               <m.icon className={cn('w-8 h-8 shrink-0', m.color)} />
-              <div>
+              <div className="min-w-0">
                 <p className="text-base md:text-lg font-bold truncate">{loading ? '…' : m.val}</p>
                 <p className="text-xs text-muted-foreground">{m.label}</p>
               </div>
