@@ -4860,7 +4860,7 @@ export default function VideoEditPage() {
   };
 
   return (
-    <div className="flex flex-col h-screen w-full bg-zinc-950 text-zinc-300 overflow-hidden">
+    <div className="flex flex-col h-screen max-lg:h-[calc(100vh_-_3.5rem_-_env(safe-area-inset-bottom,0px))] w-full bg-zinc-950 text-zinc-300 overflow-hidden">
 
       {/* ─── 顶部工具栏 ──────────────────────────────────────────── */}
       <div className="h-12 border-b border-zinc-800 bg-zinc-900 flex items-center justify-between px-2 md:px-4 shrink-0 gap-2">

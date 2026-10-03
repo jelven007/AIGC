@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCredits } from '@/hooks/useCredits';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
@@ -21,7 +21,7 @@ import {
   Package, Users2, CreditCard, Wand2,
   Search, X, ArrowRight, Scissors, Moon, Sun,
   Layers, Share2, Code2, Gift, LayoutGrid, Bell, House, CheckCheck, LogOut,
-  Zap, History, CheckCircle2,
+  Zap, History, CheckCircle2, ChevronDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -72,6 +72,21 @@ const navGroups = [
       { path: '/open-api', label: '开放 API', icon: Code2 },
     ],
   },
+];
+
+// ── 移动端底部 Tab 栏：常驻主入口，其余功能收纳进「更多」全量抽屉 ─────────
+const MOBILE_TABS = [
+  { path: '/video/create', label: '工作台', icon: Video },
+  { path: '/product-selection', label: '智能选品', icon: ShoppingBag },
+  { path: '/video/edit', label: '视频剪辑', icon: Scissors },
+  { path: '/works', label: '作品素材', icon: FolderOpen },
+];
+
+// 「更多」覆盖的全部路由（用于底部栏高亮「更多」入口）
+const MOBILE_MORE_PATHS = [
+  '/products', '/avatars', '/export-formats', '/data-feedback',
+  '/team', '/open-api', '/ai-toolbox',
+  ...AI_TOOLBOX_ITEMS.map(i => i.path),
 ];
 
 // F-09: 全局搜索结果类型
@@ -251,6 +266,7 @@ function AIToolboxNavItem({ onNavClick }: { onNavClick?: () => void }) {
       >
         <LayoutGrid className={cn('w-4 h-4 shrink-0 transition-colors', isActive ? 'text-primary' : 'text-sidebar-foreground/50 group-hover:text-sidebar-foreground')} />
         <span className="flex-1 text-left">AI工具箱</span>
+        <ChevronDown className={cn('w-3.5 h-3.5 shrink-0 text-sidebar-foreground/40 transition-transform duration-200', open && 'rotate-180')} />
       </button>
 
       {/* 二级子菜单 */}
@@ -329,8 +345,8 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
         </div>
       </Link>
 
-      {/* 导航 */}
-      <nav className="flex-1 px-3 py-3 space-y-4 overflow-y-auto min-h-0">
+      {/* 导航：预留底部安全区空间，确保「生态扩展」分组末尾条目不被机型底栏遮挡 */}
+      <nav className="flex-1 px-3 py-3 space-y-4 overflow-y-auto min-h-0" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
         {navGroups.map((group) => (
           <div key={group.label}>
             <p className="text-xs font-medium text-sidebar-foreground/40 uppercase tracking-wider px-3 mb-1.5">
@@ -713,6 +729,147 @@ function TopBarUserMenu({ isDarkHeader }: { isDarkHeader: boolean }) {
   );
 }
 
+// ── 移动端「更多」全量功能抽屉：完整展示全部导航条目，可滚动无遮挡 ─────────
+function MobileMoreNavSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const location = useLocation();
+  const isActive = (path: string) => location.pathname.startsWith(path);
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="bottom"
+        className="h-[82vh] max-h-[82vh] w-full gap-0 p-0 rounded-t-2xl bg-sidebar border-sidebar-border flex flex-col"
+      >
+        <SheetTitle className="sr-only">全部功能导航</SheetTitle>
+        {/* 标题栏：右侧为关闭按钮预留空间，避免文字被遮挡 */}
+        <div className="shrink-0 flex items-center gap-2 px-4 py-3.5 border-b border-sidebar-border/60 pr-14">
+          <div className="w-7 h-7 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+            <LayoutGrid className="w-4 h-4 text-primary" />
+          </div>
+          <span className="text-sm font-bold text-sidebar-foreground whitespace-nowrap">全部功能</span>
+          <span className="ml-auto text-[10px] text-sidebar-foreground/40 whitespace-nowrap">上下滑动查看全部</span>
+        </div>
+
+        <div
+          className="flex-1 min-h-0 overflow-y-auto px-3 pt-3"
+          style={{ paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}
+        >
+          {navGroups.map(group => (
+            <div key={group.label} className="mb-4 last:mb-0">
+              <p className="text-xs font-medium text-sidebar-foreground/40 uppercase tracking-wider px-1 mb-1.5">
+                {group.label}
+              </p>
+              <div className="space-y-1">
+                {group.items.map(item => {
+                  const Icon = item.icon;
+                  const active = isActive(item.path);
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      onClick={() => onOpenChange(false)}
+                      className={cn(
+                        'flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors min-w-0',
+                        active
+                          ? 'bg-sidebar-primary text-sidebar-primary-foreground'
+                          : 'text-sidebar-foreground/80 hover:bg-sidebar-accent/60',
+                      )}
+                    >
+                      <Icon className={cn('w-5 h-5 shrink-0', !active && 'text-sidebar-foreground/50')} />
+                      <span className="flex-1 min-w-0 whitespace-nowrap">{item.label}</span>
+                      {active && <ChevronRight className="w-4 h-4 shrink-0 opacity-70" />}
+                    </Link>
+                  );
+                })}
+                {/* AI工具箱及其二级功能全部平铺展示，无需再折叠 */}
+                {group.label === '主要功能' && (
+                  <div className="pt-1">
+                    <div className="flex items-center gap-3 px-3 py-2">
+                      <LayoutGrid className="w-5 h-5 shrink-0 text-primary" />
+                      <span className="text-sm font-medium text-sidebar-foreground whitespace-nowrap">AI工具箱</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 px-1">
+                      {AI_TOOLBOX_ITEMS.map(item => (
+                        <Link
+                          key={item.label}
+                          to={item.path}
+                          onClick={() => onOpenChange(false)}
+                          className={cn(
+                            'flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors min-w-0',
+                            isActive(item.path)
+                              ? 'bg-sidebar-primary/15 border-primary/40 text-sidebar-foreground'
+                              : 'border-sidebar-border/50 text-sidebar-foreground/80 hover:bg-sidebar-accent/50',
+                          )}
+                        >
+                          <span className="text-xs font-medium whitespace-nowrap">{item.label}</span>
+                          <span
+                            className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none ml-auto"
+                            style={{ background: `${item.badgeColor}22`, color: item.badgeColor, border: `1px solid ${item.badgeColor}44` }}
+                          >
+                            {item.badge}
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+// ── 移动端固定底部 Tab 栏（lg 以下显示）─────────────────────────────────────
+function MobileBottomNav() {
+  const location = useLocation();
+  const [moreOpen, setMoreOpen] = useState(false);
+  const isMoreActive = MOBILE_MORE_PATHS.some(p => location.pathname.startsWith(p));
+
+  return (
+    <>
+      <nav
+        className="fixed inset-x-0 bottom-0 z-40 lg:hidden bg-card/95 backdrop-blur-sm border-t border-border"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        <div className="grid grid-cols-5 h-14">
+          {MOBILE_TABS.map(tab => {
+            const Icon = tab.icon;
+            const active = location.pathname.startsWith(tab.path);
+            return (
+              <Link
+                key={tab.path}
+                to={tab.path}
+                className={cn(
+                  'flex flex-col items-center justify-center gap-1 transition-colors',
+                  active ? 'text-primary' : 'text-muted-foreground active:text-foreground',
+                )}
+              >
+                <Icon className="w-[18px] h-[18px] shrink-0" />
+                <span className="text-[10px] leading-none whitespace-nowrap">{tab.label}</span>
+              </Link>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => setMoreOpen(true)}
+            className={cn(
+              'flex flex-col items-center justify-center gap-1 transition-colors',
+              moreOpen || isMoreActive ? 'text-primary' : 'text-muted-foreground active:text-foreground',
+            )}
+          >
+            <LayoutGrid className="w-[18px] h-[18px] shrink-0" />
+            <span className="text-[10px] leading-none whitespace-nowrap">更多</span>
+          </button>
+        </div>
+      </nav>
+      <MobileMoreNavSheet open={moreOpen} onOpenChange={setMoreOpen} />
+    </>
+  );
+}
+
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [creditsModalOpen, setCreditsModalOpen] = useState(false);
@@ -844,7 +1001,19 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         <main className="flex-1 min-w-0 overflow-x-hidden">
           {children}
         </main>
+
+        {/* 移动端底部 Tab 栏占位（视频剪辑页自行计算高度，不需占位块），避免页面内容被底栏遮挡 */}
+        {!isVideoEditPage && (
+          <div
+            aria-hidden="true"
+            className="shrink-0 h-14 lg:hidden"
+            style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+          />
+        )}
       </div>
+
+      {/* 移动端底部导航（含「更多」全量功能抽屉） */}
+      <MobileBottomNav />
 
       {/* 积分详情与充值弹窗 */}
       <CreditsDetailModal open={creditsModalOpen} onOpenChange={setCreditsModalOpen} />
