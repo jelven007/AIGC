@@ -2131,7 +2131,7 @@ function AiToolDialog({ tool, open, onClose, onApply }: {
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-md bg-zinc-900 border-zinc-700 text-zinc-100">
+      <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-md max-h-[85vh] overflow-y-auto bg-zinc-900 border-zinc-700 text-zinc-100">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             <div className={`w-9 h-9 rounded-lg bg-zinc-800 flex items-center justify-center ${tool.color}`}>
@@ -2453,7 +2453,7 @@ function ShopPanel({ onApplyShopProduct }: ShopPanelProps) {
     <div className="flex flex-col h-full relative">
       {/* 购买确认弹窗 */}
       <Dialog open={!!confirmItem} onOpenChange={v => { if (!v) setConfirmItem(null); }}>
-        <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-sm bg-zinc-900 border-zinc-700 text-zinc-100">
+        <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-sm max-h-[85vh] overflow-y-auto bg-zinc-900 border-zinc-700 text-zinc-100">
           <DialogHeader>
             <DialogTitle className="text-sm flex items-center gap-2">
               <CreditCard className="w-4 h-4 text-amber-400" />确认购买并载入
@@ -4937,8 +4937,8 @@ export default function VideoEditPage() {
           currentTime={currentTime}
         />
 
-        {/* 中央预览区 */}
-        <div className="flex-1 flex flex-col bg-black relative min-w-0" ref={previewContainerRef}>
+        {/* 中央预览区（min-h-0 保证移动端纵向堆叠时可正常收缩，lg 及以上行为不变） */}
+        <div className="flex-1 min-h-0 flex flex-col bg-black relative min-w-0" ref={previewContainerRef}>
           <div className="flex-1 flex items-center justify-center p-4 min-h-0">
             <div className={`w-auto h-full max-h-full max-w-full bg-zinc-900 border border-zinc-800 shadow-2xl relative overflow-hidden flex items-center justify-center transition-all duration-300 ${editorAspect === 'aspect-[9/16]' ? 'aspect-[9/16]' :
               editorAspect === 'aspect-[3/4]' ? 'aspect-[3/4]' :
@@ -6192,7 +6192,7 @@ export default function VideoEditPage() {
 
       {/* 保存弹窗 */}
       <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
-        <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-sm bg-zinc-900 border-zinc-700 text-zinc-200">
+        <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-sm max-h-[85vh] overflow-y-auto bg-zinc-900 border-zinc-700 text-zinc-200">
           <DialogHeader>
             <DialogTitle className="text-zinc-200">保存剪辑项目</DialogTitle>
           </DialogHeader>
@@ -6227,9 +6227,10 @@ export default function VideoEditPage() {
         }
         setExportDialogOpen(open);
       }}>
-        <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-xl bg-zinc-900 border-zinc-700 text-zinc-200 p-0 overflow-hidden shadow-2xl">
+        {/* 移动端限高：标头固定，内容区滚动 */}
+        <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-xl max-h-[85vh] grid-rows-[auto_minmax(0,1fr)] bg-zinc-900 border-zinc-700 text-zinc-200 p-0 overflow-hidden shadow-2xl">
           {/* 弹窗顶部标头 */}
-          <div className="px-6 py-4 border-b border-zinc-800 bg-zinc-950/60 flex items-center justify-between">
+          <div className="px-3 sm:px-6 py-4 border-b border-zinc-800 bg-zinc-950/60 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className={cn(
                 "w-9 h-9 rounded-xl flex items-center justify-center border",
@@ -6260,7 +6261,7 @@ export default function VideoEditPage() {
             </div>
           </div>
 
-          <div className="p-6 space-y-5">
+          <div className="p-3 sm:p-6 space-y-5 overflow-y-auto min-h-0">
             {/* 1. 参数配置阶段 (idle) */}
             {exportStage === 'idle' && (
               <div className="space-y-4">
@@ -6522,8 +6523,8 @@ export default function VideoEditPage() {
                   <span className="text-[11px] text-emerald-400 font-medium">双库已同步</span>
                 </div>
 
-                {/* 操作按钮组 */}
-                <div className="grid grid-cols-3 gap-2 pt-1">
+                {/* 操作按钮组（移动端纵向堆叠，sm 及以上恢复三列） */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
                   <Button
                     variant="outline"
                     className="h-10 border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 gap-1.5 text-xs"
