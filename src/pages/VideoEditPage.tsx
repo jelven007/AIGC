@@ -2948,6 +2948,24 @@ export default function VideoEditPage() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const previewContainerRef = useRef<HTMLDivElement>(null);
 
+  // 生成视频列表（用于一键导入）& 预览 URL
+  const [importedVideos, setImportedVideos] = useState<{ id: string; title: string; video_url: string; thumbnail_url: string | null }[]>([]);
+  const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const rulerRef = useRef<HTMLDivElement>(null);
+  const timelineScrollRef = useRef<HTMLDivElement>(null);
+  // 播放主时钟引用：供 rAF 帧循环读取当前激活片段与预览源，避免依赖每次渲染新建的对象导致 effect 频繁重建
+  const playheadLineRef = useRef<HTMLDivElement>(null);
+  const rulerPlayheadRef = useRef<HTMLDivElement>(null);
+  const timeDisplayRef = useRef<HTMLSpanElement>(null);
+  const bottomTimeDisplayRef = useRef<HTMLSpanElement>(null);
+  const currentTimeRef = useRef<number>(0);
+  const [cachedUrls, setCachedUrls] = useState<Record<string, string>>({});
+  const [isPreloading, setIsPreloading] = useState(false);
+  const [preloadProgress, setPreloadProgress] = useState(100);
+  const activeVideoClipRef = useRef<TrackItem | undefined>(undefined);
+  const previewVideoUrlRef = useRef<string | null>(null);
+
   // Sync ruler scroll offset with timeline scroll container
   useEffect(() => {
     const el = timelineScrollRef.current;
@@ -3142,24 +3160,6 @@ export default function VideoEditPage() {
       console.error(err);
     }
   };
-
-  // 生成视频列表（用于一键导入）& 预览 URL
-  const [importedVideos, setImportedVideos] = useState<{ id: string; title: string; video_url: string; thumbnail_url: string | null }[]>([]);
-  const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const rulerRef = useRef<HTMLDivElement>(null);
-  const timelineScrollRef = useRef<HTMLDivElement>(null);
-  // 播放主时钟引用：供 rAF 帧循环读取当前激活片段与预览源，避免依赖每次渲染新建的对象导致 effect 频繁重建
-  const playheadLineRef = useRef<HTMLDivElement>(null);
-  const rulerPlayheadRef = useRef<HTMLDivElement>(null);
-  const timeDisplayRef = useRef<HTMLSpanElement>(null);
-  const bottomTimeDisplayRef = useRef<HTMLSpanElement>(null);
-  const currentTimeRef = useRef<number>(0);
-  const [cachedUrls, setCachedUrls] = useState<Record<string, string>>({});
-  const [isPreloading, setIsPreloading] = useState(false);
-  const [preloadProgress, setPreloadProgress] = useState(100);
-  const activeVideoClipRef = useRef<TrackItem | undefined>(undefined);
-  const previewVideoUrlRef = useRef<string | null>(null);
 
   // Timeline layout constants — px-per-second based
   const TRACK_LABEL_W = 60; // width of the track icon label column in px
