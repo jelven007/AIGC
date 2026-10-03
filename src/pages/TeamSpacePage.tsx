@@ -390,14 +390,14 @@ export default function TeamSpacePage() {
 
   if (loading) {
     return (
-      <div className="p-4 md:p-6 space-y-4">
+      <div className="p-3 sm:p-4 md:p-6 space-y-4">
         {[1,2,3].map(i => <div key={i} className="h-20 rounded-xl bg-muted animate-pulse" />)}
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
+    <div className="space-y-6 p-3 sm:p-4 md:p-6">
       {/* 标题与操作栏 */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
@@ -572,7 +572,7 @@ export default function TeamSpacePage() {
 
       {/* 创建团队弹窗 */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-sm">
+        <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-sm max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>创建团队</DialogTitle></DialogHeader>
           <div className="space-y-4 pt-2">
             <div className="space-y-1.5">
@@ -589,7 +589,7 @@ export default function TeamSpacePage() {
 
       {/* 邀请成员弹窗 */}
       <Dialog open={inviteOpen} onOpenChange={v => { if (!v) { setInviteOpen(false); setInviteLink(''); setInviteEmail(''); } }}>
-        <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-md">
+        <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>邀请团队成员</DialogTitle></DialogHeader>
           <div className="space-y-4 pt-2">
             <div className="space-y-1.5">
@@ -615,8 +615,8 @@ export default function TeamSpacePage() {
             {inviteLink && (
               <div className="space-y-2 pt-1">
                 <p className="text-xs text-muted-foreground">邀请链接（7天有效）</p>
-                <div className="flex items-center gap-2">
-                  <Input value={inviteLink} readOnly className="text-xs" />
+                <div className="flex items-center gap-2 min-w-0">
+                  <Input value={inviteLink} readOnly className="text-xs min-w-0" />
                   <Button size="sm" variant="outline" className="shrink-0 gap-1" onClick={handleCopyLink}>
                     {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
                     {copied ? '已复制' : '复制'}

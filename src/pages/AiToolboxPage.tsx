@@ -204,7 +204,7 @@ function ToolCard({ tool, index }: { tool: typeof AI_TOOLS[0]; index: number }) 
         style={{ background: `linear-gradient(135deg, ${tool.from}, ${tool.to})` }}
       />
 
-      <div className="relative p-5">
+      <div className="relative p-4 sm:p-5">
         {/* 图标 + badge */}
         <div className="flex items-start justify-between mb-4">
           {/* 彩色渐变图标框 */}
@@ -277,7 +277,7 @@ export default function AiToolboxPage() {
         <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-primary/10 to-transparent rounded-full -translate-y-48 translate-x-48 pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-tr from-violet-500/8 to-transparent rounded-full translate-y-32 -translate-x-32 pointer-events-none" />
 
-        <div className="relative px-6 py-8 md:py-10">
+        <div className="relative px-4 py-6 sm:px-6 md:py-10">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-lg shrink-0"
               style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
@@ -305,7 +305,7 @@ export default function AiToolboxPage() {
       </div>
 
       {/* ── 筛选 & 搜索 ────────────────────────────────────────────────── */}
-      <div className="px-6 py-4 border-b border-border/40 bg-card/50 backdrop-blur-sm sticky top-0 z-10">
+      <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-border/40 bg-card/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="flex flex-col md:flex-row md:items-center gap-3">
           <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
             {CATEGORIES.map(cat => (
@@ -337,7 +337,7 @@ export default function AiToolboxPage() {
       </div>
 
       {/* ── 工具网格 ───────────────────────────────────────────────────── */}
-      <div className="px-6 py-6">
+      <div className="px-4 py-4 sm:px-6 sm:py-6">
         {filtered.length < AI_TOOLS.length && (
           <div className="flex items-center gap-2 mb-4 text-sm text-muted-foreground">
             <Zap className="w-4 h-4 text-primary" />
@@ -367,7 +367,7 @@ export default function AiToolboxPage() {
         )}
 
         {/* 底部说明 */}
-        <div className="mt-8 rounded-2xl border border-border/50 bg-gradient-to-br from-primary/5 via-card to-violet-500/5 p-5">
+        <div className="mt-8 rounded-2xl border border-border/50 bg-gradient-to-br from-primary/5 via-card to-violet-500/5 p-4 sm:p-5">
           <div className="flex items-start gap-4">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-violet-500/20 flex items-center justify-center shrink-0">
               <Sparkles className="w-5 h-5 text-primary" />

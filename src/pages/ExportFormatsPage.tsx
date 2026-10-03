@@ -170,7 +170,7 @@ function FormatCard({ fmt, selected, onToggle }: { fmt: ExportFormat; selected: 
   return (
     <div
       onClick={onToggle}
-      className={cn('relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 hover:shadow-md',
+      className={cn('relative p-3 sm:p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 hover:shadow-md',
         selected ? 'border-primary bg-primary/5 shadow-md' : 'border-border/60 hover:border-primary/40 bg-card')}
     >
       {fmt.recommended && (
@@ -689,7 +689,8 @@ export default function ExportFormatsPage() {
               <h3 className="text-sm font-semibold">选择导出格式</h3>
               <span className="text-xs text-muted-foreground">已选 {selectedFormats.length} 种</span>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {/* 格式为勾选卡片而非缩略图：移动端折叠为单列，保证格式名称完整显示 */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               {EXPORT_FORMATS.map(fmt => (
                 <FormatCard key={fmt.id} fmt={fmt} selected={selectedFormats.includes(fmt.id)} onToggle={() => toggleFormat(fmt.id)} />
               ))}
@@ -699,7 +700,7 @@ export default function ExportFormatsPage() {
           {/* 视频信息预览 */}
           {activeProject && (
             <Card className="bg-muted/30">
-              <CardContent className="p-4 flex items-center gap-4 flex-wrap">
+              <CardContent className="p-3 sm:p-4 flex items-center gap-4 flex-wrap">
                 <div className="w-20 h-12 rounded-lg bg-muted overflow-hidden shrink-0">
                   {activeProject.thumbnail_url
                     ? <img src={activeProject.thumbnail_url} alt={activeProject.title} className="w-full h-full object-cover" />
@@ -764,7 +765,7 @@ export default function ExportFormatsPage() {
               { label: '定时中',  val: pubScheduled,                                 icon: Calendar,      color: 'text-warning',         bg: 'bg-warning/10' },
             ].map(m => (
               <Card key={m.label} className="hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300">
-                <CardContent className="p-4 flex items-center gap-3">
+                <CardContent className="p-3 sm:p-4 flex items-center gap-3">
                   <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center shrink-0', m.bg)}>
                     <m.icon className={cn('w-5 h-5', m.color)} />
                   </div>
@@ -833,7 +834,7 @@ export default function ExportFormatsPage() {
               const platCfg = PLATFORM_CONFIG[task.platform];
               const statusCfg = PUB_STATUS_CONFIG[task.status];
               return (
-                <div key={task.id} className="flex items-center gap-3 p-4 rounded-xl border border-border/60 bg-card hover:bg-muted/20 transition-colors">
+                <div key={task.id} className="flex items-center gap-3 p-3 sm:p-4 rounded-xl border border-border/60 bg-card hover:bg-muted/20 transition-colors">
                   <span className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0', platCfg.bgColor)}>
                     <platCfg.Icon className={cn('w-4 h-4', platCfg.color)} />
                   </span>

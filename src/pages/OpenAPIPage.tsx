@@ -254,9 +254,9 @@ export default function OpenAPIPage() {
   const baseUrl = `${window.location.origin}`;
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
+    <div className="space-y-6 p-3 sm:p-4 md:p-6">
       {/* 标题 */}
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2">
             <Code2 className="w-5 h-5 text-primary" />开放 API
@@ -277,10 +277,10 @@ export default function OpenAPIPage() {
           { label: '安全策略', val: 'TLS 1.3', icon: Shield, color: 'text-success' },
         ].map(m => (
           <Card key={m.label}>
-            <CardContent className="p-4 flex items-center gap-3">
+            <CardContent className="p-4 flex items-center gap-3 min-w-0">
               <m.icon className={cn('w-8 h-8 shrink-0', m.color)} />
-              <div>
-                <p className="text-base font-bold">{m.val}</p>
+              <div className="min-w-0">
+                <p className="text-base font-bold truncate">{m.val}</p>
                 <p className="text-xs text-muted-foreground">{m.label}</p>
               </div>
             </CardContent>
@@ -289,7 +289,8 @@ export default function OpenAPIPage() {
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
+        {/* 移动端占满宽度可横向滑动防溢出，lg 及以上恢复按内容宽度 */}
+        <TabsList className="w-full max-w-full overflow-x-auto lg:w-auto">
           <TabsTrigger value="keys"><Key className="w-3.5 h-3.5 mr-1.5" />API Keys</TabsTrigger>
           <TabsTrigger value="docs"><BookOpen className="w-3.5 h-3.5 mr-1.5" />接口文档</TabsTrigger>
           <TabsTrigger value="quickstart"><Zap className="w-3.5 h-3.5 mr-1.5" />快速开始</TabsTrigger>
@@ -310,16 +311,16 @@ export default function OpenAPIPage() {
           ) : (
             keys.map(key => (
               <div key={key.id} className={cn(
-                'flex items-center gap-3 p-4 rounded-xl border transition-colors',
+                'flex items-center gap-3 p-3 sm:p-4 rounded-xl border transition-colors',
                 key.is_active ? 'border-border/60 bg-card' : 'border-border/40 bg-muted/20 opacity-60'
               )}>
                 <div className={cn('w-2 h-2 rounded-full shrink-0', key.is_active ? 'bg-success' : 'bg-muted-foreground')} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-sm font-medium">{key.name}</p>
+                    <p className="text-sm font-medium min-w-0">{key.name}</p>
                     {!key.is_active && <Badge variant="secondary" className="text-xs">已撤销</Badge>}
                   </div>
-                  <div className="flex items-center gap-3 mt-1">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
                     <code className="text-xs text-muted-foreground font-mono">
                       {showKey[key.id] ? `${key.key_prefix}••••••••••••••••` : `${key.key_prefix}••••••••••••••••`}
                     </code>
@@ -437,7 +438,7 @@ console.log(data.script);`}
 
       {/* 创建 Key 弹窗 */}
       <Dialog open={createOpen} onOpenChange={v => { if (!v) { setCreateOpen(false); setNewKey(''); } }}>
-        <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-md">
+        <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>创建 API Key</DialogTitle></DialogHeader>
           <div className="space-y-4 pt-2">
             {!newKey ? (

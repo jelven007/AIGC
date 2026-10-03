@@ -2539,8 +2539,9 @@ export default function HomePage() {
                       <span className="sm:hidden">尺寸</span>
                       <ChevronDown className="w-3 h-3" />
                     </button>
+                    {/* 移动端：下拉面板预留右侧空间避免超出视口被裁切；桌面端由 max-w 封顶不变 */}
                     {resOpen && (
-                      <div className="absolute top-full mt-2 left-0 z-50 bg-[#161522] border border-white/15 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] p-3 md:p-4 w-[calc(100vw-2rem)] max-w-[320px] space-y-3 md:space-y-4 text-white backdrop-blur-2xl">
+                      <div className="absolute top-full mt-2 left-0 z-50 bg-[#161522] border border-white/15 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] p-3 md:p-4 w-[calc(100vw-7rem)] max-w-[320px] space-y-3 md:space-y-4 text-white backdrop-blur-2xl">
                         {/* 分辨率 */}
                         <div className="space-y-2">
                           <label className="text-[11px] text-white/40 block font-medium">分辨率</label>
@@ -2940,8 +2941,9 @@ export default function HomePage() {
                       <span className="sm:hidden">尺寸</span>
                       <ChevronDown className="w-3 h-3" />
                     </button>
+                    {/* 移动端：下拉面板预留右侧空间避免超出视口被裁切；桌面端由 max-w 封顶不变 */}
                     {imgResOpen && (
-                      <div className="absolute top-full mt-2 left-0 z-50 bg-[#161522] border border-white/15 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] p-3 md:p-4 w-[calc(100vw-2rem)] max-w-[340px] space-y-3 md:space-y-4 text-white backdrop-blur-2xl">
+                      <div className="absolute top-full mt-2 left-0 z-50 bg-[#161522] border border-white/15 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] p-3 md:p-4 w-[calc(100vw-7rem)] max-w-[340px] space-y-3 md:space-y-4 text-white backdrop-blur-2xl">
                         {/* 分辨率 */}
                         <div className="space-y-2">
                           <label className="text-[11px] text-white/40 block font-medium">分辨率</label>
@@ -3372,9 +3374,10 @@ export default function HomePage() {
                               'aspect-video';
           return (
             <Dialog open={!!activePlayVideo} onOpenChange={() => setActivePlayVideo(null)}>
+              {/* 移动端：宽度不超过视口（留边距），sm 及以上恢复原尺寸 */}
               <DialogContent className={cn(
-                "bg-zinc-950 border-zinc-800 text-zinc-200 p-0 overflow-hidden",
-                isVertical ? "max-w-[380px]" : isSquare ? "max-w-md" : "max-w-2xl"
+                "bg-zinc-950 border-zinc-800 text-zinc-200 p-0 overflow-hidden max-w-[calc(100vw-1.5rem)]",
+                isVertical ? "sm:max-w-[380px]" : isSquare ? "sm:max-w-md" : "sm:max-w-2xl"
               )}>
                 <DialogHeader className="p-4 border-b border-zinc-800/80 flex flex-row items-center justify-between">
                   <DialogTitle className="text-sm font-semibold truncate pr-4 text-zinc-100">
@@ -3396,7 +3399,8 @@ export default function HomePage() {
 
         {/* 选择商品管理中的商品 弹窗 */}
         <Dialog open={isProductModalOpen} onOpenChange={setIsProductModalOpen}>
-          <DialogContent className="max-w-3xl max-h-[85vh] bg-[#16151f] border-white/10 text-white p-0 overflow-hidden flex flex-col rounded-2xl shadow-2xl">
+          {/* 移动端：宽度不超过视口（留边距），sm 及以上恢复原尺寸 */}
+          <DialogContent className="max-w-[calc(100vw-1.5rem)] sm:max-w-3xl max-h-[85vh] bg-[#16151f] border-white/10 text-white p-0 overflow-hidden flex flex-col rounded-2xl shadow-2xl">
             {/* 弹窗头部 */}
             <DialogHeader className="p-5 border-b border-white/10 bg-gradient-to-r from-violet-950/60 via-purple-950/40 to-[#16151f] flex flex-row items-center justify-between space-y-0">
               <div className="flex items-center gap-3">

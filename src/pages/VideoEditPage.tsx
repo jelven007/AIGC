@@ -525,7 +525,7 @@ function MediaLibraryPanel({ materials, onAdd, importedVideos, onImportVideo, on
 
       {/* 已生成/上传视频弹窗 */}
       <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
-        <DialogContent className="max-w-md bg-zinc-900 border-zinc-800 text-zinc-200 p-4">
+        <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-md max-h-[85vh] overflow-y-auto bg-zinc-900 border-zinc-800 text-zinc-200 p-4">
           <DialogHeader>
             <DialogTitle className="text-sm font-medium text-zinc-200 flex items-center gap-1.5 border-b border-zinc-800 pb-2">
               <Film className="w-3.5 h-3.5 text-indigo-400" />
@@ -1297,7 +1297,7 @@ function TextSubtitlePanel({
 
       {/* 批量编辑字幕弹窗 */}
       <Dialog open={batchEditOpen} onOpenChange={setBatchEditOpen}>
-        <DialogContent className="max-w-lg bg-zinc-900 border-zinc-800 text-zinc-200 p-4">
+        <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-lg max-h-[85vh] overflow-y-auto bg-zinc-900 border-zinc-800 text-zinc-200 p-4">
           <DialogHeader>
             <DialogTitle className="text-sm font-semibold flex items-center gap-2 border-b border-zinc-800 pb-2">
               <AlignCenter className="w-4 h-4 text-indigo-400" />
@@ -1551,7 +1551,7 @@ function PipPanel({
 
       {/* 选择画中画素材弹窗 */}
       <Dialog open={addModalOpen} onOpenChange={setAddModalOpen}>
-        <DialogContent className="max-w-md bg-zinc-900 border-zinc-800 text-zinc-200 p-4">
+        <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-md max-h-[85vh] overflow-y-auto bg-zinc-900 border-zinc-800 text-zinc-200 p-4">
           <DialogHeader>
             <DialogTitle className="text-sm font-semibold flex items-center gap-2 border-b border-zinc-800 pb-2">
               <Layers className="w-4 h-4 text-indigo-400" />
@@ -2806,9 +2806,10 @@ function LeftSidebar({
   }, []);
 
   return (
-    <div className={`flex shrink-0 border-r border-zinc-800 transition-all duration-300 ${collapsed ? 'w-14' : 'w-72 md:w-80'}`}>
+    // 移动端：占满一行宽度并限高内部滚动；lg 及以上恢复固定列宽
+    <div className={`flex shrink-0 border-r border-zinc-800 transition-all duration-300 max-lg:max-h-[32%] ${collapsed ? 'w-14' : 'w-full lg:w-80'}`}>
       {/* 垂直图标导航栏 */}
-      <div className="w-14 shrink-0 bg-zinc-950 border-r border-zinc-800 flex flex-col py-2 gap-0.5">
+      <div className="w-14 shrink-0 bg-zinc-950 border-r border-zinc-800 flex flex-col py-2 gap-0.5 overflow-y-auto">
         {PANEL_ITEMS.map(item => (
           <button
             key={item.id}
@@ -4860,11 +4861,12 @@ export default function VideoEditPage() {
   };
 
   return (
-    <div className="flex flex-col h-screen max-lg:h-[calc(100vh_-_3.5rem_-_env(safe-area-inset-bottom,0px))] w-full bg-zinc-950 text-zinc-300 overflow-hidden">
+    // 移动端：MainLayout 对本页隐藏顶部 header 且底部 Tab 栏已移除，直接占满动态视口高度
+    <div className="flex flex-col h-screen max-lg:h-[100dvh] w-full bg-zinc-950 text-zinc-300 overflow-hidden">
 
       {/* ─── 顶部工具栏 ──────────────────────────────────────────── */}
       <div className="h-12 border-b border-zinc-800 bg-zinc-900 flex items-center justify-between px-2 md:px-4 shrink-0 gap-2">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 shrink-0">
           <Button variant="ghost" size="sm" className="h-8 text-zinc-400 hover:text-white hover:bg-zinc-800" onClick={loadMaterials}>
             <Upload className="w-4 h-4 mr-1.5" /><span className="hidden md:inline">刷新素材</span>
           </Button>
@@ -4877,14 +4879,14 @@ export default function VideoEditPage() {
           </Button>
         </div>
 
-        <div className="font-medium text-sm text-zinc-400 flex items-center gap-2">
-          <span className="truncate max-w-[120px] md:max-w-xs">{projectTitle}</span>
-          <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] text-zinc-500 hover:text-white" onClick={() => setSaveDialogOpen(true)}>
+        <div className="font-medium text-sm text-zinc-400 flex items-center gap-2 min-w-0">
+          <span className="truncate max-w-[90px] sm:max-w-[120px] md:max-w-xs">{projectTitle}</span>
+          <Button variant="ghost" size="sm" className="h-6 px-2 shrink-0 text-[10px] text-zinc-500 hover:text-white" onClick={() => setSaveDialogOpen(true)}>
             重命名
           </Button>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <Button variant="ghost" size="sm" className="h-8 text-zinc-400 hover:text-white hover:bg-zinc-800" onClick={handleSave} disabled={saving}>
             {saving ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Save className="w-4 h-4 mr-1.5" />}
             <span className="hidden md:inline">保存</span>
@@ -4896,7 +4898,8 @@ export default function VideoEditPage() {
       </div>
 
       {/* ─── 中部工作区 ──────────────────────────────────────────── */}
-      <div className="flex-1 min-h-0 flex overflow-hidden">
+      {/* 移动端纵向堆叠（左面板 → 预览 → 属性面板），lg 及以上恢复左右分栏 */}
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
 
         {/* 左侧边栏 */}
         <LeftSidebar
@@ -5221,8 +5224,8 @@ export default function VideoEditPage() {
           </div>
         </div>
 
-        {/* 右侧属性面板 */}
-        <div className="w-60 md:w-72 border-l border-zinc-800 bg-zinc-900 flex flex-col shrink-0">
+        {/* 右侧属性面板（移动端占满一行宽度并限高内部滚动，lg 及以上恢复固定列宽） */}
+        <div className="w-full lg:w-72 max-lg:max-h-[36%] border-l border-zinc-800 bg-zinc-900 flex flex-col shrink-0">
           <div className="h-10 border-b border-zinc-800 flex items-center justify-between px-4 text-xs font-medium text-zinc-200 shrink-0">
             <div className="flex items-center">
               <Settings2 className="w-3.5 h-3.5 mr-2 text-zinc-400" />
@@ -5911,8 +5914,9 @@ export default function VideoEditPage() {
       </div>
 
       {/* ─── 底部时间轴 ──────────────────────────────────────────── */}
-      <div className="h-[235px] border-t border-zinc-800 bg-zinc-950 flex flex-col shrink-0">
-        <div className="h-10 border-b border-zinc-800 flex items-center justify-between px-4 bg-zinc-900/50 shrink-0">
+      {/* 移动端降低时间轴高度，给中部预览留出更多空间；lg 及以上恢复 235px */}
+      <div className="h-[200px] lg:h-[235px] border-t border-zinc-800 bg-zinc-950 flex flex-col shrink-0">
+        <div className="h-10 border-b border-zinc-800 flex items-center justify-between px-2 sm:px-4 bg-zinc-900/50 shrink-0">
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" className="w-8 h-8 text-zinc-400 hover:text-white hover:bg-zinc-800" title="分割 S" onClick={handleSplit}>
               <Scissors className="w-4 h-4" />
@@ -5935,7 +5939,8 @@ export default function VideoEditPage() {
             <span className="text-zinc-500">{formatTime(duration)}</span>
           </div>
 
-          <div className="flex items-center gap-1.5 w-36 shrink-0">
+          {/* 缩放条：小屏隐藏避免时间轴头部溢出，时间显示在预览底栏仍有 */}
+          <div className="hidden sm:flex items-center gap-1.5 w-36 shrink-0">
             <button
               className="p-1 hover:bg-zinc-800 rounded transition-colors text-zinc-400 hover:text-white"
               onClick={() => setZoom(prev => Math.max(0, prev - 10))}

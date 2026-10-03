@@ -271,7 +271,8 @@ function AvatarCard({
           ))}
         </div>
 
-        <div className="flex items-center gap-1.5 mt-auto pt-1">
+        {/* 移动端两按钮纵向堆叠，避免 2 列卡片内文字被裁切；sm 起恢复横排 */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 mt-auto pt-1">
           <Button
             size="sm"
             className="h-8 text-xs flex-1 bg-primary hover:bg-primary/90 text-primary-foreground gap-1"
@@ -721,7 +722,8 @@ export default function AvatarsPage() {
     <div className="flex flex-col min-h-0 h-full">
       {/* ── Tab 切换头部 ───────────────────────────────────────────────── */}
       <div className="border-b border-border bg-card px-4 md:px-6 pt-4 pb-4">
-        <div className="flex items-center gap-2">
+        {/* 移动端允许换行，避免两个 Tab 按钮横向溢出 */}
+        <div className="flex items-center flex-wrap gap-2">
           <button
             onClick={() => setActiveTab('avatars')}
             className={cn(
@@ -770,7 +772,8 @@ export default function AvatarsPage() {
 
           {/* 数字人主内容 */}
           <div className="flex-1 min-w-0 p-4 md:p-6 space-y-5 overflow-x-hidden">
-            <div className="flex items-center justify-between gap-3">
+            {/* 移动端标题与操作按钮允许换行堆叠 */}
+            <div className="flex items-center justify-between gap-3 flex-wrap">
               <div>
                 <h1 className="text-xl font-bold flex items-center gap-2 text-balance">
                   <Users2 className="w-5 h-5 text-primary" />数字人库
@@ -803,7 +806,7 @@ export default function AvatarsPage() {
                 <p className="text-muted-foreground text-sm">未找到匹配的数字人</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
                 {filtered.map(a => <AvatarCard key={a.id} avatar={a} onPreview={handleAvatarOpen} onUseAvatar={handleUseAvatar} onDeleteAvatar={handleDeleteAvatar} onUpdateCover={handleUpdateCover} />)}
               </div>
             )}
@@ -812,7 +815,8 @@ export default function AvatarsPage() {
       ) : (
         /* ── 视频模板库 Tab ───────────────────────────────────────── */
         <div className="flex-1 min-w-0 p-4 md:p-6 space-y-5 overflow-x-hidden">
-          <div className="flex items-center justify-between gap-3">
+          {/* 移动端标题与操作按钮允许换行堆叠 */}
+          <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
               <h1 className="text-xl font-bold flex items-center gap-2 text-balance">
                 <Film className="w-5 h-5 text-primary" />视频模板库

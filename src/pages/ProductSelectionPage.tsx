@@ -2931,7 +2931,7 @@ export default function ProductSelectionPage() {
       </div>
 
       {hasActiveImageSearch && (
-        <div className="flex items-center justify-between p-3.5 bg-rose-50/80 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-950/15 rounded-xl text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2 p-3.5 bg-rose-50/80 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-950/15 rounded-xl text-xs">
           <div className="flex items-center gap-2 text-rose-800 dark:text-rose-300">
             {imageSearchPreview && (
               <img src={imageSearchPreview} className="w-8 h-8 object-cover rounded-md border border-rose-200" alt="Search source" />
@@ -2954,14 +2954,15 @@ export default function ProductSelectionPage() {
 
       {/* ── 批量导入操作栏 ──────────────────────────────────────────────── */}
       {selectedRowIds.size > 0 && (
-        <div className="flex items-center justify-between px-4 py-2.5 bg-rose-50/90 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 rounded-xl shadow-sm text-xs animate-in fade-in">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 bg-rose-50/90 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 rounded-xl shadow-sm text-xs animate-in fade-in">
           <div className="flex items-center gap-2">
             <span className="font-semibold text-rose-700 dark:text-rose-300">
               已选 <strong className="text-rose-600 dark:text-rose-400 font-bold">{selectedRowIds.size}</strong> 件爆款商品
             </span>
             <span className="text-muted-foreground text-[11px]">（可一键将选中的商品批量入库至商品管理）</span>
           </div>
-          <div className="flex items-center gap-2">
+          {/* 移动端：按钮组允许换行，避免横向溢出 */}
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               size="sm"
               disabled={isBatchImporting}
@@ -2985,7 +2986,8 @@ export default function ProductSelectionPage() {
 
       {/* ── 商品列表表格 ──────────────────────────────────────────────────── */}
       <div className="bg-card border border-rose-100 dark:border-rose-950/20 rounded-2xl shadow-sm overflow-hidden">
-        <Table>
+        {/* 移动端：11 列内容较宽，设置最小宽度后由 Table 内置 overflow-auto 容器横向滚动，避免列被挤压换行 */}
+        <Table className="min-w-[1080px]">
           <TableHeader className="bg-rose-50/50 dark:bg-rose-950/10">
             <TableRow className="border-rose-100/50 dark:border-rose-950/10">
               <TableHead className="w-10 text-center py-4">
@@ -3231,7 +3233,8 @@ export default function ProductSelectionPage() {
 
       {/* ── SKU库存详情弹窗 ───────────────────────────────────────────────── */}
       <Dialog open={skuModalOpen} onOpenChange={setSkuModalOpen}>
-        <DialogContent className="max-w-md rounded-2xl">
+        {/* 移动端：宽度不超过视口，避免内容贴边或被裁切 */}
+        <DialogContent className="max-w-[calc(100vw-1.5rem)] sm:max-w-md rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-base font-bold flex items-center gap-1.5">
               <Info className="w-5 h-5 text-rose-500" /> SKU库存详情
@@ -3291,7 +3294,8 @@ export default function ProductSelectionPage() {
 
       {/* ── 图搜扫描动画弹窗 ──────────────────────────────────────────────── */}
       <Dialog open={isSearchingByImage} onOpenChange={setIsSearchingByImage}>
-        <DialogContent className="max-w-xs rounded-2xl bg-zinc-950 border border-zinc-800/80 p-6 flex flex-col items-center justify-center text-center">
+        {/* 移动端：宽度不超过视口 */}
+        <DialogContent className="max-w-[calc(100vw-1.5rem)] sm:max-w-xs rounded-2xl bg-zinc-950 border border-zinc-800/80 p-6 flex flex-col items-center justify-center text-center">
           <DialogHeader className="w-full">
             <DialogTitle className="text-sm font-bold text-zinc-200 flex items-center justify-center gap-1.5">
               <Camera className="w-4 h-4 text-rose-500 animate-pulse" /> 智能以图搜款
@@ -3330,7 +3334,8 @@ export default function ProductSelectionPage() {
       
       {/* ── 数据引擎第三方接入弹窗 ───────────────────────────────────────────── */}
       <Dialog open={showDataEngineModal} onOpenChange={setShowDataEngineModal}>
-        <DialogContent className="sm:max-w-2xl bg-zinc-950 border-zinc-800 text-zinc-100 p-6 rounded-2xl shadow-2xl">
+        {/* 移动端：宽度收窄、限高后内部滚动，避免长内容被裁切；桌面端保持原有样式 */}
+        <DialogContent className="max-w-[calc(100vw-1.5rem)] sm:max-w-2xl bg-zinc-950 border-zinc-800 text-zinc-100 max-h-[85vh] flex flex-col p-4 sm:p-6 rounded-2xl shadow-2xl">
           <DialogHeader className="space-y-1">
             <DialogTitle className="text-xl font-bold flex items-center gap-2 text-rose-400">
               <Database className="w-5 h-5 text-rose-500" />
@@ -3341,8 +3346,10 @@ export default function ProductSelectionPage() {
             </p>
           </DialogHeader>
 
-          <div className="space-y-4 my-2">
-            <div className="flex items-center justify-between p-3 rounded-xl bg-zinc-900/80 border border-zinc-800">
+          {/* 中间内容区：移动端限高后改为内部滚动 */}
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-4 my-2">
+            {/* 移动端：状态行允许换行 */}
+            <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-zinc-900/80 border border-zinc-800">
               <div className="flex items-center gap-2">
                 <Radio className="w-4 h-4 text-emerald-400 animate-pulse" />
                 <span className="text-xs font-semibold text-zinc-200">数据源接入状态</span>
@@ -3437,7 +3444,8 @@ export default function ProductSelectionPage() {
 
       {/* ── 平台 API Key 配置小弹窗 ─────────────────────────────────────────── */}
       <Dialog open={!!configuringPlatform} onOpenChange={(open) => { if (!open) setConfiguringPlatform(null); }}>
-        <DialogContent className="sm:max-w-md bg-zinc-950 border-zinc-800 text-zinc-100 p-5 rounded-2xl shadow-2xl z-50">
+        {/* 移动端：宽度不超过视口 */}
+        <DialogContent className="max-w-[calc(100vw-1.5rem)] sm:max-w-md bg-zinc-950 border-zinc-800 text-zinc-100 p-5 rounded-2xl shadow-2xl z-50">
           <DialogHeader>
             <DialogTitle className="text-base font-bold flex items-center gap-2 text-rose-400">
               <Zap className="w-4 h-4 text-rose-500" />
