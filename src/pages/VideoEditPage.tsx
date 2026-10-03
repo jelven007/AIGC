@@ -3088,6 +3088,9 @@ export default function VideoEditPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const rulerRef = useRef<HTMLDivElement>(null);
   const timelineScrollRef = useRef<HTMLDivElement>(null);
+  // 播放主时钟引用：供 rAF 帧循环读取当前激活片段与预览源，避免依赖每次渲染新建的对象导致 effect 频繁重建
+  const activeVideoClipRef = useRef<TrackItem | undefined>(undefined);
+  const previewVideoUrlRef = useRef<string | null>(null);
 
   // Timeline layout constants — px-per-second based
   const TRACK_LABEL_W = 60; // width of the track icon label column in px
@@ -3111,6 +3114,8 @@ export default function VideoEditPage() {
       return currentTime >= track.start && currentTime <= end && track.type === 'video';
     });
   })();
+  activeVideoClipRef.current = activeVideoClip;
+  previewVideoUrlRef.current = previewVideoUrl;
 
   const activeImageClip = (() => {
     const selectedClip = tracks.find(t => t.id === selectedTrackItem && t.type === 'image' && t.trackId === 'image');
@@ -3960,29 +3965,39 @@ export default function VideoEditPage() {
     }
   }, [isPlaying, currentVideoSrc]);
 
-  // Master playhead timer that drives timeline currentTime forward
+  // 播放主时钟：播放中优先以 <video> 元素原生时钟为准（requestAnimationFrame 帧同步），
+  // 墙钟仅作无视频载体/加载间隙的兜底推进，消除挂钟定时器与视频时钟漂移引发的高频纠错 seek 卡顿
   useEffect(() => {
-    let intervalId: any;
-    if (isPlaying) {
-      let lastTime = Date.now();
-      intervalId = setInterval(() => {
-        const now = Date.now();
-        const delta = (now - lastTime) / 1000;
-        lastTime = now;
-        setCurrentTime(prev => {
-          const next = prev + delta;
-          if (next >= duration) {
-            setIsPlaying(false);
-            return duration;
-          }
-          return next;
-        });
-      }, 30);
-    }
-    return () => {
-      if (intervalId) clearInterval(intervalId);
+    if (!isPlaying) return;
+    let rafId = 0;
+    let lastStamp = performance.now();
+    const tick = (stamp: number) => {
+      const delta = Math.min(0.25, (stamp - lastStamp) / 1000);
+      lastStamp = stamp;
+      const v = videoRef.current;
+      const clip = activeVideoClipRef.current;
+      const videoClockReady = !!v && !!v.currentSrc && v.readyState >= 2 && !v.seeking && !v.paused;
+      setCurrentTime(prev => {
+        const rate = v && Number.isFinite(v.playbackRate) ? Math.max(0.25, Math.min(4, v.playbackRate)) : 1;
+        let next = prev + delta * rate;
+        if (videoClockReady && v) {
+          const mapped = clip ? clip.start + v.currentTime : (previewVideoUrlRef.current ? v.currentTime : prev);
+          // 视频时钟与推进幅度一致时直接采用，片段切换/缓冲加载瞬间不回拨跳变
+          if (mapped >= prev - 0.35 && mapped <= prev + 1.2) next = mapped;
+        }
+        if (next >= duration) return duration;
+        return next;
+      });
+      rafId = requestAnimationFrame(tick);
     };
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
   }, [isPlaying, duration]);
+
+  // 播放到达时间轴末尾自动暂停（副作用移出 state updater，避免并发渲染下重复触发）
+  useEffect(() => {
+    if (isPlaying && currentTime >= duration) setIsPlaying(false);
+  }, [isPlaying, currentTime, duration]);
 
   // Sync player time during active playback (drift correction)
   useEffect(() => {
@@ -4544,6 +4559,7 @@ export default function VideoEditPage() {
                 <video
                   ref={videoRef}
                   src={currentVideoSrc}
+                  preload="auto"
                   className="w-full h-full object-contain transition-all bg-black"
                   style={{
                     transform: `scale(${(selectedTrackObj?.scale ?? 100) / 100})`,
