@@ -1,0 +1,160 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1080" viewBox="0 0 1280 1080" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#475569"/>
+    </marker>
+    <marker id="arrG" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#16a34a"/>
+    </marker>
+    <marker id="arrR" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#dc2626"/>
+    </marker>
+    <marker id="arrO" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#ea580c"/>
+    </marker>
+  </defs>
+
+  <rect width="1280" height="1080" fill="#f8fafc"/>
+  <text x="640" y="38" text-anchor="middle" font-size="23" font-weight="bold" fill="#0f172a">Shopro AI Agent 工作流图</text>
+  <text x="640" y="60" text-anchor="middle" font-size="13" fill="#64748b">视频创作智能体决策流程 · 工具调用链路 · 积分扣退兜底闭环</text>
+
+  <!-- ============ 主流程（中列 x=270..570） ============ -->
+  <!-- 1 开始 -->
+  <rect x="290" y="80" width="280" height="42" rx="21" fill="#0f172a"/>
+  <text x="430" y="106" text-anchor="middle" font-size="13" font-weight="bold" fill="#f8fafc">开始：用户输入商品 URL / 口令 / 关键词</text>
+  <line x1="430" y1="122" x2="430" y2="144" stroke="#475569" stroke-width="1.6" marker-end="url(#arr)"/>
+
+  <!-- 2 商品解析 -->
+  <rect x="270" y="146" width="320" height="58" rx="8" fill="#eef2ff" stroke="#6366f1" stroke-width="1.6"/>
+  <text x="430" y="168" text-anchor="middle" font-size="13" font-weight="bold" fill="#312e81">工具① 商品解析 · 卖点提取</text>
+  <text x="430" y="188" text-anchor="middle" font-size="11" fill="#475569">Edge Function 抓取 + DeepSeek 结构化（功能/优势/利益/证据）</text>
+  <line x1="430" y1="204" x2="430" y2="226" stroke="#475569" stroke-width="1.6" marker-end="url(#arr)"/>
+
+  <!-- 3 脚本生成 -->
+  <rect x="270" y="228" width="320" height="64" rx="8" fill="#eef2ff" stroke="#6366f1" stroke-width="1.6"/>
+  <text x="430" y="250" text-anchor="middle" font-size="13" font-weight="bold" fill="#312e81">工具② CoT 四层脚本生成（SSE 流式）</text>
+  <text x="430" y="268" text-anchor="middle" font-size="11" fill="#475569">钩子 → 痛点 → 产品 → CTA · 情感标注</text>
+  <text x="430" y="283" text-anchor="middle" font-size="10.5" fill="#94a3b8">可选：pgvector RAG 高分脚本 Few-shot 增强</text>
+  <line x1="430" y1="292" x2="430" y2="314" stroke="#475569" stroke-width="1.6" marker-end="url(#arr)"/>
+
+  <!-- 4 数字人 -->
+  <rect x="270" y="316" width="320" height="52" rx="8" fill="#eef2ff" stroke="#6366f1" stroke-width="1.6"/>
+  <text x="430" y="337" text-anchor="middle" font-size="13" font-weight="bold" fill="#312e81">工具③ 数字人选择 + CosyVoice2 情感配音</text>
+  <text x="430" y="356" text-anchor="middle" font-size="11" fill="#475569">形象克隆 · 50+ 语种 · 情绪时间轴对齐</text>
+  <line x1="430" y1="368" x2="430" y2="392" stroke="#475569" stroke-width="1.6" marker-end="url(#arr)"/>
+
+  <!-- 5 决策：余额 -->
+  <polygon points="430,394 580,448 430,502 280,448" fill="#fefce8" stroke="#ca8a04" stroke-width="1.8"/>
+  <text x="430" y="442" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#713f12">creditGuard</text>
+  <text x="430" y="460" text-anchor="middle" font-size="11.5" fill="#713f12">积分余额 ≥ 10？</text>
+
+  <!-- 否 → 充值 -->
+  <line x1="580" y1="448" x2="648" y2="448" stroke="#dc2626" stroke-width="1.6" marker-end="url(#arrR)"/>
+  <text x="612" y="440" text-anchor="middle" font-size="11" font-weight="bold" fill="#dc2626">否</text>
+  <rect x="650" y="420" width="250" height="58" rx="8" fill="#fef2f2" stroke="#dc2626" stroke-width="1.6"/>
+  <text x="775" y="442" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#7f1d1d">前置拦截：充值引导弹窗</text>
+  <text x="775" y="461" text-anchor="middle" font-size="10.5" fill="#475569">支付宝 AI 付 / 微信支付 · 回调验签入账</text>
+  <polyline points="775,420 775,380 430,380 430,392" fill="none" stroke="#16a34a" stroke-width="1.6" marker-end="url(#arrG)"/>
+  <text x="790" y="374" font-size="10.5" fill="#16a34a">到账后重新校验</text>
+
+  <!-- 是 ↓ -->
+  <line x1="430" y1="502" x2="430" y2="526" stroke="#16a34a" stroke-width="1.8" marker-end="url(#arrG)"/>
+  <text x="446" y="520" font-size="11" font-weight="bold" fill="#16a34a">是</text>
+
+  <!-- 6 原子扣费 -->
+  <rect x="270" y="528" width="320" height="58" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.8"/>
+  <text x="430" y="550" text-anchor="middle" font-size="13" font-weight="bold" fill="#064e3b">工具④ 积分原子扣费 RPC（-10）</text>
+  <text x="430" y="569" text-anchor="middle" font-size="11" fill="#475569">PostgreSQL 事务 + credit_logs 流水审计 + 全站广播</text>
+  <line x1="430" y1="586" x2="430" y2="608" stroke="#475569" stroke-width="1.6" marker-end="url(#arr)"/>
+
+  <!-- 7 提交渲染 -->
+  <rect x="270" y="610" width="320" height="58" rx="8" fill="#eef2ff" stroke="#6366f1" stroke-width="1.6"/>
+  <text x="430" y="632" text-anchor="middle" font-size="13" font-weight="bold" fill="#312e81">工具⑤ Seedance 异步渲染任务提交</text>
+  <text x="430" y="651" text-anchor="middle" font-size="11" fill="#475569">首尾帧 + 声轨 · 网络超时禁止自动重试（防重复扣费）</text>
+  <line x1="430" y1="668" x2="430" y2="692" stroke="#475569" stroke-width="1.6" marker-end="url(#arr)"/>
+
+  <!-- 8 决策：任务成功 -->
+  <polygon points="430,694 580,748 430,802 280,748" fill="#fefce8" stroke="#ca8a04" stroke-width="1.8"/>
+  <text x="430" y="742" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#713f12">渲染任务</text>
+  <text x="430" y="760" text-anchor="middle" font-size="11.5" fill="#713f12">状态 = 成功？</text>
+
+  <!-- 失败 → 重试/退款 -->
+  <line x1="580" y1="748" x2="648" y2="748" stroke="#dc2626" stroke-width="1.6" marker-end="url(#arrR)"/>
+  <text x="612" y="740" text-anchor="middle" font-size="11" font-weight="bold" fill="#dc2626">失败</text>
+  <rect x="650" y="718" width="250" height="60" rx="8" fill="#fef2f2" stroke="#dc2626" stroke-width="1.6"/>
+  <text x="775" y="740" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#7f1d1d">Attempt 级重试策略</text>
+  <text x="775" y="759" text-anchor="middle" font-size="10.5" fill="#475569">指数退避 retry · 运营后台尝试级日志下探</text>
+  <line x1="775" y1="778" x2="775" y2="806" stroke="#dc2626" stroke-width="1.6" marker-end="url(#arrR)"/>
+  <rect x="650" y="808" width="250" height="56" rx="8" fill="#fff7ed" stroke="#ea580c" stroke-width="1.6"/>
+  <text x="775" y="830" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#7c2d12">多次失败 → 自动退款兜底</text>
+  <text x="775" y="849" text-anchor="middle" font-size="10.5" fill="#475569">积分原路退回 + credit_logs 冲正记录</text>
+  <polyline points="900,748 960,748 960,639 596,639" fill="none" stroke="#ea580c" stroke-width="1.4" stroke-dasharray="5,4" marker-end="url(#arrO)"/>
+  <text x="966" y="700" font-size="10.5" fill="#ea580c">可重试错误 → 重新提交</text>
+
+  <!-- 成功 ↓ -->
+  <line x1="430" y1="802" x2="430" y2="826" stroke="#16a34a" stroke-width="1.8" marker-end="url(#arrG)"/>
+  <text x="446" y="820" font-size="11" font-weight="bold" fill="#16a34a">成功</text>
+
+  <!-- 9 轮询+封面 -->
+  <rect x="270" y="828" width="320" height="58" rx="8" fill="#eef2ff" stroke="#6366f1" stroke-width="1.6"/>
+  <text x="430" y="850" text-anchor="middle" font-size="13" font-weight="bold" fill="#312e81">工具⑥ 结果轮询 + 封面生成</text>
+  <text x="430" y="869" text-anchor="middle" font-size="11" fill="#475569">首帧截取真实封面 · Flux 多封面候选择优 · 作品自动入库</text>
+  <line x1="430" y1="886" x2="430" y2="908" stroke="#475569" stroke-width="1.6" marker-end="url(#arr)"/>
+
+  <!-- 10 编辑导出 -->
+  <rect x="270" y="910" width="320" height="52" rx="8" fill="#eef2ff" stroke="#6366f1" stroke-width="1.6"/>
+  <text x="430" y="931" text-anchor="middle" font-size="13" font-weight="bold" fill="#312e81">工具⑦ 多轨剪辑 · 导出 · 跨平台发布</text>
+  <text x="430" y="950" text-anchor="middle" font-size="11" fill="#475569">Canvas 分镜编辑 · 抖音/TikTok/小红书/Amazon 排期分发</text>
+  <line x1="430" y1="962" x2="430" y2="984" stroke="#475569" stroke-width="1.6" marker-end="url(#arr)"/>
+
+  <!-- 11 数据回流 -->
+  <rect x="270" y="986" width="320" height="52" rx="8" fill="#faf5ff" stroke="#a855f7" stroke-width="1.6"/>
+  <text x="430" y="1007" text-anchor="middle" font-size="13" font-weight="bold" fill="#581c87">数据回流自学习闭环</text>
+  <text x="430" y="1026" text-anchor="middle" font-size="11" fill="#475569">ROI 预测 · A/B 测试淘汰 · 低效文案 AI 重写</text>
+
+  <!-- 回流虚线 → 脚本生成 -->
+  <polyline points="270,1012 150,1012 150,260 264,260" fill="none" stroke="#a855f7" stroke-width="1.5" stroke-dasharray="6,4" marker-end="url(#arr)"/>
+  <text x="60" y="620" font-size="11" fill="#7e22ce" transform="rotate(-90 76 620)">转化数据回流 → Few-shot 增强下一轮脚本生成</text>
+
+  <!-- ============ 右列：MCP 智能体调用链 ============ -->
+  <rect x="1020" y="120" width="230" height="56" rx="8" fill="#fff7ed" stroke="#ea580c" stroke-width="1.6"/>
+  <text x="1135" y="143" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#7c2d12">外部 AI Agent 客户端</text>
+  <text x="1135" y="162" text-anchor="middle" font-size="10.5" fill="#475569">Claude / GPT / 商家自建智能体</text>
+  <line x1="1135" y1="176" x2="1135" y2="200" stroke="#ea580c" stroke-width="1.6" marker-end="url(#arrO)"/>
+
+  <rect x="1020" y="202" width="230" height="72" rx="8" fill="#fff7ed" stroke="#ea580c" stroke-width="1.6"/>
+  <text x="1135" y="224" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#7c2d12">MCP Server（FastMCP）</text>
+  <text x="1135" y="243" text-anchor="middle" font-size="10.5" fill="#475569">tools.json 契约 · HTTP/SSE + stdio</text>
+  <text x="1135" y="259" text-anchor="middle" font-size="10.5" fill="#475569">ak_ 密钥 + JWT 鉴权 · Docker 部署</text>
+  <line x1="1135" y1="274" x2="1135" y2="298" stroke="#ea580c" stroke-width="1.6" marker-end="url(#arrO)"/>
+
+  <rect x="1020" y="300" width="230" height="150" rx="8" fill="#ffffff" stroke="#ea580c" stroke-width="1.6"/>
+  <text x="1135" y="322" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#7c2d12">7 大 AI 工具封装</text>
+  <text x="1036" y="344" font-size="10.5" fill="#475569">① parse_product   商品解析</text>
+  <text x="1036" y="362" font-size="10.5" fill="#475569">② generate_script   脚本生成</text>
+  <text x="1036" y="380" font-size="10.5" fill="#475569">③ synthesize_voice  情感配音</text>
+  <text x="1036" y="398" font-size="10.5" fill="#475569">④ create_video      视频合成</text>
+  <text x="1036" y="416" font-size="10.5" fill="#475569">⑤ query_video       任务查询</text>
+  <text x="1036" y="434" font-size="10.5" fill="#475569">⑥ generate_cover    封面生成</text>
+  <text x="1036" y="446" font-size="10.5" fill="#475569">⑦ analyze_competitor 竞品分析</text>
+  <line x1="1135" y1="450" x2="1135" y2="474" stroke="#ea580c" stroke-width="1.6" marker-end="url(#arrO)"/>
+
+  <rect x="1020" y="476" width="230" height="56" rx="8" fill="#f0f9ff" stroke="#0ea5e9" stroke-width="1.6"/>
+  <text x="1135" y="499" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#0c4a6e">Supabase Edge Functions</text>
+  <text x="1135" y="518" text-anchor="middle" font-size="10.5" fill="#475569">与商家端共用同一真实扣费/审计链路</text>
+
+  <polyline points="1020,504 940,504 940,639 596,639" fill="none" stroke="#0ea5e9" stroke-width="1.4" stroke-dasharray="5,4" marker-end="url(#arr)"/>
+  <text x="944" y="580" font-size="10.5" fill="#0369a1">同一工具链路复用</text>
+
+  <!-- 图例 -->
+  <rect x="1020" y="920" width="230" height="130" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+  <text x="1036" y="942" font-size="12" font-weight="bold" fill="#334155">图例</text>
+  <line x1="1036" y1="958" x2="1066" y2="958" stroke="#475569" stroke-width="1.6" marker-end="url(#arr)"/>
+  <text x="1076" y="962" font-size="10.5" fill="#475569">主流程流转</text>
+  <line x1="1036" y1="980" x2="1066" y2="980" stroke="#dc2626" stroke-width="1.6" marker-end="url(#arrR)"/>
+  <text x="1076" y="984" font-size="10.5" fill="#475569">异常/拦截分支</text>
+  <line x1="1036" y1="1002" x2="1066" y2="1002" stroke="#ea580c" stroke-width="1.4" stroke-dasharray="5,4" marker-end="url(#arrO)"/>
+  <text x="1076" y="1006" font-size="10.5" fill="#475569">重试/降级回路</text>
+  <line x1="1036" y1="1024" x2="1066" y2="1024" stroke="#a855f7" stroke-width="1.5" stroke-dasharray="6,4" marker-end="url(#arr)"/>
+  <text x="1076" y="1028" font-size="10.5" fill="#475569">数据回流闭环</text>
+</svg>
