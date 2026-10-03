@@ -81,31 +81,104 @@
 
 ```
 Shopro/
-├── src/                          # 🎨 商家创作端（React + TS）
-│   ├── pages/                    #    43 个功能页面（工作台/脚本/数字人/剪辑/选品/积分/团队…）
-│   ├── components/               #    UI 组件（57 个 shadcn 风格原子组件 + 业务区块）
-│   ├── api/                      #    Supabase 客户端封装（products / video / credits / alipay）
-│   ├── contexts/                 #    AuthContext 认证会话
-│   ├── db/                       #    supabase.ts 连接层
-│   ├── hooks/                    #    useCredits / useDraft / use-toast / use-mobile
-│   ├── lib/                      #    模型网关 SDK（happyhorse / minimax / seedancemini / wan3 / vectrust）
-│   │                             #    + creditGuard 积分拦截 · sse 流式 · videoFrame 首帧截取 · customModel
-│   └── services/audio/           #    音频服务抽象
-├── backend/                      # 🏢 厂商运营中台（Vue 3 + Element Plus + Pinia）
-├── supabase/
-│   ├── functions/                #    ⚡ 23 个 Edge Functions（AI 编排 / 支付 / 短信 / 助手）
-│   ├── migrations/               #    🗄️ 26 个数据库迁移脚本
-│   └── schema.sql                #    全量表结构 + RLS + RPC + 触发器
-├── api/                          # 🐍 FastAPI 无服务器代理（dxkp 模型透传 / mcp 网关）
-├── mcp/                          # 🔌 MCP 开放生态（FastMCP 服务 + tools.json 契约 + Docker）
-├── doc/                          # 📚 文档（架构图 / 工作流图 / 测试用例 / 支付接入）
-├── scratch/                      # 🧪 16 个真实 API 联调探针脚本（模型链路验证）
-├── public/                       # 🖼️ 静态资源（模板视频 / 封面 / 商品图）
-├── vercel.json                   # 🚀 Vercel 部署与 AI 网关代理重写规则
-├── .env.example                  # ⚙️ 环境变量模板（密钥禁止提交）
-├── 评分.md / 加分.md              # 🏆 比赛评分分析与加分项交付清单
-└── PRD.md                        # 📑 产品需求文档 v2.0
+├── src/                              # 🎨 商家创作端（React 18 + TypeScript + Vite）
+│   ├── pages/                        #    43 个功能页面（react-router 懒加载 + 受保护路由）
+│   │   ├── HomePage.tsx              #    ├─ 🏠 工作台：DashboardPage · TaskQueuePage · NotificationsPage
+│   │   ├── VideoCreatePage.tsx       #    ├─ 🎬 创作主链路：ScriptPage · VideoEditPage · WorksPage
+│   │   ├── ScriptPage.tsx            #    │    · BatchCreatePage（批量）· TemplatesPage · CoverCandidates
+│   │   ├── ProductsPage.tsx          #    ├─ 🛍️ 商品与选品：ProductSelectionPage · CompetitorPage
+│   │   ├── AvatarsPage.tsx           #    ├─ 🎭 数字人与音频：EmotionAnalysisPage · MultiLangPage
+│   │   ├── CreditsPage.tsx           #    ├─ 💳 积分与支付：OrderDetailPage · AlipayReturnPage · InvitePage
+│   │   ├── AnalyticsPage.tsx         #    ├─ 📊 数据与增长：ABTestPage · DataFeedbackPage
+│   │   │                             #    │    · DataDashboardPage · TrendingPatternsPage · LiveHighlightPage
+│   │   ├── TeamSpacePage.tsx         #    ├─ 👥 团队与开放：OpenAPIPage · KnowledgePage · PromptTemplatesPage
+│   │   ├── AiToolboxPage.tsx         #    ├─ 🧰 AI 工具箱：StyleCopyPage · PersonalizePage · LLMCachePage
+│   │   │                             #    │    · ActivitiesPage · ExportFormatsPage · MaterialsPage
+│   │   ├── LandingPage.tsx           #    ├─ 🌍 门面与账号：LoginPage · ProfilePage · ForbiddenPage · NotFound
+│   │   └── ...（PublishPage · Index.tsx 等）
+│   ├── components/                   #    UI 组件层
+│   │   ├── ui/                       #    ├─ 57 个 shadcn/Radix 原子组件（dialog/select/sidebar/toaster…）
+│   │   │   ├── GlassCard.tsx         #    │    + 自研：玻璃态卡片 · 磁吸按钮 · 动态背景 · 脚本卡片
+│   │   │   └── platform-icons.tsx    #    │    + 多平台图标（抖音/TikTok/小红书/Amazon…）
+│   │   ├── common/                   #    ├─ 业务弹窗：CustomModelDialog（Portal 顶层化）
+│   │   │   └── PaymentDialog.tsx     #    │    · PaymentDialog 充值 · PlatformCredentialDialog 平台凭证
+│   │   ├── layouts/MainLayout.tsx    #    ├─ 主布局：侧边导航 + 移动端底部 Tab + 更多抽屉 + 安全区
+│   │   ├── Navbar.tsx / Footer.tsx   #    ├─ 官网区块：HeroSection · PricingSection · StatsSection 等
+│   │   ├── PlanGate.tsx              #    ├─ 套餐门禁：按 plan 拦截付费功能入口
+│   │   └── UrlProductImportDialog.tsx#    └─ URL/口令商品导入弹窗
+│   ├── api/                          #    Supabase 客户端封装
+│   │   ├── client.ts                 #    ├─ ky HTTP 基座 + 请求约定
+│   │   ├── products.ts               #    ├─ 商品 CRUD 与 URL/口令解析
+│   │   ├── video.ts                  #    ├─ 视频任务提交/轮询/多模型网关适配
+│   │   ├── credits.ts                #    ├─ 积分余额、原子扣费 RPC、流水读取
+│   │   └── alipay.ts                 #    └─ 支付宝 AI 付下单与回跳
+│   ├── lib/                          #    模型网关 SDK 与核心工具
+│   │   ├── minimax/ · wan3/          #    ├─ Tokendance 视频网关 SDK：MiniMax H3 · Wan3.0 Prime
+│   │   ├── seedancemini/ · happyhorse/#   ├─ Seedance 2.0 Mini · HappyHorse 1.1（DashScope 异步协议）
+│   │   ├── vectrust/                 #    └─ Vectrust 通道
+│   │   ├── creditGuard.ts            #    ⚡ 余额不足前置拦截（弹窗 + 生成阻断）
+│   │   ├── sse.ts                    #    ⚡ SSE 流式解析（打字机输出）
+│   │   ├── customModel.ts            #    ⚡ 自定义模型配置（BYOK）
+│   │   ├── videoFrame.ts             #    ⚡ 首帧截取（作品真实封面）
+│   │   └── audioRecorder.ts · utils.ts
+│   ├── contexts/AuthContext.tsx      #    认证会话（Supabase Auth + 短信/邮箱登录）
+│   ├── hooks/                        #    useCredits（全站余额广播）· useDraft · use-toast · use-mobile
+│   ├── services/audio/index.ts       #    音频服务抽象（TTS/ASR 统一入口）
+│   ├── types/                        #    route.ts · types.ts（ScriptScene/StyleReport 等领域类型）
+│   ├── db/supabase.ts                #    Supabase 连接层
+│   └── App.tsx · main.tsx · index.css #    路由装配 · 入口 · 主题（暗/亮玻璃态）
+├── backend/                          # 🏢 厂商运营中台（Vue 3 + Element Plus + Pinia + ECharts + MSW）
+│   ├── index.html · vite.config.ts   #    独立 Vite 子工程（vue-tsc 构建自检）
+│   ├── admin-architecture-spec.md    #    中台架构规格说明书
+│   └── 项目结构与功能模块说明.md       #    多租户/风控/调账/Attempt 追踪模块说明
+├── supabase/                         # ☁️ BaaS 云服务
+│   ├── functions/                    #    ⚡ 23 个 Edge Functions（Deno）
+│   │   ├── ai-assistant/             #    ├─ 视频生成主编排（脚本/增强/提交/退款）
+│   │   ├── deepseek-v4-pro/ · glm-5-3-flash/# ├─ 文本主通道与降级链（+ wenxin · minimax-chat）
+│   │   ├── seedance/ · kling-video-*/ · sora-video-*/ # ├─ 视频生成提交与查询
+│   │   ├── siliconflow-audio/ · stepaudio/    # ├─ TTS 情感配音 / ASR 转写
+│   │   ├── alipay-payment-order|notify/ · alipay-trade-query|ops/ # ├─ 支付宝 AI 付四件套
+│   │   ├── create-payment-order/ · wechat-payment-webhook/ # ├─ 微信/通用支付
+│   │   ├── send-sms-code/ · verify-sms-code/  # ├─ 短信认证
+│   │   ├── phase3-assistant/ · setup-demo/    # ├─ 开放平台助手 · 演示数据
+│   │   └── _shared/                  #    └─ 共享工具（鉴权/密钥读取/审计，缺失密钥返回 503）
+│   ├── migrations/                   #    🗄️ 26 个增量迁移（00001 认证建表 → 00009 扣费 RPC
+│   │   └── ...                       #    → 00022 RLS 加固+统一退款 RPC → 00023 AI 治理
+│   │                                 #    → 00025 积分端到端口径 → 00026 支付宝网站支付）
+│   ├── schema.sql                    #    全量表结构 + RLS + RPC + 触发器基线
+│   └── config.toml                   #    项目配置
+├── api/                              # 🐍 FastAPI 无服务器代理（Vercel Python Functions）
+│   ├── dxkp.py                       #    dxkp.ai 模型网关 ASGI 透传（密钥隔离）
+│   └── mcp.py                        #    MCP Streamable HTTP JSON-RPC 网关
+├── mcp/                              # 🔌 MCP 开放生态（Python FastMCP）
+│   ├── mcp_server.py · mcp_shopro_server.py        # HTTP/SSE 传输服务（Shopro 版/通用版）
+│   ├── mcp_server_stdio.py · mcp_shopro_server_stdio.py # stdio 本地智能体接入
+│   ├── tools.json                    #    7 大 AI 工具契约（卖点/脚本/翻译/TTS/增强/提交/查询）
+│   └── Dockerfile.mcp · docker-compose.mcp.yml     # 容器化部署
+├── doc/                              # 📚 项目文档
+│   ├── system_architecture.svg       #    系统架构图（五层全景）
+│   ├── agent_workflow.svg            #    Agent 工作流图（决策分支 + 工具链路）
+│   ├── TEST_CASES.md                 #    23 个测试用例与实测结果
+│   ├── ALIPAY_AIPAY_INTEGRATION.md   #    支付宝 AI 付接入文档
+│   ├── 支付.md · 竞品.md              #    支付方案与竞品调研
+│   └── fx.md · fx1.md                #    功能分析与改进建议（前端/后端/AI 三张表）
+├── scratch/                          # 🧪 16 个真实 API 联调探针（minimax/seedance/wan3/glm/
+│                                     #    happyhorse 各通道实测脚本，可复验 AI 调用真实性）
+├── public/                           # 🖼️ 静态资源（Video 模板与封面 · covers · shop 商品图 · person）
+├── .rules/ · .agents/                # ✅ 自定义质量规则（Biome yml 规则 + lint/test 脚本）与 Agent 规范
+├── clipforge/ · skill-creator/       # 🧩 附属子模块（视频剪辑引擎 / Skill 工具链）
+├── vercel.json                       # 🚀 部署配置：AI 网关代理重写 + SPA fallback
+├── vite.config.ts · vite.config.dev.ts # 构建配置（SWC + Manual Chunks；dev 代理 gmicloud/dxkp/glm）
+├── tailwind.config.js · components.json # 样式与 shadcn 配置
+├── biome.json · sgconfig.yml · tsconfig.* # 代码质量与类型检查配置
+├── .env.example                      # ⚙️ 环境变量模板（Supabase + 各 AI 网关 + 支付宝密钥说明）
+├── PRD.md · AGENTS.md                # 📑 产品需求文档 v2.0 · 协作规范
+├── 评分.md · 加分.md                  # 🏆 比赛评分分析与加分项交付清单
+├── LICENSE                           # ⚖️ MIT 开源协议
+└── package.json · pnpm-lock.yaml     # 📦 依赖与脚本（dev/build/lint）
 ```
+
+> 📌 说明：`backend/`（运营中台）与根目录（商家端）为两个独立 pnpm 工程；`src/pages` 树中仅列代表性文件，完整 43 个页面以目录实际为准。
 
 ---
 
