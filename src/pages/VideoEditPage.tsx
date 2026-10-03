@@ -5701,8 +5701,8 @@ export default function VideoEditPage() {
                 className="absolute top-0 bottom-0 pointer-events-none z-30"
                 style={{ left: `${currentTime * pxPerSec}px` }}
               >
-                <div className="w-0 h-0 border-x-[5px] border-x-transparent border-t-[7px] border-t-orange-500 -translate-x-[5px]" />
-                <div className="w-px h-full bg-orange-500 shadow-[0_0_6px_rgba(249,115,22,0.9)]" />
+                <div className="w-0 h-0 border-x-[5px] border-x-transparent border-t-[7px] border-t-red-500 -translate-x-[5px]" />
+                <div className="w-px h-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.9)]" />
               </div>
             </div>
           </div>
@@ -5890,10 +5890,10 @@ export default function VideoEditPage() {
             {/* 播放指针竖线 */}
             <div
               ref={playheadLineRef}
-              className="absolute top-0 bottom-0 w-px bg-orange-500 z-20 pointer-events-none shadow-[0_0_8px_rgba(249,115,22,0.8)]"
+              className="absolute top-0 bottom-0 w-px bg-red-500 z-20 pointer-events-none shadow-[0_0_8px_rgba(239,68,68,0.8)]"
               style={{ left: `${TRACK_CONTENT_OFFSET + currentTime * pxPerSec}px` }}
             >
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2.5 h-2.5 rotate-45 bg-orange-500 shadow-[0_0_6px_rgba(249,115,22,1)]" />
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2.5 h-2.5 rotate-45 bg-red-500 shadow-[0_0_8px_rgba(239,68,68,1)]" />
             </div>
           </div>
         </div>
