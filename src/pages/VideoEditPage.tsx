@@ -3740,7 +3740,9 @@ export default function VideoEditPage() {
       editorAspect,
       appliedFilter,
       filterIntensity,
-      beautyEnabled,
+      beautyEnabled: aiBeautyEnabled,
+      aiBeautyEnabled,
+      aiCutoutEnabled,
       previewVideoUrl: finalVideoUrl,
       currentTime,
       last_saved_at: new Date().toISOString(),
@@ -3856,6 +3858,12 @@ export default function VideoEditPage() {
         if (styleData.volume) setVolume(styleData.volume);
         if (styleData.editorAspect) setEditorAspect(styleData.editorAspect);
         if (styleData.appliedFilter) setAppliedFilter(styleData.appliedFilter);
+        if (styleData.aiBeautyEnabled !== undefined || styleData.beautyEnabled !== undefined) {
+          setAiBeautyEnabled(Boolean(styleData.aiBeautyEnabled ?? styleData.beautyEnabled));
+        }
+        if (styleData.aiCutoutEnabled !== undefined) {
+          setAiCutoutEnabled(Boolean(styleData.aiCutoutEnabled));
+        }
       }
     } catch (err) {
       console.error('Failed to load project from DB:', err);
