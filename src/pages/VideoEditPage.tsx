@@ -2849,6 +2849,9 @@ function LeftSidebar({
   );
 }
 
+// ── 视频预加载与内存 Blob 缓存系统 ───────────────────────────────────────
+const globalVideoBlobCache = new Map<string, string>();
+
 // ── 主页面组件 ───────────────────────────────────────────────────────────
 const DEFAULT_TRACKS: TrackItem[] = [
   {
@@ -2953,6 +2956,62 @@ export default function VideoEditPage() {
     el.addEventListener('scroll', onScroll, { passive: true });
     return () => el.removeEventListener('scroll', onScroll);
   }, []);
+
+  // 视频全量预加载与内存 Blob 缓存：在播放前把所有轨道视频以及预览视频彻底载入内存，消除网络 Range 请求延迟与播放卡顿
+  useEffect(() => {
+    const urlsToCache = Array.from(new Set(
+      tracks.filter(t => t.type === 'video' && t.url).map(t => t.url!)
+        .concat(previewVideoUrl ? [previewVideoUrl] : [])
+    )).filter(Boolean);
+
+    if (urlsToCache.length === 0) return;
+
+    let isMounted = true;
+    const preloadAll = async () => {
+      const missing = urlsToCache.filter(url => !globalVideoBlobCache.has(url));
+      if (missing.length === 0) {
+        const cacheMap: Record<string, string> = {};
+        urlsToCache.forEach(u => cacheMap[u] = globalVideoBlobCache.get(u)!);
+        setCachedUrls(prev => ({ ...prev, ...cacheMap }));
+        setPreloadProgress(100);
+        return;
+      }
+
+      setIsPreloading(true);
+      setPreloadProgress(40);
+
+      const newCacheMap: Record<string, string> = {};
+      for (const url of urlsToCache) {
+        if (globalVideoBlobCache.has(url)) {
+          newCacheMap[url] = globalVideoBlobCache.get(url)!;
+        } else {
+          try {
+            const res = await fetch(url);
+            if (res.ok) {
+              const blob = await res.blob();
+              const blobUrl = URL.createObjectURL(blob);
+              globalVideoBlobCache.set(url, blobUrl);
+              newCacheMap[url] = blobUrl;
+            } else {
+              newCacheMap[url] = url;
+            }
+          } catch (e) {
+            console.warn('Preload video fallback to direct url:', e);
+            newCacheMap[url] = url;
+          }
+        }
+      }
+
+      if (isMounted) {
+        setCachedUrls(prev => ({ ...prev, ...newCacheMap }));
+        setIsPreloading(false);
+        setPreloadProgress(100);
+      }
+    };
+
+    preloadAll();
+    return () => { isMounted = false; };
+  }, [tracks, previewVideoUrl]);
 
   // Ensure project duration is at least 30 seconds and fits all tracks
   useEffect(() => {
@@ -3091,6 +3150,14 @@ export default function VideoEditPage() {
   const rulerRef = useRef<HTMLDivElement>(null);
   const timelineScrollRef = useRef<HTMLDivElement>(null);
   // 播放主时钟引用：供 rAF 帧循环读取当前激活片段与预览源，避免依赖每次渲染新建的对象导致 effect 频繁重建
+  const playheadLineRef = useRef<HTMLDivElement>(null);
+  const rulerPlayheadRef = useRef<HTMLDivElement>(null);
+  const timeDisplayRef = useRef<HTMLSpanElement>(null);
+  const bottomTimeDisplayRef = useRef<HTMLSpanElement>(null);
+  const currentTimeRef = useRef<number>(0);
+  const [cachedUrls, setCachedUrls] = useState<Record<string, string>>({});
+  const [isPreloading, setIsPreloading] = useState(false);
+  const [preloadProgress, setPreloadProgress] = useState(100);
   const activeVideoClipRef = useRef<TrackItem | undefined>(undefined);
   const previewVideoUrlRef = useRef<string | null>(null);
 
@@ -3313,11 +3380,12 @@ export default function VideoEditPage() {
   }, [currentTime]);
 
   const hasVideoClips = tracks.some(t => t.type === 'video');
-  const currentVideoSrc = activeVideoClip?.url
+  const rawVideoSrc = activeVideoClip?.url
     ? activeVideoClip.url
     : hasVideoClips
       ? undefined
       : (previewVideoUrl || undefined);
+  const currentVideoSrc = (rawVideoSrc && cachedUrls[rawVideoSrc]) ? cachedUrls[rawVideoSrc] : rawVideoSrc;
 
   // Selected track item object (默认回退展示主视频轨道)
   const mainVideoTrack = tracks.find(t => t.type === 'video') || tracks[0];
@@ -3988,52 +4056,101 @@ export default function VideoEditPage() {
     }
   }, [isPlaying, currentVideoSrc]);
 
-  // 播放主时钟：视频播放时优先以 <video> 元素的原生高精时钟推进，缓冲或无视频片段时以 requestAnimationFrame 平滑挂钟推进
+  // 播放主时钟：DOM 游标 60FPS 极速渲染，同时节流同步 React 状态，消除整树重渲染卡顿
   useEffect(() => {
     if (!isPlaying) return;
     let rafId = 0;
     let lastStamp = performance.now();
+    let lastStateSyncTime = performance.now();
+
     const tick = (stamp: number) => {
       const delta = Math.min(0.25, (stamp - lastStamp) / 1000);
       lastStamp = stamp;
       const v = videoRef.current;
       const clip = activeVideoClipRef.current;
       const isVideoPlaying = !!v && !!v.currentSrc && v.readyState >= 2 && !v.seeking && !v.paused;
-      setCurrentTime(prev => {
-        let next: number;
-        if (isVideoPlaying && v) {
-          const mapped = clip ? clip.start + v.currentTime : v.currentTime;
-          next = mapped;
-        } else {
-          const rate = v && Number.isFinite(v.playbackRate) ? Math.max(0.25, Math.min(4, v.playbackRate)) : 1;
-          next = prev + delta * rate;
+
+      let targetTime: number;
+      if (isVideoPlaying && v) {
+        targetTime = clip ? clip.start + v.currentTime : v.currentTime;
+      } else {
+        const rate = v && Number.isFinite(v.playbackRate) ? Math.max(0.25, Math.min(4, v.playbackRate)) : 1;
+        targetTime = currentTimeRef.current + delta * rate;
+      }
+
+      if (targetTime >= duration) {
+        targetTime = duration;
+        setIsPlaying(false);
+      }
+
+      currentTimeRef.current = targetTime;
+
+      // 1. 直接更新时间轴游标与竖线（原生 60FPS 极速硬件加速渲染，不经过 React 繁重整树 Diff，消除播放卡顿）
+      if (playheadLineRef.current) {
+        playheadLineRef.current.style.left = `${TRACK_CONTENT_OFFSET + targetTime * pxPerSec}px`;
+      }
+      if (rulerPlayheadRef.current) {
+        rulerPlayheadRef.current.style.left = `${targetTime * pxPerSec}px`;
+      }
+      if (timeDisplayRef.current) {
+        timeDisplayRef.current.textContent = formatTime(targetTime);
+      }
+      if (bottomTimeDisplayRef.current) {
+        bottomTimeDisplayRef.current.textContent = formatTime(targetTime);
+      }
+
+      // 2. 时间轴可视区域自动跟进滚动
+      const el = timelineScrollRef.current;
+      if (el) {
+        const playheadX = TRACK_CONTENT_OFFSET + targetTime * pxPerSec;
+        const viewLeft = el.scrollLeft;
+        const viewRight = el.scrollLeft + el.clientWidth;
+        if (playheadX > viewRight - 60) {
+          el.scrollLeft = playheadX - el.clientWidth / 2;
+        } else if (playheadX < viewLeft) {
+          el.scrollLeft = Math.max(0, playheadX - 60);
         }
-        if (next >= duration) {
-          setIsPlaying(false);
-          return duration;
-        }
-        return next;
-      });
-      rafId = requestAnimationFrame(tick);
+      }
+
+      // 3. 节流同步 React 状态（约每 100ms 一次，减少 85% 无效重渲染，释放 CPU 给视频硬件解码）
+      const now = performance.now();
+      if (now - lastStateSyncTime >= 100 || targetTime >= duration) {
+        lastStateSyncTime = now;
+        setCurrentTime(targetTime);
+      }
+
+      if (targetTime < duration) {
+        rafId = requestAnimationFrame(tick);
+      }
     };
+
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, [isPlaying, duration]);
+  }, [isPlaying, duration, pxPerSec, TRACK_CONTENT_OFFSET]);
 
-  // 播放时自动同步时间轴横向滚动，确保播放竖线始终处于可视区域内
+  // 暂停或停止时立即将高精时钟同步回 React 状态
   useEffect(() => {
-    if (!isPlaying) return;
-    const el = timelineScrollRef.current;
-    if (!el) return;
-    const playheadX = TRACK_CONTENT_OFFSET + currentTime * pxPerSec;
-    const viewLeft = el.scrollLeft;
-    const viewRight = el.scrollLeft + el.clientWidth;
-    if (playheadX > viewRight - 60) {
-      el.scrollLeft = playheadX - el.clientWidth / 2;
-    } else if (playheadX < viewLeft) {
-      el.scrollLeft = Math.max(0, playheadX - 60);
+    if (!isPlaying) {
+      setCurrentTime(currentTimeRef.current);
     }
-  }, [currentTime, isPlaying, pxPerSec, TRACK_CONTENT_OFFSET]);
+  }, [isPlaying]);
+
+  // 外部拖拽寻轨或状态变更时同步 ref 与 DOM 样式
+  useEffect(() => {
+    currentTimeRef.current = currentTime;
+    if (playheadLineRef.current) {
+      playheadLineRef.current.style.left = `${TRACK_CONTENT_OFFSET + currentTime * pxPerSec}px`;
+    }
+    if (rulerPlayheadRef.current) {
+      rulerPlayheadRef.current.style.left = `${currentTime * pxPerSec}px`;
+    }
+    if (timeDisplayRef.current) {
+      timeDisplayRef.current.textContent = formatTime(currentTime);
+    }
+    if (bottomTimeDisplayRef.current) {
+      bottomTimeDisplayRef.current.textContent = formatTime(currentTime);
+    }
+  }, [currentTime, pxPerSec, TRACK_CONTENT_OFFSET]);
 
   // 播放到达时间轴末尾自动暂停（副作用移出 state updater，避免并发渲染下重复触发）
   useEffect(() => {
@@ -4540,6 +4657,12 @@ export default function VideoEditPage() {
                     <span>转场: {TRANSITIONS.find(t => t.id === appliedTrans)?.name || appliedTrans}</span>
                   </div>
                 )}
+                {isPreloading && (
+                  <div className="px-2 py-0.5 rounded-full bg-indigo-950/80 backdrop-blur border border-indigo-500/60 text-[10px] text-indigo-300 flex items-center gap-1 shadow-lg animate-pulse">
+                    <Loader2 className="w-3 h-3 animate-spin text-indigo-400" />
+                    <span>视频预热缓存中...</span>
+                  </div>
+                )}
               </div>
 
               {/* 示例项目选择器 */}
@@ -4601,7 +4724,7 @@ export default function VideoEditPage() {
                   ref={videoRef}
                   src={currentVideoSrc}
                   preload="auto"
-                  className="w-full h-full object-contain transition-all bg-black cursor-pointer"
+                  className="w-full h-full object-contain bg-black cursor-pointer"
                   onClick={() => setIsPlaying(prev => !prev)}
                   style={{
                     transform: `scale(${(selectedTrackObj?.scale ?? 100) / 100})`,
@@ -4619,20 +4742,24 @@ export default function VideoEditPage() {
                     if (!vid.seeking && isPlaying) {
                       const clip = activeVideoClipRef.current;
                       const target = clip ? clip.start + vid.currentTime : vid.currentTime;
-                      if (Math.abs(target - currentTime) > 0.05) {
-                        setCurrentTime(target);
-                      }
+                      currentTimeRef.current = target;
                     }
                   }}
                   onCanPlay={(e) => {
                     const vid = e.currentTarget;
                     vid.muted = false;
                     vid.removeAttribute('muted');
-                    if (activeVideoClip) {
-                      const localTime = currentTime - activeVideoClip.start;
-                      vid.currentTime = Math.max(0, Math.min(activeVideoClip.duration, localTime));
-                    } else if (previewVideoUrl) {
-                      vid.currentTime = Math.max(0, Math.min(duration, currentTime));
+                    if (!isPlaying) {
+                      if (activeVideoClip) {
+                        const localTime = currentTime - activeVideoClip.start;
+                        if (Math.abs(vid.currentTime - localTime) > 0.1) {
+                          vid.currentTime = Math.max(0, Math.min(activeVideoClip.duration, localTime));
+                        }
+                      } else if (previewVideoUrl) {
+                        if (Math.abs(vid.currentTime - currentTime) > 0.1) {
+                          vid.currentTime = Math.max(0, Math.min(duration, currentTime));
+                        }
+                      }
                     }
                     if (isPlaying) {
                       vid.play().catch(err => console.warn('onCanPlay play fail:', err));
@@ -4755,7 +4882,7 @@ export default function VideoEditPage() {
             </div>
           </div>
           <div className="h-10 bg-zinc-900 border-t border-zinc-800 flex items-center justify-between px-4 text-xs font-mono text-zinc-400 shrink-0">
-            <span>{formatTime(currentTime)} / {formatTime(duration)}</span>
+            <span><span ref={bottomTimeDisplayRef}>{formatTime(currentTime)}</span> / {formatTime(duration)}</span>
             <span className="flex items-center gap-1 cursor-pointer hover:text-zinc-200" onClick={handleFullscreen}>
               {isFullscreen ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
               {isFullscreen ? '退出全屏' : '全屏'}
@@ -4890,7 +5017,7 @@ export default function VideoEditPage() {
           </div>
 
           <div className="font-mono text-[11px] text-zinc-400 select-none bg-zinc-950/80 px-2.5 py-1 rounded border border-zinc-800/80 flex items-center gap-1.5 shadow-sm">
-            <span className="text-zinc-200 font-medium">{formatTime(currentTime)}</span>
+            <span ref={timeDisplayRef} className="text-zinc-200 font-medium">{formatTime(currentTime)}</span>
             <span className="text-zinc-650">/</span>
             <span className="text-zinc-500">{formatTime(duration)}</span>
           </div>
@@ -4943,6 +5070,7 @@ export default function VideoEditPage() {
               })()}
               {/* 标尺上的播放指针游标 */}
               <div
+                ref={rulerPlayheadRef}
                 className="absolute top-0 bottom-0 pointer-events-none z-30"
                 style={{ left: `${currentTime * pxPerSec}px` }}
               >
@@ -5084,6 +5212,7 @@ export default function VideoEditPage() {
 
             {/* 播放指针竖线 */}
             <div
+              ref={playheadLineRef}
               className="absolute top-0 bottom-0 w-px bg-orange-500 z-20 pointer-events-none shadow-[0_0_8px_rgba(249,115,22,0.8)]"
               style={{ left: `${TRACK_CONTENT_OFFSET + currentTime * pxPerSec}px` }}
             >
