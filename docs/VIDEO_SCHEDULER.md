@@ -1,6 +1,6 @@
 # 视频任务后台调度
 
-独立 Docker 调度器和 Supabase Cron 配置均已就绪，部署时选择其中一种。调度完全不依赖网页；主机或云端服务必须保持运行。当前工作区没有目标 Supabase 管理凭据、项目地址或 `VIDEO_WORKER_SECRET`，因此尚未向云端安装调度，未启动生产服务。
+独立 Docker 调度器和 Supabase Cron 配置均已就绪，部署时选择其中一种。调度完全不依赖网页；主机或云端服务必须保持运行。2026-10-21 已创建并接入用户的官方 Supabase `aigcp` 项目，云端 Cron 已启用且完成后台退款验收，见 [部署记录](DEPLOYMENT_AIGCP.md)。当前使用云端 Cron，独立 Docker 调度器未同时启动。
 
 ## 推荐：常驻服务器的 Docker 调度器
 
