@@ -283,7 +283,7 @@ function ImagesSection({ form, imgUrlInput, setImgUrlInput, imgInputRef, addImag
   form: FormState;
   imgUrlInput: string;
   setImgUrlInput: (v: string) => void;
-  imgInputRef: React.RefObject<HTMLInputElement | null>;
+  imgInputRef: React.RefObject<HTMLInputElement>;
   addImageUrl: () => void;
   removeImage: (i: number) => void;
   setCoverImage: (url: string) => void;
@@ -1380,7 +1380,7 @@ JSON 字段要求如下：
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => deleteId && handleDelete(deleteId)}>删除</AlertDialogAction>
+              onClick={handleDelete}>删除</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

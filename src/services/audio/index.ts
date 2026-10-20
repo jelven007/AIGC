@@ -30,7 +30,7 @@ export interface SpeechOptions {
 export function base64ToBlob(base64Data: string, contentType = 'audio/wav'): Blob {
   const cleanBase64 = base64Data.replace(/^data:audio\/\w+;base64,/, '');
   const byteCharacters = atob(cleanBase64);
-  const byteArrays = [];
+  const byteArrays: BlobPart[] = [];
   for (let offset = 0; offset < byteCharacters.length; offset += 512) {
     const slice = byteCharacters.slice(offset, offset + 512);
     const byteNumbers = new Array(slice.length);

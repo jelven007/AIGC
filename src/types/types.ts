@@ -46,6 +46,7 @@ export interface ProductSpec {
 export interface Avatar {
   id: string;
   name: string;
+  description?: string | null;
   gender: 'male' | 'female' | 'neutral';
   language: 'zh' | 'en' | 'both';
   style: string;

@@ -309,11 +309,11 @@ export default function ScriptPage() {
 
   // 生成结果默认展现预置示例
   const [scenes, setScenes]       = useState<ScriptScene[]>([
-    { order: 1, scene: '镜头1：痛点特写 (前3秒Hook)', visual: '女主角对镜叹气，特写T区油光与暗沉粗大毛孔', audio: '天天熬夜加班，脸油得能炒菜，用普通洗面奶洗完紧绷脱皮？', duration: 3, notes: '字幕高亮【脸油紧绷】' },
-    { order: 2, scene: '镜头2：产品亮相 (卖点展示)', visual: '极简白瓶洗面奶置于竹叶与微水流背景中，镜头推近特写细腻泡泡', audio: '试试这款草本氨基酸洗面奶！蕴含三重草本提取，微米级泡沫一冲即净。', duration: 5, notes: '展示泡沫绵密感' },
-    { order: 3, scene: '镜头3：对比实验 (痛点解法)', visual: '左右对比测试：左边传统皂基pH呈强碱，右边本品pH呈弱酸温和亲肤', audio: '看！温和弱酸性，洗走油脂污垢的同时，牢牢锁住皮肤水分！', duration: 6, notes: '实验直观显色' },
-    { order: 4, scene: '镜头4：使用后体验 (情感共鸣)', visual: '女主角洗完脸露出生机水润肌肤，满脸笑容摸脸特写', audio: '洗完摸上去嫩滑水润，完全不紧绷，连后续护肤品都好吸收了！', duration: 5, notes: '近景特写水润感' },
-    { order: 5, scene: '镜头5：促销促单 (CTA转化)', visual: '手持产品展示，弹窗出现限时优惠买一送一及左下角小黄车箭头', audio: '官方旗舰店活动，今天下单直接买一发二！点击左下角赶紧抢吧！', duration: 6, notes: '闪烁提示左下角领券' },
+    { order: 1, scene: '镜头1：痛点特写 (前3秒Hook)', visual: '女主角对镜叹气，特写T区油光与暗沉粗大毛孔', dialogue: '天天熬夜加班，脸油得能炒菜，用普通洗面奶洗完紧绷脱皮？', duration: 3, prompt: '字幕高亮【脸油紧绷】' },
+    { order: 2, scene: '镜头2：产品亮相 (卖点展示)', visual: '极简白瓶洗面奶置于竹叶与微水流背景中，镜头推近特写细腻泡泡', dialogue: '试试这款草本氨基酸洗面奶！蕴含三重草本提取，微米级泡沫一冲即净。', duration: 5, prompt: '展示泡沫绵密感' },
+    { order: 3, scene: '镜头3：对比实验 (痛点解法)', visual: '左右对比测试：左边传统皂基pH呈强碱，右边本品pH呈弱酸温和亲肤', dialogue: '看！温和弱酸性，洗走油脂污垢的同时，牢牢锁住皮肤水分！', duration: 6, prompt: '实验直观显色' },
+    { order: 4, scene: '镜头4：使用后体验 (情感共鸣)', visual: '女主角洗完脸露出生机水润肌肤，满脸笑容摸脸特写', dialogue: '洗完摸上去嫩滑水润，完全不紧绷，连后续护肤品都好吸收了！', duration: 5, prompt: '近景特写水润感' },
+    { order: 5, scene: '镜头5：促销促单 (CTA转化)', visual: '手持产品展示，弹窗出现限时优惠买一送一及左下角小黄车箭头', dialogue: '官方旗舰店活动，今天下单直接买一发二！点击左下角赶紧抢吧！', duration: 6, prompt: '闪烁提示左下角领券' },
   ]);
   const [promptText, setPromptText] = useState('你是一位全网千万级爆款带货短视频编剧。请根据以下信息撰写黄金三段式脚本：\n1. 【黄金3秒Hook】：用令人意想不到的痛点直击【18-30岁熬夜冒痘、出油敏感的年轻人】；\n2. 【核心卖点呈现】：突出【草本氨基酸水润洗面奶】的【温和无刺激敏感肌可用】；\n3. 【结尾引导下单】：给出限时福利【买一送一领券下单】。');
   const [generating, setGenerating] = useState(false);
@@ -667,11 +667,11 @@ export default function ScriptPage() {
               setPlatform('douyin');
               setPromptText(`你是一位全网千万级爆款带货短视频编剧。请根据以下信息撰写黄金三段式脚本：\n1. 【黄金3秒Hook】：用令人意想不到的痛点或悬念直击【18-30岁熬夜冒痘、出油敏感的年轻人】，引起好奇；\n2. 【核心卖点呈现】：突出【草本氨基酸水润洗面奶】的【温和无刺激敏感肌可用、微米级细腻泡沫深层清洁】，真实对比传统洗面奶的干燥紧绷；\n3. 【结尾引导下单】：给出限时福利【买一送一领券下单】，建立购买紧迫感。`);
               setScenes([
-                { order: 1, scene: '镜头1：痛点特写 (前3秒Hook)', visual: '女主角对镜叹气，特写T区油光与暗沉粗大毛孔', audio: '天天熬夜加班，脸油得能炒菜，用普通洗面奶洗完紧绷脱皮？', duration: 3, notes: '字幕高亮【脸油紧绷】' },
-                { order: 2, scene: '镜头2：产品亮相 (卖点展示)', visual: '极简白瓶洗面奶置于竹叶与微水流背景中，镜头推近特写细腻泡泡', audio: '试试这款草本氨基酸洗面奶！蕴含三重草本提取，微米级泡沫一冲即净。', duration: 5, notes: '展示泡沫绵密感' },
-                { order: 3, scene: '镜头3：对比实验 (痛点解法)', visual: '左右对比测试：左边传统皂基pH呈强碱，右边本品pH呈弱酸温和亲肤', audio: '看！温和弱酸性，洗走油脂污垢的同时，牢牢锁住皮肤水分！', duration: 6, notes: '实验直观显色' },
-                { order: 4, scene: '镜头4：使用后体验 (情感共鸣)', visual: '女主角洗完脸露出生机水润肌肤，满脸笑容摸脸特写', audio: '洗完摸上去嫩滑水润，完全不紧绷，连后续护肤品都好吸收了！', duration: 5, notes: '近景特写水润感' },
-                { order: 5, scene: '镜头5：促销促单 (CTA转化)', visual: '手持产品展示，弹窗出现限时优惠买一送一及左下角小黄车箭头', audio: '官方旗舰店活动，今天下单直接买一发二！点击左下角赶紧抢吧！', duration: 6, notes: '闪烁提示左下角领券' },
+                { order: 1, scene: '镜头1：痛点特写 (前3秒Hook)', visual: '女主角对镜叹气，特写T区油光与暗沉粗大毛孔', dialogue: '天天熬夜加班，脸油得能炒菜，用普通洗面奶洗完紧绷脱皮？', duration: 3, prompt: '字幕高亮【脸油紧绷】' },
+                { order: 2, scene: '镜头2：产品亮相 (卖点展示)', visual: '极简白瓶洗面奶置于竹叶与微水流背景中，镜头推近特写细腻泡泡', dialogue: '试试这款草本氨基酸洗面奶！蕴含三重草本提取，微米级泡沫一冲即净。', duration: 5, prompt: '展示泡沫绵密感' },
+                { order: 3, scene: '镜头3：对比实验 (痛点解法)', visual: '左右对比测试：左边传统皂基pH呈强碱，右边本品pH呈弱酸温和亲肤', dialogue: '看！温和弱酸性，洗走油脂污垢的同时，牢牢锁住皮肤水分！', duration: 6, prompt: '实验直观显色' },
+                { order: 4, scene: '镜头4：使用后体验 (情感共鸣)', visual: '女主角洗完脸露出生机水润肌肤，满脸笑容摸脸特写', dialogue: '洗完摸上去嫩滑水润，完全不紧绷，连后续护肤品都好吸收了！', duration: 5, prompt: '近景特写水润感' },
+                { order: 5, scene: '镜头5：促销促单 (CTA转化)', visual: '手持产品展示，弹窗出现限时优惠买一送一及左下角小黄车箭头', dialogue: '官方旗舰店活动，今天下单直接买一发二！点击左下角赶紧抢吧！', duration: 6, prompt: '闪烁提示左下角领券' },
               ]);
               setGenerated(true);
               setLayerStatuses({ selling_point: 'done', pain_point: 'done', hook: 'done', cta: 'done' });

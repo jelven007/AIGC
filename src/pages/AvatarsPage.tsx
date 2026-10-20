@@ -443,7 +443,13 @@ export default function AvatarsPage() {
         { id: 'av-p7', name: '美玲·韩系美妆流行', gender: 'female', language: 'zh', style: '韩系时尚', description: '韩系彩妆与护肤达人，妆容精致，亲和力极佳', preview_image: '/person/girl4.png', is_active: true, use_count: 23400, tags: ['韩系彩妆', '护肤心得', '时尚爆款'] },
         { id: 'av-p6', name: '陆沉·男装潮流风尚', gender: 'male', language: 'zh', style: '潮流风尚', description: '潮流男装与鞋靴带货主播，阳光率真，镜头感十足', preview_image: '/person/boy3.png', is_active: true, use_count: 19800, tags: ['潮流男装', '鞋靴穿搭', '帅气质感'] },
         { id: 'av-p8', name: '雪儿·轻奢珠宝饰品', gender: 'female', language: 'zh', style: '轻奢典雅', description: '珠宝黄金与高端饰品主播，端庄典雅，话术感染力强', preview_image: '/person/girl5.png', is_active: true, use_count: 17900, tags: ['轻奢珠宝', '黄金饰品', '端庄典雅'] },
-      ];
+      ].map(avatar => ({
+        ...avatar,
+        gender: avatar.gender as AvatarType['gender'],
+        language: avatar.language as AvatarType['language'],
+        sample_video: null,
+        created_at: '',
+      }));
 
       const ORDER_KEYS = ['萌萌', '安娜', '张总', '小雅', '阿杰', '美玲', '陆沉', '雪儿'];
       const getOrderIndex = (avatar: AvatarType) => {

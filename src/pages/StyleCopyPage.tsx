@@ -429,6 +429,11 @@ export default function StyleCopyPage() {
               setLinkUrl('https://www.douyin.com/video/728912384918237');
               setInputMode('link');
               const sampleReport: StyleReport = {
+                pacing_label: '快节奏',
+                transitions_summary: '快切闪白、视差放大、J-Cut混音',
+                subtitle_summary: '黄白高亮与黑描边加粗',
+                bgm_summary: '快节奏电子音乐',
+                tags: ['快节奏', '高对比', '转化导向'],
                 rhythm: '快节奏强按拍', pacing: '快节奏（1.8s/镜头）',
                 transitions: ['快切闪白', '视差放大', 'J-Cut混音'],
                 subtitle_style: '黄白高亮+黑描边加粗',
