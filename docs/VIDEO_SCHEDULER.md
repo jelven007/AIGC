@@ -1,5 +1,7 @@
 # 视频任务后台调度
 
+当前部署目标为火山 BaaS，默认使用常驻火山 ECS 的 Docker 调度器，见 [火山部署指南](VOLCENGINE_DEPLOYMENT.md)。下述官方 Supabase 部署属于历史环境，本轮不操作该环境；火山 Cron 扩展需在目标环境确认后才能使用。
+
 独立 Docker 调度器和 Supabase Cron 配置均已就绪，部署时选择其中一种。调度完全不依赖网页；主机或云端服务必须保持运行。2026-10-21 已创建并接入用户的官方 Supabase `aigcp` 项目，云端 Cron 已启用且完成后台退款验收，见 [部署记录](DEPLOYMENT_AIGCP.md)。当前使用云端 Cron，独立 Docker 调度器未同时启动。
 
 ## 推荐：常驻服务器的 Docker 调度器

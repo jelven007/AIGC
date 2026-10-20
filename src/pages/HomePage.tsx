@@ -27,8 +27,6 @@ import { getCategoryFallbackImage } from './ProductsPage';
 
 
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
 // ── 工具卡片数据 ────────────────────────────────────────────────────────
 const QUICK_TOOLS = [
@@ -73,8 +71,9 @@ const QUICK_TOOLS = [
 
 
 // 模型与对应后端标识
-type ModelId = 'Kling' | 'MiniMax' | 'Wan3' | 'SeedanceMini' | 'HappyHorse';
+type ModelId = 'ArkSeedance' | 'Kling' | 'MiniMax' | 'Wan3' | 'SeedanceMini' | 'HappyHorse';
 const MODELS: { label: string; id: ModelId; vendor: string; iconSymbol: string; active?: boolean }[] = [
+  { label: '火山方舟 Seedance', id: 'ArkSeedance', vendor: '火山引擎', iconSymbol: '⚡', active: true },
   { label: 'MiniMax H3', id: 'MiniMax', vendor: 'OpenAI Next', iconSymbol: '🚀', active: true },
   { label: 'Seedance 2.0', id: 'SeedanceMini', vendor: 'ByteDance Ark', iconSymbol: '⚡', active: true },
   { label: 'Wan3.0 Prime', id: 'Wan3', vendor: 'Qwen · Alibaba', iconSymbol: '🌀', active: true },
@@ -743,8 +742,7 @@ export default function HomePage() {
     }
     return true;
   });
-  // 默认模型：列表首位 MiniMax H3（第二位为 Seedance 2.0）
-  const [model, setModel] = useState<{ label: string; id: string }>({ label: 'MiniMax H3', id: 'MiniMax' });
+  const [model, setModel] = useState<{ label: string; id: string }>({ label: '火山方舟 Seedance', id: 'ArkSeedance' });
   const [resolution, setResolution] = useState('720P · 16:9 · 5s');
   const [modelOpen, setModelOpen] = useState(false);
   // 自定义模型（兼容 OpenAI API 端点）列表与配置弹窗状态

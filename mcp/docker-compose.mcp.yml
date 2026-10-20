@@ -6,9 +6,9 @@ services:
       context: .
       dockerfile: Dockerfile.mcp
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     env_file:
-      - ../.env
+      - .env
     environment:
       - HOST=0.0.0.0
       - PORT=8080

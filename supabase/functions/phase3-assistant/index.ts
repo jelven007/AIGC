@@ -1,5 +1,6 @@
 // phase3-assistant — Phase 3 后端功能：竞品监控爬取 + 直播ASR高光提取 + API Key管理 + 发布任务
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { generateText } from '../_shared/text-provider.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,7 +23,6 @@ Deno.serve(async (req) => {
   const supabaseUrl  = Deno.env.get('SUPABASE_URL')!;
   const supabaseKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const supabase     = createClient(supabaseUrl, supabaseKey);
-  const apiKey       = Deno.env.get('INTEGRATIONS_API_KEY') ?? '';
 
   let body: Record<string, unknown> = {};
   try { body = await req.json(); } catch { /* noop */ }
@@ -77,20 +77,14 @@ Deno.serve(async (req) => {
 
         let snapshots: Record<string, unknown>[] = [];
         try {
-          const llmRes = await fetch('https://app-bnjgmg2jpu6a-api-VaOwP2jDmAga-gateway.appmiaoda.com/wenxin/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Gateway-Authorization': `Bearer ${apiKey}` },
-            body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], stream: false }),
-          });
-          const llmJson = await llmRes.json();
-          const text = llmJson?.result ?? llmJson?.data?.result ?? '';
+          const text = await generateText([{ role: 'user', content: prompt }]);
           const match = text.match(/\[[\s\S]*\]/);
           if (match) snapshots = JSON.parse(match[0]);
         } catch { /* 降级使用模拟数据 */ }
 
-        let isSimulated = false;
+        // 文本模型生成的账号指标均为模拟分析，不能视为实际抓取数据。
+        const isSimulated = true;
         if (!snapshots.length) {
-          isSimulated = true;
           snapshots = [1,2,3].map(i => ({
             video_id: `vid_sim_${Date.now()}_${i}`,
             title: `${acct.account_name} 演示模拟爆款视频 ${i}`,
@@ -146,21 +140,14 @@ Deno.serve(async (req) => {
 
         let analysisResult: Record<string, unknown> = {};
         try {
-          const llmRes = await fetch('https://app-bnjgmg2jpu6a-api-VaOwP2jDmAga-gateway.appmiaoda.com/wenxin/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Gateway-Authorization': `Bearer ${apiKey}` },
-            body: JSON.stringify({ messages: [{ role: 'user', content: analysisPrompt }], stream: false }),
-          });
-          const llmJson = await llmRes.json();
-          const text = llmJson?.result ?? llmJson?.data?.result ?? '';
+          const text = await generateText([{ role: 'user', content: analysisPrompt }]);
           const match = text.match(/\{[\s\S]*\}/);
           if (match) analysisResult = JSON.parse(match[0]);
         } catch { /* 降级 */ }
 
-        let isLiveSimulated = false;
+        const isLiveSimulated = true;
         // 降级：生成模拟高光数据
         if (!analysisResult.highlights) {
-          isLiveSimulated = true;
           const types = ['product_pitch','demo','promo','qa','reaction','product_pitch','promo'];
           let cursor = 180;
           const highlights = types.slice(0,6).map((type, i) => {
@@ -449,13 +436,7 @@ CTA模式：${(pref.cta_patterns as string[])?.join('、') ?? '限时优惠'}` :
 ${styleContext}${fewShot}
 要求：结构为「钩子→痛点→产品→CTA」，符合用户个人风格，200字以内。`;
 
-        const llmRes = await fetch('https://app-bnjgmg2jpu6a-api-VaOwP2jDmAga-gateway.appmiaoda.com/wenxin/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Gateway-Authorization': `Bearer ${apiKey}` },
-          body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], stream: false }),
-        });
-        const llmJson = await llmRes.json();
-        const script = llmJson?.result ?? llmJson?.data?.result ?? '脚本生成失败，请重试';
+        const script = await generateText([{ role: 'user', content: prompt }]);
         return ok({ script, style_applied: !!pref });
       }
 

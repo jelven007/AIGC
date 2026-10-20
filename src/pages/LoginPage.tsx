@@ -21,7 +21,6 @@ function PhoneSmsPanel() {
   const navigate = useNavigate();
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
-  const [sessionId, setSessionId] = useState('');
   const [codeSent, setCodeSent] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [sending, setSending] = useState(false);
@@ -41,19 +40,11 @@ function PhoneSmsPanel() {
     if (!phone.trim() || phone.length < 11) { toast.error('请输入正确的手机号'); return; }
     setSending(true);
     try {
-      const { data, error } = await supabase.functions.invoke('send-sms-code', { body: { mobile: phone } });
-      if (error) { const msg = await error?.context?.text(); throw new Error(msg || error.message); }
-
-      const isSuccess = data?.status === 0 || data?.success === true || data?.sessionId || data?.data?.sessionId;
-      if (isSuccess) {
-        const sid = data?.data?.sessionId || data?.sessionId || 'mock-session-id';
-        setSessionId(sid);
-        setCodeSent(true);
-        startCountdown();
-        toast.success('验证码已发送，请注意查收');
-      } else {
-        throw new Error(data?.message || data?.msg || '发送失败');
-      }
+      const { error } = await supabase.auth.signInWithOtp({ phone: `+86${phone}` });
+      if (error) throw error;
+      setCodeSent(true);
+      startCountdown();
+      toast.success('验证码已发送，请注意查收');
     } catch (e: unknown) {
       toast.error(`发送失败：${(e as Error).message}`);
     } finally {
@@ -65,53 +56,11 @@ function PhoneSmsPanel() {
     if (!code.trim() || code.length < 4) { toast.error('请输入验证码'); return; }
     setVerifying(true);
     try {
-      const { data, error } = await supabase.functions.invoke('verify-sms-code', {
-        body: { mobile: phone, sessionId, code },
-      });
-      if (error) { const msg = await error?.context?.text(); throw new Error(msg || error.message); }
-
-      const isVerified = data?.status === 0 || data?.success === true || data?.result === true || data?.data?.result === true || data?.data?.success === true;
-      if (isVerified) {
-        // F-03: 验证成功后自动登录并跳转至工作台
-        const email = `phone_${phone}@example.com`;
-        const pwd = `phone_${phone}`;
-        try {
-          const { error: loginErr } = await supabase.auth.signInWithPassword({ email, password: pwd });
-          if (!loginErr) {
-            toast.success('登录成功，欢迎回来！');
-            navigate('/');
-            return;
-          }
-          if (loginErr.message.includes('Invalid login')) {
-            // 手机号不存在时，自动注册并登录
-            const { error: signUpErr, data: signUpData } = await supabase.auth.signUp({ email, password: pwd });
-            if (signUpErr) throw signUpErr;
-
-            if (signUpData?.user) {
-              await supabase.from('profiles').upsert({
-                id: signUpData.user.id,
-                email: signUpData.user.email,
-                username: `user_${phone.slice(-4)}`,
-                role: 'user',
-              }, { onConflict: 'id' });
-
-            }
-
-            const { error: reLoginErr } = await supabase.auth.signInWithPassword({ email, password: pwd });
-            if (reLoginErr) throw reLoginErr;
-            toast.success('手机号账号注册并登录成功！');
-            navigate('/');
-          } else {
-            throw loginErr;
-          }
-        } catch (authErr: any) {
-          console.error('Auto login failed:', authErr);
-          toast.success('手机号验证成功！');
-          navigate('/');
-        }
-      } else {
-        throw new Error(data?.message || data?.msg || '验证码错误或已过期');
-      }
+      const { data, error } = await supabase.auth.verifyOtp({ phone: `+86${phone}`, token: code, type: 'sms' });
+      if (error) throw error;
+      if (!data.session) throw new Error('登录会话未建立，请重试');
+      toast.success('登录成功，欢迎回来！');
+      navigate('/');
     } catch (e: unknown) {
       toast.error(`验证失败：${(e as Error).message}`);
     } finally {
@@ -169,7 +118,10 @@ function PhoneSmsPanel() {
 
       {/* 修改手机号 */}
       {codeSent && (
-        <button type="button" onClick={() => { setCodeSent(false); setCode(''); setSessionId(''); setCountdown(0); }}
+        <button type="button" onClick={() => {
+          setCodeSent(false); setCode(''); setCountdown(0);
+          if (timerRef.current) clearInterval(timerRef.current);
+        }}
           className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors">
           修改手机号
         </button>
@@ -348,9 +300,7 @@ export default function LoginPage() {
       else if (!/\S+@\S+\.\S+/.test(form.email)) errs.email = '邮箱格式不正确';
     } else {
       if (!form.username.trim()) errs.username = '请输入邮箱账号';
-      else if (form.username.includes('@')) {
-        if (!/\S+@\S+\.\S+/.test(form.username.trim())) errs.username = '邮箱格式不正确';
-      } else if (!/^[a-zA-Z0-9_]{3,20}$/.test(form.username)) errs.username = '请输入完整邮箱账号，或 3-20 位字母/数字/下划线（自动补全 @example.com）';
+      else if (!/\S+@\S+\.\S+/.test(form.username.trim())) errs.username = '请输入完整邮箱地址';
       if (!form.password) errs.password = '请输入密码';
       else if (form.password.length < 6) errs.password = '密码至少 6 位';
       if (mode === 'register') {
@@ -370,7 +320,7 @@ export default function LoginPage() {
 
     try {
       if (mode === 'forgot') {
-        const resetEmail = form.email.includes('@') ? form.email : `${form.email}@example.com`;
+        const resetEmail = form.email.trim();
         const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
           redirectTo: `${window.location.origin}/login?mode=reset`,
         });
@@ -378,8 +328,7 @@ export default function LoginPage() {
         setForgotSent(true);
         toast.success('重置链接已发送，请检查您的邮箱');
       } else {
-        // 兼容历史口径：填写完整邮箱直接作为账号；仅填用户名则自动补 @example.com（存量账号可正常登录）
-        const email = form.username.includes('@') ? form.username.trim() : `${form.username}@example.com`;
+        const email = form.username.trim();
         if (mode === 'login') {
           const { error } = await supabase.auth.signInWithPassword({ email, password: form.password });
           if (error) throw error;
@@ -397,7 +346,7 @@ export default function LoginPage() {
           });
           if (error) throw error;
 
-          if (data?.user) {
+          if (data?.session && data.user) {
             try {
               const username = email.split('@')[0];
               await supabase.from('profiles').upsert({
@@ -412,8 +361,13 @@ export default function LoginPage() {
             }
           }
 
-          toast.success('注册成功，欢迎加入！');
-          navigate('/');
+          if (data.session) {
+            toast.success('注册成功，欢迎加入！');
+            navigate('/');
+          } else {
+            toast.info('注册成功，请查收验证邮件后登录');
+            setMode('login');
+          }
         }
       }
     } catch (err: unknown) {
@@ -660,100 +614,6 @@ export default function LoginPage() {
             </form>
           )}
 
-          {/* Demo 账号提示 - 在登录和注册界面均显示 */}
-          {(mode === 'login' || mode === 'register') && !forgotSent && (
-            <div className="mt-4 sm:mt-6 pt-3 sm:pt-5 border-t border-border/60">
-              <p className="text-xs font-semibold text-muted-foreground mb-2 sm:mb-3 flex items-center gap-1.5 justify-center">
-                <Sparkles className="w-3.5 h-3.5 text-primary animate-pulse" /> 快速免密体验通道
-              </p>
-              <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                {[{ user: 'test_user', pwd: 'test123456' }, { user: 'demo_user', pwd: 'demo123456' }].map(({ user, pwd }) => (
-                  <button
-                    key={user}
-                    type="button"
-                    onClick={async () => {
-                      setLoading(true);
-                      setErrors({});
-                      const email = `${user}@example.com`;
-                      try {
-                        const { error: loginErr } = await supabase.auth.signInWithPassword({ email, password: pwd });
-                        if (!loginErr) {
-                          toast.success(`Demo 账号登录成功：${user}`);
-                          navigate('/');
-                          return;
-                        }
-                        if (loginErr.message.includes('Invalid login')) {
-                          const { error: signUpErr, data: signUpData } = await supabase.auth.signUp({ email, password: pwd });
-                          if (signUpErr) throw signUpErr;
-
-                          if (signUpData?.user) {
-                            try {
-                              await supabase.from('profiles').upsert({
-                                id: signUpData.user.id,
-                                email: signUpData.user.email,
-                                username: user,
-                                role: 'user',
-                              }, { onConflict: 'id' });
-                            } catch (setupErr) {
-                              console.error('Demo 注册后初始化失败:', setupErr);
-                            }
-                          }
-
-                          const { error: reLoginErr } = await supabase.auth.signInWithPassword({ email, password: pwd });
-                          if (reLoginErr) {
-                            if (reLoginErr.message.includes('Email not confirmed')) {
-                              toast.info('账号已创建，请稍等后重试');
-                              return;
-                            }
-                            throw reLoginErr;
-                          }
-                          toast.success(`Demo 账号已创建并登录：${user}`);
-                          navigate('/');
-                        } else if (loginErr.message.includes('Email not confirmed')) {
-                          toast.error('该账号邮箱尚未确认，请联系管理员');
-                        } else {
-                          throw loginErr;
-                        }
-                      } catch (err: unknown) {
-                        const msg = err instanceof Error ? err.message : '操作失败';
-                        let displayMsg = msg;
-                        if (msg.includes('profiles') && msg.includes('does not exist')) {
-                          displayMsg = '系统数据表未初始化，请联系管理员';
-                        } else if (msg.includes('relation') && msg.includes('does not exist')) {
-                          displayMsg = '系统数据表缺失，请联系管理员';
-                        } else if (msg.includes('User already registered')) {
-                          displayMsg = '该账号已存在，请直接登录';
-                        } else if (msg.includes('Email not confirmed')) {
-                          displayMsg = '账号邮箱尚未确认，无法登录';
-                        } else if (msg.length > 80) {
-                          displayMsg = '登录/注册失败，请稍后重试或联系管理员';
-                        }
-                        toast.error(displayMsg);
-                        console.error('Demo login error:', msg);
-                      } finally {
-                        setLoading(false);
-                      }
-                    }}
-                    disabled={loading}
-                    className={cn(
-                      "flex flex-col items-center justify-center p-3 rounded-xl border transition-all text-center text-xs group",
-                      user === 'test_user'
-                        ? "bg-orange-500/5 dark:bg-orange-500/10 border-orange-500/20 dark:border-orange-500/30 hover:bg-orange-500/10 dark:hover:bg-orange-500/20 hover:border-orange-500/40"
-                        : "bg-teal-500/5 dark:bg-teal-500/10 border-teal-500/20 dark:border-teal-500/30 hover:bg-teal-500/10 dark:hover:bg-teal-500/20 hover:border-teal-500/40"
-                    )}
-                  >
-                    <span className={cn(
-                      "font-semibold transition-colors",
-                      user === 'test_user'
-                        ? "text-orange-600 dark:text-orange-400 group-hover:text-orange-700 dark:group-hover:text-orange-300"
-                        : "text-teal-600 dark:text-teal-400 group-hover:text-teal-700 dark:group-hover:text-teal-300"
-                    )}>{user}</span>
-                    <span className="text-muted-foreground scale-90 opacity-70 mt-0.5">一键登录体验</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>

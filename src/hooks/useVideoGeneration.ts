@@ -132,7 +132,7 @@ export function useVideoGeneration(userId?: string) {
       toast.info('已有任务正在处理，已恢复进度');
       return;
     }
-    if (!['MiniMax', 'SeedanceMini', 'Wan3', 'HappyHorse', 'Kling', 'Seedance'].includes(provider)) {
+    if (!['ArkSeedance', 'MiniMax', 'SeedanceMini', 'Wan3', 'HappyHorse', 'Kling', 'Seedance'].includes(provider)) {
       toast.error('该模型尚未接入服务端任务，请选择已接入模型');
       return;
     }

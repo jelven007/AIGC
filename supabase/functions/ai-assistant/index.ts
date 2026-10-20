@@ -1,6 +1,14 @@
 // ai-assistant Edge Function — 统一入口，所有 AI action 经此处理
 // v2: +积分扣费中间件 +内容审核 +情绪NLP +多语言翻译 +封面生成 +LLM缓存 +持久化限流
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import { generateText } from '../_shared/text-provider.ts';
+import { requiredServiceUrl } from '../_shared/service-config.ts';
+
+// 避免 createClient 的泛型 ReturnType 推导为空 schema。
+function businessClient(url: string, key: string): SupabaseClient {
+  return createClient(url, key);
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -34,7 +42,7 @@ function checkRateLimit(clientId: string, maxReq = 30, windowMs = 60_000): boole
 
 // ─── P2-M06: 持久化限流（DB-backed，多实例安全）──────────────────────────────
 async function checkRateLimitDB(
-  supabase: ReturnType<typeof createClient>,
+  supabase: ReturnType<typeof businessClient>,
   clientId: string,
   maxReq = 30,
   windowMs = 60_000,
@@ -61,7 +69,7 @@ async function checkRateLimitDB(
 
 // ─── P2-N06: LLM 响应缓存（24h TTL + SHA-256 + 命中自增 RPC）────────────────
 async function getCachedResponse(
-  supabase: ReturnType<typeof createClient>,
+  supabase: ReturnType<typeof businessClient>,
   cacheKey: string,
 ): Promise<unknown | null> {
   try {
@@ -82,7 +90,7 @@ async function getCachedResponse(
 }
 
 async function setCachedResponse(
-  supabase: ReturnType<typeof createClient>,
+  supabase: ReturnType<typeof businessClient>,
   cacheKey: string,
   action: string,
   response: unknown,
@@ -129,7 +137,7 @@ const CACHEABLE_ACTIONS = new Set([
 ]);
 
 async function deductCredits(
-  supabase: ReturnType<typeof createClient>,
+  supabase: ReturnType<typeof businessClient>,
   userId: string,
   action: string,
 ): Promise<{ allowed: boolean; cost: number; remaining: number; chargeId?: string; error?: string }> {
@@ -185,35 +193,7 @@ async function deductCredits(
     return { allowed: false, cost: 0, remaining: 0, error: '计费服务暂时异常，请稍后重试' };
   }
 }
-// ─── EF-01: 唯一 callLLM（GLM-5.3-Flash 主通道 + appmiaoda 网关回退，流式聚合）──
-const GATEWAY_URL = 'https://app-bnjgmg2jpu6a-api-zYkZz8qovQ1L-gateway.appmiaoda.com/v2/chat/completions';
-
-// OpenAI 兼容 SSE 流式响应聚合（GLM 主通道与网关回退共用）
-async function aggregateSSEContent(response: Response): Promise<string> {
-  const reader = response.body!.getReader();
-  const decoder = new TextDecoder('utf8');
-  let fullContent = '';
-  let buffer = '';
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() ?? '';
-    for (const line of lines) {
-      if (!line.startsWith('data: ')) continue;
-      const raw = line.slice(6).trim();
-      if (raw === '[DONE]') break;
-      try {
-        const chunk = JSON.parse(raw);
-        fullContent += chunk.choices?.[0]?.delta?.content ?? '';
-      } catch { /* skip malformed chunk */ }
-    }
-  }
-  return fullContent;
-}
-
+// 文本生成统一使用服务端方舟/兼容接口配置。
 async function callLLM(
   messages: Array<{ role: string; content: string }>,
   systemPrompt?: string,
@@ -222,46 +202,7 @@ async function callLLM(
     ? [{ role: 'system', content: systemPrompt }, ...messages]
     : messages;
 
-  // 1. 主通道：Sophnet 平台 GLM-5.3-Flash（OpenAI 兼容接口）；密钥仅从环境变量读取，绝不硬编码
-  const glmApiKey = Deno.env.get('GLM_API_KEY');
-  if (glmApiKey) {
-    const glmBaseUrl = Deno.env.get('GLM_BASE_URL') || 'https://www.sophnet.com/api/open-apis';
-    const glmModel = Deno.env.get('GLM_MODEL') || 'glm-5.3-flash';
-    try {
-      const response = await fetch(`${glmBaseUrl}/v1/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${glmApiKey}`,
-        },
-        body: JSON.stringify({ model: glmModel, messages: fullMessages, stream: true }),
-      });
-      if (response.ok && response.body) {
-        return await aggregateSSEContent(response);
-      }
-      console.error(`[callLLM] GLM primary failed: ${response.status}, fallback to gateway`);
-    } catch (glmErr) {
-      console.error('[callLLM] GLM primary error, fallback to gateway:', glmErr);
-    }
-  }
-
-  // 2. 回退通道：appmiaoda 网关（DeepSeek）
-  const apiKey = Deno.env.get('INTEGRATIONS_API_KEY');
-  if (!apiKey) throw new Error('Missing INTEGRATIONS_API_KEY');
-
-  const response = await fetch(GATEWAY_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Gateway-Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({ messages: fullMessages, enable_thinking: false }),
-  });
-
-  if (!response.ok) throw new Error(`LLM API error: ${response.status}`);
-  if (!response.body) throw new Error('No response body');
-
-  return aggregateSSEContent(response);
+  return generateText(fullMessages);
 }
 
 // ─── AI-02: 平台级系统 Prompt ────────────────────────────────────────────────
@@ -276,7 +217,7 @@ const PLATFORM_SYSTEM_PROMPT = `你是「AIGC带货视频平台」的专属AI助
 
 // ─── EF-06: 错误日志写入 ─────────────────────────────────────────────────────
 async function logError(
-  supabase: ReturnType<typeof createClient>,
+  supabase: ReturnType<typeof businessClient>,
   action: string,
   errorMsg: string,
   userId?: string,
@@ -295,7 +236,7 @@ async function logError(
 
 // ─── Row 10: 模型调用台账 + 日算力预算护栏 ─────────────────────────────────
 async function getActionCost(
-  supabase: ReturnType<typeof createClient>,
+  supabase: ReturnType<typeof businessClient>,
   action: string,
 ): Promise<number> {
   try {
@@ -306,7 +247,7 @@ async function getActionCost(
 
 // 返回 { ok, used, budget }；budget<=0 表示不限额。查询异常时不阻断主链路（真实资金门禁由 deductCredits 兜底）
 async function checkDailyBudget(
-  supabase: ReturnType<typeof createClient>,
+  supabase: ReturnType<typeof businessClient>,
   userId: string,
   cost: number,
 ): Promise<{ ok: boolean; used: number; budget: number }> {
@@ -329,7 +270,7 @@ async function checkDailyBudget(
 
 // 写台账（走 SECURITY DEFINER RPC，原子返回当日累计成本）；失败不影响主流程
 async function recordModelCall(
-  supabase: ReturnType<typeof createClient>,
+  supabase: ReturnType<typeof businessClient>,
   params: {
     userId?: string; action: string; provider?: string; model?: string;
     status: string; latencyMs: number; creditsCost: number; cacheKey?: string; errorMsg?: string;
@@ -532,17 +473,16 @@ async function extractUrlSellingPoints(body: Record<string, string>) {
   const { url } = body;
   if (!url) throw new Error('Missing URL');
 
-  const apiKey = Deno.env.get('INTEGRATIONS_API_KEY');
-  if (!apiKey) throw new Error('Missing INTEGRATIONS_API_KEY');
+  const apiKey = Deno.env.get('URL_READER_API_KEY');
 
   // 1. 获取网页内容
   const encodedUrl = encodeURIComponent(url);
-  const readerEndpoint = `https://app-bnjgmg2jpu6a-api-ELbWqODdAgNY-gateway.appmiaoda.com/${encodedUrl}`;
+  const readerEndpoint = `${requiredServiceUrl('URL_READER_BASE_URL')}/${encodedUrl}`;
   
   const readerRes = await fetch(readerEndpoint, {
     method: 'GET',
     headers: {
-      'X-Gateway-Authorization': `Bearer ${apiKey}`,
+      ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
       'X-Return-Format': 'markdown',
       'X-Timeout': '15',
     }
@@ -764,7 +704,7 @@ async function generateABVariants(body: Record<string, unknown>) {
 // ─── EF-04: 四层脚本生成（ScriptPage 后端版本，写入 DB）─────────────────────
 async function generateScriptFourLayer(
   body: Record<string, unknown>,
-  supabase: ReturnType<typeof createClient>,
+  supabase: ReturnType<typeof businessClient>,
   userId: string,
 ) {
   const {
@@ -880,7 +820,7 @@ async function generateScriptFourLayer(
 // ─── EF-05: 高光切片提取（LiveHighlightPage）────────────────────────────────
 async function extractHighlights(
   body: Record<string, unknown>,
-  supabase: ReturnType<typeof createClient>,
+  supabase: ReturnType<typeof businessClient>,
 ) {
   const { user_id, video_url, video_title, highlight_count } = body as Record<string, string | number>;
   const count = Math.min(8, Math.max(2, Number(highlight_count) || 4));
@@ -947,7 +887,7 @@ async function extractHighlights(
 // ─── EF-07: 知识库 RAG 全文检索 ──────────────────────────────────────────────
 async function knowledgeRagSearch(
   body: Record<string, unknown>,
-  supabase: ReturnType<typeof createClient>,
+  supabase: ReturnType<typeof businessClient>,
 ) {
   const { user_id, query, limit = 5 } = body as { user_id: string; query: string; limit: number };
   if (!query) return { results: [] };
@@ -986,7 +926,7 @@ const SENSITIVE_KEYWORDS = [
 
 // Row 8: 风控命中事件落库（供后台联动审计），写入失败不影响审核主流程
 async function writeRiskEvent(
-  supabase: ReturnType<typeof createClient>,
+  supabase: ReturnType<typeof businessClient>,
   e: { userId?: string; action: string; decision: string; category?: string | null; matched_kw?: string | null; confidence?: number; snippet?: string; reason?: string },
 ): Promise<void> {
   try {
@@ -1006,7 +946,7 @@ async function writeRiskEvent(
 
 async function contentModeration(
   body: Record<string, unknown>,
-  supabase: ReturnType<typeof createClient>,
+  supabase: ReturnType<typeof businessClient>,
   userId: string,
 ) {
   const { text, image_url } = body as { text?: string; image_url?: string };
@@ -1077,7 +1017,7 @@ ${text ? `\n文本内容：${text}` : ''}${image_url ? `\n图片URL：${image_ur
 // ─── P2-N02: 情绪 NLP 分析 ────────────────────────────────────────────────────
 async function emotionAnalysis(
   body: Record<string, unknown>,
-  supabase: ReturnType<typeof createClient>,
+  supabase: ReturnType<typeof businessClient>,
   userId: string,
 ) {
   const { text, sentences, project_id } = body as { text?: string; sentences?: string[]; project_id?: string };
@@ -1132,7 +1072,7 @@ ${inputSentences.map((s, i) => `${i + 1}. ${s}`).join('\n')}
 }
 
 // ─── P2-N04: 多语言脚本翻译 ───────────────────────────────────────────────────
-async function translateScript(body: Record<string, unknown>, supabase: ReturnType<typeof createClient>) {
+async function translateScript(body: Record<string, unknown>, supabase: ReturnType<typeof businessClient>) {
   const { user_id, project_id, text, target_language, source_language = 'zh' } = body as Record<string, string>;
   const LANG_MAP: Record<string, string> = { en: '英语', ja: '日语', ko: '韩语', th: '泰语', ar: '阿拉伯语', fr: '法语', de: '德语' };
   const targetName = LANG_MAP[target_language] ?? target_language;
@@ -1151,7 +1091,7 @@ async function translateScript(body: Record<string, unknown>, supabase: ReturnTy
 }
 
 // ─── P2-N03: 智能封面生成 ─────────────────────────────────────────────────────
-async function generateCover(body: Record<string, unknown>, supabase: ReturnType<typeof createClient>) {
+async function generateCover(body: Record<string, unknown>, supabase: ReturnType<typeof businessClient>) {
   const { user_id, project_id, product_name, style, platform = 'douyin', prompt } = body as Record<string, string>;
   const coverPrompt = prompt || (platform === 'tiktok'
     ? `E-commerce product thumbnail for TikTok, ${product_name || ''}, vibrant colors, bold text overlay, 9:16 vertical, high contrast, eye-catching, professional photography`
@@ -1209,7 +1149,7 @@ async function generateCover(body: Record<string, unknown>, supabase: ReturnType
   
   const apiKey = Deno.env.get('INTEGRATIONS_API_KEY');
   if (!apiKey) throw new Error('Missing INTEGRATIONS_API_KEY');
-  const submitRes = await fetch('https://app-bnjgmg2jpu6a-api-ra5EZDjVKkXa-gateway.appmiaoda.com/image-generation/submit', {
+  const submitRes = await fetch(requiredServiceUrl('IMAGE_GATEWAY_CREATE_URL'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Gateway-Authorization': `Bearer ${apiKey}` },
     body: JSON.stringify({ contents: [{ parts: [{ text: coverPrompt }] }] }),
@@ -1227,7 +1167,7 @@ async function generateCover(body: Record<string, unknown>, supabase: ReturnType
 }
 
 // ─── P2-N03: 查询封面任务状态 ─────────────────────────────────────────────────
-async function queryCoverTask(body: Record<string, unknown>, supabase: ReturnType<typeof createClient>) {
+async function queryCoverTask(body: Record<string, unknown>, supabase: ReturnType<typeof businessClient>) {
   const { task_id, user_id } = body as Record<string, string>;
   if (!task_id) throw new Error('缺少 task_id');
 
@@ -1268,7 +1208,7 @@ async function queryCoverTask(body: Record<string, unknown>, supabase: ReturnTyp
 
   const apiKey = Deno.env.get('INTEGRATIONS_API_KEY');
   if (!apiKey) throw new Error('Missing INTEGRATIONS_API_KEY');
-  const queryRes = await fetch('https://app-bnjgmg2jpu6a-api-VaOwP2jDmAga-gateway.appmiaoda.com/image-generation/task', {
+  const queryRes = await fetch(requiredServiceUrl('IMAGE_GATEWAY_QUERY_URL'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Gateway-Authorization': `Bearer ${apiKey}` },
     body: JSON.stringify({ taskId: task_id }),

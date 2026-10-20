@@ -8,7 +8,7 @@ elif [ ! -e "$VITE_TEMP" ]; then
     mkdir -p "$VITE_TEMP"
 fi
 
-OUTPUT=$(npx vite build --minify false --logLevel error --outDir /workspace/.dist 2>&1)
+OUTPUT=$(npx vite build --minify false --logLevel error --outDir .volcengine-build/lint-dist 2>&1)
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -ne 0 ]; then

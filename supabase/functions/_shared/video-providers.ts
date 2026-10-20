@@ -1,5 +1,5 @@
 // 模型协议只在服务端执行；提交 POST 不自动重发。
-export type VideoProvider = 'MiniMax' | 'SeedanceMini' | 'Wan3' | 'HappyHorse' | 'Kling' | 'Seedance';
+export type VideoProvider = 'ArkSeedance' | 'MiniMax' | 'SeedanceMini' | 'Wan3' | 'HappyHorse' | 'Kling' | 'Seedance';
 export interface VideoInput {
   prompt: string;
   title: string;
@@ -20,11 +20,21 @@ export interface ProviderConfig {
 export class SubmissionError extends Error {
   constructor(message: string, readonly confirmedRejected: boolean) { super(message); }
 }
-const providers = new Set(['MiniMax', 'SeedanceMini', 'Wan3', 'HappyHorse', 'Kling', 'Seedance']);
+const providers = new Set(['ArkSeedance', 'MiniMax', 'SeedanceMini', 'Wan3', 'HappyHorse', 'Kling', 'Seedance']);
 const env = (key: string) => Deno.env.get(key) || '';
 
 export function providerConfig(provider: string): ProviderConfig {
   if (!providers.has(provider)) throw new Error('该视频模型尚未接入服务端');
+  if (provider === 'ArkSeedance') {
+    const apiKey = env('ARK_API_KEY');
+    if (!apiKey || !env('ARK_VIDEO_MODEL')) throw new Error('请在服务端配置 ARK_API_KEY 和 ARK_VIDEO_MODEL');
+    const base = (env('ARK_BASE_URL') || 'https://ark.cn-beijing.volces.com/api/v3').replace(/\/+$/, '');
+    const url = new URL(base);
+    if (url.protocol !== 'https:' || url.username || url.password) throw new Error('方舟地址必须使用 HTTPS');
+    const endpoint = `${base}/contents/generations/tasks`;
+    return { provider: 'ArkSeedance', createUrl: endpoint, queryUrl: endpoint,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` } };
+  }
   const prefixes: Record<string, string> = {
     MiniMax: 'OPENAI_NEXT', SeedanceMini: 'SEEDANCE_MINI', Wan3: 'WAN3',
     HappyHorse: 'HAPPYHORSE', Seedance: 'CDANCE', Kling: 'KLING',
@@ -45,12 +55,15 @@ export function providerConfig(provider: string): ProviderConfig {
     HappyHorse: '/gateway/alibaba/happyhorse/v1/video-synthesis', Seedance: '/video/generations',
   };
   const createUrl = provider === 'Kling'
-    ? 'https://app-bnjgmg2jpu6a-api-oLpZb03wbNBa-gateway.appmiaoda.com/v1/videos/omni-video'
+    ? env('KLING_CREATE_URL')
     : base + paths[provider];
   const queryUrl = provider === 'Kling'
-    ? 'https://app-bnjgmg2jpu6a-api-o9wN0pyVE2ea-gateway.appmiaoda.com/v1/videos/omni-video'
+    ? env('KLING_QUERY_URL')
     : provider === 'Wan3' ? `${base}/gateway/alibaba/wan3/v1/tasks`
       : provider === 'HappyHorse' ? `${base}/gateway/alibaba/happyhorse/v1/tasks` : createUrl;
+  if (!createUrl?.startsWith('https://') || !queryUrl?.startsWith('https://')) {
+    throw new Error('请配置模型提交与查询 HTTPS 地址');
+  }
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     [provider === 'Kling' ? 'X-Gateway-Authorization' : 'Authorization']: `Bearer ${apiKey}`,
@@ -92,6 +105,14 @@ export function validateVideoInput(provider: string, raw: Record<string, unknown
     reference_images: list('reference_images'), reference_videos: list('reference_videos'),
   };
   // 不再静默丢弃表单中模型不支持的素材。
+  if (provider === 'ArkSeedance') {
+    if (input.resolution === '768P') throw new Error('方舟视频不支持 768P');
+    if (input.last_frame && !input.first_frame) throw new Error('尾帧必须与首帧一起使用');
+    if ((input.first_frame || input.last_frame) && (input.reference_images.length || input.reference_videos.length)) {
+      throw new Error('方舟首尾帧与多模态参考不能混用');
+    }
+    if (input.reference_videos.length > 3) throw new Error('方舟最多支持 3 个参考视频');
+  }
   if (provider === 'Wan3' && (input.last_frame || input.reference_images.length || input.reference_videos.length)) {
     throw new Error('Wan3 当前仅支持文本及首帧图片');
   }
@@ -116,6 +137,12 @@ function content(input: VideoInput) {
 }
 export function providerBody(provider: VideoProvider, input: VideoInput): Record<string, unknown> {
   const items = content(input);
+  if (provider === 'ArkSeedance') {
+    const model = env('ARK_VIDEO_MODEL');
+    if (!model) throw new Error('服务端未配置 ARK_VIDEO_MODEL');
+    return { model, content: items, duration: input.duration,
+      resolution: input.resolution.toLowerCase(), ratio: input.ratio, watermark: false, generate_audio: true };
+  }
   if (provider === 'MiniMax') return {
     model: 'MiniMax-H3', content: items, duration: input.duration, resolution: '768P',
     ...(items.length === 1 ? { ratio: input.ratio === 'adaptive' ? '16:9' : input.ratio } : {}),
