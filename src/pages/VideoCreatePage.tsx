@@ -2,8 +2,6 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/db/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { deductUserCredits, refundGenerationCredits } from '@/hooks/useCredits';
-import { ensureCreditsForGeneration, openCreditsDialog, VIDEO_GENERATE_COST } from '@/lib/creditGuard';
 import { useDraft } from '@/hooks/useDraft';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,7 +27,6 @@ import { cn } from '@/lib/utils';
 import { DouyinIcon, TikTokIcon, XiaohongshuIcon } from '@/components/ui/platform-icons';
 import type { ProductFormData, PromptConfig, Shot, MaterialItem, VideoProject } from '@/types/types';
 import { sendDeepSeekStreamRequest } from '@/lib/sse';
-import { getVideoCoverImage } from '@/lib/videoFrame';
 
 // ── CR-05 跨平台适配配置 ────────────────────────────────────────────────────
 const PLATFORM_CONFIGS = [
@@ -1526,7 +1523,6 @@ function Step5Generate({ productData, promptConfig, shots, materials, onPrev, on
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // 管道触发标记：ai-assistant generate_video 已发起后，失败退款由边缘函数负责（防止前后端重复退款）
-  const pipelineTriggeredRef = useRef(false);
   const projectIdRef = useRef<string | null>(null);
 
   // 清理 Realtime 订阅
@@ -1571,154 +1567,10 @@ function Step5Generate({ productData, promptConfig, shots, materials, onPrev, on
     realtimeChannelRef.current = ch;
   };
 
-  // 模拟进度推进（Realtime 降级方案）
-  // 进度驱动：EF 更新 video_projects，Realtime 推进前端 UI
-  // simulateProgress 仅作 EF 超时降级保底（当 EF 超过 8s 无回调时启动）
-  const simulateProgress = async (projectId: string) => {
-    let stageIdx = 3;
-    let elapsedMs = 0;
-    const STEP_MS = 1800;
-    const interval = setInterval(async () => {
-      elapsedMs += STEP_MS;
-      // 超时才降级推进（正常情况 Realtime 已经在推）
-      stageIdx++;
-      if (stageIdx >= PROGRESS_STAGES.length) {
-        clearInterval(interval);
-        const resultVideoUrl = 'https://www.w3schools.com/html/mov_bbb.mp4';
-        // 封面必须为图片（优先成片真实第一帧），绝不允许将 .mp4 地址写入 thumbnail_url
-        const coverFrame = await getVideoCoverImage(resultVideoUrl);
-        const { data } = await supabase.from('video_projects')
-          .update({
-            status: 'completed',
-            progress: 100,
-            video_url: resultVideoUrl,
-            // 提取失败时保留空封面（由作品页异步抽帧重试），绝不写入空串或占位图
-            thumbnail_url: coverFrame || null
-          })
-          .eq('id', projectId).select().maybeSingle();
-        setProgress(100);
-        setStatusMsg('视频生成完成！');
-        setStatusIcon('✅');
-        setProject(data as VideoProject);
-        setGenerating(false);
-        toast.success('视频生成完成！');
-        onSuccess?.(); // 清除草稿
-        // 写入 video_jobs 记录
-        if (user) {
-          await supabase.from('video_jobs').insert({
-            user_id: user.id,
-            action: 'video_generate',
-            status: 'completed',
-            payload: { project_id: projectId },
-            result: { completed_at: new Date().toISOString() },
-          });
-        }
-        return;
-      }
-      const stage = PROGRESS_STAGES[stageIdx];
-      // 只在 Realtime 未推进时更新（避免与 EF 重复）
-      setProgress(prev => (prev < stage.pct ? stage.pct : prev));
-      setStatusMsg(stage.msg);
-      setStatusIcon(stage.icon);
-      setStageLog(prev => {
-        const timeStr = new Date().toLocaleTimeString();
-        return [
-          ...prev.map(s => s.pct <= stage.pct ? { ...s, done: true } : s),
-          ...(prev.find(s => s.pct === stage.pct) ? [] : [{ msg: stage.msg, pct: stage.pct, done: true, time: timeStr }]),
-        ];
-      });
-      await supabase.from('video_projects')
-        .update({ progress: stage.pct })
-        .eq('id', projectId)
-        .lt('progress', stage.pct); // 只在 EF 未更新时写入
-    }, STEP_MS);
-    progressIntervalRef.current = interval;
-  };
-
   const handleGenerate = async () => {
     if (!user) return;
-
-    // 统一积分守卫：余额 < 10 直接拦截（不进入 loading、不发起任何生成请求），并自动弹出充值弹窗
-    const guard = await ensureCreditsForGeneration(user.id, VIDEO_GENERATE_COST);
-    if (!guard.ok) return;
-
-    // 校验与扣除积分 (生成视频每次消耗 10 积分，deduct_credits RPC 原子扣费)
-    const videoTitle = promptConfig.prompt_text?.trim() || productData.name?.trim() || '带货视频';
-    const deductRes = await deductUserCredits(user.id, 10, `生成AI视频《${videoTitle}》`, 'video_generate');
-    if (!deductRes.success) {
-      toast.error(deductRes.message || `积分不足（当前 ${deductRes.creditsLeft}，单次生成需 10），请充值后重试`, { duration: 6000 });
-      if (!deductRes.insufficientCredits) openCreditsDialog();
-      return;
-    }
-    toast.success(`⚡ 已扣除 10 积分（当前剩余 ${deductRes.creditsLeft} 积分），AI 视频生成任务已成功启动！`);
-    pipelineTriggeredRef.current = false; // 新任务重置：同步阶段失败由本页退款，EF 侧失败由边缘函数退款
-
-    setGenerating(true);
-    setProgress(5); setStatusMsg('初始化任务...'); setStatusIcon('🔧');
-    setStageLog([{ msg: '初始化任务...', pct: 5, done: true, time: format(new Date(), 'HH:mm:ss') }]);
-
-    try {
-      // 1. 保存商品
-      setProgress(15); setStatusMsg('保存商品信息...'); setStatusIcon('💾');
-      setStageLog(prev => [...prev, { msg: '保存商品信息...', pct: 15, done: true, time: format(new Date(), 'HH:mm:ss') }]);
-      const { data: prodData } = await supabase.from('products').insert({
-        user_id: user.id,
-        name: productData.name ?? '未命名商品',
-        category: productData.category ?? '其他',
-        selling_points: productData.selling_points?.split('\n').filter(Boolean) ?? [],
-        ai_selling_points: productData.ai_selling_points ?? [],
-        target_language: productData.target_language ?? 'zh',
-        target_platform: productData.target_platform ?? 'douyin',
-      }).select().maybeSingle();
-
-      // 2. 创建项目
-      setProgress(30); setStatusMsg('创建视频项目...'); setStatusIcon('📁');
-      const { data: projData, error: projErr } = await supabase.from('video_projects').insert({
-        user_id: user.id,
-        product_id: prodData?.id ?? null,
-        title: promptConfig.prompt_text?.trim() || productData.name?.trim() || '带货视频',
-        status: 'processing',
-        video_style: promptConfig.video_style,
-        duration: promptConfig.duration ?? 30,
-        bgm: promptConfig.bgm,
-        subtitle_style: promptConfig.subtitle_style,
-        prompt_text: promptConfig.prompt_text,
-        storyboard: shots,
-        materials: materials,
-        progress: 30,
-      }).select().maybeSingle();
-      if (projErr) throw projErr;
-      const projectId = projData?.id as string;
-      projectIdRef.current = projectId;
-
-      // 3. 订阅 Realtime 进度
-      subscribeToProgress(projectId);
-      const timeStr = new Date().toLocaleTimeString();
-      setStageLog([
-        { msg: '初始化任务...', pct: 5, done: true, time: timeStr },
-        { msg: '保存商品信息...', pct: 15, done: true, time: timeStr },
-        { msg: '创建视频项目...', pct: 30, done: true, time: timeStr },
-      ]);
-
-      // 4. 触发AI生成（后台执行）
-      setProgress(50); setStatusMsg('AI 生成视频脚本...'); setStatusIcon('✍️');
-      supabase.functions.invoke('ai-assistant', {
-        body: { action: 'generate_video', project_id: projectId, product: productData, prompt: promptConfig, shots, materials }
-      }).catch(() => {}); // 异步触发，不阻塞前端
-      pipelineTriggeredRef.current = true; // 之后失败由 ai-assistant 侧统一回滚，避免重复退款
-
-      // 5. 模拟后续进度（Realtime 实时推进）
-      await simulateProgress(projectId);
-    } catch {
-      toast.error('视频生成失败，请重试');
-      setStatusMsg('生成失败');
-      setGenerating(false);
-      // 失败回滚：仅在尚未触发 AI 管道时由本页退款（管道已触发则由边缘函数负责，防止重复退款）
-      if (user && !pipelineTriggeredRef.current) {
-        const res = await refundGenerationCredits(user.id, 10, '视频生成失败，自动退还积分');
-        if (res.success) toast.info('本次生成失败，已自动退还 10 积分');
-      }
-    }
+    // 旧任务接口已停用；在扣费前阻止提交，避免产生无法执行的付费任务。
+    toast.error('此创建流程正在升级，请使用首页视频工作台');
   };
 
   return (
@@ -1831,6 +1683,7 @@ function Step5Generate({ productData, promptConfig, shots, materials, onPrev, on
 // ─── 主页面 ────────────────────────────────────────────────────
 export default function VideoCreatePage() {
   const { user } = useAuth();
+  const location = useLocation();
   type VCDraft = { step: number; productData: Partial<ProductFormData>; promptConfig: Partial<PromptConfig> };
   const { value: draft, save: saveDraft, clear: clearDraft, hasDraft } =
     useDraft<VCDraft>(`video-create-draft-${user?.id ?? 'anon'}`, { step: 1, productData: {}, promptConfig: { duration: 30 } });

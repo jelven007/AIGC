@@ -65,6 +65,7 @@ GRANT EXECUTE ON FUNCTION public.add_credits(uuid, int, text) TO service_role;
 
 
 -- ── 3. 加固并收紧 refund_credits：增加 FOR UPDATE 行锁 + 仅限 service_role ───────
+DROP FUNCTION IF EXISTS public.refund_credits(uuid, integer, text);
 CREATE OR REPLACE FUNCTION public.refund_credits(
   p_user_id uuid,
   p_amount  int,
@@ -124,6 +125,7 @@ GRANT EXECUTE ON FUNCTION public.refund_credits(uuid, int, text) TO service_role
 
 
 -- ── 4. 加固 deduct_credits ACL 与越权检查 ─────────────────────────────────────
+DROP FUNCTION IF EXISTS public.deduct_credits(uuid, integer, text);
 CREATE OR REPLACE FUNCTION public.deduct_credits(
   p_user_id    uuid,
   p_amount     int,
@@ -196,5 +198,5 @@ REVOKE ALL ON FUNCTION public.increment_llm_cache_hit(text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.increment_llm_cache_hit(text) TO authenticated, service_role;
 
 -- upsert_rate_limit
-REVOKE ALL ON FUNCTION public.upsert_rate_limit(text, text, int, int) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.upsert_rate_limit(text, text, int, int) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.upsert_rate_limit(text, text, timestamptz, int) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.upsert_rate_limit(text, text, timestamptz, int) TO authenticated, service_role;

@@ -298,6 +298,7 @@ export default function BatchCreatePage() {
       // 失败回滚：批量任务创建失败时退还已扣的全部积分
       const res = await refundGenerationCredits(user.id, totalCost, `批量任务创建失败，退还 ${selectedProducts.length} 个视频积分`);
       if (res.success) toast.info(`已自动退还 ${totalCost} 积分`);
+      else toast.error(res.message || '自动退款尚未完成，请联系客服核对');
     } finally {
       setSubmitting(false);
     }

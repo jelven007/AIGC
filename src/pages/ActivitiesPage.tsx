@@ -63,67 +63,13 @@ export default function ActivitiesPage() {
     }
     setProcessing(activity.id);
     try {
-      const ua = userActivities[activity.id] || { completed_times: 0 };
-
-      // 1) 更新用户活动记录
-      const { error: uaError } = await supabase.from('user_activities').upsert({
-        user_id: user.id,
-        activity_id: activity.id,
-        completed_times: ua.completed_times + 1,
-        status: 'completed',
-      }, { onConflict: 'user_id, activity_id' });
-
-      if (uaError) throw uaError;
-
-      // 2) 查询用户套餐 —— 使用 maybeSingle 避免无记录时报错
-      const { data: planData } = await supabase.from('user_plans')
-        .select('credits_used, credits_total')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      let creditsAfter = activity.reward_credits;
-
-      if (!planData) {
-        // 用户无套餐记录，创建默认免费版并写入奖励积分
-        const now = new Date().toISOString();
-        const nextMonth = new Date();
-        nextMonth.setMonth(nextMonth.getMonth() + 1);
-
-        const { error: insertErr } = await supabase.from('user_plans').insert({
-          user_id: user.id,
-          plan_id: '8165825b-21c8-4fce-8764-2764457bcd52',
-          credits_total: 50 + activity.reward_credits,
-          credits_used: 0,
-          cycle_start: now,
-          cycle_end: nextMonth.toISOString(),
-          status: 'active',
-        });
-
-        if (insertErr) throw insertErr;
-        creditsAfter = 50 + activity.reward_credits;
-      } else {
-        // 减少已使用量 = 增加可用积分
-        const newUsed = Math.max(0, (planData.credits_used || 0) - activity.reward_credits);
-        creditsAfter = (planData.credits_total || 0) - newUsed;
-
-        const { error: updateErr } = await supabase.from('user_plans')
-          .update({ credits_used: newUsed })
-          .eq('user_id', user.id);
-
-        if (updateErr) throw updateErr;
-      }
-
-      // 3) 写入积分流水
-      const { error: logErr } = await supabase.from('credit_logs').insert({
-        user_id: user.id,
-        type: 'bonus',
-        amount: activity.reward_credits,
-        description: `完成活动：${activity.title}`,
+      const { data, error } = await supabase.rpc('claim_activity_reward', {
+        p_activity_id: activity.id,
       });
-
-      if (logErr) throw logErr;
-
-      toast.success(`恭喜！获得 ${activity.reward_credits} 积分奖励`);
+      if (error) throw error;
+      if (!data?.ok) throw new Error('领奖失败');
+      window.dispatchEvent(new CustomEvent('credits_changed'));
+      toast.success(`恭喜！获得 ${data.reward} 积分奖励`);
       await loadData();
     } catch (err: any) {
       toast.error('领取失败：' + (err.message || '请稍后重试'));

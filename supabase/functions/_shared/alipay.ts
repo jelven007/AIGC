@@ -5,6 +5,7 @@
 // deno-lint-ignore-file no-explicit-any
 import { AlipaySdk } from 'npm:alipay-sdk@4.14.0';
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import { finalizePayment, type PaidFinalizeResult } from './payments.ts';
 
 export class AlipayConfigError extends Error {
   constructor(message: string) {
@@ -127,108 +128,12 @@ export function safeLogNotifyError(logger: { warn: (...args: unknown[]) => void 
   }
 }
 
-export interface PaidFinalizeResult {
-  outcome: 'granted' | 'already_processed' | 'order_missing';
-  userId?: string;
-}
-
-/**
- * 幂等入账：乐观锁将 pending 订单置为 paid，并按套餐发放积分/权益 + 写审计日志。
- * 与 wechat-payment-webhook 的发放口径保持一致（plans.level < 0 为加油包只加积分）。
- * 重复调用（通知 + 查询补偿并发）时第二次不会重复发放。
- */
+/** 金额已在调用方校验，数据库事务会再次校验并执行幂等入账。 */
 export async function finalizePaidOrder(
   admin: SupabaseClient,
   outTradeNo: string,
-  alipayTradeNo: string | null,
+  alipayTradeNo: string,
+  amount: string,
 ): Promise<PaidFinalizeResult> {
-  const nowIso = new Date().toISOString();
-  const { data: updated, error } = await admin
-    .from('orders')
-    .update({
-      status: 'paid',
-      paid_at: nowIso,
-      updated_at: nowIso,
-      alipay_trade_no: alipayTradeNo,
-    })
-    .eq('order_no', outTradeNo)
-    .eq('status', 'pending')
-    .select('id, user_id, plan_id, total_amount')
-    .maybeSingle();
-
-  if (error) {
-    console.error(`[alipay] finalizePaidOrder update failed for ${outTradeNo}: ${error.message}`);
-    throw error;
-  }
-  if (!updated) {
-    // 乐观锁未命中：订单已处理（重复通知/补偿查询）或不存在
-    const { data: existing } = await admin
-      .from('orders')
-      .select('id, user_id, status')
-      .eq('order_no', outTradeNo)
-      .maybeSingle();
-    if (!existing) return { outcome: 'order_missing' };
-    return { outcome: 'already_processed', userId: existing.user_id ?? undefined };
-  }
-
-  const { data: plan } = await admin
-    .from('plans')
-    .select('id, credits, name, level')
-    .eq('id', updated.plan_id)
-    .maybeSingle();
-
-  if (plan && updated.user_id) {
-    if (plan.level < 0) {
-      // 流量加油包：仅叠加积分，不改变当前套餐
-      const { data: currentPlan } = await admin
-        .from('user_plans')
-        .select('credits_total, plan_id, status')
-        .eq('user_id', updated.user_id)
-        .maybeSingle();
-      const currentCreditsTotal = currentPlan?.credits_total || 0;
-      await admin.from('user_plans').upsert({
-        user_id: updated.user_id,
-        plan_id: currentPlan?.plan_id ?? plan.id,
-        credits_total: currentCreditsTotal + plan.credits,
-        status: currentPlan?.status || 'active',
-        updated_at: nowIso,
-      }, { onConflict: 'user_id' });
-      await admin.from('credit_logs').insert({
-        user_id: updated.user_id,
-        type: 'purchase',
-        action: 'booster_purchase',
-        amount: plan.credits,
-        balance_after: currentCreditsTotal + plan.credits,
-        credits_after: currentCreditsTotal + plan.credits,
-        description: `支付宝购买加油包：${plan.name}（订单 ${outTradeNo}）`,
-      });
-    } else {
-      // 套餐购买：开通套餐并重置周期积分
-      const now = new Date();
-      const cycleEnd = new Date(now.getFullYear(), now.getMonth() + 1, now.getDate()).toISOString();
-      await admin.from('user_plans').upsert({
-        user_id: updated.user_id,
-        plan_id: plan.id,
-        credits_total: plan.credits,
-        credits_used: 0,
-        cycle_start: nowIso,
-        cycle_end: cycleEnd,
-        expires_at: cycleEnd,
-        status: 'active',
-        updated_at: nowIso,
-      }, { onConflict: 'user_id' });
-      await admin.from('credit_logs').insert({
-        user_id: updated.user_id,
-        type: 'purchase',
-        action: 'plan_purchase',
-        amount: plan.credits,
-        balance_after: plan.credits,
-        credits_after: plan.credits,
-        description: `支付宝购买套餐：${plan.name}（订单 ${outTradeNo}）`,
-      });
-    }
-  }
-
-  console.log(`[alipay] order ${outTradeNo} paid, credits granted for user ${updated.user_id}`);
-  return { outcome: 'granted', userId: updated.user_id ?? undefined };
+  return await finalizePayment(admin, outTradeNo, 'alipay', alipayTradeNo, amount);
 }

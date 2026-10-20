@@ -24,7 +24,7 @@ export async function fetchUserCredits(userId: string): Promise<ApiResponse<User
       return { data: null, error: res.error };
     }
 
-    const total = res.data?.credits_total ?? 20;
+    const total = res.data?.credits_total ?? 0;
     const used = res.data?.credits_used ?? 0;
     const left = Math.max(0, total - used);
     const planName = (res.data as any)?.plan?.name || '免费版';

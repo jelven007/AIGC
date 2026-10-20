@@ -43,15 +43,15 @@ CREATE POLICY "video_jobs_insert_own" ON public.video_jobs
 
 -- ── 3. avatars 与 templates 公共资源保护───────────────────────────────────────
 ALTER TABLE IF EXISTS public.avatars ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.templates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.video_templates ENABLE ROW LEVEL SECURITY;
 
 -- 允许所有认证用户只读模板和数字人
 DROP POLICY IF EXISTS "avatars_public_read" ON public.avatars;
 CREATE POLICY "avatars_public_read" ON public.avatars
   FOR SELECT TO authenticated USING (true);
 
-DROP POLICY IF EXISTS "templates_public_read" ON public.templates;
-CREATE POLICY "templates_public_read" ON public.templates
+DROP POLICY IF EXISTS "templates_public_read" ON public.video_templates;
+CREATE POLICY "templates_public_read" ON public.video_templates
   FOR SELECT TO authenticated USING (true);
 
 -- ── 4. error_logs 允许前端上报异常────────────────────────────────────────────
