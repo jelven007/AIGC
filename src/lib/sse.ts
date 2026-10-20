@@ -4,7 +4,6 @@
  */
 import ky, { type KyResponse, type AfterResponseHook, type NormalizedOptions } from 'ky';
 import { createParser, type EventSourceParser } from 'eventsource-parser';
-import { submitVectrustSeedanceVideo, queryVectrustSeedanceVideo } from './vectrust';
 import { transcribeAudio, synthesizeSpeech, base64ToBlob } from '@/services/audio';
 
 export interface SSEOptions {
@@ -350,8 +349,7 @@ export async function sendDeepSeekStreamRequest(options: DeepSeekStreamOptions):
   }
 
   // ── 通道 3：dxkp 备用通道 ──
-  const dxkpKey = (import.meta.env.VITE_DEEPSEEK_API_KEY as string) ||
-                 (import.meta.env.VITE_CDANCE_API_KEY as string) || "";
+  const dxkpKey = (import.meta.env.VITE_DEEPSEEK_API_KEY as string) || "";
   if (dxkpKey) {
     try {
       const dxkpBase = (import.meta.env.VITE_DEEPSEEK_BASE_URL as string) || '/dxkp-api/v1';
@@ -530,24 +528,3 @@ export async function sendStepAudioTTS(options: StepTTSOptions): Promise<string>
   });
   return result.audioUrl;
 }
-
-export async function submitSeedanceVideo(payload: any): Promise<{ request_id: string }> {
-  try {
-    return await submitVectrustSeedanceVideo(payload);
-  } catch (err) {
-    console.error("Direct Cdance video submission error:", err);
-    throw err;
-  }
-}
-
-export async function querySeedanceVideo(request_id: string): Promise<any> {
-  try {
-    return await queryVectrustSeedanceVideo(request_id);
-  } catch (err) {
-    console.error("Direct Cdance video query error:", err);
-    throw err;
-  }
-}
-
-
-

@@ -7,3 +7,7 @@ verify_jwt = false
 
 [functions.wechat-payment-webhook]
 verify_jwt = false
+
+# 由后台调度器使用专用 VIDEO_WORKER_SECRET 鉴权。
+[functions.video-job-worker]
+verify_jwt = false

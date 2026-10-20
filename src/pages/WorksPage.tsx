@@ -978,38 +978,10 @@ async function seedTestUserVideos(userId: string) {
     }
   };
 
-  // P1-N06 失败重试：调用 EF retryVideoJob action + 重置项目状态
-  const [retrying, setRetrying] = useState<string | null>(null);
-  const handleRetry = async (project: VideoProject) => {
-    if (retrying) return;
-    setRetrying(project.id);
-    try {
-      // 先将项目状态重置为 processing
-      await supabase
-        .from('video_projects')
-        .update({ status: 'processing', progress: 0 })
-        .eq('id', project.id);
-      setProjects(prev => prev.map(p =>
-        p.id === project.id ? { ...p, status: 'processing', progress: 0 } : p
-      ));
-      // 触发 EF 重试（找到关联 video_job 并重置）
-      const { error } = await supabase.functions.invoke('ai-assistant', {
-        body: { action: 'retry_video_job', project_id: project.id },
-      });
-      if (error) {
-        const msg = await error?.context?.text?.();
-        throw new Error(msg || error.message);
-      }
-      toast.success('已重新提交生成任务，请稍候…');
-    } catch (err) {
-      toast.error(`重试失败：${err instanceof Error ? err.message : '未知错误'}`);
-      // 回滚至 failed
-      setProjects(prev => prev.map(p =>
-        p.id === project.id ? { ...p, status: 'failed' } : p
-      ));
-    } finally {
-      setRetrying(null);
-    }
+  // 确定失败已退积分；重新生成是新任务，在工作台确认参数后提交。
+  const handleRetry = (project: VideoProject) => {
+    navigate('/video/create', { state: { prompt: project.prompt_text || project.title } });
+    toast.info('已带入原提示词，请确认模型和参数后重新生成');
   };
 
   // P2-N03 封面生成已移至 CoverCandidates 组件

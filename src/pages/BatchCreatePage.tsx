@@ -1,8 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/db/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { deductUserCredits, refundGenerationCredits } from '@/hooks/useCredits';
-import { ensureCreditsForGeneration, openCreditsDialog, VIDEO_GENERATE_COST } from '@/lib/creditGuard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -248,60 +246,7 @@ export default function BatchCreatePage() {
       return;
     }
 
-    const totalCost = selectedProducts.length * VIDEO_GENERATE_COST;
-
-    // 统一积分守卫：余额不足以覆盖整个批次时直接拦截，并自动弹出充值弹窗
-    const guard = await ensureCreditsForGeneration(user.id, totalCost);
-    if (!guard.ok) return;
-
-    const deductRes = await deductUserCredits(user.id, totalCost, `批量生成 ${selectedProducts.length} 个商品视频`, 'video_generate');
-    if (!deductRes.success) {
-      toast.error(deductRes.message || `积分不足（当前 ${deductRes.creditsLeft}，批量生成需 ${totalCost}），请充值后重试`, { duration: 6000 });
-      if (!deductRes.insufficientCredits) openCreditsDialog();
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      const config = useIndividualConfig
-        ? { mode: 'individual', products: productConfigs }
-        : { mode: 'global', ...globalConfig };
-
-      const { data: job, error: jobErr } = await supabase.from('batch_jobs').insert({
-        user_id: user.id,
-        name: `批量生成 - ${selectedProducts.length}个商品`,
-        status: 'pending',
-        total_count: selectedProducts.length,
-        config,
-      }).select().single();
-
-      if (jobErr || !job) throw jobErr || new Error('创建任务失败');
-
-      const items = selectedProducts.map(p => ({
-        batch_id: job.id,
-        product_id: p.id,
-        product_name: p.name,
-        status: 'pending',
-        config: useIndividualConfig ? (productConfigs[p.id] ?? globalConfig) : globalConfig,
-      }));
-
-      const { error: itemsErr } = await supabase.from('batch_job_items').insert(items);
-      if (itemsErr) throw itemsErr;
-
-      toast.success(`批量任务已创建，共 ${selectedProducts.length} 个商品`);
-      setSelectedProducts([]);
-      setProductConfigs({});
-      setView('history');
-      loadJobs();
-    } catch (err: any) {
-      toast.error('创建失败：' + (err.message || '请重试'));
-      // 失败回滚：批量任务创建失败时退还已扣的全部积分
-      const res = await refundGenerationCredits(user.id, totalCost, `批量任务创建失败，退还 ${selectedProducts.length} 个视频积分`);
-      if (res.success) toast.info(`已自动退还 ${totalCost} 积分`);
-      else toast.error(res.message || '自动退款尚未完成，请联系客服核对');
-    } finally {
-      setSubmitting(false);
-    }
+    toast.info('批量生成尚未接入执行服务，请使用首页视频生成；本次未扣积分', { duration: 6000 });
   };
 
   const handlePause = async (jobId: string) => {

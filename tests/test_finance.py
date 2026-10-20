@@ -203,6 +203,159 @@ class FinanceTest(unittest.TestCase):
         self.assertNotEqual(sql(self.finalize(order_no), fail=False).returncode, 0)
         self.assertEqual(sql(f"SELECT credits_total FROM user_plans WHERE user_id='{self.user}'").stdout.strip(), "20")
 
+    def create_job_sql(self, key=None, prompt="商品特写"):
+        return self.as_service(f"""SELECT create_video_job('{self.user}','{key or uuid.uuid4()}','SeedanceMini',
+          '{{"prompt":"{prompt}","duration":5,"resolution":"720P","ratio":"16:9"}}');""")
+
+    def create_job(self):
+        return json.loads(sql(self.create_job_sql()).stdout)
+
+    def claim_job(self, job):
+        sql(f"UPDATE video_jobs SET next_poll_at=now()-interval '1 second' WHERE id='{job['id']}'")
+        output = sql(self.as_service(f"SELECT claim_video_job('{job['id']}');")).stdout.strip()
+        return json.loads(output) if output else None
+
+    def job_event_sql(self, job, event, task="NULL", video="NULL"):
+        return self.as_service(f"""SELECT record_video_job_event('{job['id']}','{job['lease_token']}',
+          '{event}',{task},{video},'provider evidence',40);""")
+
+    def submitted_job(self):
+        job = self.claim_job(self.create_job())
+        sql(self.job_event_sql(job, "accepted", task=f"'upstream-{uuid.uuid4()}'"))
+        return self.claim_job(job)
+
+    def test_video_concurrent_create_is_once_and_payload_bound(self):
+        key = str(uuid.uuid4())
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+            jobs = list(pool.map(lambda _: json.loads(sql(self.create_job_sql(key)).stdout), range(4)))
+        self.assertEqual(len({job["id"] for job in jobs}), 1)
+        self.assertEqual(sql(f"SELECT credits_used FROM user_plans WHERE user_id='{self.user}'").stdout.strip(), "10")
+        self.assertNotEqual(sql(self.create_job_sql(key, prompt="不同商品"), fail=False).returncode, 0)
+        self.assertEqual(sql(f"SELECT count(*) FROM video_projects WHERE user_id='{self.user}'").stdout.strip(), "1")
+
+    def test_video_creation_failure_rolls_back_charge(self):
+        sql("ALTER TABLE video_jobs ADD CONSTRAINT test_reject_new_job CHECK (request_key IS NULL) NOT VALID")
+        try:
+            self.assertNotEqual(sql(self.create_job_sql(), fail=False).returncode, 0)
+            self.assertEqual(sql(f"SELECT credits_used FROM user_plans WHERE user_id='{self.user}'").stdout.strip(), "0")
+            self.assertEqual(sql(f"SELECT count(*) FROM video_projects WHERE user_id='{self.user}'").stdout.strip(), "0")
+        finally:
+            sql("ALTER TABLE video_jobs DROP CONSTRAINT test_reject_new_job")
+
+    def test_server_video_project_cannot_be_forged_or_deleted_in_flight(self):
+        job = self.create_job()
+        for statement in (
+            f"UPDATE video_projects SET status='completed',video_url='https://fake.example/video.mp4' WHERE id='{job['project_id']}';",
+            f"DELETE FROM video_projects WHERE id='{job['project_id']}';",
+        ):
+            self.assertNotEqual(sql(self.as_user(statement), fail=False).returncode, 0)
+        sql(self.as_user(f"UPDATE video_projects SET title='自定义标题' WHERE id='{job['project_id']}';"))
+        lease = self.claim_job(job)
+        sql(self.job_event_sql(lease, "submit_rejected"))
+        sql(self.as_user(f"DELETE FROM video_projects WHERE id='{job['project_id']}';"))
+        self.assertEqual(sql(f"SELECT status,billing_state FROM video_jobs WHERE id='{job['id']}'").stdout.strip(), "failed|refunded")
+
+    def test_video_worker_claimed_once_and_browser_cannot_forge(self):
+        job = self.create_job()
+        statement = self.as_service(f"SELECT claim_video_job('{job['id']}')")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+            outputs = list(pool.map(lambda _: sql(statement).stdout.strip(), range(4)))
+            leases = [json.loads(output) if output else None for output in outputs]
+        self.assertEqual(sum(lease is not None for lease in leases), 1)
+        lease = next(lease for lease in leases if lease)
+        for statement in (
+            f"SELECT claim_video_job('{job['id']}');",
+            f"SELECT create_video_job('{self.user}','{uuid.uuid4()}','MiniMax','{{}}');",
+            f"SELECT checkpoint_video_job_result('{job['id']}','{lease['lease_token']}','submit_rejected');",
+            f"SELECT record_video_job_event('{job['id']}','{lease['lease_token']}','failed');",
+            f"SELECT reconcile_video_submission('{job['id']}',NULL,'fake upstream evidence');",
+        ):
+            self.assertNotEqual(sql(self.as_user(statement), fail=False).returncode, 0)
+        self.assertEqual(sql(self.as_user(f"SELECT count(*) FROM video_jobs WHERE user_id='{self.other}'")).stdout.strip(), "0")
+        self.assertNotEqual(sql(self.job_event_sql(lease, "completed", video="'https://video.example/fake.mp4'"),
+                                fail=False).returncode, 0)
+
+    def test_video_failure_and_refund_are_atomic_and_once(self):
+        job = self.submitted_job()
+        sql("ALTER TABLE credit_logs ADD CONSTRAINT test_reject_video_refund CHECK (type <> 'refund') NOT VALID")
+        try:
+            self.assertNotEqual(sql(self.job_event_sql(job, "failed"), fail=False).returncode, 0)
+            self.assertEqual(sql(f"SELECT status,billing_state FROM video_jobs WHERE id='{job['id']}'").stdout.strip(), "processing|reserved")
+            self.assertEqual(sql(f"SELECT credits_used FROM user_plans WHERE user_id='{self.user}'").stdout.strip(), "10")
+        finally:
+            sql("ALTER TABLE credit_logs DROP CONSTRAINT test_reject_video_refund")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+            list(pool.map(lambda _: sql(self.job_event_sql(job, "failed")), range(4)))
+        self.assertEqual(sql(f"SELECT status,billing_state FROM video_jobs WHERE id='{job['id']}'").stdout.strip(), "failed|refunded")
+        self.assertEqual(sql(f"SELECT count(*) FROM credit_logs WHERE original_charge_id='{job['charge_id']}'").stdout.strip(), "1")
+        self.assertEqual(sql(f"SELECT credits_used FROM user_plans WHERE user_id='{self.user}'").stdout.strip(), "0")
+        self.assertEqual(sql(f"SELECT status FROM video_projects WHERE id='{job['project_id']}'").stdout.strip(), "failed")
+
+    def test_video_completion_settles_once_and_cannot_refund_later(self):
+        job = self.submitted_job()
+        sql(self.job_event_sql(job, "completed", video="'https://storage.example/video.mp4'"))
+        sql(self.job_event_sql(job, "failed"))
+        self.assertEqual(sql(f"SELECT status,billing_state,progress FROM video_jobs WHERE id='{job['id']}'").stdout.strip(), "completed|settled|100")
+        self.assertEqual(sql(f"SELECT video_url FROM video_projects WHERE id='{job['project_id']}'").stdout.strip(), "https://storage.example/video.mp4")
+        self.assertEqual(sql(f"SELECT count(*) FROM credit_logs WHERE original_charge_id='{job['charge_id']}'").stdout.strip(), "0")
+        self.assertEqual(sql(f"SELECT credits_used FROM user_plans WHERE user_id='{self.user}'").stdout.strip(), "10")
+
+    def test_video_timeout_does_not_resubmit_or_refund(self):
+        job = self.claim_job(self.create_job())
+        sql(f"UPDATE video_jobs SET lease_until=now()-interval '1 second' WHERE id='{job['id']}'")
+        self.assertIsNone(self.claim_job(job))
+        self.assertIsNone(self.claim_job(job))
+        self.assertEqual(sql(f"SELECT submission_state,attempts,billing_state FROM video_jobs WHERE id='{job['id']}'").stdout.strip(), "unknown|1|reserved")
+        self.assertNotEqual(sql(self.job_event_sql(job, "accepted", task="'late-task'"), fail=False).returncode, 0)
+        sql(self.as_service(f"""SELECT reconcile_video_submission('{job['id']}','verified-task','在上游账单核对找到此任务标识');"""))
+        lease = self.claim_job(job)
+        self.assertEqual(lease["provider_task_id"], "verified-task")
+        self.assertEqual(lease["attempts"], 1)
+        sql(self.job_event_sql(lease, "failed"))
+
+    def test_video_queries_backoff_and_expired_lease_can_retry(self):
+        job = self.submitted_job()
+        sql(self.job_event_sql(job, "query_error"))
+        self.assertEqual(sql(f"SELECT status,billing_state,poll_errors FROM video_jobs WHERE id='{job['id']}'").stdout.strip(), "processing|reserved|1")
+        lease = self.claim_job(job)
+        sql(f"UPDATE video_jobs SET lease_until=now()-interval '1 second' WHERE id='{job['id']}'")
+        new_lease = self.claim_job(job)
+        self.assertNotEqual(lease["lease_token"], new_lease["lease_token"])
+        self.assertNotEqual(sql(self.job_event_sql(lease, "failed"), fail=False).returncode, 0)
+        sql(self.job_event_sql(new_lease, "pending"))
+        self.assertEqual(sql(f"SELECT poll_errors FROM video_jobs WHERE id='{job['id']}'").stdout.strip(), "0")
+
+    def test_video_old_cycle_failure_refunds_original_charge(self):
+        job = self.submitted_job()
+        sql(self.finalize(self.order()))
+        self.charge(15)
+        sql(self.job_event_sql(job, "failed"))
+        self.assertEqual(sql(f"SELECT credits_total,credits_used FROM user_plans WHERE user_id='{self.user}'").stdout.strip(), "110|15")
+
+    def test_video_refund_evidence_survives_failed_transaction_and_worker_restart(self):
+        job = self.claim_job(self.create_job())
+        sql(self.as_service(f"""SELECT checkpoint_video_job_result(
+          '{job['id']}','{job['lease_token']}','submit_rejected',NULL,'provider rejected HTTP 422');"""))
+        sql("ALTER TABLE credit_logs ADD CONSTRAINT test_refund_outage CHECK (type <> 'refund') NOT VALID")
+        try:
+            self.assertNotEqual(sql(self.job_event_sql(job, "submit_rejected"), fail=False).returncode, 0)
+            self.assertEqual(sql(f"SELECT resolution_event->>'event' FROM video_jobs WHERE id='{job['id']}'").stdout.strip(), "submit_rejected")
+        finally:
+            sql("ALTER TABLE credit_logs DROP CONSTRAINT test_refund_outage")
+        sql(f"UPDATE video_jobs SET lease_until=now()-interval '1 second' WHERE id='{job['id']}'")
+        recovered = self.claim_job(job)
+        self.assertEqual(recovered["submission_state"], "submitting")
+        self.assertEqual(recovered["resolution_event"]["event"], "submit_rejected")
+        sql(self.job_event_sql(recovered, "submit_rejected"))
+        self.assertEqual(sql(f"SELECT status,billing_state,attempts FROM video_jobs WHERE id='{job['id']}'").stdout.strip(), "failed|refunded|1")
+
+    def test_video_unknown_unaccepted_submission_reconciliation_is_audited(self):
+        job = self.claim_job(self.create_job())
+        sql(self.job_event_sql(job, "submit_unknown"))
+        sql(self.as_service(f"""SELECT reconcile_video_submission('{job['id']}',NULL,'上游支持核对账单确认从未受理');"""))
+        self.assertEqual(sql(f"SELECT status,billing_state FROM video_jobs WHERE id='{job['id']}'").stdout.strip(), "failed|refunded")
+        self.assertEqual(sql(f"SELECT count(*) FROM audit_logs WHERE record_id='{job['id']}' AND action='reconcile_video_submission'").stdout.strip(), "1")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -9,28 +9,18 @@ import {
 import { cn } from '@/lib/utils';
 import { supabase } from '@/db/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { deductUserCredits } from '@/hooks/useCredits';
-import { ensureCreditsForGeneration, openCreditsDialog, VIDEO_GENERATE_COST } from '@/lib/creditGuard';
+import { useVideoGeneration } from '@/hooks/useVideoGeneration';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import ProductVideoWizard from './VideoCreatePage';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { UrlProductImportDialog } from '@/components/UrlProductImportDialog';
-import { sendDeepSeekStreamRequest, sendStepAudioASR, submitSeedanceVideo, querySeedanceVideo, sendStepFlashStreamRequest } from '@/lib/sse';
-import { extractVideoFirstFrame, getVideoCoverImage } from '@/lib/videoFrame';
+import { sendDeepSeekStreamRequest, sendStepAudioASR, sendStepFlashStreamRequest } from '@/lib/sse';
 import { makeWorkTitle } from '@/lib/utils';
 import CustomModelDialog from '@/components/common/CustomModelDialog';
-import { loadCustomModels, findCustomModel, invokeCustomChatModel, extractImageUrl, extractVideoUrl } from '@/lib/customModel';
+import { loadCustomModels, findCustomModel, invokeCustomChatModel, extractImageUrl } from '@/lib/customModel';
 import type { CustomModelConfig, CustomModelKind } from '@/lib/customModel';
-import { submitMiniMaxVideo, queryMiniMaxVideo } from '@/lib/minimax';
-import type { MiniMaxVideoPayload } from '@/lib/minimax';
-import { submitWan3Video, queryWan3Video } from '@/lib/wan3';
-import type { Wan3VideoPayload } from '@/lib/wan3';
-import { submitSeedanceMiniVideo, querySeedanceMiniVideo } from '@/lib/seedancemini';
-import type { SeedanceMiniVideoPayload } from '@/lib/seedancemini';
-import { submitHappyHorseVideo, queryHappyHorseVideo } from '@/lib/happyhorse';
-import type { HappyHorseVideoPayload } from '@/lib/happyhorse';
 import { audioRecorder } from '@/lib/audioRecorder';
 import { Product } from '@/types/types';
 import { getCategoryFallbackImage } from './ProductsPage';
@@ -919,12 +909,8 @@ export default function HomePage() {
     }
   };
 
-  // AI生成状态
-  const [generating, setGenerating] = useState(false);
-  const [taskId, setTaskId] = useState<string | null>(null);
-  const [genProgress, setGenProgress] = useState(0);
-  const [resultVideo, setResultVideo] = useState<string | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // 生成任务在服务端持久化，浏览器只显示状态和成片。
+  const { generating, taskId, genProgress, resultVideo, statusText, generate, hideProgress, clearResult } = useVideoGeneration(user?.id);
 
   // 图片生成状态
   const [imgPrompt, setImgPrompt] = useState('');
@@ -979,72 +965,10 @@ export default function HomePage() {
     loadGeneratedVideos();
   }, [loadGeneratedVideos]);
 
-  // ── 成片自动存档到作品素材库 ──────────────────────────────────────────────
-  // 轮询回调是稳定引用（deps 不包含表单状态），必须通过 ref 读取用户与生成参数。
-  // 快照在提交生成任务的瞬间由 handleGenerate 写入：落库的标题/提示词/封面一律以
-  // “提交时”的表单内容为准，而非等待期间可能被改动后的最新表单值，保证作品信息与成片一致。
-  const genCtxRef = useRef({
-    userId: null as string | null,
-    prompt: '',
-    modelLabel: '',
-    duration: 5,
-    ratio: '16:9',
-    resolution: '720P',
-    avatarName: undefined as string | undefined,
-    avatarImage: undefined as string | undefined,
-    firstFrame: null as string | null,
-  });
-
-  /**
-   * 生成成功后的统一落库：
-   *  - 已有 processing 档案 → 原地更新为 completed，写入成片地址与真实第一帧封面
-   *  - 前置建档失败（RLS / 网络异常）→ 补插一条 completed 记录，确保视频绝不丢失
-   */
-  const archiveCompletedVideo = useCallback(async (videoUrl: string, dbProjectId?: string | null) => {
-    const ctx = genCtxRef.current;
-    if (!ctx.userId || !videoUrl) return;
-    // 封面严格取成片真实第一帧（Canvas 提取优先，见 lib/videoFrame）；提取失败返回空串，不写占位图
-    const coverFrame = await getVideoCoverImage(videoUrl, ctx.firstFrame || undefined);
-    // 标题/提示词以提交任务瞬间的快照为准：优先展示用户输入提示词，空提示词兜底“未命名作品”
-    const workTitle = makeWorkTitle(ctx.prompt);
-    try {
-      if (dbProjectId) {
-        const { error } = await supabase.from('video_projects').update({
-          status: 'completed',
-          progress: 100,
-          video_url: videoUrl,
-          title: workTitle,
-          prompt_text: ctx.prompt,
-          // 仅在成功提取到真实首帧时回写封面；空值保留待作品管理页异步抽帧重试
-          ...(coverFrame ? { thumbnail_url: coverFrame } : {}),
-        }).eq('id', dbProjectId);
-        if (error) console.error('更新作品存档失败:', error);
-      } else {
-        const { error } = await supabase.from('video_projects').insert({
-          user_id: ctx.userId,
-          title: workTitle,
-          prompt_text: ctx.prompt,
-          video_url: videoUrl,
-          thumbnail_url: coverFrame || null,
-          status: 'completed',
-          progress: 100,
-          video_style: ctx.modelLabel,
-          duration: ctx.duration,
-          aspect_ratio: ctx.ratio,
-          resolution: ctx.resolution,
-        });
-        if (error) console.error('补写作品存档失败:', error);
-      }
-    } catch (err) {
-      console.error('成片存档异常:', err);
-    }
-    loadGeneratedVideos();
-    // 通知同域已挂载的作品管理视图即时同步（免手动刷新/切换页面）
-    window.dispatchEvent(new CustomEvent('shopro:works-updated'));
+  useEffect(() => {
+    window.addEventListener('shopro:works-updated', loadGeneratedVideos);
+    return () => window.removeEventListener('shopro:works-updated', loadGeneratedVideos);
   }, [loadGeneratedVideos]);
-
-  // 成功结果以模型真实输出为准。
-  const resolveGeneratedVideoUrl = useCallback((rawVideoUrl: string) => rawVideoUrl, []);
 
   const [imgEnhanceProgress, setImgEnhanceProgress] = useState(0);
 
@@ -1172,7 +1096,6 @@ export default function HomePage() {
 
   // 停止轮询
   const stopPoll = useCallback(() => {
-    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     if (imgTimeoutRef.current) { clearInterval(imgTimeoutRef.current); imgTimeoutRef.current = null; }
   }, []);
 
@@ -1235,679 +1158,18 @@ export default function HomePage() {
     runImgMockPipeline();
   };
 
-  // 轮询 Sora 任务
-  const pollSora = useCallback((vid: string) => {
-    let attempts = 0;
-    pollRef.current = setInterval(async () => {
-      attempts++;
-      if (attempts > 80) { stopPoll(); setGenerating(false); toast.error('视频生成超时，请重试'); return; }
-      try {
-        const { data, error } = await supabase.functions.invoke('sora-video-query', { body: { video_id: vid } });
-        if (error) { const msg = await error?.context?.text(); console.error('sora-query', msg); return; }
-        const status = data?.status;
-        if (status === 'completed') {
-          stopPoll(); setGenerating(false); setGenProgress(100);
-          if (data?.video_url) { setResultVideo(data.video_url); toast.success('Sora 视频生成完成！'); }
-        } else if (status === 'failed' || status === 'cancelled') {
-          stopPoll(); setGenerating(false); toast.error('视频生成失败，请重试');
-        } else {
-          setGenProgress(Math.min(90, (data?.progress ?? attempts * 4)));
-        }
-      } catch (e) { console.error('sora poll error', e); }
-    }, 8000);
-  }, [stopPoll]);
-
-  // 轮询 Seedance 任务
-  const pollSeedance = useCallback((reqId: string, dbProjectId?: string | null) => {
-    let attempts = 0;
-    pollRef.current = setInterval(async () => {
-      attempts++;
-      if (attempts > 120) {
-        stopPoll();
-        setGenerating(false);
-        toast.error('视频生成超时，请重试');
-        if (dbProjectId) {
-          await supabase.from('video_projects').update({ status: 'failed' }).eq('id', dbProjectId);
-        }
-        return;
-      }
-      try {
-        const data = await querySeedanceVideo(reqId);
-        const status = data?.status;
-        if (status === 'success') {
-          stopPoll(); setGenerating(false); setGenProgress(100);
-          const rawVideoUrl = data?.outcome?.video_url || data?.video_url || '/Video/CreatOK_2.mp4';
-          const videoUrl = resolveGeneratedVideoUrl(rawVideoUrl);
-          setResultVideo(videoUrl);
-          toast.success(genCtxRef.current.avatarName ? `已为您成功生成数字人「${genCtxRef.current.avatarName}」带货视频！` : 'Seedance 视频生成完成！');
-          // 成片必须自动入库（含真实第一帧封面），建档失败时补插新记录
-          await archiveCompletedVideo(videoUrl, dbProjectId);
-        } else if (status === 'failed' || status === 'cancelled') {
-          stopPoll(); setGenerating(false); toast.error(`视频生成失败: ${data?.error || '模型生成出错'}`);
-          if (dbProjectId) {
-            await supabase.from('video_projects').update({ status: 'failed' }).eq('id', dbProjectId);
-          }
-        } else {
-          const prog = Math.min(95, attempts * 4);
-          setGenProgress(prog);
-          if (dbProjectId) {
-            await supabase.from('video_projects').update({ progress: prog }).eq('id', dbProjectId);
-          }
-        }
-      } catch (e) {
-        console.error('seedance poll error', e);
-      }
-    }, 5000);
-  }, [stopPoll, archiveCompletedVideo, resolveGeneratedVideoUrl]);
-
-  // 轮询 MiniMax H3 任务（OpenAI Next /v1/videos 异步协议，完成后转存 Storage 得到永久公开链接）
-  const pollMiniMax = useCallback((taskId: string, dbProjectId?: string | null) => {
-    let attempts = 0;
-    pollRef.current = setInterval(async () => {
-      attempts++;
-      if (attempts > 120) {
-        stopPoll();
-        setGenerating(false);
-        toast.error('视频生成超时，请重试');
-        if (dbProjectId) {
-          await supabase.from('video_projects').update({ status: 'failed' }).eq('id', dbProjectId);
-        }
-        return;
-      }
-      try {
-        const data = await queryMiniMaxVideo(taskId, genCtxRef.current.userId);
-        const status = data?.status;
-        if (status === 'success') {
-          stopPoll(); setGenerating(false); setGenProgress(100);
-          const rawVideoUrl = data?.outcome?.video_url || data?.video_url || '/Video/CreatOK_2.mp4';
-          const videoUrl = resolveGeneratedVideoUrl(rawVideoUrl);
-          setResultVideo(videoUrl);
-          toast.success(genCtxRef.current.avatarName ? `已为您成功生成数字人「${genCtxRef.current.avatarName}」带货视频！` : 'MiniMax H3 视频生成完成！');
-          await archiveCompletedVideo(videoUrl, dbProjectId);
-        } else if (status === 'failed') {
-          stopPoll(); setGenerating(false); toast.error(`视频生成失败: ${data?.error || '模型生成出错'}`);
-          if (dbProjectId) {
-            await supabase.from('video_projects').update({ status: 'failed' }).eq('id', dbProjectId);
-          }
-        } else {
-          const prog = Math.min(95, attempts * 4);
-          setGenProgress(prog);
-          if (dbProjectId) {
-            await supabase.from('video_projects').update({ progress: prog }).eq('id', dbProjectId);
-          }
-        }
-      } catch (e) {
-        console.error('minimax poll error', e);
-      }
-    }, 5000);
-  }, [stopPoll, archiveCompletedVideo, resolveGeneratedVideoUrl]);
-
-  // 轮询 Wan3.0 Prime 任务（异步协议，成功后 output.video_url 为 24h 有效签名链接）
-  const pollWan3 = useCallback((taskId: string, dbProjectId?: string | null) => {
-    let attempts = 0;
-    pollRef.current = setInterval(async () => {
-      attempts++;
-      if (attempts > 120) {
-        stopPoll();
-        setGenerating(false);
-        toast.error('视频生成超时，请重试');
-        if (dbProjectId) {
-          await supabase.from('video_projects').update({ status: 'failed' }).eq('id', dbProjectId);
-        }
-        return;
-      }
-      try {
-        const data = await queryWan3Video(taskId);
-        const status = data?.status;
-        if (status === 'success') {
-          stopPoll(); setGenerating(false); setGenProgress(100);
-          const rawVideoUrl = data?.outcome?.video_url || data?.video_url || '/Video/CreatOK_2.mp4';
-          const videoUrl = resolveGeneratedVideoUrl(rawVideoUrl);
-          setResultVideo(videoUrl);
-          toast.success(genCtxRef.current.avatarName ? `已为您成功生成数字人「${genCtxRef.current.avatarName}」带货视频！` : 'Wan3.0 Prime 视频生成完成！');
-          await archiveCompletedVideo(videoUrl, dbProjectId);
-        } else if (status === 'failed') {
-          stopPoll(); setGenerating(false); toast.error(`视频生成失败: ${data?.error || '模型生成出错'}`);
-          if (dbProjectId) {
-            await supabase.from('video_projects').update({ status: 'failed' }).eq('id', dbProjectId);
-          }
-        } else {
-          const prog = Math.min(95, attempts * 4);
-          setGenProgress(prog);
-          if (dbProjectId) {
-            await supabase.from('video_projects').update({ progress: prog }).eq('id', dbProjectId);
-          }
-        }
-      } catch (e) {
-        console.error('wan3 poll error', e);
-      }
-    }, 5000);
-  }, [stopPoll, archiveCompletedVideo, resolveGeneratedVideoUrl]);
-
-  // 轮询 Seedance 2.0 Mini 任务（Ark v3 异步协议，成功后 content.video_url 为 24h 有效链接）
-  const pollSeedanceMini = useCallback((taskId: string, dbProjectId?: string | null) => {
-    let attempts = 0;
-    pollRef.current = setInterval(async () => {
-      attempts++;
-      if (attempts > 120) {
-        stopPoll();
-        setGenerating(false);
-        toast.error('视频生成超时，请重试');
-        if (dbProjectId) {
-          await supabase.from('video_projects').update({ status: 'failed' }).eq('id', dbProjectId);
-        }
-        return;
-      }
-      try {
-        const data = await querySeedanceMiniVideo(taskId);
-        const status = data?.status;
-        if (status === 'success') {
-          stopPoll(); setGenerating(false); setGenProgress(100);
-          const rawVideoUrl = data?.outcome?.video_url || data?.video_url || '/Video/CreatOK_2.mp4';
-          const videoUrl = resolveGeneratedVideoUrl(rawVideoUrl);
-          setResultVideo(videoUrl);
-          toast.success(genCtxRef.current.avatarName ? `已为您成功生成数字人「${genCtxRef.current.avatarName}」带货视频！` : 'Seedance 2.0 视频生成完成！');
-          await archiveCompletedVideo(videoUrl, dbProjectId);
-        } else if (status === 'failed') {
-          stopPoll(); setGenerating(false); toast.error(`视频生成失败: ${data?.error || '模型生成出错'}`);
-          if (dbProjectId) {
-            await supabase.from('video_projects').update({ status: 'failed' }).eq('id', dbProjectId);
-          }
-        } else {
-          const prog = Math.min(95, attempts * 4);
-          setGenProgress(prog);
-          if (dbProjectId) {
-            await supabase.from('video_projects').update({ progress: prog }).eq('id', dbProjectId);
-          }
-        }
-      } catch (e) {
-        console.error('seedance-mini poll error', e);
-      }
-    }, 5000);
-  }, [stopPoll, archiveCompletedVideo, resolveGeneratedVideoUrl]);
-
-  // 轮询 HappyHorse 1.1 任务（DashScope 异步协议，成功后 output.video_url 为 24h 有效签名链接）
-  const pollHappyHorse = useCallback((taskId: string, dbProjectId?: string | null) => {
-    let attempts = 0;
-    pollRef.current = setInterval(async () => {
-      attempts++;
-      if (attempts > 120) {
-        stopPoll();
-        setGenerating(false);
-        toast.error('视频生成超时，请重试');
-        if (dbProjectId) {
-          await supabase.from('video_projects').update({ status: 'failed' }).eq('id', dbProjectId);
-        }
-        return;
-      }
-      try {
-        const data = await queryHappyHorseVideo(taskId);
-        const status = data?.status;
-        if (status === 'success') {
-          stopPoll(); setGenerating(false); setGenProgress(100);
-          const rawVideoUrl = data?.outcome?.video_url || data?.video_url || '/Video/CreatOK_2.mp4';
-          const videoUrl = resolveGeneratedVideoUrl(rawVideoUrl);
-          setResultVideo(videoUrl);
-          toast.success(genCtxRef.current.avatarName ? `已为您成功生成数字人「${genCtxRef.current.avatarName}」带货视频！` : 'HappyHorse 1.1 视频生成完成！');
-          await archiveCompletedVideo(videoUrl, dbProjectId);
-        } else if (status === 'failed') {
-          stopPoll(); setGenerating(false); toast.error(`视频生成失败: ${data?.error || '模型生成出错'}`);
-          if (dbProjectId) {
-            await supabase.from('video_projects').update({ status: 'failed' }).eq('id', dbProjectId);
-          }
-        } else {
-          const prog = Math.min(95, attempts * 4);
-          setGenProgress(prog);
-          if (dbProjectId) {
-            await supabase.from('video_projects').update({ progress: prog }).eq('id', dbProjectId);
-          }
-        }
-      } catch (e) {
-        console.error('happyhorse poll error', e);
-      }
-    }, 5000);
-  }, [stopPoll, archiveCompletedVideo, resolveGeneratedVideoUrl]);
-
-  // 轮询 Kling 任务
-  const pollKling = useCallback((taskId: string, dbProjectId?: string | null) => {
-    let attempts = 0;
-    pollRef.current = setInterval(async () => {
-      attempts++;
-      if (attempts > 120) {
-        stopPoll();
-        setGenerating(false);
-        toast.error('视频生成超时，请重试');
-        if (dbProjectId) {
-          await supabase.from('video_projects').update({ status: 'failed' }).eq('id', dbProjectId);
-        }
-        return;
-      }
-      try {
-        const { data, error } = await supabase.functions.invoke('kling-video-query', { body: { task_id: taskId } });
-        if (error) {
-          console.error('kling-query error', error);
-          return;
-        }
-        const status = data?.status; // 'SUCCESS' or 'processing' or 'FAILED'
-        if (status === 'SUCCESS') {
-          stopPoll(); setGenerating(false); setGenProgress(100);
-          const rawVideoUrl = data?.video_url || data?.outcome?.video_url;
-          if (rawVideoUrl) {
-            const videoUrl = resolveGeneratedVideoUrl(rawVideoUrl);
-            setResultVideo(videoUrl);
-            toast.success('Kling 视频生成完成！');
-            await archiveCompletedVideo(videoUrl, dbProjectId);
-          }
-        } else if (status === 'FAILED' || status === 'CANCELLED') {
-          stopPoll(); setGenerating(false); toast.error(`视频生成失败: ${data?.error || '模型生成出错'}`);
-          if (dbProjectId) {
-            await supabase.from('video_projects').update({ status: 'failed' }).eq('id', dbProjectId);
-          }
-        } else {
-          const prog = Math.min(95, attempts * 4);
-          setGenProgress(prog);
-          if (dbProjectId) {
-            await supabase.from('video_projects').update({ progress: prog }).eq('id', dbProjectId);
-          }
-        }
-      } catch (e) {
-        console.error('kling poll error', e);
-      }
-    }, 5000);
-  }, [stopPoll, archiveCompletedVideo, resolveGeneratedVideoUrl]);
-
-  // 提交生成
+  // 视频生成统一使用持久化服务端任务。
   const handleGenerate = async () => {
     if (!prompt.trim()) { toast.error('请输入视频描述'); return; }
-    if (!findCustomModel('video', model.id)
-      && !['Seedance', 'MiniMax', 'Wan3', 'SeedanceMini', 'HappyHorse', 'Kling'].includes(model.id)) {
-      toast.error(`${model.label} 尚未接入视频生成服务`);
-      return;
-    }
-
-    // 校验与扣除积分 (生成视频每次消耗 10 积分)
-    if (user) {
-      // 统一积分守卫：余额 < 10 直接拦截（不进入 loading、不发起任何生成/大模型请求）并自动弹出充值弹窗
-      const guard = await ensureCreditsForGeneration(user.id, VIDEO_GENERATE_COST);
-      if (!guard.ok) return;
-
-      const videoTitle = prompt.trim().slice(0, 15) || `${model.label}视频`;
-      const deductRes = await deductUserCredits(user.id, VIDEO_GENERATE_COST, `生成AI视频《${videoTitle}》`, 'video_generate');
-      if (!deductRes.success) {
-        toast.error(deductRes.message || `积分不足！生成 AI 视频每次需消耗 ${VIDEO_GENERATE_COST} 积分（当前剩余 ${deductRes.creditsLeft} 积分）`, {
-          duration: 6000,
-        });
-        // 余额不足以完成本次生成：自动弹出积分管理/充值界面
-        if (!deductRes.insufficientCredits) openCreditsDialog();
-        return;
-      }
-      toast.info(`⚡ 已扣除 ${VIDEO_GENERATE_COST} 积分（当前剩余 ${deductRes.creditsLeft} 积分），AI 视频生成任务已成功启动！`);
-    } else {
-      toast.info(`⚡ 已扣除 ${VIDEO_GENERATE_COST} 积分，AI 视频生成任务已成功启动！`);
-    }
-
-    // 提交瞬间对表单上下文做快照：后续轮询成功后的落库（标题/提示词/封面/参数）一律以快照为准，
-    // 避免生成等待期间用户改动输入框导致作品信息与成片不一致
-    genCtxRef.current = {
-      userId: user?.id ?? null,
-      prompt,
-      modelLabel: model.label,
-      duration: Number(activeDuration) || 5,
-      ratio: activeRatio,
-      resolution: activeResolution,
-      avatarName: selectedAvatar?.name,
-      avatarImage: selectedAvatar?.preview_image,
-      firstFrame,
-    };
-
-    setGenerating(true); setResultVideo(null); setGenProgress(5); stopPoll();
-
-    // 「扩展 (自动优化提示词)」开关生效：提交给模型的提示词统一做镜头与质感扩展，保证与设置面板一致
     const finalPrompt = autoOptimize
-      ? `${prompt.trim()}\n【自动扩展】优化构图与运镜节奏，强化光影质感与商品细节表现，突出前3秒吸引力与下单引导，保持主体一致。`
+      ? prompt.trim() + '\n【自动扩展】优化构图与运镜节奏，强化光影质感与商品细节表现，突出前3秒吸引力与下单引导，保持主体一致。'
       : prompt.trim();
-
-    // 本次生成的 processing 档案 id：提升到函数作用域，供提交失败后的降级分支复用，
-    // 避免出现「一条 processing 永挂 + 一条 completed 新档」的重复存档
-    let dbProjectId: string | null = null;
-
-    try {
-      // 自定义模型：真实调用用户配置的 OpenAI 兼容端点，失败时落入本地降级管线
-      const customCfg = findCustomModel('video', model.id);
-      if (customCfg) {
-        setGenProgress(30);
-        const content = await invokeCustomChatModel(
-          customCfg,
-          `请根据以下画面提示词生成一条商品带货短视频，并在回复中返回可公开访问的视频 URL（mp4/webm）：\n${finalPrompt}`,
-        );
-        const videoSrc = extractVideoUrl(content);
-        if (!videoSrc) throw new Error(`自定义模型未返回视频地址：${content.slice(0, 100)}`);
-        setGenProgress(100); setGenerating(false); setResultVideo(videoSrc);
-        toast.success(`自定义模型「${customCfg.displayName}」视频生成成功！`);
-        await archiveCompletedVideo(videoSrc, null);
-        return;
-      }
-      if (model.id === 'Seedance') {
-        // 先在数据库中创建视频项目
-        dbProjectId = null;
-        if (user) {
-          try {
-            const { data: projData, error: projErr } = await supabase.from('video_projects').insert({
-              user_id: user.id,
-              title: makeWorkTitle(prompt),
-              status: 'processing',
-              video_style: model.label,
-              duration: Number(activeDuration) || 8,
-              aspect_ratio: activeRatio,
-              resolution: activeResolution,
-              prompt_text: prompt,
-              progress: 5,
-            }).select('id').maybeSingle();
-            
-            if (projErr) {
-              console.error("Failed to insert video project:", projErr);
-            } else if (projData) {
-              dbProjectId = projData.id;
-            }
-          } catch (dbErr) {
-            console.error("Database insert error:", dbErr);
-          }
-        }
-
-        const payload: any = {
-          prompt: finalPrompt,
-          duration: activeDuration,
-          resolution: activeResolution.toLowerCase(),
-          ratio: activeRatio,
-          watermark: false,
-          generate_audio: true,
-        };
-
-        if (firstFrame) payload.first_frame = firstFrame;
-        if (lastFrame) payload.last_frame = lastFrame;
-        
-        const reference_images: string[] = [];
-        if (refImage) reference_images.push(refImage);
-        if (reference_images.length > 0) payload.reference_images = reference_images;
-
-        const reference_videos: string[] = [];
-        if (refVideo) reference_videos.push(refVideo);
-        if (reference_videos.length > 0) payload.reference_videos = reference_videos;
-
-        const res = await submitSeedanceVideo(payload);
-        const reqId = res.request_id;
-        if (!reqId) {
-          if (dbProjectId) {
-            await supabase.from('video_projects').update({ status: 'failed' }).eq('id', dbProjectId);
-          }
-          throw new Error('未获取到 Seedance 任务ID');
-        }
-        setTaskId(reqId);
-        pollSeedance(reqId, dbProjectId);
-      } else if (model.id === 'MiniMax') {
-        // MiniMax H3：真实对接 OpenAI Next 网关 /v1/videos 异步协议（提交 + content 轮询 + 成片转存）
-        dbProjectId = null;
-        if (user) {
-          try {
-            const { data: projData, error: projErr } = await supabase.from('video_projects').insert({
-              user_id: user.id,
-              title: makeWorkTitle(prompt),
-              status: 'processing',
-              video_style: model.label,
-              duration: Number(activeDuration) || 8,
-              aspect_ratio: activeRatio,
-              // MiniMax H3 (OpenAI Next) 上游强制 768P 规格，存档如实记录实际生成分辨率
-              resolution: '768P',
-              prompt_text: prompt,
-              progress: 5,
-            }).select('id').maybeSingle();
-
-            if (projErr) {
-              console.error("Failed to insert video project:", projErr);
-            } else if (projData) {
-              dbProjectId = projData.id;
-            }
-          } catch (dbErr) {
-            console.error("Database insert error:", dbErr);
-          }
-        }
-
-        const payload: MiniMaxVideoPayload = {
-          prompt: finalPrompt,
-          duration: Number(activeDuration) || 6,
-          ratio: activeRatio,
-        };
-        if (firstFrame) payload.first_frame = firstFrame;
-        if (lastFrame) payload.last_frame = lastFrame;
-        if (refImage) payload.reference_images = [refImage];
-        if (refVideo) payload.reference_videos = [refVideo];
-
-        const res = await submitMiniMaxVideo(payload);
-        const taskId = res.task_id;
-        if (!taskId) {
-          if (dbProjectId) {
-            await supabase.from('video_projects').update({ status: 'failed' }).eq('id', dbProjectId);
-          }
-          throw new Error('未获取到 MiniMax 任务ID');
-        }
-        setTaskId(taskId);
-        toast.info('MiniMax H3 任务已提交，正在排队生成中...');
-        pollMiniMax(taskId, dbProjectId);
-      } else if (model.id === 'Wan3') {
-        // Qwen Wan3.0 Prime：真实对接 Tokendance 网关 /alibaba/wan3 异步协议（提交 + 轮询）
-        dbProjectId = null;
-        if (user) {
-          try {
-            const { data: projData, error: projErr } = await supabase.from('video_projects').insert({
-              user_id: user.id,
-              title: makeWorkTitle(prompt),
-              status: 'processing',
-              video_style: model.label,
-              duration: Number(activeDuration) || 8,
-              aspect_ratio: activeRatio,
-              resolution: activeResolution,
-              prompt_text: prompt,
-              progress: 5,
-            }).select('id').maybeSingle();
-
-            if (projErr) {
-              console.error("Failed to insert video project:", projErr);
-            } else if (projData) {
-              dbProjectId = projData.id;
-            }
-          } catch (dbErr) {
-            console.error("Database insert error:", dbErr);
-          }
-        }
-
-        const payload: Wan3VideoPayload = {
-          prompt: finalPrompt,
-          duration: Number(activeDuration) || 5,
-          resolution: activeResolution,
-          ratio: activeRatio,
-          audio: false,
-          watermark: false,
-        };
-
-        const res = await submitWan3Video(payload);
-        const taskId = res.task_id;
-        if (!taskId) {
-          if (dbProjectId) {
-            await supabase.from('video_projects').update({ status: 'failed' }).eq('id', dbProjectId);
-          }
-          throw new Error('未获取到 Wan3.0 Prime 任务ID');
-        }
-        setTaskId(taskId);
-        toast.info('Wan3.0 Prime 任务已提交，正在排队生成中...');
-        pollWan3(taskId, dbProjectId);
-      } else if (model.id === 'SeedanceMini') {
-        // Seedance 2.0 Mini：真实对接 Tokendance 网关 Ark v3 异步协议（提交 + 轮询）
-        dbProjectId = null;
-        if (user) {
-          try {
-            const { data: projData, error: projErr } = await supabase.from('video_projects').insert({
-              user_id: user.id,
-              title: makeWorkTitle(prompt),
-              status: 'processing',
-              video_style: model.label,
-              duration: Number(activeDuration) || 5,
-              aspect_ratio: activeRatio,
-              // 该模型网关仅支持到 720p，存档如实记录实际生成分辨率
-              resolution: '720P',
-              prompt_text: prompt,
-              progress: 5,
-            }).select('id').maybeSingle();
-
-            if (projErr) {
-              console.error("Failed to insert video project:", projErr);
-            } else if (projData) {
-              dbProjectId = projData.id;
-            }
-          } catch (dbErr) {
-            console.error("Database insert error:", dbErr);
-          }
-        }
-
-        const payload: SeedanceMiniVideoPayload = {
-          prompt: finalPrompt,
-          duration: Number(activeDuration) || 5,
-          resolution: activeResolution,
-          ratio: activeRatio,
-        };
-        if (firstFrame) payload.first_frame = firstFrame;
-        if (lastFrame) payload.last_frame = lastFrame;
-        if (refImage) payload.reference_images = [refImage];
-        if (refVideo) payload.reference_videos = [refVideo];
-
-        const res = await submitSeedanceMiniVideo(payload);
-        const taskId = res.task_id;
-        if (!taskId) {
-          if (dbProjectId) {
-            await supabase.from('video_projects').update({ status: 'failed' }).eq('id', dbProjectId);
-          }
-          throw new Error('未获取到 Seedance 2.0 Mini 任务ID');
-        }
-        setTaskId(taskId);
-        toast.info('Seedance 2.0 任务已提交，正在排队生成中...');
-        pollSeedanceMini(taskId, dbProjectId);
-      } else if (model.id === 'HappyHorse') {
-        // HappyHorse 1.1：真实对接 Tokendance 网关 /alibaba/happyhorse DashScope 异步协议（提交 + 轮询）
-        dbProjectId = null;
-        if (user) {
-          try {
-            const { data: projData, error: projErr } = await supabase.from('video_projects').insert({
-              user_id: user.id,
-              title: makeWorkTitle(prompt),
-              status: 'processing',
-              video_style: model.label,
-              duration: Number(activeDuration) || 5,
-              aspect_ratio: activeRatio,
-              resolution: activeResolution,
-              prompt_text: prompt,
-              progress: 5,
-            }).select('id').maybeSingle();
-
-            if (projErr) {
-              console.error("Failed to insert video project:", projErr);
-            } else if (projData) {
-              dbProjectId = projData.id;
-            }
-          } catch (dbErr) {
-            console.error("Database insert error:", dbErr);
-          }
-        }
-
-        const payload: HappyHorseVideoPayload = {
-          prompt: finalPrompt,
-          duration: Number(activeDuration) || 5,
-          resolution: activeResolution,
-          ratio: activeRatio,
-        };
-        if (firstFrame && !lastFrame) payload.img_url = firstFrame;
-        if (refImage) payload.ref_images_url = [refImage];
-
-        const res = await submitHappyHorseVideo(payload);
-        const taskId = res.task_id;
-        if (!taskId) {
-          if (dbProjectId) {
-            await supabase.from('video_projects').update({ status: 'failed' }).eq('id', dbProjectId);
-          }
-          throw new Error('未获取到 HappyHorse 1.1 任务ID');
-        }
-        setTaskId(taskId);
-        toast.info('HappyHorse 1.1 任务已提交，正在排队生成中...');
-        pollHappyHorse(taskId, dbProjectId);
-      } else if (model.id === 'Kling') {
-        // 先在数据库中创建视频项目
-        dbProjectId = null;
-        if (user) {
-          try {
-            const { data: projData, error: projErr } = await supabase.from('video_projects').insert({
-              user_id: user.id,
-              title: makeWorkTitle(prompt),
-              status: 'processing',
-              video_style: model.label,
-              duration: Number(activeDuration) || 8,
-              aspect_ratio: activeRatio,
-              resolution: activeResolution,
-              prompt_text: prompt,
-              progress: 5,
-            }).select('id').maybeSingle();
-            
-            if (projErr) {
-              console.error("Failed to insert video project:", projErr);
-            } else if (projData) {
-              dbProjectId = projData.id;
-            }
-          } catch (dbErr) {
-            console.error("Database insert error:", dbErr);
-          }
-        }
-
-        const payload: any = {
-          prompt: finalPrompt,
-          duration: activeDuration,
-          aspect_ratio: activeRatio,
-        };
-        
-        if (refImage) {
-          payload.image_list = [refImage];
-        } else if (firstFrame) {
-          payload.image_list = [firstFrame];
-        }
-
-        const { data, error } = await supabase.functions.invoke('kling-video-create', { body: payload });
-        if (error) {
-          const msg = await error?.context?.text();
-          throw new Error(msg || error.message);
-        }
-        
-        const task_id = data?.task_id;
-        if (!task_id) {
-          if (dbProjectId) {
-            await supabase.from('video_projects').update({ status: 'failed' }).eq('id', dbProjectId);
-          }
-          throw new Error('未获取到 Kling 任务ID');
-        }
-        setTaskId(task_id);
-        pollKling(task_id, dbProjectId);
-      } else {
-        throw new Error(`${model.label} 尚未接入视频生成服务`);
-      }
-    } catch (e: unknown) {
-      console.error('视频生成提交失败:', e);
-      stopPoll();
-      setGenerating(false);
-      setGenProgress(0);
-      setResultVideo(null);
-      if (dbProjectId) {
-        await supabase.from('video_projects').update({
-          status: 'failed', progress: 0,
-          error_message: e instanceof Error ? e.message.slice(0, 500) : '视频生成提交失败',
-        }).eq('id', dbProjectId);
-      }
-      toast.error(`${e instanceof Error ? e.message : '视频生成失败'}。已扣积分请联系客服核对`, { duration: 6000 });
-    }
+    await generate(model.id, {
+      prompt: finalPrompt, title: makeWorkTitle(prompt),
+      duration: Number(activeDuration) || 5, resolution: activeResolution, ratio: activeRatio,
+      first_frame: firstFrame || undefined, last_frame: lastFrame || undefined,
+      reference_images: refImage ? [refImage] : [], reference_videos: refVideo ? [refVideo] : [],
+    });
   };
 
   // GLM-5.3-Flash 提示词增强 (全中文低延时打字机流式输出)
@@ -2413,19 +1675,15 @@ export default function HomePage() {
                         <div>
                           <div className="flex items-center gap-2">
                             <span className="text-xs md:text-sm font-bold bg-gradient-to-r from-pink-300 via-purple-200 to-cyan-300 bg-clip-text text-transparent">
-                              {genProgress < 25 && "AI 正在构思精妙分镜与运镜..."}
-                              {genProgress >= 25 && genProgress < 55 && "AI 正在绘制高精帧与物理光影..."}
-                              {genProgress >= 55 && genProgress < 85 && "AI 正在渲染超清动态视频与转场..."}
-                              {genProgress >= 85 && genProgress < 100 && "AI 正在微调色彩与音频对齐..."}
-                              {genProgress >= 100 && "🎉 视频渲染完成，正在呈现！"}
+                              {statusText}
                             </span>
                             <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-pink-500/15 text-pink-300 border border-pink-500/30">
                               <span className="w-1.5 h-1.5 rounded-full bg-pink-400 mr-1 animate-pulse" />
-                              渲染中
+                              处理中
                             </span>
                           </div>
                           <p className="text-[11px] text-white/45 mt-0.5">
-                            当前算法：{model.label} · 规格：{resolution}
+                            任务进度由生成服务返回
                           </p>
                         </div>
                       </div>
@@ -2459,7 +1717,7 @@ export default function HomePage() {
                     <div className="flex items-center justify-between gap-2 pt-1 text-[11px] text-pink-200/80">
                       <div className="flex items-center gap-1.5">
                         <span className="text-pink-400">💖</span>
-                        <span>任务已进入云端集群，离开或刷新页面成片均会自动保全至「作品库」</span>
+                        <span>任务已保存，刷新后可恢复；成功后保存至作品库，确定失败自动退积分</span>
                       </div>
                       <span className="hidden sm:inline-block text-[10px] text-white/35 bg-white/5 px-2 py-0.5 rounded-md border border-white/5">
                         无需等待守候
@@ -2637,11 +1895,11 @@ export default function HomePage() {
                 <div className="flex items-center gap-1.5 md:gap-2.5 shrink-0 ml-auto">
                   <span className="text-xs text-white/25 hidden sm:block">{prompt.length}/8000</span>
                   {generating ? (
-                    <button onClick={() => { stopPoll(); setGenerating(false); setGenProgress(0); }}
+                    <button onClick={hideProgress}
                       className="flex items-center justify-center gap-1.5 w-8 h-8 md:w-9 md:h-9 sm:w-auto sm:h-auto sm:px-3 sm:py-2 rounded-xl text-sm font-semibold transition-all shrink-0"
                       style={{ background: 'rgba(239,68,68,0.2)', border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444' }}>
                       <X className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">取消</span>
+                      <span className="hidden sm:inline">收起</span>
                     </button>
                   ) : (
                     <>
@@ -3099,7 +2357,7 @@ export default function HomePage() {
                 {selectedAvatar && (
                   <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-pink-500/15 border border-pink-500/30 text-xs text-pink-300">
                     <img src={selectedAvatar.preview_image || '/person/girl1.png'} alt={selectedAvatar.name} className="w-4 h-4 rounded-full object-cover shrink-0" />
-                    <span>已生成对应数字人 <strong>{selectedAvatar.name}</strong> 形象带货视频</span>
+                    <span>当前所选数字人：<strong>{selectedAvatar.name}</strong></span>
                   </div>
                 )}
                 <button
@@ -3109,7 +2367,7 @@ export default function HomePage() {
                   <Video className="w-3 h-3" /> 作品素材
                 </button>
               </div>
-              <button onClick={() => setResultVideo(null)} className="text-white/30 hover:text-white/70 transition-colors"><X className="w-4 h-4" /></button>
+              <button onClick={clearResult} className="text-white/30 hover:text-white/70 transition-colors"><X className="w-4 h-4" /></button>
             </div>
             <video src={resultVideo} controls autoPlay className="w-full max-h-[60vh] object-contain bg-black" />
           </div>
