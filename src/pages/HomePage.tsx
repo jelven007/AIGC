@@ -1043,11 +1043,8 @@ export default function HomePage() {
     window.dispatchEvent(new CustomEvent('shopro:works-updated'));
   }, [loadGeneratedVideos]);
 
-  // 选定数字人时优先使用与其形象匹配的素材，未选数字人时用模型真实成片
-  const resolveGeneratedVideoUrl = useCallback((rawVideoUrl: string) => {
-    const ctx = genCtxRef.current;
-    return ctx.avatarName ? getAvatarMatchedVideo(ctx.avatarName, ctx.avatarImage) : rawVideoUrl;
-  }, []);
+  // 成功结果以模型真实输出为准。
+  const resolveGeneratedVideoUrl = useCallback((rawVideoUrl: string) => rawVideoUrl, []);
 
   const [imgEnhanceProgress, setImgEnhanceProgress] = useState(0);
 
@@ -1522,6 +1519,11 @@ export default function HomePage() {
   // 提交生成
   const handleGenerate = async () => {
     if (!prompt.trim()) { toast.error('请输入视频描述'); return; }
+    if (!findCustomModel('video', model.id)
+      && !['Seedance', 'MiniMax', 'Wan3', 'SeedanceMini', 'HappyHorse', 'Kling'].includes(model.id)) {
+      toast.error(`${model.label} 尚未接入视频生成服务`);
+      return;
+    }
 
     // 校验与扣除积分 (生成视频每次消耗 10 积分)
     if (user) {
@@ -1890,32 +1892,21 @@ export default function HomePage() {
         setTaskId(task_id);
         pollKling(task_id, dbProjectId);
       } else {
-        // 其余模型统一走本地高保真渲染管线，保证正常可用的生成体验
-        throw new Error(`local high-fidelity render pipeline for ${model.label}`);
+        throw new Error(`${model.label} 尚未接入视频生成服务`);
       }
     } catch (e: unknown) {
-      console.warn("Direct video submission failed, activating local high-fidelity AI render simulation:", e);
-      // 优雅降级：启动高保真本地渲染模拟引擎，确保用户体验不中断并能体验到成片效果
-      toast.info("已切换至离线高保真渲染管线进行视频生成...");
-      let prog = 15;
-      setGenProgress(prog);
-      const simTimer = setInterval(async () => {
-        prog += Math.floor(Math.random() * 14) + 8;
-        if (prog >= 100) {
-          clearInterval(simTimer);
-          setGenProgress(100);
-          setGenerating(false);
-          const fallbackVideo = selectedAvatar
-            ? getAvatarMatchedVideo(selectedAvatar.name, selectedAvatar.preview_image)
-            : '/Video/CreatOK_2.mp4';
-          setResultVideo(fallbackVideo);
-          toast.success(selectedAvatar ? `已为您成功生成数字人「${selectedAvatar.name}」带货视频！` : 'AI 视频生成完成！');
-          // 降级成片同样必须自动入库作品素材库（封面取第一帧）
-          await archiveCompletedVideo(fallbackVideo, dbProjectId);
-        } else {
-          setGenProgress(prog);
-        }
-      }, 600);
+      console.error('视频生成提交失败:', e);
+      stopPoll();
+      setGenerating(false);
+      setGenProgress(0);
+      setResultVideo(null);
+      if (dbProjectId) {
+        await supabase.from('video_projects').update({
+          status: 'failed', progress: 0,
+          error_message: e instanceof Error ? e.message.slice(0, 500) : '视频生成提交失败',
+        }).eq('id', dbProjectId);
+      }
+      toast.error(`${e instanceof Error ? e.message : '视频生成失败'}。已扣积分请联系客服核对`, { duration: 6000 });
     }
   };
 

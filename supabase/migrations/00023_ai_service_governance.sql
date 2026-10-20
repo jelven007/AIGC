@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS public.model_calls (
 CREATE INDEX IF NOT EXISTS idx_model_calls_user_time ON public.model_calls (user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_model_calls_action ON public.model_calls (action, created_at DESC);
 -- 日预算护栏聚合索引（按用户+当日）
-CREATE INDEX IF NOT EXISTS idx_model_calls_budget ON public.model_calls (user_id, (created_at::date), credits_cost);
+CREATE INDEX IF NOT EXISTS idx_model_calls_budget ON public.model_calls (user_id, ((created_at AT TIME ZONE 'UTC')::date), credits_cost);
 
 ALTER TABLE public.model_calls ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "model_calls_select_own" ON public.model_calls;

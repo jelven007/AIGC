@@ -29,22 +29,27 @@ export function peekCreditsLeft(): number | null {
 export function useCredits() {
   const { user } = useAuth();
   const [state, setState] = useState<CreditsState>({
-    creditsTotal: 20, creditsUsed: 0, creditsLeft: 20,
+    creditsTotal: 0, creditsUsed: 0, creditsLeft: 0,
     usagePercent: 0, loading: true, planName: '免费版',
   });
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const fetch = useCallback(async () => {
-    if (!user) { setState(s => ({ ...s, loading: false })); return; }
+    if (!user) {
+      _latestCreditsLeft = null;
+      setState({ creditsTotal: 0, creditsUsed: 0, creditsLeft: 0, usagePercent: 0, loading: false, planName: '免费版' });
+      return;
+    }
     setState(s => ({ ...s, loading: true }));
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('user_plans')
         .select('credits_total, credits_used, plans(name)')
         .eq('user_id', user.id)
         .maybeSingle();
+      if (error) throw error;
       if (data) {
-        const total = data.credits_total ?? 20;
+        const total = data.credits_total ?? 0;
         const used = data.credits_used ?? 0;
         const left = Math.max(0, total - used);
         _latestCreditsLeft = left;
@@ -57,19 +62,19 @@ export function useCredits() {
           planName: (data.plans as { name?: string } | null)?.name ?? '免费版',
         });
       } else {
-        // 兜底逻辑：无 user_plans 记录时默认给予 20 初始积分（与注册赠送一致）
-        _latestCreditsLeft = 20;
+        _latestCreditsLeft = 0;
         setState({
-          creditsTotal: 20,
+          creditsTotal: 0,
           creditsUsed: 0,
-          creditsLeft: 20,
+          creditsLeft: 0,
           usagePercent: 0,
           loading: false,
           planName: '免费版',
         });
       }
     } catch {
-      setState(s => ({ ...s, loading: false }));
+      _latestCreditsLeft = null;
+      setState({ creditsTotal: 0, creditsUsed: 0, creditsLeft: 0, usagePercent: 0, loading: false, planName: '免费版' });
     }
   }, [user]);
 
@@ -140,9 +145,12 @@ export async function deductUserCredits(
   amount: number,
   description: string,
   type: CreditLog['type'] = 'video_generate'
-): Promise<{ success: boolean; creditsLeft: number; message?: string; insufficientCredits?: boolean }> {
+): Promise<{ success: boolean; creditsLeft: number; chargeId?: string; message?: string; insufficientCredits?: boolean }> {
   if (!userId) {
     return { success: false, creditsLeft: 0, message: '请先登录账号' };
+  }
+  if (!Number.isSafeInteger(amount) || amount <= 0) {
+    return { success: false, creditsLeft: 0, message: '扣费积分必须为正整数' };
   }
 
   try {
@@ -177,19 +185,14 @@ export async function deductUserCredits(
         message: `扣除积分失败：${rpcError.message || '系统繁忙，请稍后重试'}`,
       };
     }
-
-    // RPC 成功：优先采用 RPC 返回的最新余额（00024+ jsonb 版本）；
-    // 旧版 RPC（00013 void）无返回值时回退为重查一次，保证两种线上版本均正确
-    let left = Number(rpcData?.credits_left);
-    if (!Number.isFinite(left) || rpcData === null) {
-      const { data: latestPlan } = await supabase
-        .from('user_plans')
-        .select('credits_total, credits_used')
-        .eq('user_id', userId)
-        .maybeSingle();
-      left = Math.max(0, (latestPlan?.credits_total ?? 0) - (latestPlan?.credits_used ?? amount));
+    if (!rpcData?.ok || !rpcData?.charge_id) {
+      return { success: false, creditsLeft: 0, message: '计费服务版本不兼容，请先部署资金安全迁移 00028' };
     }
-    left = Math.max(0, left);
+
+    const left = Number(rpcData.credits_left);
+    if (!Number.isSafeInteger(left) || left < 0) {
+      return { success: false, creditsLeft: 0, message: '计费结果异常，请联系客服核对扣费流水' };
+    }
     _latestCreditsLeft = left;
 
     // 广播本地事件 & 跨标签页
@@ -198,6 +201,7 @@ export async function deductUserCredits(
     return {
       success: true,
       creditsLeft: left,
+      chargeId: rpcData.charge_id,
     };
   } catch (err: any) {
     console.error('扣除积分过程产生错误:', err);
@@ -210,9 +214,7 @@ export async function deductUserCredits(
 }
 
 /**
- * refundGenerationCredits - 视频生成失败自动退还积分（失败回滚）
- * 经 ai-assistant 边缘函数 refund_generation_credits action 执行（refund_credits RPC 仅限 service_role），
- * 逐笔审计入账，保障「失败不扣费、重试不重复扣费」。
+ * 兼容旧页面入口；服务端任务补偿接入前，不允许浏览器凭金额自行退款。
  */
 export async function refundGenerationCredits(
   userId: string,
@@ -225,8 +227,15 @@ export async function refundGenerationCredits(
       body: { action: 'refund_generation_credits', amount, reason },
     });
     if (error) {
-      console.warn('[useCredits] 退款失败:', error.message);
-      return { success: false, balance: 0, message: error.message };
+      let message = '自动退款需由服务端确认任务失败，当前请联系客服核对';
+      try {
+        const response = await error.context?.json?.();
+        message = response?.message || message;
+      } catch { /* 保留标准失败提示 */ }
+      return { success: false, balance: 0, message };
+    }
+    if (data?.code !== 0 || !data?.data) {
+      return { success: false, balance: 0, message: data?.message || '退款未完成，请联系客服核对' };
     }
     const balance = Math.max(0, Number(data?.data?.balance ?? data?.balance ?? 0));
     if (Number.isFinite(balance) && data) _latestCreditsLeft = balance;
@@ -237,4 +246,3 @@ export async function refundGenerationCredits(
     return { success: false, balance: 0, message: err?.message || '退款请求失败' };
   }
 }
-

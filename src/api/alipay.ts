@@ -63,7 +63,7 @@ export function renderAndSubmitAlipayForm(paymentHtml: string): void {
 export async function queryAlipayOrder(orderNo: string): Promise<AlipayQueryResult> {
   const { data, error } = await supabase.functions.invoke(
     `alipay-trade-query?order_no=${encodeURIComponent(orderNo)}`,
-    { body: {} },
+    { method: 'GET' },
   );
   if (error) throw await extractInvokeError(error);
   if (data?.code !== 0 || !data?.data) throw new Error(data?.message || '订单查询失败');

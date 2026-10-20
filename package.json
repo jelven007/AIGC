@@ -7,6 +7,9 @@
   "scripts": {
     "dev": "vite --config vite.config.dev.ts --host 0.0.0.0",
     "build": "vite build",
+    "test:finance": "python3 tests/test_finance.py",
+    "test:payments": "node tests/run_wechat.mjs && node tests/ai_billing.test.mjs && node tests/payment_notify.test.mjs",
+    "typecheck": "tsc -p tsconfig.check.json",
     "lint": "tsgo -p tsconfig.check.json && npx biome lint && .rules/check.sh && npx tailwindcss -i ./src/index.css -o /dev/null 2>&1 && .rules/testBuild.sh"
   },
   "dependencies": {

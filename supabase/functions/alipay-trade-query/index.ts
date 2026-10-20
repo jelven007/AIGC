@@ -1,7 +1,7 @@
 // 支付宝 AI 网页应用收款 - 交易查询 Edge Function（alipay.trade.query）
 // 用途：同步回跳结果页与前端轮询兜底（本地无公网 notify_url 时的最终一致性来源）。
 // 调用方式（遵循 GET 参数拼 URL 规范）：
-//   supabase.functions.invoke(`alipay-trade-query?order_no=${orderNo}`, { body: {} })
+//   supabase.functions.invoke(`alipay-trade-query?order_no=${orderNo}`, { method: 'GET' })
 // 服务端查单成功后如为已支付，执行幂等补偿入账（finalizePaidOrder），不信任前端传入的支付结果。
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { handleCorsPreflight, getCorsHeaders } from '../_shared/cors.ts';
@@ -64,16 +64,17 @@ Deno.serve(async (req) => {
     // 1. 订单归属校验（只允许查询本人订单）
     const { data: order } = await supabaseAdmin
       .from('orders')
-      .select('id, order_no, user_id, plan_id, total_amount, status, pay_channel, alipay_trade_no')
+      .select('id, order_no, user_id, plan_id, total_amount, status, pay_channel, alipay_trade_no, entitlement_granted_at')
       .eq('order_no', orderNo)
       .maybeSingle();
     if (!order || order.user_id !== user.id) return err('订单不存在', corsHeaders, 404);
     if (order.pay_channel !== 'alipay') return err('订单渠道不匹配', corsHeaders, 400);
 
     // 本地已支付直接返回，避免重复外呼
-    if (order.status === 'paid') {
+    if (order.status === 'paid' && order.entitlement_granted_at) {
       return ok({ order_no: order.order_no, local_status: 'paid', trade_status: 'TRADE_SUCCESS', amount: order.total_amount }, corsHeaders);
     }
+    if (order.status === 'paid') return err('历史订单权益需要核对，请联系客服', corsHeaders, 409);
 
     // 2. 调起 alipay.trade.query（非页面跳转类 API 使用 exec）
     const sdk = createAlipaySdk();
@@ -103,7 +104,7 @@ Deno.serve(async (req) => {
         return ok({ order_no: order.order_no, local_status: order.status, trade_status: 'AMOUNT_MISMATCH', amount: order.total_amount }, corsHeaders);
       }
       // 幂等补偿入账（与异步通知互斥，重复不二次发放）
-      await finalizePaidOrder(supabaseAdmin, order.order_no, tradeNo ?? null);
+      await finalizePaidOrder(supabaseAdmin, order.order_no, tradeNo ?? '', String(queryAmount ?? ''));
       return ok({ order_no: order.order_no, local_status: 'paid', trade_status: tradeStatus, amount: order.total_amount }, corsHeaders);
     }
 

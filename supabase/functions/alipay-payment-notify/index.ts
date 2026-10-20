@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
       return textRes('fail', corsHeaders);
     }
 
-    // 4. 持久化幂等：notify_id + trade_no + trade_status 唯一键去重，重复通知直接回 success
+    // 4. 事件去重仅用于审计；重复通知仍执行入账事务，补偿上次发放失败。
     const { error: insertErr } = await supabaseAdmin
       .from('alipay_notify_events')
       .insert({
@@ -105,11 +105,7 @@ Deno.serve(async (req) => {
         gmt_refund: params.gmt_refund ?? null,
         refund_fee: params.refund_fee ?? null,
       });
-    if (insertErr && insertErr.code === '23505') {
-      console.log(`[alipay-notify] duplicate event for ${params.out_trade_no}/${params.trade_status}, skip`);
-      return textRes('success', corsHeaders);
-    }
-    if (insertErr) {
+    if (insertErr && insertErr.code !== '23505') {
       console.error('[alipay-notify] event insert failed:', insertErr.message);
       return textRes('fail', corsHeaders);
     }
@@ -117,7 +113,7 @@ Deno.serve(async (req) => {
     // 5. 仅付款成功事件（排除退款/关单/分账）才标记已支付并发放权益；
     //    退款/关闭等其他事件记录后仍回 success，避免支付宝重复推送
     if (isPaidTradeNotification(params)) {
-      await finalizePaidOrder(supabaseAdmin, params.out_trade_no ?? '', params.trade_no ?? null);
+      await finalizePaidOrder(supabaseAdmin, params.out_trade_no ?? '', params.trade_no ?? '', params.total_amount ?? '');
     } else {
       console.log(`[alipay-notify] non-paid event ${params.notify_type ?? params.trade_status} for ${params.out_trade_no}`);
     }

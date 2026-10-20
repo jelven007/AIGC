@@ -102,8 +102,15 @@ async function setCachedResponse(
 
 async function makeCacheKey(action: string, params: Record<string, unknown>): Promise<string> {
   try {
-    // 基于标准 SHA-256 哈希，彻底消除 32 位弱哈希碰撞串用风险
-    const stable = JSON.stringify(params, Object.keys(params).sort());
+    const canonicalize = (value: unknown): unknown => {
+      if (Array.isArray(value)) return value.map(canonicalize);
+      if (value !== null && typeof value === 'object') {
+        return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))
+          .map(([key, child]) => [key, canonicalize(child)]));
+      }
+      return value;
+    };
+    const stable = JSON.stringify(canonicalize(params));
     const encoder = new TextEncoder();
     const data = encoder.encode(`${action}:${stable}`);
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
@@ -125,7 +132,7 @@ async function deductCredits(
   supabase: ReturnType<typeof createClient>,
   userId: string,
   action: string,
-): Promise<{ allowed: boolean; cost: number; remaining: number; error?: string }> {
+): Promise<{ allowed: boolean; cost: number; remaining: number; chargeId?: string; error?: string }> {
   if (!userId) return { allowed: false, cost: 0, remaining: 0, error: '缺少认证用户上下文' };
 
   try {
@@ -159,19 +166,20 @@ async function deductCredits(
     }
 
     // 3. 执行原子扣减 RPC (00013 / 00022)
-    const { error: rpcErr } = await supabase.rpc('deduct_credits', {
+    const { data: charge, error: rpcErr } = await supabase.rpc('deduct_credits', {
       p_user_id: userId,
       p_amount: cost,
       p_action: action,
     });
 
-    if (rpcErr) {
+    if (rpcErr || !charge?.ok || !charge?.charge_id) {
       // RPC 报错严格拦截并审计落库，杜绝放行漏洞
-      await logError(supabase, action, `扣费 RPC 失败: ${rpcErr.message}`, userId, { cost, remaining });
-      return { allowed: false, cost, remaining, error: `积分扣除失败: ${rpcErr.message}` };
+      const message = rpcErr?.message || '请先部署资金安全迁移 00028';
+      await logError(supabase, action, `扣费 RPC 失败: ${message}`, userId, { cost, remaining });
+      return { allowed: false, cost, remaining, error: `积分扣除失败: ${message}` };
     }
 
-    return { allowed: true, cost, remaining: remaining - cost };
+    return { allowed: true, cost, remaining: Number(charge.credits_left), chargeId: charge.charge_id };
   } catch (err: any) {
     await logError(supabase, action, `扣费系统异常: ${err?.message}`, userId);
     return { allowed: false, cost: 0, remaining: 0, error: '计费服务暂时异常，请稍后重试' };
@@ -356,6 +364,7 @@ Deno.serve(async (req) => {
   let action = '';
   let userId = '';
   let billedCost = 0;
+  let billedChargeId: string | undefined;
   const start = Date.now();
 
   try {
@@ -390,6 +399,10 @@ Deno.serve(async (req) => {
     }
 
     if (!action) return err('缺少 action 参数', 1001);
+    if (action === 'generate_video' || action === 'retry_video_job') {
+      // 旧处理器按客户端 project_id 操作 service_role，且无持久化任务补偿。
+      return err('视频生成服务正在升级，请使用当前视频工作台；任务退款请联系客服核对', 5031, 503);
+    }
 
     // P1-M04: 计费 action 严格门禁
     const billedActions = new Set([
@@ -404,19 +417,6 @@ Deno.serve(async (req) => {
       if (!userId) {
         return err('该 AI 能力需要登录授权，请携带有效的 Authorization 令牌', 4010, 401);
       }
-      // Row 10: 日算力预算护栏（超预算 fail-close 熔断）
-      const estCost = await getActionCost(supabase, action);
-      const budget = await checkDailyBudget(supabase, userId, estCost);
-      if (!budget.ok) {
-        await logError(supabase, action, `日算力预算超限: 已用 ${budget.used}/上限 ${budget.budget}`, userId);
-        await recordModelCall(supabase, { userId, action, status: 'blocked', latencyMs: Date.now() - start, creditsCost: 0 });
-        return err(`今日 AI 算力预算已达上限（${budget.budget} 积分），请明日再试或联系管理员调整额度`, 4002, 429);
-      }
-      const { allowed: creditsOk, cost, remaining, error: creditErr } = await deductCredits(supabase, userId, action);
-      billedCost = cost;
-      if (!creditsOk) {
-        return err(creditErr || `积分不足（需 ${cost} 积分，当前剩余 ${remaining} 积分），请充值套餐`, 4001, 402);
-      }
     }
 
     // P2-M06: 持久化限流（以安全身份为 key，防止伪造）
@@ -427,13 +427,29 @@ Deno.serve(async (req) => {
     // P2-N06: 缓存命中检查（异步高强度 SHA-256）
     let cacheKey = '';
     if (CACHEABLE_ACTIONS.has(action) && userId) {
-      const cacheParams = { ...body, user_id: undefined };
+      const cacheParams = { ...body, user_id: userId };
       cacheKey = await makeCacheKey(action, cacheParams);
       const cached = await getCachedResponse(supabase, cacheKey);
       if (cached) {
         await recordModelCall(supabase, { userId, action, status: 'cached', latencyMs: Date.now() - start, creditsCost: 0, cacheKey });
         return ok(cached);
       }
+    }
+
+    // 只有通过限流且未命中缓存的请求才扣费。
+    if (billedActions.has(action)) {
+      const estCost = await getActionCost(supabase, action);
+      const budget = await checkDailyBudget(supabase, userId, estCost);
+      if (!budget.ok) {
+        await recordModelCall(supabase, { userId, action, status: 'blocked', latencyMs: Date.now() - start, creditsCost: 0 });
+        return err(`今日 AI 算力预算已达上限（${budget.budget} 积分），请明日再试或联系管理员调整额度`, 4002, 429);
+      }
+      const charge = await deductCredits(supabase, userId, action);
+      if (!charge.allowed) {
+        return err(charge.error || `积分不足（需 ${charge.cost} 积分，当前剩余 ${charge.remaining} 积分）`, 4001, 402);
+      }
+      billedCost = charge.cost;
+      billedChargeId = charge.chargeId;
     }
 
     let result: unknown;
@@ -445,30 +461,6 @@ Deno.serve(async (req) => {
         result = await optimizePrompt(body); break;
       case 'generate_storyboard':
         result = await generateStoryboard(body); break;
-      case 'generate_video':
-        try {
-          result = await generateVideo(body, supabase);
-        } catch (e) {
-          // 失败回滚：标记项目为 failed 并退还前端提交时预扣的 10 积分
-          // （前端同步阶段失败由 VideoCreatePage 自行退款并置触发标记，二者互斥不重复）
-          try {
-            const pid = (body as { project_id?: string })?.project_id;
-            if (pid) {
-              await supabase.from('video_projects').update({ status: 'failed' }).eq('id', pid);
-            }
-            if (userId) {
-              await supabase.rpc('refund_credits', {
-                p_user_id: userId,
-                p_amount: 10,
-                p_reason: '视频生成失败，自动退还积分',
-              });
-            }
-          } catch (rollbackErr) {
-            console.error('[ai-assistant][generate_video] 回滚失败:', rollbackErr);
-          }
-          throw e;
-        }
-        break;
       case 'analyze_traffic':
         result = await analyzeTraffic(body); break;
       case 'analyze_style':
@@ -496,14 +488,13 @@ Deno.serve(async (req) => {
         result = await generateCover(body, supabase); break;
       case 'query_cover_task':
         result = await queryCoverTask(body, supabase); break;
-      case 'retry_video_job':
-        result = await retryVideoJob(body, supabase); break;
       case 'refund_generation_credits':
         // 视频生成失败退款：仅允许为本账户退款（JWT 强制），非计费 action 不走扣费链
         if (!userId) {
           return err('退款操作需要登录授权，请携带有效的 Authorization 令牌', 4010, 401);
         }
-        result = await refundGenerationCreditsAction(body, userId, supabase); break;
+        // 浏览器提供的失败状态/金额无法证明实际失败，统一交由可信任务处理器补偿。
+        return err('自动退款需由服务端确认任务失败，当前请联系客服核对', 4091, 409);
       default:
         return err(`未知操作: ${action}`, 1002);
     }
@@ -518,8 +509,18 @@ Deno.serve(async (req) => {
   } catch (e) {
     const msg = e instanceof Error ? e.message : '服务内部错误';
     console.error(`[ai-assistant][${action}]`, msg);
+    if (billedChargeId) {
+      const { error: refundError } = await supabase.rpc('refund_credit_charge', {
+        p_user_id: userId, p_charge_id: billedChargeId, p_reason: `AI 请求失败：${msg.slice(0, 160)}`,
+      });
+      if (refundError) {
+        console.error('[ai-assistant] 逐笔补偿失败:', refundError.message);
+      } else {
+        billedCost = 0;
+      }
+    }
     await logError(supabase, action, msg, userId || undefined);
-    await recordModelCall(supabase, { userId, action, status: 'error', latencyMs: Date.now() - start, creditsCost: 0, errorMsg: msg });
+    await recordModelCall(supabase, { userId, action, status: 'error', latencyMs: Date.now() - start, creditsCost: billedCost, errorMsg: msg });
     return err(msg, 5000, 500);
   }
 });
@@ -1451,35 +1452,6 @@ async function queryCoverTask(body: Record<string, unknown>, supabase: ReturnTyp
 }
 
 // ─── P1-N06: 视频任务重试 ─────────────────────────────────────────────────────
-/**
- * refund_generation_credits - 视频生成失败退款（失败回滚）
- * 前端失败观测点（轮询 FAILED/超时、创建任务异常）经此退还预扣积分；
- * JWT 强制校验 + 仅限本账户 + 金额上限 100，refund_credits RPC 以 service_role 原子执行并写入正向流水。
- */
-async function refundGenerationCreditsAction(
-  body: Record<string, unknown>,
-  userId: string,
-  supabase: ReturnType<typeof createClient>
-) {
-  const amount = Math.floor(Number(body.amount ?? 10));
-  const reason = typeof body.reason === 'string' && body.reason.trim()
-    ? body.reason.trim().slice(0, 200)
-    : '视频生成失败，自动退还积分';
-  if (!Number.isFinite(amount) || amount <= 0 || amount > 100) {
-    throw new Error('退款金额非法（应为 1-100 积分）');
-  }
-  const { data, error } = await supabase.rpc('refund_credits', {
-    p_user_id: userId,
-    p_amount: amount,
-    p_reason: reason,
-  });
-  if (error) throw new Error(`退款失败: ${error.message}`);
-  if (!data || (data as { ok?: boolean }).ok === false) {
-    throw new Error((data as { error?: string })?.error || '退款失败');
-  }
-  return { refunded: amount, balance: Number((data as { balance?: number })?.balance ?? 0) };
-}
-
 async function retryVideoJob(body: Record<string, unknown>, supabase: ReturnType<typeof createClient>) {
   const { job_id, project_id } = body as Record<string, string>;
   if (!job_id && !project_id) throw new Error('缺少 job_id 或 project_id');

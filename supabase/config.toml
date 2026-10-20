@@ -1,2 +1,9 @@
 [auth.email]
 enable_confirmations = false
+
+# 支付平台回调不携带 Supabase JWT，在函数内校验支付签名。
+[functions.alipay-payment-notify]
+verify_jwt = false
+
+[functions.wechat-payment-webhook]
+verify_jwt = false

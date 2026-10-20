@@ -12,7 +12,6 @@ import {
   Mail, Lock, ArrowLeft, CheckCircle2, KeyRound, Phone, Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { REGISTER_BONUS_CREDITS } from '@/lib/creditGuard';
 
 // 三种模式：login / register / forgot / phone
 type Mode = 'login' | 'register' | 'forgot' | 'phone';
@@ -96,17 +95,6 @@ function PhoneSmsPanel() {
                 role: 'user',
               }, { onConflict: 'id' });
 
-              const { data: freePlan } = await supabase.from('plans').select('id').eq('name', '免费版').maybeSingle();
-              if (freePlan) {
-                // 新用户默认 20 积分（与 handle_new_user 触发器口径一致）；
-                // ignoreDuplicates 保证不覆盖触发器已写入的初始记录
-                await supabase.from('user_plans').upsert({
-                  user_id: signUpData.user.id,
-                  plan_id: freePlan.id,
-                  credits_total: REGISTER_BONUS_CREDITS,
-                  credits_used: 0,
-                }, { onConflict: 'user_id', ignoreDuplicates: true });
-              }
             }
 
             const { error: reLoginErr } = await supabase.auth.signInWithPassword({ email, password: pwd });
@@ -419,17 +407,6 @@ export default function LoginPage() {
                 role: 'user',
               }, { onConflict: 'id' });
 
-              const { data: freePlan } = await supabase.from('plans').select('id').eq('name', '免费版').maybeSingle();
-              if (freePlan) {
-                // 新用户默认 20 积分（与 handle_new_user 触发器口径一致）；
-                // ignoreDuplicates 保证不覆盖触发器已写入的初始记录
-                await supabase.from('user_plans').upsert({
-                  user_id: data.user.id,
-                  plan_id: freePlan.id,
-                  credits_total: REGISTER_BONUS_CREDITS,
-                  credits_used: 0,
-                }, { onConflict: 'user_id', ignoreDuplicates: true });
-              }
             } catch (setupErr) {
               console.error('注册后初始化数据失败:', setupErr);
             }
@@ -717,15 +694,6 @@ export default function LoginPage() {
                                 username: user,
                                 role: 'user',
                               }, { onConflict: 'id' });
-                              const { data: freePlan } = await supabase.from('plans').select('id').eq('name', '免费版').maybeSingle();
-                              if (freePlan) {
-                                await supabase.from('user_plans').upsert({
-                                  user_id: signUpData.user.id,
-                                  plan_id: freePlan.id,
-                                  credits_total: 20, // 对齐注册默认口径：新用户赠 20 积分（触发器已写入时此兜底不覆盖为旧值50）
-                                  credits_used: 0,
-                                }, { onConflict: 'user_id' });
-                              }
                             } catch (setupErr) {
                               console.error('Demo 注册后初始化失败:', setupErr);
                             }

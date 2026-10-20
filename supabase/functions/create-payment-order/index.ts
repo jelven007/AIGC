@@ -60,6 +60,7 @@ async function createWechatPayUrl(
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (req.method !== 'POST') return err('仅支持 POST', 405);
 
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
@@ -87,7 +88,7 @@ Deno.serve(async (req) => {
       .eq('id', plan_id)
       .maybeSingle();
     if (!plan) return err('套餐不存在');
-    if (plan.price === 0) return err('免费套餐无需支付');
+    if (!Number.isFinite(Number(plan.price)) || Number(plan.price) <= 0) return err('套餐价格非法或无需支付');
 
     // 读取微信支付配置
     const MERCHANT_ID = Deno.env.get('MERCHANT_ID');
@@ -104,6 +105,20 @@ Deno.serve(async (req) => {
     const orderNo = generateOrderNo();
     const notifyUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/wechat-payment-webhook`;
 
+    // 先持久化订单与套餐快照，避免上游收款成功却没有可入账的本地订单。
+    const { data: order, error: orderError } = await supabase.from('orders').insert({
+      order_no: orderNo,
+      user_id: user.id,
+      plan_id: plan.id,
+      status: 'pending',
+      total_amount: plan.price,
+      pay_channel: 'wechat',
+    }).select('id, order_no').maybeSingle();
+    if (orderError || !order) {
+      console.error('[create-payment-order] order insert failed:', orderError?.message);
+      return err('订单创建失败', 500);
+    }
+
     // 创建支付 URL
     const payResult = await createWechatPayUrl(
       MERCHANT_ID, MERCHANT_APP_ID, MCH_CERT_SERIAL_NO, MCH_PRIVATE_KEY,
@@ -115,19 +130,14 @@ Deno.serve(async (req) => {
       return err(`微信支付创建失败：${payResult.error}`, 500);
     }
 
-    // 写入订单
-    const { data: order } = await supabase.from('orders').insert({
-      order_no: orderNo,
-      user_id: user.id,
-      plan_id: plan.id,
-      status: 'pending',
-      total_amount: plan.price,
-      wechat_pay_url: payResult.url,
-    }).select('id, order_no, status, total_amount, wechat_pay_url, created_at').maybeSingle();
+    const { error: urlError } = await supabase.from('orders')
+      .update({ wechat_pay_url: payResult.url, updated_at: new Date().toISOString() })
+      .eq('id', order.id);
+    if (urlError) return err('订单支付地址保存失败，请重试', 500);
 
     return ok({
-      order_no: order?.order_no ?? orderNo,
-      order_id: order?.id,
+      order_no: order.order_no,
+      order_id: order.id,
       wechat_pay_url: payResult.url,
       plan_name: plan.name,
       amount: plan.price,
