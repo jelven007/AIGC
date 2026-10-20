@@ -99,7 +99,9 @@ const db = {
       not() { return this; }, order() { return this; }, limit() { return this; },
       maybeSingle: async () => ({ data: state.foreignJob ? null : state.job, error: null }),
       single: async () => ({ data: state.job, error: null }),
-      then(resolve) { return Promise.resolve({ data: [state.job], error: null }).then(resolve); },
+      then(resolve) {
+        return Promise.resolve({ data: [state.job], error: state.schemaError ? { message: 'missing column' } : null }).then(resolve);
+      },
     };
     return q;
   },
@@ -224,5 +226,17 @@ await test('后台必须使用专用密钥，用户 JWT 无法触发', async () 
   assert.equal((await handleVideoWorker(request({}, 'Bearer user'))).status, 401);
   assert.equal(state.calls.length, 0);
   assert.equal((await handleVideoWorker(request({}, 'Bearer worker'))).status, 200);
+});
+await test('调度预检验证队列表结构，不领取任务或调用模型', async () => {
+  reset();
+  globalThis.fetch = () => { throw new Error('must not fetch'); };
+  const response = await handleVideoWorker(request({ action: 'probe' }, 'Bearer worker'));
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { ready: true, version: 1 });
+  assert.equal(state.calls.length, 0);
+  reset({ schemaError: true });
+  assert.equal((await handleVideoWorker(request({ action: 'probe' }, 'Bearer worker'))).status, 503);
+  assert.equal(state.calls.length, 0);
+  assert.equal((await handleVideoWorker(request({ action: 'invalid' }, 'Bearer worker'))).status, 400);
 });
 console.log(`${passes} tests passed`);
