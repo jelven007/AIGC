@@ -47,14 +47,18 @@ async function createWechatPayUrl(
       notify_url: notifyUrl,
       amount: { total: Math.round(amount * 100) },
     }, { headers: { 'Wechatpay-Serial': WECHAT_PAY_PUBLIC_KEY_ID } });
-    if (res.data.code_url) {
+    const payload: unknown = res.data;
+    const result = payload !== null && typeof payload === 'object'
+      ? payload as Record<string, unknown> : {};
+    if (typeof result.code_url === 'string' && result.code_url) {
       console.log(`[WeChatPay SUCCESS] outTradeNo=${outTradeNo}`);
-      return { success: true, url: res.data.code_url };
+      return { success: true, url: result.code_url };
     }
-    return { success: false, error: res.data.message || JSON.stringify(res.data) };
+    return { success: false, error: typeof result.message === 'string' ? result.message : '微信支付未返回支付地址' };
   } catch (e) {
-    console.error(`[WeChatPay ERROR] ${e?.message}`);
-    return { success: false, error: e?.message || String(e) };
+    const message = e instanceof Error ? e.message : String(e);
+    console.error(`[WeChatPay ERROR] ${message}`);
+    return { success: false, error: message };
   }
 }
 

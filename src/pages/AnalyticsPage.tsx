@@ -227,7 +227,7 @@ export default function AnalyticsPage() {
   const [heatmapData, setHeatmapData] = useState<ReturnType<typeof generateHeatmapData>>([]);
   const [bestSlots, setBestSlots] = useState<{ day: string; hour: number; value: number }[]>([]);
 
-const DEMO_ANALYTICS_PROJECTS = [
+const DEMO_ANALYTICS_PROJECTS: VideoProject[] = [
   {
     id: 'demo-an-1',
     user_id: 'demo',
@@ -285,7 +285,19 @@ const DEMO_ANALYTICS_PROJECTS = [
     predicted_click_rate: 4.2,
     traffic_suggestions: null,
   },
-] as VideoProject[];
+].map(project => ({
+  ...project,
+  status: 'completed',
+  product_id: null,
+  bgm: null,
+  subtitle_style: null,
+  prompt_text: null,
+  storyboard: [],
+  materials: [],
+  traffic_suggestions: [],
+  reference_video_url: null,
+  style_data: null,
+}));
 
   useEffect(() => { loadProjects(); }, []);
   useEffect(() => {
