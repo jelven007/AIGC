@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { requiredServiceUrl } from '../_shared/service-config.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -57,7 +58,7 @@ serve(async (req: Request): Promise<Response> => {
   };
 
   const upstream = await fetch(
-    "https://app-bnjgmg2jpu6a-api-rLobPAn0n7m9-gateway.appmiaoda.com/v1/chat/completions",
+    requiredServiceUrl('MINIMAX_CHAT_URL'),
     {
       method: "POST",
       headers: {

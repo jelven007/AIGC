@@ -9,10 +9,13 @@ COPY mcp_server.py .
 COPY mcp_server_stdio.py .
 COPY mcp_shopro_server.py .
 COPY mcp_shopro_server_stdio.py .
+COPY backend_client.py .
+COPY http_server.py .
 
 EXPOSE 8080
 
 ENV HOST=0.0.0.0
 ENV PORT=8080
 
-CMD ["python", "mcp_shopro_server.py"]
+USER 65534:65534
+CMD ["python", "http_server.py"]

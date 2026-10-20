@@ -242,6 +242,17 @@ class FinanceTest(unittest.TestCase):
         finally:
             sql("ALTER TABLE video_jobs DROP CONSTRAINT test_reject_new_job")
 
+    def test_ark_task_uses_same_atomic_charge_and_refund(self):
+        statement = self.create_job_sql().replace("'SeedanceMini'", "'ArkSeedance'")
+        job = json.loads(sql(statement).stdout)
+        self.assertEqual(job["provider"], "ArkSeedance")
+        self.assertEqual(job["billing_state"], "reserved")
+        lease = self.claim_job(job)
+        sql(self.job_event_sql(lease, "submit_rejected"))
+        self.assertEqual(sql(f"SELECT status,billing_state FROM video_jobs WHERE id='{job['id']}'").stdout.strip(),
+                         "failed|refunded")
+        self.assertEqual(sql(f"SELECT credits_used FROM user_plans WHERE user_id='{self.user}'").stdout.strip(), "0")
+
     def test_server_video_project_cannot_be_forged_or_deleted_in_flight(self):
         job = self.create_job()
         for statement in (

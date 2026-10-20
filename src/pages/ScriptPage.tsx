@@ -80,8 +80,6 @@ const CLASSIC_PAIN_POINTS: Record<string, string[]> = {
 };
 
 // ── SSE 流式调用文心 ────────────────────────────────────────────────────────
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
 async function callLLMStream(
   messages: Array<{ role: string; content: string }>,

@@ -1,5 +1,5 @@
 {
-  "name": "vite_react_shadcn_ts",
+  "name": "shoproai",
   "private": true,
   "version": "0.0.0",
   "license": "MIT",
@@ -11,11 +11,13 @@
     "test:payments": "node tests/run_wechat.mjs && node tests/ai_billing.test.mjs && node tests/payment_notify.test.mjs",
     "test:video": "node tests/video_jobs.test.mjs",
     "test:scheduler": "python3 tests/test_video_scheduler.py && python3 tests/test_video_schedule_db.py",
+    "test:volcengine": "python3 tests/test_volcengine_deploy.py && node tests/volcengine.test.mjs",
+    "deploy:prepare": "python3 scripts/deploy_volcengine.py prepare",
     "scheduler:start": "python3 scripts/manage_video_scheduler.py start",
     "scheduler:status": "python3 scripts/manage_video_scheduler.py status",
     "scheduler:stop": "python3 scripts/manage_video_scheduler.py stop",
     "typecheck": "tsc -p tsconfig.check.json",
-    "lint": "tsgo -p tsconfig.check.json && npx biome lint && .rules/check.sh && npx tailwindcss -i ./src/index.css -o /dev/null 2>&1 && .rules/testBuild.sh"
+    "lint": "npm run typecheck && biome lint && bash .rules/check.sh && tailwindcss -i ./src/index.css -o /dev/null && bash .rules/testBuild.sh"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -60,8 +62,6 @@
     "jspdf": "^4.2.1",
     "ky": "^1.14.3",
     "lucide-react": "^0.576.0",
-    "miaoda-react-devkit": "0.1.1-beta.14",
-    "miaoda-sc-plugin": "1.0.62",
     "next-themes": "^0.3.0",
     "qrcode": "^1.5.4",
     "react": "^18.3.1",

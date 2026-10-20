@@ -1,6 +1,6 @@
 # 📋 Shopro AI - 系统实测现状基准报告 (Current State Baseline)
 
-> **文档说明**：本文件作为系统实际落地状态的唯一事实来源（Single Source of Truth），反映经过安全性加固与契约治理后的真实系统现状，避免历史开发文档与实际代码产生偏差。
+> 本文为历史基线，模块规模及函数说明已过时。2026-10-21 的代码架构与部署目标以 [技术架构](TECHNICAL_ARCHITECTURE.md) 和 [火山部署指南](VOLCENGINE_DEPLOYMENT.md) 为准。
 
 ---
 

@@ -1,0 +1,28 @@
+{
+  "platform": "volcengine-supabase",
+  "skip_migrations": [
+    "00018_insert_demo_data_products_videos_materials.sql",
+    "00019_allow_demo_products_read.sql"
+  ],
+  "functions": [
+    { "name": "text-generation", "verify_jwt": true },
+    { "name": "send-sms-code", "verify_jwt": true },
+    { "name": "verify-sms-code", "verify_jwt": true },
+    { "name": "ai-assistant", "verify_jwt": true },
+    { "name": "phase3-assistant", "verify_jwt": true },
+    { "name": "siliconflow-audio", "verify_jwt": true },
+    { "name": "video-jobs", "verify_jwt": true },
+    { "name": "video-job-worker", "verify_jwt": false },
+    { "name": "create-payment-order", "verify_jwt": true },
+    { "name": "wechat-payment-webhook", "verify_jwt": false },
+    { "name": "alipay-payment-order", "verify_jwt": true },
+    { "name": "alipay-payment-notify", "verify_jwt": false },
+    { "name": "alipay-trade-query", "verify_jwt": true },
+    { "name": "alipay-trade-ops", "verify_jwt": true },
+    { "name": "seedance", "verify_jwt": true },
+    { "name": "kling-video-create", "verify_jwt": true },
+    { "name": "kling-video-query", "verify_jwt": true },
+    { "name": "sora-video-create", "verify_jwt": true },
+    { "name": "sora-video-query", "verify_jwt": true }
+  ]
+}

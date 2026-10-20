@@ -73,7 +73,7 @@
     },
     {
       "name": "synthesize_voice_tts",
-      "description": "Synthesizes speech from a script line using StepAudio stepaudio-2.5-tts. Returns base64 encoded MP3 audio data.",
+      "description": "通过火山 BaaS 音频函数合成语音，返回 Base64 MP3。",
       "inputSchema": {
         "properties": {
           "text": {
@@ -81,7 +81,7 @@
             "type": "string"
           },
           "voice_id": {
-            "default": "cixingnansheng",
+            "default": "fnlp/MOSS-TTSD-v0.5:alex",
             "title": "Voice Id",
             "type": "string"
           },
@@ -122,15 +122,20 @@
     },
     {
       "name": "submit_video_generation",
-      "description": "Submits a video generation task using Seedance 2.0. Requires prompt, duration, resolution, aspect ratio.",
+      "description": "通过业务用户 JWT 创建方舟视频队列任务，按 request_key 幂等扣费。",
       "inputSchema": {
         "properties": {
           "prompt": {
             "title": "Prompt",
             "type": "string"
           },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string",
+            "format": "uuid"
+          },
           "duration": {
-            "default": 8,
+            "default": 5,
             "title": "Duration",
             "type": "integer"
           },
@@ -163,7 +168,8 @@
           }
         },
         "required": [
-          "prompt"
+          "prompt",
+          "request_key"
         ],
         "title": "submit_video_generationArguments",
         "type": "object"

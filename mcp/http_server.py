@@ -1,0 +1,45 @@
+"""常驻 MCP HTTP 服务，Bearer 必须是业务用户 JWT，工具复用相同用户上下文。"""
+from contextlib import asynccontextmanager
+import os
+from starlette.applications import Starlette
+from starlette.routing import Mount
+import uvicorn
+from backend_client import request_token
+from mcp_shopro_server import mcp
+
+hosts = [host.strip() for host in os.environ.get("MCP_ALLOWED_HOSTS", "localhost:*,127.0.0.1:*").split(",")]
+mcp.settings.transport_security.enable_dns_rebinding_protection = True
+mcp.settings.transport_security.allowed_hosts = hosts
+protocol_app = mcp.streamable_http_app()
+
+
+class UserTokenMiddleware:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        headers = dict(scope.get("headers", []))
+        auth = headers.get(b"authorization", b"").decode()
+        if not auth.startswith("Bearer ") or not auth[7:].strip():
+            await send({"type": "http.response.start", "status": 401,
+                        "headers": [(b"content-type", b"application/json")]})
+            await send({"type": "http.response.body", "body": b'{"error":"user JWT required"}'})
+            return
+        token = request_token.set(auth[7:].strip())
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            request_token.reset(token)
+
+
+@asynccontextmanager
+async def lifespan(app):
+    async with mcp.session_manager.run():
+        yield
+
+
+app = Starlette(routes=[Mount("/", app=UserTokenMiddleware(protocol_app))], lifespan=lifespan)
+if __name__ == "__main__":
+    uvicorn.run(app, host=os.environ.get("HOST", "127.0.0.1"), port=int(os.environ.get("PORT", "8080")))

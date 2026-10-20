@@ -1,0 +1,94 @@
+# Shopro AI 技术架构
+
+更新时间：2026-10-21。部署目标为火山引擎 AI 原生 BaaS 平台 Supabase 版。本文描述当前代码及部署方式；本轮尚未登录火山账号、创建资源或进行火山云端验收。
+
+## 架构总览
+
+```mermaid
+flowchart TB
+    Browser["商家端 React 18 / TypeScript / Vite"]
+    Agent["外部智能体"]
+    Pages["火山 Pages · 静态站点"]
+    MCP["可选 ECS · MCP HTTP / stdio"]
+    Auth["火山 BaaS · Auth / JWT"]
+    API["火山 BaaS · Deno Edge Functions"]
+    DB[("火山 BaaS · PostgreSQL<br/>业务表 / RLS / RPC / 持久化队列")]
+    Storage[("火山 BaaS · Storage<br/>素材 / 成片")]
+    Scheduler["ECS Docker · 视频调度器"]
+    Worker["video-job-worker<br/>租约领取 / 状态查询 / 归档结算"]
+    Ark["火山方舟<br/>文本模型 / Seedance 视频"]
+    External["可选外部服务<br/>音频 / 备用视频 / 支付"]
+
+    Pages --> Browser
+    Browser --> Auth
+    Browser -->|"用户 JWT"| API
+    Browser -->|"RLS CRUD"| DB
+    Browser -->|"素材上传"| Storage
+    Agent -->|"用户 JWT"| MCP
+    MCP -->|"同一业务 API"| API
+    API --> DB
+    API --> Ark
+    API --> External
+    Scheduler -->|"专用密钥"| Worker
+    Worker --> DB
+    Worker --> Ark
+    Worker --> External
+    Worker --> Storage
+    Storage -->|"播放下载"| Browser
+```
+
+不依赖 supabase.com 创建项目，也不依赖 Vercel。Supabase SDK 是应用协议客户端；资源和管理面由火山引擎运营。数据库、Auth、Storage、Edge Functions 使用同一 workspace / branch 的地址与密钥。
+
+## 技术与部署映射
+
+| 模块 | 技术 | 部署位置 | 职责 |
+|---|---|---|---|
+| 商家应用 | React 18、TypeScript、Vite、React Router、React Query | 火山 Pages | 工作台、商品素材、作品、支付与数据页面 |
+| UI | Tailwind CSS、Radix、Framer Motion、Recharts | 浏览器 | 表单、交互、图表 |
+| 用户认证 | Supabase Auth / JWT | 火山 BaaS | 邮箱登录注册、密码找回、配置后的短信 OTP |
+| 业务 API | Deno TypeScript Edge Functions | 火山 BaaS | 文本、视频任务、AI 业务、支付回调 |
+| 业务数据 | PostgreSQL、RLS、SQL RPC | 火山 BaaS | 用户隔离、扣费、原子入账、幂等与审计 |
+| 视频队列 | `video_jobs`、`lease_token`、`next_poll_at` | PostgreSQL | 持久化任务、到期领取与故障恢复 |
+| 执行器 | `video-job-worker` | 火山 BaaS | 有限时长提交/查询，不在函数中持续轮询 |
+| 调度器 | Python 3.12 + Docker Compose | 常驻火山 ECS | 默认每 10 秒派发，最多 4 并发，退避和健康检查 |
+| 成片存储 | Supabase Storage | 火山 BaaS | 参考素材、MP4/WebM 成片固定路径 |
+| 模型 | Ark OpenAI 兼容文本、Seedance 视频异步 API | 火山方舟 | 服务端选择真实已开通 Model ID / Endpoint ID |
+| 音频 | 现有 SiliconFlow TTS / ASR 协议 | 火山 Edge Function 代理外部服务 | 浏览器不再持有模型密钥 |
+| MCP | Python FastMCP、Starlette、HTTPX | 可选 ECS 或本地 stdio | 7 个工具复用用户 JWT 与业务 API |
+| 运维发布 | `byted-supabase-cli`、Python 部署脚本 | 开发机/受控发布环境 | SQL、Secrets、函数、Pages 与发布前预检 |
+
+当前不需要 Redis：低至中等负载的任务队列使用 PostgreSQL `FOR UPDATE SKIP LOCKED`。执行器及用户查询共享租约。未来任务规模明显增长时再评估独立队列。
+
+## 视频任务与积分
+
+1. 浏览器将参考素材上传 Storage，使用 `request_key` UUID 创建任务。
+2. 服务端校验用户 JWT、参数与模型配置；数据库同一事务创建作品、扣费流水和队列任务。重复 UUID + 相同参数返回原任务，不重复扣费。
+3. 调度器以 `VIDEO_WORKER_SECRET` 触发执行器；租约默认 180 秒，每次领取一个任务。
+4. `ArkSeedance` 直接请求 `POST /api/v3/contents/generations/tasks`，随后按任务 ID 查询。模型和密钥只从服务端 Secrets 读取。
+5. 成功视频先转存至 `materials/generated-videos/{user_id}/{job_id}.mp4|webm`，再持久化终态证据并原子更新作品与积分结算。
+6. 确定拒绝或上游明确失败时，按原扣费流水退积分；暂时查询或存储错误继续重试。
+7. 受理结果未知不重新 POST，也不按超时退款；运维核对后绑定上游 ID 或释放原扣费。
+
+`reserved → settled / refunded` 是计费状态。预占通过已有积分扣减记录实现，没有独立冻结账户。当前单条视频价格仍从 `credit_costs.generate_video` 读取；迁移默认 10 积分，应在生产配置时结合实际模型成本设定。
+
+## 文本、音频与 MCP
+
+`text-generation` 使用平台认证、数据库每用户每分钟限流，返回真实 SSE/JSON。此提示词辅助端点目前不扣积分；原 `ai-assistant` 计费 Action 保留原逐笔扣费补偿逻辑。方舟是部署模板中的首选文本通道，也可显式配置 GLM / DeepSeek 兼容接口。
+
+前端删除模型 `VITE_*` 密钥、硬编码兜底密钥、代理回退与虚假文本/ASR 成功输出。构建拒绝非公开 `VITE_*KEY/SECRET/TOKEN/PASSWORD`。音频使用登录用户 JWT 调用 Edge Function。
+
+MCP HTTP 使用请求中的用户 JWT，并通过 ContextVar 隔离并发调用身份；无状态 HTTP 避免会话复用混淆。视频工具要求显式幂等 UUID，复用 `video-jobs`；模型和 service_role 密钥不配置到 MCP。stdio 的用户 JWT 由受控环境提供。HTTP 服务需 TLS 反向代理及真实域名 allowlist。
+
+## 数据与部署边界
+
+- 普通商品、作品、脚本等 CRUD 仍通过 Supabase SDK 直连 Data API，授权由显式 GRANT 与 RLS 共同控制；关键财务与任务变更仅服务端 RPC 可执行。
+- 成片当前为公开 Storage 桶，尚未提供私有视频与限时下载；不能宣称所有资源私有。
+- 调度默认使用 ECS Docker，不将火山支持 pg_cron、pg_net、Vault 作为上线前提。现有 Cron SQL 仅在目标环境确认这些扩展后可选使用。
+- Pages 上传的是已构建 ZIP，URL/anon key 在构建前确定。Pages bind 建立 workspace 关联，不会改写 Vite ZIP 内已有常量。
+- `config.toml` 不承担火山函数配置。生产函数清单在 `deploy/volcengine/manifest.json`，回调与 Worker 明确使用 `--no-verify-jwt`，函数内继续验签/验证专用密钥。
+- 迁移排除 00018/00019 演示数据和演示访问策略；部署使用私有 `shopro_deploy.schema_migrations` 记录 SHA-256 回执，发现历史文件修改或无回执的旧业务库则停止重放。
+- `backend/` 缺少运营后台核心源码，未纳入部署。批量生成、完整剪辑渲染、真实跨平台发布与数据回流仍需后续实现；现有模拟模块不因迁移而变成已交付能力。
+- 图片专属网关、网页 Reader、Kling 等必须配置自己的 HTTPS 地址；不存在源仓库网关地址默认回退。部分历史 AI 业务模拟逻辑保留且需要后续治理。
+- 火山账号、BaaS 服务权限、方舟模型开通、SMTP/短信供应商、支付商户凭据和正式域名需目标环境配置。
+
+完整操作顺序见 [火山部署指南](VOLCENGINE_DEPLOYMENT.md)。
