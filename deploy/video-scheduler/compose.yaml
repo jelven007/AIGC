@@ -1,0 +1,39 @@
+services:
+  video-scheduler:
+    build:
+      context: ../..
+      dockerfile: deploy/video-scheduler/Dockerfile
+    restart: unless-stopped
+    init: true
+    read_only: true
+    environment:
+      SUPABASE_URL: ${SUPABASE_URL:?请在.env配置目标Supabase地址}
+      VIDEO_WORKER_SECRET_FILE: /run/secrets/video_worker_secret
+      VIDEO_WORKER_INTERVAL_SECONDS: ${VIDEO_WORKER_INTERVAL_SECONDS:-10}
+      VIDEO_WORKER_CONCURRENCY: ${VIDEO_WORKER_CONCURRENCY:-4}
+      VIDEO_WORKER_TIMEOUT_SECONDS: 150
+      VIDEO_WORKER_STATE_FILE: /tmp/video-scheduler.json
+    secrets:
+      - video_worker_secret
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=1m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "/app/run_video_worker.py", "--healthcheck"]
+      interval: 30s
+      timeout: 5s
+      start_period: 180s
+      retries: 3
+    stop_grace_period: 160s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+secrets:
+  video_worker_secret:
+    file: ./video_worker_secret

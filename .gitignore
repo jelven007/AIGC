@@ -40,3 +40,7 @@ package.json.[0-9]*
 key.txt
 **/key.txt
 *.key
+
+# 独立视频调度器运行凭据
+deploy/video-scheduler/video_worker_secret
+deploy/video-scheduler/.env

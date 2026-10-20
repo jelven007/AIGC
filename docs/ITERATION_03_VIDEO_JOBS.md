@@ -26,8 +26,8 @@
 2. 配置服务端模型 Secrets 与 `VIDEO_WORKER_SECRET`（随机独立密钥）。平台提供 `SUPABASE_URL`、`SUPABASE_ANON_KEY`、`SUPABASE_SERVICE_ROLE_KEY`。所有模型 Base URL 必须是完整 HTTPS 地址，不能使用前端代理相对路径。
 3. 部署 `video-jobs`、`video-job-worker`、`ai-assistant` 和五个停用代理及共享模块。`video-jobs` 需要用户 JWT；Worker 在 `config.toml` 关闭平台 JWT 验证，内部只接受专用 `VIDEO_WORKER_SECRET`。
 4. **配置并确认后台定时任务可正常触发 Worker，再发布前端。** 单次 Worker 领取一个任务，默认 180 秒租约，不在函数内长时间轮询。没有调度器时仅用户查询能推进任务，关闭页面后不会自动处理。
-5. 可以由外部调度服务每 10–30 秒调用 `scripts/run_video_worker.py`，通过环境变量设置 `SUPABASE_URL`、`VIDEO_WORKER_SECRET`、可选 `VIDEO_WORKER_CONCURRENCY=4`。脚本一次并发调用后退出，不连接业务数据库、不输出密钥。
-6. 平台支持 pg_cron、pg_net、Vault 时，可采用 `supabase/ops/video_worker_schedule.sql`。先在 Vault 创建 `supabase_url` 与 `video_worker_secret`，再安装调度；默认每 10 秒最多派发 4 个请求，只在有到期任务时派发。调度 SQL 不自动随迁移执行，本地 PostgreSQL 测试未包含这些平台扩展。
+5. 后台调度部署入口见 [VIDEO_SCHEDULER.md](VIDEO_SCHEDULER.md)。推荐常驻服务器运行 Docker 调度器，`scripts/manage_video_scheduler.py start` 先只读预检，再后台启动；`run_video_worker.py --daemon` 支持持续调度，默认每 10 秒一批、最多 4 并发、失败退避与健康检查。无需业务数据库或模型密钥。
+6. 平台支持 pg_cron、pg_net、Vault 时，可采用 `supabase/ops/video_worker_schedule.sql`。先在 Vault 创建 `supabase_url` 与 `video_worker_secret`，再安装调度；默认每 10 秒检查，全局最多 4 个未完成请求，只在有到期任务时派发，支持响应摘要、过期回收、重复安装与只读状态 SQL。调度 SQL 不自动随迁移执行；本地已用平台替身验证 SQL 行为，尚未在云端安装这些扩展。
 7. 逐模型验收提交、排队、失败退款、成片转存、刷新恢复、关闭页面后后台结算。Storage 使用已有公开 `materials` 桶；未实现私有视频及限时下载授权。
 
 | 模型 | 服务端密钥 | 默认 Base URL |
