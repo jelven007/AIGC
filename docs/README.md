@@ -1,5 +1,7 @@
 # 项目文档中心
 
+最新 [剪辑效果迭代16](ITERATION_16_RENDER_EFFECTS.md)新增十二转场、八种RGB混合与可调色键、工程效果恢复，移除编辑器部分演示写入/失败字幕。仍需同步production-jobs与重建FFmpeg；迁移范围保持00032–00044，云端仍无本轮回执。实际范围、验收与剩余缺口见专项文档。
+
 当前增量是 [竞品与选品迭代15](ITERATION_15_MARKET_INTELLIGENCE.md)：00044、20槽、YouTube/eBay官方协议及授权数据商、预算监控、原请求恢复与30天留存。待发布00032–00044及market-intelligence/匹配函数，探针v6；以下迭代14及更早文字为各轮时点记录，云端证据仍00031。
 
 最新 [知识检索迭代14](ITERATION_14_KNOWLEDGE_RETRIEVAL.md)新增00043/knowledge-base、17槽Embedding、私有版本索引与语义任务、脚本真实引用；同步下列需求、方案、API、开发、测试、运营/财务、运维及部署文档。当前待发布范围00032–00043，云端证据保持00031。

@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import selectors
 import time
+from render_effects import TRANSITIONS, BLENDS, composite, transition_filters
 
 
 class RenderError(Exception):
@@ -111,23 +112,45 @@ def validate(spec):
     if height not in (720, 1080, 2160) or spec.get("fps") not in (24, 25, 30, 60) or spec.get("ratio") not in ("16:9", "9:16", "1:1", "4:3", "3:4", "4:5"):
         raise RenderError("输出规格不支持")
     seen = set()
-    if spec.get("transition", "none") not in ("none", "t1", "t2"):
+    if spec.get("transition", "none") not in TRANSITIONS:
         raise RenderError("该转场未接入渲染")
+    numeric(spec.get("transitionDuration"), .5, .02, 2)
     for item in spec["tracks"]:
-        if item.get("type") not in ("video", "image", "audio", "text") or item.get("id") in seen:
+        if not isinstance(item, dict) or item.get("type") not in ("video", "image", "audio", "text") or not isinstance(item.get("id"), str) or not item["id"] or item["id"] in seen:
             raise RenderError("轨道类型或标识不正确")
         seen.add(item.get("id"))
         start = numeric(item.get("start"), 0, 0, duration)
         length = numeric(item.get("duration"), 0, .02, duration)
         if start + length > duration + .05:
             raise RenderError("轨道超出工程时长")
-        if item.get("keyframes") and len(item["keyframes"]) > 100:
+        numeric(item.get("layer"), 0, 0, 1000)
+        for field in ("fadeIn", "fadeOut"):
+            numeric(item.get(field), 0, 0, length)
+        if item.get("keyframes") is not None and (not isinstance(item["keyframes"], list) or len(item["keyframes"]) > 100):
             raise RenderError("关键帧数量过多")
         for frame in item.get("keyframes", []):
-            if frame.get("property") not in ("x", "y", "scale", "rotation", "opacity", "volume"):
+            if not isinstance(frame, dict) or frame.get("property") not in ("x", "y", "scale", "rotation", "opacity", "volume"):
                 raise RenderError("关键帧属性不支持")
+            ranges = {"x": (-100, 200), "y": (-100, 200), "scale": (1, 400), "rotation": (-360, 360), "opacity": (0, 100), "volume": (0, 200)}
+            numeric(frame.get("time"), None, 0, length)
+            numeric(frame.get("value"), None, *ranges[frame["property"]])
+            if (item["type"] == "text" and frame["property"] not in ("x", "y", "opacity")
+                or item["type"] == "audio" and frame["property"] != "volume"
+                or item["type"] == "image" and frame["property"] == "volume"):
+                raise RenderError("此轨道不支持所选关键帧属性")
         if item.get("entrance") not in (None, "", "ta1", "ta2") or item.get("exit") not in (None, "", "ta5", "ta6"):
             raise RenderError("字幕动画未接入渲染")
+        if item.get("blendMode", "normal") not in BLENDS or (item.get("blendMode", "normal") != "normal" and item["type"] not in ("video", "image")):
+            raise RenderError("混合模式不支持")
+        if item.get("chromaKey") is not None:
+            key = item["chromaKey"]
+            if item["type"] not in ("video", "image") or not isinstance(key, dict) or not isinstance(key.get("color"), str) or not key["color"] or len(color(key["color"])) != 6:
+                raise RenderError("色键参数不正确")
+            numeric(key.get("similarity"), None, .01, 1)
+            numeric(key.get("smoothness"), None, 0, 1)
+    main = sorted([item for item in spec["tracks"] if item["type"] in ("video", "image") and item.get("trackId", "video") == "video"], key=lambda item: item["start"])
+    if spec.get("transition", "none") != "none" and any(a["start"] + a["duration"] > b["start"] + .001 for a, b in zip(main, main[1:])):
+        raise RenderError("转场主轨不可重叠，请将叠加素材放入画中画轨")
     return duration
 
 
@@ -159,7 +182,19 @@ def build_command(spec, media_files, directory):
     filters = ["[0:v]format=rgba[canvas]"]
     current = "canvas"
     audio = ["1:a"]
-    ordered = sorted(enumerate(spec["tracks"]), key=lambda pair: (pair[1].get("layer", pair[0]), pair[0]))
+    def is_main(item):
+        return item["type"] in ("video", "image") and item.get("trackId", "video") == "video"
+    ordered = sorted(enumerate(spec["tracks"]), key=lambda pair:
+                     (0, pair[1]["start"], pair[0]) if is_main(pair[1]) else (1, pair[1].get("layer", pair[0]), pair[0]))
+    main = [item for _, item in ordered if is_main(item)]
+    boundaries = {}
+    for previous, incoming in zip(main, main[1:]):
+        if abs(previous["start"] + previous["duration"] - incoming["start"]) <= .001:
+            seconds = min(numeric(spec.get("transitionDuration"), .5, .02, 2), incoming["duration"] / 2, previous["duration"] / 2)
+            if spec.get("transition") == "t9":
+                seconds = min(seconds, .15)
+            boundaries[incoming["id"]] = seconds
+            boundaries[f"tail:{previous['id']}"] = seconds
     for order, item in ordered:
         kind = item["type"]
         start = item["start"]
@@ -175,9 +210,15 @@ def build_command(spec, media_files, directory):
             scale = expression(item, "scale", 100, 1, 400)
             rotation = expression(item, "rotation", 0, -360, 360)
             track = f"v{order}"
-            transition = spec.get("transition", "none") if item.get("trackId", "video") == "video" else "none"
-            tail = min(.5, duration - start - length) if transition == "t2" else 0
+            transition = spec.get("transition", "none") if is_main(item) else "none"
+            seconds = boundaries.get(item["id"], 0)
+            tail = boundaries.get(f"tail:{item['id']}", 0) if transition not in ("none", "t1") else 0
             visual = [f"trim=start={source_start}:duration={length*speed}", f"setpts=(PTS-STARTPTS)/{speed}", f"fps={fps}",
+                      "format=rgba"]
+            if item.get("chromaKey"):
+                key = item["chromaKey"]
+                visual.append(f"colorkey=color=0x{color(key['color'])}:similarity={key['similarity']}:blend={key['smoothness']}")
+            visual += [
                       f"scale=w='{width}*({scale})/100':h='{height}*({scale})/100':force_original_aspect_ratio=decrease:eval=frame",
                       "setsar=1", "format=rgba"]
             if tail > 0:
@@ -188,10 +229,17 @@ def build_command(spec, media_files, directory):
                 visual.append("vflip")
             if item.get("rotation") or any(frame["property"] == "rotation" for frame in item.get("keyframes", [])):
                 visual.append(f"rotate=angle='({rotation})*PI/180':ow=hypot(iw,ih):oh=hypot(iw,ih):c=none")
-            brightness = (numeric(item.get("brightness"), 100, 0, 200) - 100) / 100
+            brightness = numeric(item.get("brightness"), 100, 0, 200) / 100
             contrast = numeric(item.get("contrast"), 100, 0, 200) / 100
             saturation = numeric(item.get("saturation"), 100, 0, 200) / 100
-            visual.append(f"eq=brightness={brightness}:contrast={contrast}:saturation={saturation}")
+            # RGB 滤镜保留抠像/旋转的 alpha，eq 转 YUV 会丢失蒙版。
+            if brightness != 1 or contrast != 1:
+                visual.append("lutrgb=" + ":".join(f"{c}='clip((val*{brightness}-127.5)*{contrast}+127.5,0,255)'" for c in "rgb"))
+            if saturation != 1:
+                weights = (.213, .715, .072)
+                keys = ("rr", "rg", "rb", "gr", "gg", "gb", "br", "bg", "bb")
+                values = [weights[col] * (1-saturation) + (saturation if row == col else 0) for row in range(3) for col in range(3)]
+                visual.append("colorchannelmixer=" + ":".join(f"{key}={value}" for key, value in zip(keys, values)))
             preset = item.get("filter", "none")
             visual += preset_filters(preset, numeric(item.get("filterIntensity"), 100, 0, 100))
             opacity = numeric(item.get("opacity"), 100, 0, 100) / 100
@@ -202,21 +250,28 @@ def build_command(spec, media_files, directory):
                 visual.append(f"colorchannelmixer=aa={opacity}")
             fade_in = numeric(item.get("fadeIn"), 0, 0, length)
             fade_out = numeric(item.get("fadeOut"), 0, 0, length)
-            if transition in ("t1", "t2") and start > 0:
-                fade_in = max(fade_in, min(.5, length / 2))
+            if transition == "t1" and start > 0:
+                fade_in = max(fade_in, min(numeric(spec.get("transitionDuration"), .5, .02, 2), length / 2))
             if transition == "t1" and start + length < duration:
-                fade_out = max(fade_out, min(.5, length / 2))
+                fade_out = max(fade_out, min(numeric(spec.get("transitionDuration"), .5, .02, 2), length / 2))
             if fade_in:
                 visual.append(f"fade=t=in:st=0:d={fade_in}:alpha=1")
             if fade_out:
                 visual.append(f"fade=t=out:st={length-fade_out}:d={fade_out}:alpha=1")
+            if seconds:
+                visual += transition_filters(transition, seconds)
             visual.append(f"setpts=PTS+{start}/TB")
             filters.append(f"[{index}:v]{','.join(visual)}[{track}]")
             x = expression(item, "x", 50, -100, 200, f"(t-{start})")
             y = expression(item, "y", 50, -100, 200, f"(t-{start})")
             target = f"composite{order}"
-            filters.append(f"[{current}][{track}]overlay=x='W*({x})/100-w/2':y='H*({y})/100-h/2':"
-                           f"enable='gte(t,{start})*lt(t,{start+length+tail})':eof_action=pass:shortest=0:format=auto[{target}]")
+            position_x = f"W*({x})/100-w/2"
+            if seconds and transition in ("t3", "t4"):
+                direction = -1 if transition == "t3" else 1
+                position_x += f"+{direction}*W*max(0,1-(t-{start})/{seconds})"
+            composite(filters, current, track, target, width, height, fps, duration,
+                      position_x, f"H*({y})/100-h/2", f"gte(t,{start})*lt(t,{start+length+tail})",
+                      item.get("blendMode", "normal"))
             current = target
         if kind in ("audio", "video") and not item.get("mute"):
             index, metadata = inputs[item["id"]]

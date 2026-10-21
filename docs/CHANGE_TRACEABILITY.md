@@ -1,5 +1,7 @@
 # 变更、需求与文档追踪矩阵
 
+新增REQ-RENDER-03–05/EDITOR-02、AT-RENDER-03–06：[迭代16](ITERATION_16_RENDER_EFFECTS.md)对应render-effects共用目录、Worker固定RGB/alpha公式、参数双校验、工程保存恢复及演示清理。实际FFmpeg12项、协议2组、页面桌面/390px及production6组通过，同步需求/方案/开发/测试/运营/运维。无需新迁移；匹配API/Worker镜像必须先于前端，云端事实未改变。
+
 新增REQ-INTELLIGENCE-01/AT-INTELLIGENCE-01–04：[迭代15](ITERATION_15_MARKET_INTELLIGENCE.md)对应00044、20槽、官方/授权协议、计划预算/原请求/退款、两页来源入库与30天清理。专项覆盖数据库、协议、390px页面及既有财务/配置/任务回归；同步需求至运维文档。下一发布00032–00044和market-intelligence/匹配函数，实际云端仍旧基线。
 
 新增REQ-KNOWLEDGE-02/AT-KNOWLEDGE-01–04：[迭代14](ITERATION_14_KNOWLEDGE_RETRIEVAL.md)交付00043/knowledge-base、私有条目与向量、17槽、队列财务/版本、真实脚本引用及默认假结果清理。7项PG/6组协议/390px页面、33项资金回归与编译检查通过；同步全生命周期文档。最新部署范围00032–00043，云端未变；本地提交与受阻远端同步以Git单独回报为准。

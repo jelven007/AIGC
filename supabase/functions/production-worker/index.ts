@@ -35,7 +35,7 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
         && !analysis.error && !!analysis.data && !measurements.error && !experiments.error && !knowledge.error && !chunks.error
         && !knowledgeCosts.error && knowledgeCosts.data?.length === 2 && knowledgeCosts.data.every(row => Number.isInteger(row.cost) && row.cost >= 0)
         && !intelligence.error && !intelligenceCosts.error && intelligenceCosts.data?.length === 2;
-      return Response.json({ ready, version: 6, required_migration: '00044' }, { status: ready ? 200 : 503 });
+      return Response.json({ ready, version: 6, render_version: 2, required_migration: '00044' }, { status: ready ? 200 : 503 });
     }
     if (general && body.action === 'run') {
       const scheduled = await db.rpc('enqueue_intelligence_schedule');
@@ -57,6 +57,9 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
     if (render && body.action === 'claim') {
       const preparing = body.kind === 'analysis_prepare';
       if (body.kind && !preparing) return Response.json({ error: '领取类型不支持' }, { status: 400 });
+      if (!preparing && body.render_version !== 2) {
+        return Response.json({ error: '请更新FFmpeg Worker镜像，当前工程要求render_version=2' }, { status: 426 });
+      }
       const { data, error } = await db.rpc('claim_production_job', { p_kind: preparing ? 'analysis_prepare' : 'render', p_job_id: null });
       if (error) throw new Error('领取失败');
       if (!data) return Response.json({ job: null });
