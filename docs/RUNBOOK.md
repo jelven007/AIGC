@@ -1,5 +1,7 @@
 # 运维运行手册
 
+渲染增量发布见 [迭代16](ITERATION_16_RENDER_EFFECTS.md)：重建镜像包含render_effects.py，部署匹配production-jobs后再发布前端；迁移仍00032–00044。新增HSL/蒙版/转场逐像素效果关注CPU、内存、临时盘、排队/取消及超时，执行真实长工程/4K容量验收。旧Worker可能拒绝或忽略新参数，切换须统一版本，保存任务/镜像与错误证据后回滚匹配服务。
+
 情报运行见 [迭代15](ITERATION_15_MARKET_INTELLIGENCE.md)：00032–00044、market-intelligence与匹配Worker，probe v6。常驻run包含每日计划入队、轮转采集及30天快照/终态来源副本清理；监控任务积压、原流水退款、停止计划的last_error、供应商配额与清理结果。配置改变暂停旧计划，新授权须用户重新确认。云端未升级前不得发布新版前端或宣称24小时监控已启用。
 
 知识运行新增见 [迭代14](ITERATION_14_KNOWLEDGE_RETRIEVAL.md)：00043、knowledge-base、匹配production/text/AI函数、probe v5和常驻production调度一起发布。监控knowledge_index/search的ready/accepted/unknown与4任务配额，checkpoint后可恢复数据库结案；executing超时禁止重发。确认未受理后沿reconcile_production_job空证据释放，向量人工导入未支持。备份knowledge_entries/chunks、任务和全部历史加密版本/主密钥，恢复后校验摘要与版本；新Embedding版本需重新建索引。200条/24块精确扫描扩大前先压测。

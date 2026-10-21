@@ -1,5 +1,7 @@
 # Shopro AI 技术架构
 
+新增 [渲染效果迭代16](ITERATION_16_RENDER_EFFECTS.md)：效果目录共用于前端与API，Worker固定RGB/alpha公式与参数二次校验；时间排序的主轨转场保留工程长度，蒙版混合保留定位与透明度。仍复用production_jobs/专用签名/租约，不新建执行旁路；版本1新增可选参数需匹配API与重建镜像同步发布。HSL逐像素成本需真实4K压测。
+
 00044 [市场情报](ITERATION_15_MARKET_INTELLIGENCE.md)复用业务API/生产队列/积分事务，新增20槽中的三个版本数据源、官方YouTube/eBay适配和授权网关校验。两页共用来源与计划组件，预算由数据库锁/独立回执约束，checkpoint避免重复采集，30天清理所有来源副本。最新探针v6、发布00032–00044；仍需真实供应商/平台权限与云端验收，以下较早版本范围为历史。
 
 00043 [知识检索](ITERATION_14_KNOWLEDGE_RETRIEVAL.md)沿现有统一API/生产队列新增knowledge_index/search，独立Embedding配置与不可变版本、原账户积分、checkpoint、私有knowledge_chunks及余弦检索。正文SHA-256失效、用户与版本隔离、服务端验证引用；配置槽由数据库目录统一校验，减少复制名单。当前200条/24块有界精确扫描，pgvector/大规模吞吐另需容量评估；不是模型训练。探针v5，待部署范围00032–00043。

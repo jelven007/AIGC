@@ -63,10 +63,10 @@ def main():
         try:
             # 两种本地任务轮转，分析预处理不被渲染队列饿死。
             prepare_first = int(time.time()) % 2 == 0
-            reply = api({"action": "claim", **({"kind": "analysis_prepare"} if prepare_first else {})})
+            reply = api({"action": "claim", "render_version": 2, **({"kind": "analysis_prepare"} if prepare_first else {})})
             job = reply.get("job")
             if not job:
-                reply = api({"action": "claim", **({} if prepare_first else {"kind": "analysis_prepare"})})
+                reply = api({"action": "claim", "render_version": 2, **({} if prepare_first else {"kind": "analysis_prepare"})})
                 job = reply.get("job")
             if not job:
                 stop.wait(10)

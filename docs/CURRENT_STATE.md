@@ -1,5 +1,7 @@
 # 当前版本与运行状态
 
+最新源码见 [迭代16真实剪辑效果](ITERATION_16_RENDER_EFFECTS.md)：十二转场、八种混合、色键参数/API与Worker双校验，保存恢复与短工程时长，编辑器演示清理。12项实际FFmpeg、2组协议及桌面/390px页面通过；未部署，需匹配production-jobs和重建Worker镜像，迁移范围仍00032–00044。人物语义分割、自动编排及运营/多账号/MCP等剩余功能继续开发。
+
 当前源码增量00044，[市场情报](ITERATION_15_MARKET_INTELLIGENCE.md)新增官方YouTube/eBay协议、授权网关、20槽、每日确认预算、来源入库、刷新恢复和30天清理。已完成本地PG/协议/移动端验证；下一发布00032–00044与market-intelligence/匹配API及Worker，探针v6。云端记录仍是最近核验的00031旧基线；下文各轮“最新”指各自记录时点。
 
 最新源码00043与 [知识检索](ITERATION_14_KNOWLEDGE_RETRIEVAL.md)新增真实单一存储、17槽Embedding、索引/查询队列和固定正文/版本、引用到实际脚本入口。已实现有界精确余弦检索，不是自动训练或大规模向量性能验收。下一发布范围00032–00043、knowledge-base与匹配文本/API/Worker，探针v5；云端00031事实未改变。

@@ -1,4 +1,5 @@
 // 剪辑工程协议 v1：参数由业务 API 校验，FFmpeg Worker 二次校验。
+import { RENDER_TRANSITIONS, RENDER_BLENDS } from './render-effects.ts';
 export function validateRender(raw: Record<string, any>) {
   const number = (value: unknown, min: number, max: number, label: string) => {
     if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) throw new Error(`${label}超出允许范围`);
@@ -8,10 +9,11 @@ export function validateRender(raw: Record<string, any>) {
   if (![24, 25, 30, 60].includes(raw.fps) || ![720, 1080, 2160].includes(raw.height)
     || !['16:9', '9:16', '1:1', '4:3', '3:4', '4:5'].includes(raw.ratio)) throw new Error('输出规格不支持');
   if (typeof raw.title !== 'string' || !raw.title.trim() || raw.title.length > 80) throw new Error('标题应为1–80字');
-  if (raw.transition && !['none', 't1', 't2'].includes(raw.transition)) throw new Error('此转场尚未接入成片渲染');
+  if (raw.transition !== undefined && raw.transition !== 'none' && !RENDER_TRANSITIONS.some(effect => effect.id === raw.transition)) throw new Error('转场不支持');
+  if (raw.transitionDuration !== undefined) number(raw.transitionDuration, .02, 2, '转场时长');
   const ids = new Set();
   for (const item of raw.tracks) {
-    if (!item || !['video', 'image', 'audio', 'text'].includes(item.type) || typeof item.id !== 'string' || ids.has(item.id)) throw new Error('轨道类型或标识不正确');
+    if (!item || !['video', 'image', 'audio', 'text'].includes(item.type) || typeof item.id !== 'string' || !item.id || item.id.length > 200 || ids.has(item.id)) throw new Error('轨道类型或标识不正确');
     ids.add(item.id);
     number(item.start, 0, raw.duration, '轨道开始时间');
     number(item.duration, 0.02, raw.duration, '轨道时长');
@@ -24,10 +26,20 @@ export function validateRender(raw: Record<string, any>) {
       ['fadeIn', 0, 600], ['fadeOut', 0, 600], ['brightness', 0, 200], ['contrast', 0, 200],
       ['saturation', 0, 200], ['filterIntensity', 0, 100], ['fontSize', 8, 300], ['strokeWidth', 0, 20], ['pan', -100, 100], ['pitch', -12, 12],
     ] as const) if (item[key] !== undefined) number(item[key], min, max, key);
+    if ((item.fadeIn ?? 0) > item.duration || (item.fadeOut ?? 0) > item.duration) throw new Error('淡变时间不可超过轨道时长');
+    if (item.layer !== undefined) number(item.layer, 0, 1000, '图层');
+    if (item.blendMode !== undefined && !RENDER_BLENDS.some(mode => mode.id === item.blendMode)
+      || item.blendMode && item.blendMode !== 'normal' && !['image', 'video'].includes(item.type)) throw new Error('混合模式不支持此轨道');
+    if (item.chromaKey !== undefined) {
+      const key = item.chromaKey;
+      if (!['image', 'video'].includes(item.type) || !key || typeof key !== 'object'
+        || typeof key.color !== 'string' || !/^#?[0-9a-f]{6}$/i.test(key.color)) throw new Error('色键颜色应为六位RGB颜色');
+      number(key.similarity, .01, 1, '色键容差'); number(key.smoothness, 0, 1, '色键平滑');
+    }
     if (item.keyframes && (!Array.isArray(item.keyframes) || item.keyframes.length > 100)) throw new Error('关键帧数量不支持');
     const ranges: Record<string, [number, number]> = { x: [-100, 200], y: [-100, 200], scale: [1, 400], opacity: [0, 100], rotation: [-360, 360], volume: [0, 200] };
     for (const frame of item.keyframes || []) {
-      if (!['x', 'y', 'scale', 'opacity', 'rotation', 'volume'].includes(frame.property)) throw new Error('关键帧属性不支持');
+      if (!frame || !['x', 'y', 'scale', 'opacity', 'rotation', 'volume'].includes(frame.property)) throw new Error('关键帧属性不支持');
       if (item.type === 'text' && !['x', 'y', 'opacity'].includes(frame.property)
         || item.type === 'audio' && frame.property !== 'volume'
         || item.type === 'image' && frame.property === 'volume') throw new Error('此轨道不支持所选关键帧属性');
@@ -36,5 +48,9 @@ export function validateRender(raw: Record<string, any>) {
     if (item.animation) throw new Error('请使用已接入的字幕入场/出场动画');
     if (item.entrance && !['ta1', 'ta2'].includes(item.entrance) || item.exit && !['ta5', 'ta6'].includes(item.exit)) throw new Error('字幕动画未接入成片渲染');
   }
+  const main = raw.tracks.filter(item => ['video', 'image'].includes(item.type) && (item.trackId ?? 'video') === 'video')
+    .sort((a, b) => a.start - b.start);
+  if (raw.transition && raw.transition !== 'none' && main.some((item, index) => index > 0
+    && main[index - 1].start + main[index - 1].duration > item.start + .001)) throw new Error('转场主轨不可重叠，请将叠加素材放入画中画轨');
   return raw;
 }

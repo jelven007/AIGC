@@ -34,6 +34,7 @@ import { audioRecorder } from '@/lib/audioRecorder';
 import { sendStepAudioASR } from '@/lib/sse';
 import { cn } from '@/lib/utils';
 import { extractVideoFirstFrame, extractVideoMeta, getVideoCoverImage } from '@/lib/videoFrame';
+import { RENDER_TRANSITIONS, RENDER_BLENDS, DEFAULT_CHROMA, type ChromaSettings } from '../../supabase/functions/_shared/render-effects';
 
 
 // ── 类型定义 ──────────────────────────────────────────────────────────────
@@ -192,20 +193,7 @@ type PanelId =
 // ── 常量数据 ─────────────────────────────────────────────────────────────
 
 // 转场效果数据
-const TRANSITIONS = [
-  { id: 't1', name: '淡入淡出', category: '基础', color: 'from-zinc-700 to-zinc-600', cover: 'https://images.unsplash.com/photo-1617802690992-15d93263d3a9?w=200&h=150&fit=crop&auto=format' },
-  { id: 't2', name: '叠化溶解', category: '基础', color: 'from-zinc-700 to-zinc-600', cover: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=200&h=150&fit=crop&auto=format' },
-  { id: 't3', name: '推入', category: '基础', color: 'from-zinc-700 to-zinc-600', cover: 'https://images.unsplash.com/photo-1547082299-de196ea013d6?w=200&h=150&fit=crop&auto=format' },
-  { id: 't4', name: '拉出', category: '基础', color: 'from-zinc-700 to-zinc-600', cover: 'https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?w=200&h=150&fit=crop&auto=format' },
-  { id: 't5', name: '闪白', category: '炫酷', color: 'from-yellow-900 to-yellow-700', cover: 'https://images.unsplash.com/photo-1534294668821-28a3054f4256?w=200&h=150&fit=crop&auto=format' },
-  { id: 't6', name: '光晕爆炸', category: '炫酷', color: 'from-orange-900 to-orange-700', cover: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=200&h=150&fit=crop&auto=format' },
-  { id: 't7', name: '故障切换', category: '炫酷', color: 'from-purple-900 to-purple-700', cover: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=200&h=150&fit=crop&auto=format' },
-  { id: 't8', name: '立体翻转', category: '炫酷', color: 'from-blue-900 to-blue-700', cover: 'https://images.unsplash.com/photo-1586374579358-9d19d632b6df?w=200&h=150&fit=crop&auto=format' },
-  { id: 't9', name: '鼓点切', category: '节奏', color: 'from-emerald-900 to-emerald-700', cover: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=200&h=150&fit=crop&auto=format' },
-  { id: 't10', name: '卡点闪动', category: '节奏', color: 'from-emerald-900 to-emerald-700', cover: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=200&h=150&fit=crop&auto=format' },
-  { id: 't11', name: '波形跳动', category: '节奏', color: 'from-teal-900 to-teal-700', cover: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=200&h=150&fit=crop&auto=format' },
-  { id: 't12', name: '旋转卡点', category: '节奏', color: 'from-cyan-900 to-cyan-700', cover: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=200&h=150&fit=crop&auto=format' },
-];
+const TRANSITIONS = RENDER_TRANSITIONS;
 
 // 滤镜数据
 const FILTERS = [
@@ -262,7 +250,7 @@ const TEXT_ANIMATIONS = [
 ];
 
 // 混合模式
-const BLEND_MODES = ['正常', '正片叠底', '滤色', '叠加', '柔光', '差值', '色相', '饱和度'];
+const BLEND_MODES = RENDER_BLENDS.map(mode => mode.name);
 
 // 音频效果器
 const AUDIO_EFFECTS = [
@@ -280,12 +268,12 @@ const KF_CURVES = ['线性', '缓入', '缓出', '缓入缓出', '弹性', '自�
 
 // AI 工具入口
 const AI_TOOLS = [
-  { id: 'ai1', name: '智能抠像', desc: '一键去除背景', icon: Scan, color: 'text-purple-400', badge: 'AI' },
-  { id: 'ai2', name: '美颜美体', desc: '自动磨皮瘦脸', icon: Smile, color: 'text-pink-400', badge: 'AI' },
-  { id: 'ai3', name: '自动卡点', desc: '音乐节拍对齐', icon: Zap, color: 'text-yellow-400', badge: 'AI' },
-  { id: 'ai4', name: '语音转字幕', desc: '自动识别生成', icon: Captions, color: 'text-blue-400', badge: 'AI' },
-  { id: 'ai5', name: '创作脚本', desc: '分镜规划模板', icon: BookOpen, color: 'text-emerald-400', badge: '模板' },
-  { id: 'ai6', name: '分镜规划', desc: '导入视频脚本', icon: Grid3x3, color: 'text-indigo-400', badge: '模板' },
+  { id: 'ai1', name: '色键去背景', desc: '绿幕或纯色背景，可调容差', icon: Scan, color: 'text-purple-400', badge: '调色' },
+  { id: 'ai2', name: '画面提亮', desc: '亮度、对比度与饱和度调整', icon: Smile, color: 'text-pink-400', badge: '调色' },
+  { id: 'ai3', name: '三秒切分', desc: '将首个主视频在3秒处分段', icon: Zap, color: 'text-yellow-400', badge: '剪辑' },
+  { id: 'ai4', name: '语音工作台', desc: '提交后台识别任务，查看真实分段', icon: Captions, color: 'text-blue-400', badge: '语音' },
+  { id: 'ai5', name: '创作脚本', desc: '打开脚本工作台生成文案', icon: BookOpen, color: 'text-emerald-400', badge: '脚本' },
+  { id: 'ai6', name: '分镜规划', desc: '打开脚本工作台生成结构化分镜', icon: Grid3x3, color: 'text-indigo-400', badge: '脚本' },
 ];
 
 // ── 子组件：悬停预览卡片 ──────────────────────────────────────────────────
@@ -641,8 +629,8 @@ function EffectsPanel({
   setAppliedFilter: (f: string | null) => void;
   filterIntensity: Record<string, number>;
   setFilterIntensity: React.Dispatch<React.SetStateAction<Record<string, number>>>;
-  appliedTrans: string | null;
-  setAppliedTrans: (t: string | null) => void;
+  appliedTrans: string;
+  setAppliedTrans: (t: string) => void;
   tracks: TrackItem[];
   setTracks: React.Dispatch<React.SetStateAction<TrackItem[]>>;
   currentTime: number;
@@ -653,7 +641,7 @@ function EffectsPanel({
   const [moodFilter, setMoodFilter] = useState('全部');
   const [audioSearch, setAudioSearch] = useState('');
 
-  const transCategories = ['全部', '基础', '炫酷', '节奏'];
+  const transCategories = ['全部', '基础', '创意'];
   const filteredTrans = transCategory === '全部' ? TRANSITIONS : TRANSITIONS.filter(t => t.category === transCategory);
   const filteredAudio = AUDIO_TRACKS.filter(a => {
     const matchMood = moodFilter === '全部' || a.mood === moodFilter || a.genre === moodFilter;
@@ -663,11 +651,11 @@ function EffectsPanel({
 
   const applyTransition = (id: string, name: string) => {
     if (appliedTrans === id) {
-      setAppliedTrans(null);
+      setAppliedTrans('无');
       toast.info(`已移除转场：${name}`);
     } else {
       setAppliedTrans(id);
-      toast.success(`已应用转场「${name}」！`, { description: '片段交接处已启用该转场过渡效果' });
+      toast.success(`已选择转场「${name}」`, { description: '成片在主轨相邻片段交接处应用，浏览器显示原片段预览' });
     }
   };
 
@@ -762,21 +750,23 @@ function EffectsPanel({
                 </button>
               ))}
             </div>
-            {appliedTrans && (
+            {appliedTrans !== '无' && (
               <div className="mx-3 mb-2 px-2.5 py-1.5 bg-indigo-600/10 border border-indigo-600/30 rounded flex items-center justify-between">
                 <span className="text-[11px] text-indigo-300 flex items-center gap-1.5">
                   <Check className="w-3.5 h-3.5 text-indigo-400" />
                   已应用转场：<strong className="text-white">{TRANSITIONS.find(t => t.id === appliedTrans)?.name}</strong>
                 </span>
-                <button className="text-[10px] text-zinc-400 hover:text-red-300 underline" onClick={() => { setAppliedTrans(null); toast.info('已移除转场'); }}>移除</button>
+                <button className="text-[10px] text-zinc-400 hover:text-red-300 underline" onClick={() => { setAppliedTrans('无'); toast.info('已移除转场'); }}>移除</button>
               </div>
             )}
             <div className="px-3 grid grid-cols-2 gap-2">
               {filteredTrans.map(t => (
-                <EffectCard key={t.id} name={t.name} gradient={t.color} cover={t.cover} applied={appliedTrans === t.id} onClick={() => applyTransition(t.id, t.name)} />
+                <button key={t.id} type="button" aria-pressed={appliedTrans === t.id}
+                  className={`rounded border p-3 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-400 ${appliedTrans === t.id ? 'border-indigo-500 bg-indigo-600/20 text-white' : 'border-zinc-700 text-zinc-300 hover:border-zinc-500'}`}
+                  onClick={() => applyTransition(t.id, t.name)}>{t.name}</button>
               ))}
             </div>
-            <p className="text-[10px] text-zinc-500 text-center py-3">点击效果立即应用 · 画面转场实时生效</p>
+            <p className="text-xs text-zinc-400 px-3 py-3">相邻片段默认过渡0.5秒，短片段自动缩短。创意转场保留前片尾帧；可在导出成片检查效果。</p>
           </div>
         )}
 
@@ -1052,13 +1042,8 @@ function TextSubtitlePanel({
           },
           onComplete: () => {
             setRecognizing(false);
-            const recognizedPhrases = transcript.trim()
-              ? transcript.split(/[，。！？\s]+/).filter(Boolean)
-              : [
-                '欢迎来到直播间，今天带来这款重磅爆款好物！',
-                '不仅设计质感满分，用料做工更是出类拔萃。',
-                '点击下方购物车，抢先享受专属补贴福利！'
-              ];
+            const recognizedPhrases = transcript.split(/[，。！？\s]+/).filter(Boolean);
+            if (!recognizedPhrases.length) { toast.error('识别结果为空，请重新录音或输入字幕'); return; }
             const newItems: TrackItem[] = recognizedPhrases.map((phrase, idx) => ({
               id: `text-asr-${Date.now()}-${idx}`,
               trackId: 'text',
@@ -1074,44 +1059,13 @@ function TextSubtitlePanel({
           onError: (err) => {
             setRecognizing(false);
             console.error('ASR error:', err);
-            // Fallback sample subtitles so the workflow always works
-            const samplePhrases = [
-              '大家好，今天推荐这款高性价比爆款热销好物！',
-              '采用全新科技面料，轻盈舒适透气性极佳。',
-              '限时超值福利抢购中，数量有限先到先得！'
-            ];
-            const newItems: TrackItem[] = samplePhrases.map((p, idx) => ({
-              id: `text-demo-${Date.now()}-${idx}`,
-              trackId: 'text',
-              name: p,
-              start: Number((idx * 3.5).toFixed(1)),
-              duration: 3.2,
-              type: 'text',
-              fontStyle: selectedFont || 'fs6',
-            }));
-            setTracks(prev => [...prev, ...newItems].sort((a, b) => a.start - b.start));
-            toast.success('已自动生成 3 条带货标准字幕片段并铺设到时间轴！');
+            toast.error(err.message || '语音识别失败，请到语音工作台核对原任务');
           }
         });
       } catch (err) {
         setRecognizing(false);
         console.error('Failed to stop recording:', err);
-        const samplePhrases = [
-          '大家好，今天推荐这款高性价比爆款热销好物！',
-          '采用全新科技面料，轻盈舒适透气性极佳。',
-          '限时超值福利抢购中，数量有限先到先得！'
-        ];
-        const newItems: TrackItem[] = samplePhrases.map((p, idx) => ({
-          id: `text-demo-${Date.now()}-${idx}`,
-          trackId: 'text',
-          name: p,
-          start: Number((idx * 3.5).toFixed(1)),
-          duration: 3.2,
-          type: 'text',
-          fontStyle: selectedFont || 'fs6',
-        }));
-        setTracks(prev => [...prev, ...newItems].sort((a, b) => a.start - b.start));
-        toast.success('已通过智能带货话术模板为时间轴生成 3 条字幕！');
+        toast.error(err instanceof Error ? err.message : '录音或识别失败，请重试');
       }
     } else {
       try {
@@ -2147,25 +2101,26 @@ function KeyframePanel({
 }
 
 // ── AI工具操作抽屉 ────────────────────────────────────────────────────────
-function AiToolDialog({ tool, open, onClose, onApply }: {
+function AiToolDialog({ tool, open, onClose, onApply, currentChroma }: {
   tool: typeof AI_TOOLS[0] | null;
   open: boolean;
   onClose: () => void;
-  onApply: (toolId: string) => void;
+  onApply: (toolId: string, chroma?: ChromaSettings) => void;
+  currentChroma: ChromaSettings;
 }) {
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(false);
+  const [chroma, setChroma] = useState<ChromaSettings>({ ...DEFAULT_CHROMA });
 
   useEffect(() => { if (!open) { setRunning(false); setDone(false); } }, [open]);
+  useEffect(() => { if (open) setChroma({ ...currentChroma }); }, [open, currentChroma]);
 
   const handleRun = async () => {
     if (!tool) return;
     setRunning(true);
     setDone(false);
-    await new Promise(r => setTimeout(r, 1200));
-    setRunning(false);
-    setDone(true);
-    onApply(tool.id);
+    try { onApply(tool.id, tool.id === 'ai1' ? chroma : undefined); setDone(true); }
+    finally { setRunning(false); }
   };
 
   if (!tool) return null;
@@ -2189,81 +2144,39 @@ function AiToolDialog({ tool, open, onClose, onApply }: {
           {/* AI工具参数区 */}
           {tool.id === 'ai1' && (
             <div className="space-y-2">
-              <p className="text-[12px] text-zinc-300">对视频中的人物进行智能抠像，自动分离背景与前景人物轮廓。</p>
-              <div className="flex items-center justify-between px-3 py-2 bg-zinc-800 rounded border border-zinc-700">
-                <span className="text-[11px] text-zinc-400">检测精度</span>
-                <select className="bg-zinc-700 text-zinc-200 text-[11px] rounded px-2 py-0.5 border-0">
-                  <option>高精度发丝级（推荐）</option><option>标准平衡模式</option><option>极速模式</option>
-                </select>
-              </div>
-              <div className="flex items-center justify-between px-3 py-2 bg-zinc-800 rounded border border-zinc-700">
-                <span className="text-[11px] text-zinc-400">边缘羽化度</span>
-                <span className="text-[11px] text-indigo-300 font-mono">6px</span>
-              </div>
+              <p className="text-xs text-zinc-300">移除主视频中接近指定颜色的像素，适用于绿幕、蓝幕或纯色背景。主体含同色时也会被移除；请在成片中检查边缘效果。</p>
+              <label className="flex items-center justify-between gap-3 text-xs text-zinc-300">
+                背景颜色<input type="color" aria-label="色键背景颜色" value={chroma.color}
+                  onChange={e => setChroma(p => ({ ...p, color: e.target.value }))} />
+              </label>
+              {([{ key: 'similarity', label: '颜色容差', min: .01 }, { key: 'smoothness', label: '边缘平滑', min: 0 }] as const).map(({ key, label, min }) => (
+                <label key={key} className="flex items-center justify-between gap-3 text-xs text-zinc-300">
+                  {label}<input type="number" aria-label={label} min={min} max={1} step={.01}
+                    className="w-20 rounded border border-zinc-600 bg-zinc-800 px-2 py-1" value={chroma[key]}
+                    onChange={e => { const value = Number(e.target.value); if (Number.isFinite(value) && value >= min && value <= 1) setChroma(p => ({ ...p, [key]: value })); }} />
+                </label>
+              ))}
+              <Button variant="ghost" size="sm" onClick={() => { onApply('ai1'); onClose(); }}>关闭色键去背景</Button>
             </div>
           )}
           {tool.id === 'ai2' && (
             <div className="space-y-2">
-              <p className="text-[12px] text-zinc-300">AI 智能人像美颜、肤质磨皮与面部轮廓提亮。</p>
-              {['磨皮平滑', '肤色提亮', '人脸立体感'].map(label => (
-                <div key={label} className="flex items-center gap-3 px-3 py-2 bg-zinc-800 rounded border border-zinc-700">
-                  <span className="text-[11px] text-zinc-400 w-20 shrink-0">{label}</span>
-                  <Slider defaultValue={[70]} max={100} className="flex-1 [&_[role=slider]]:h-2.5 [&_[role=slider]]:w-2.5" />
-                </div>
-              ))}
+              <p className="text-xs text-zinc-300">切换画面提亮预设：亮度106%、对比度103%、饱和度108%。调整会写入成片；精细调整请选中轨道修改参数。</p>
             </div>
           )}
           {tool.id === 'ai3' && (
             <div className="space-y-2">
-              <p className="text-[12px] text-zinc-300">智能识别音频鼓点节拍，自动将主视频分割并对齐到强弱节拍点。</p>
-              <div className="flex items-center gap-2 px-3 py-2 bg-zinc-800 rounded border border-zinc-700">
-                <span className="text-[11px] text-zinc-400">参考音轨</span>
-                <span className="text-[11px] text-emerald-400 ml-auto font-mono">BGM · 动态节奏音轨</span>
-              </div>
-              <div className="flex items-center justify-between px-3 py-2 bg-zinc-800 rounded border border-zinc-700">
-                <span className="text-[11px] text-zinc-400">卡点灵敏度</span>
-                <select className="bg-zinc-700 text-zinc-200 text-[11px] rounded px-2 py-0.5 border-0">
-                  <option>强节拍（3秒节奏卡点）</option><option>密集卡点（1.5秒快切）</option>
-                </select>
-              </div>
+              <p className="text-xs text-zinc-300">将首个时长超过3秒的主视频切成两段，保留源起点与速度。选中时间轴片段可使用播放头精确切分。</p>
             </div>
           )}
           {tool.id === 'ai4' && (
             <div className="space-y-2">
-              <p className="text-[12px] text-zinc-300">识别视频或音频中的语音内容，毫秒级自动生成双语字幕轨。</p>
-              <div className="flex items-center justify-between px-3 py-2 bg-zinc-800 rounded border border-zinc-700">
-                <span className="text-[11px] text-zinc-400">源语言</span>
-                <select className="bg-zinc-700 text-zinc-200 text-[11px] rounded px-2 py-0.5 border-0">
-                  <option>中文（普通话+英文混合）</option><option>纯英语</option><option>粤语</option>
-                </select>
-              </div>
-              <div className="flex items-center justify-between px-3 py-2 bg-zinc-800 rounded border border-zinc-700">
-                <span className="text-[11px] text-zinc-400">排版样式</span>
-                <select className="bg-zinc-700 text-zinc-200 text-[11px] rounded px-2 py-0.5 border-0">
-                  <option>电商白字醒目投影（推荐）</option><option>黑底半透高级框</option><option>综艺醒目描边</option>
-                </select>
-              </div>
+              <p className="text-xs text-zinc-300">打开语音工作台，上传自己的音频并确认价格后提交后台ASR任务。可下载真实识别正文与供应商分段。</p>
             </div>
           )}
           {(tool.id === 'ai5' || tool.id === 'ai6') && (
             <div className="space-y-2">
-              <p className="text-[12px] text-zinc-300">{tool.id === 'ai5' ? '选择黄金带货脚本模板，快速为时间轴生成四段式分镜。' : '导入已有文案脚本，自动规划并拆分视频分镜。'}</p>
-              {tool.id === 'ai5' ? (
-                <div className="grid grid-cols-2 gap-2">
-                  {['带货开场抓人', '产品特写展示', '核心痛点解决', '限时促单结尾'].map(t => (
-                    <button key={t} className="py-2 bg-zinc-800 border border-zinc-700 rounded text-[11px] text-zinc-300 hover:border-indigo-500/60 hover:text-indigo-300 transition-colors"
-                      onClick={() => toast.success(`已设定模板分镜：${t}`)}>
-                      {t}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="border-2 border-dashed border-zinc-700 rounded p-4 text-center space-y-1">
-                  <Upload className="w-6 h-6 text-zinc-500 mx-auto" />
-                  <p className="text-[11px] text-zinc-500">拖拽 .txt / .docx 脚本文件</p>
-                  <button className="text-[11px] text-indigo-400 hover:text-indigo-300" onClick={() => toast.info('已载入默认带货分镜脚本示例')}>使用默认带货分镜脚本</button>
-                </div>
-              )}
+              <p className="text-xs text-zinc-300">打开脚本工作台，以商品事实和授权知识生成文案或结构化分镜，再选择自己的素材进行剪辑。</p>
             </div>
           )}
 
@@ -2277,7 +2190,7 @@ function AiToolDialog({ tool, open, onClose, onApply }: {
           {done && (
             <div className="flex items-center gap-2 px-3 py-2 bg-emerald-600/10 border border-emerald-600/30 rounded">
               <BadgeCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span className="text-[12px] text-emerald-300">处理完成，已实时同步至时间轴与预览区！</span>
+              <span className="text-[12px] text-emerald-300">设置已更新，导出后可检查实际成片。</span>
             </div>
           )}
         </div>
@@ -2294,13 +2207,14 @@ function AiToolDialog({ tool, open, onClose, onApply }: {
 
 // ── 面板7：AI工具入口 ────────────────────────────────────────────────────
 interface AiToolsPanelProps {
-  onApplyAiTool: (toolId: string) => void;
+  onApplyAiTool: (toolId: string, chroma?: ChromaSettings) => void;
+  chromaSettings: ChromaSettings;
   tracks: TrackItem[];
   setTracks: React.Dispatch<React.SetStateAction<TrackItem[]>>;
   currentTime: number;
 }
 
-function AiToolsPanel({ onApplyAiTool, tracks, setTracks, currentTime }: AiToolsPanelProps) {
+function AiToolsPanel({ onApplyAiTool, tracks, setTracks, currentTime, chromaSettings }: AiToolsPanelProps) {
   const [selectedTool, setSelectedTool] = useState<typeof AI_TOOLS[0] | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -2310,48 +2224,18 @@ function AiToolsPanel({ onApplyAiTool, tracks, setTracks, currentTime }: AiTools
   };
 
   const handleImportStoryboard = (name: string) => {
-    const startTime = currentTime;
-    const storyboardClips: TrackItem[] = [
-      {
-        id: `sb1-${Date.now()}`,
-        trackId: 'video',
-        name: `【分镜1】${name}-开场抓人`,
-        start: startTime,
-        duration: 3,
-        type: 'video',
-        url: '/Video/CreatOK_2.mp4',
-      },
-      {
-        id: `sb2-${Date.now() + 1}`,
-        trackId: 'video',
-        name: `【分镜2】${name}-商品展示`,
-        start: startTime + 3,
-        duration: 4,
-        type: 'video',
-        url: '/Video/CreatOK_5.mp4',
-      },
-      {
-        id: `sb3-${Date.now() + 2}`,
-        trackId: 'video',
-        name: `【分镜3】${name}-促单转化`,
-        start: startTime + 7,
-        duration: 3,
-        type: 'video',
-        url: '/Video/CreatOK_11.mp4',
-      },
-    ];
-    setTracks(prev => [...prev, ...storyboardClips]);
-    toast.success(`已将「${name}」三段式分镜模板注入时间轴（起始位置: ${startTime.toFixed(1)}s）`);
+    onApplyAiTool('ai5');
   };
 
   return (
     <div className="flex flex-col h-full">
       <AiToolDialog
+        currentChroma={chromaSettings}
         tool={selectedTool}
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
-        onApply={(toolId) => {
-          onApplyAiTool(toolId);
+        onApply={(toolId, chroma) => {
+          onApplyAiTool(toolId, chroma);
         }}
       />
       <ScrollArea className="flex-1">
@@ -2360,6 +2244,7 @@ function AiToolsPanel({ onApplyAiTool, tracks, setTracks, currentTime }: AiTools
             {AI_TOOLS.map(tool => (
               <button
                 key={tool.id}
+                aria-label={tool.name}
                 className="w-full flex items-center gap-3 p-3 bg-zinc-800/60 border border-zinc-700 rounded hover:border-zinc-500 hover:bg-zinc-800 transition-all group text-left"
                 onClick={() => openTool(tool)}
               >
@@ -2759,6 +2644,7 @@ const PANEL_ITEMS: { id: PanelId; icon: React.ElementType; label: string; shortL
 ];
 
 interface LeftSidebarProps {
+  chromaSettings: ChromaSettings;
   materials: { id: string; name: string; url: string; type: string }[];
   onAdd: (m: { id: string; name: string; url: string; type: string }) => void;
   importedVideos: { id: string; title: string; video_url: string; thumbnail_url: string | null }[];
@@ -2792,7 +2678,7 @@ interface LeftSidebarProps {
   opacity: number[];
   setOpacity: (v: number[]) => void;
   // Panel 7 AI & Panel 8 Shop
-  onApplyAiTool: (toolId: string) => void;
+  onApplyAiTool: (toolId: string, chroma?: ChromaSettings) => void;
   onApplyShopProduct: (p: typeof SHOP_PRODUCTS[0]) => void;
   // Shared
   tracks: TrackItem[];
@@ -2833,6 +2719,7 @@ function LeftSidebar({
   tracks,
   setTracks,
   currentTime,
+  chromaSettings,
 }: LeftSidebarProps) {
   const [activePanel, setActivePanel] = useState<PanelId>('media');
   const [collapsed, setCollapsed] = useState(false);
@@ -2856,6 +2743,7 @@ function LeftSidebar({
           <button
             key={item.id}
             title={`${item.label} (${item.shortcut})`}
+            aria-label={`${item.label} (${item.shortcut})`}
             className={`relative mx-1 w-12 h-12 rounded flex flex-col items-center justify-center gap-0.5 transition-all group ${activePanel === item.id && !collapsed
               ? 'bg-indigo-600/20 text-indigo-400 ring-1 ring-inset ring-indigo-600/40'
               : 'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300'
@@ -2968,6 +2856,7 @@ function LeftSidebar({
             )}
             {activePanel === 'ai' && (
               <AiToolsPanel
+                chromaSettings={chromaSettings}
                 onApplyAiTool={onApplyAiTool}
                 tracks={tracks}
                 setTracks={setTracks}
@@ -2990,44 +2879,10 @@ function LeftSidebar({
 const globalVideoBlobCache = new Map<string, string>();
 
 // ── 主页面组件 ───────────────────────────────────────────────────────────
-const DEFAULT_TRACKS: TrackItem[] = [
-  {
-    id: 'v1',
-    trackId: 'video',
-    name: '咖啡拿铁拉花艺术过程',
-    start: 0,
-    duration: 6,
-    type: 'video',
-    url: '/Video/CreatOK_11.mp4'
-  },
-  {
-    id: 'a1',
-    trackId: 'audio',
-    name: 'BGM · 动感节奏',
-    start: 0,
-    duration: 27,
-    type: 'audio',
-    url: '/Video/CreatOK_2.mp4'
-  },
-  {
-    id: 't1',
-    trackId: 'text',
-    name: '全新解决方案来了',
-    start: 3,
-    duration: 9,
-    type: 'text'
-  }
-];
+const DEFAULT_TRACKS: TrackItem[] = [];
 
 // 清理历史草稿/存档中遗留的「光晕特效」片段，保证效果轨初始为空
-const stripLegacyGlowFx = (list: TrackItem[]) => list.filter(t => !(t.trackId === 'effects' && t.name === '光晕特效'));
-
-// 媒体库历史测试杂项素材（微信截图、超慢跑/减肥类短视频等），
-// 不再展示并同步从数据库删除，不影响用户后续新上传/导入的素材
-const LEGACY_JUNK_MATERIAL_PATTERNS: RegExp[] = [
-  /^微信图片_2026/, /^超慢跑的好处/, /减肥的意义/, /轻松的运动/, /^A?2?0\.png$/i, /^生成带货视频/,
-];
-const isLegacyJunkMaterial = (name: string) => LEGACY_JUNK_MATERIAL_PATTERNS.some(re => re.test(name));
+const stripLegacyGlowFx = (list: TrackItem[]) => list;
 
 export default function VideoEditPage() {
   const [searchParams] = useSearchParams();
@@ -3040,7 +2895,7 @@ export default function VideoEditPage() {
   const [duration, setDuration] = useState(30);
   const [zoom, setZoom] = useState(0);
   const [selectedTrackItem, setSelectedTrackItem] = useState<string | null>(() => {
-    return DEFAULT_TRACKS.find(t => t.type === 'video')?.id || 'v1';
+    return DEFAULT_TRACKS.find(t => t.type === 'video')?.id || null;
   });
   const [projectTitle, setProjectTitle] = useState('未命名项目');
   const [saving, setSaving] = useState(false);
@@ -3186,10 +3041,10 @@ export default function VideoEditPage() {
     return () => { isMounted = false; };
   }, [tracks, previewVideoUrl]);
 
-  // Ensure project duration is at least 30 seconds and fits all tracks
+  // 工程时长保持用户值，轨道增长时才扩展，短视频不强制补到30秒。
   useEffect(() => {
     const maxEndTime = tracks.reduce((max, item) => Math.max(max, item.start + item.duration), 0);
-    const minNeeded = Math.max(30, Math.ceil(maxEndTime));
+    const minNeeded = Math.max(.1, maxEndTime);
     if (duration < minNeeded) {
       setDuration(minNeeded);
     }
@@ -3416,64 +3271,44 @@ export default function VideoEditPage() {
   });
   const [aiBeautyEnabled, setAiBeautyEnabled] = useState(false);
   const [aiCutoutEnabled, setAiCutoutEnabled] = useState(false);
+  const [chromaSettings, setChromaSettings] = useState<ChromaSettings>({ ...DEFAULT_CHROMA });
 
   // AI 工具执行回调
-  const handleApplyAiTool = useCallback((toolId: string) => {
+  const handleApplyAiTool = useCallback((toolId: string, chroma?: ChromaSettings) => {
     if (toolId === 'ai1') {
-      setAiCutoutEnabled(prev => {
-        const next = !prev;
-        if (next) toast.success('智能人物抠像已生效，前景背景已分离！');
-        else toast.info('已关闭智能人物抠像');
-        return next;
-      });
+      if (chroma) {
+        setChromaSettings(chroma); setAiCutoutEnabled(true);
+        toast.success('色键去背景已启用，导出成片时执行');
+      } else { setAiCutoutEnabled(false); toast.info('已关闭色键去背景'); }
     } else if (toolId === 'ai2') {
       setAiBeautyEnabled(prev => {
         const next = !prev;
-        if (next) toast.success('AI 美颜磨皮与肤色优化已生效！');
-        else toast.info('已关闭 AI 美颜');
+        if (next) toast.success('已启用画面提亮');
+        else toast.info('已关闭画面提亮');
         return next;
       });
     } else if (toolId === 'ai3') {
       setTracks(prev => {
-        const vidClips = prev.filter(t => t.type === 'video');
+        const vidClips = prev.filter(t => t.type === 'video' && t.trackId === 'video' && t.duration > 3
+          && !t.keyframes?.length && !t.fadeIn && !t.fadeOut).sort((a, b) => a.start - b.start);
         if (vidClips.length === 0) return prev;
         const target = vidClips[0];
-        if (target.duration > 4) {
+        if (target.duration > 3) {
           const split1 = { ...target, duration: 3 };
-          const split2 = { ...target, id: `beat-split-${Date.now()}`, name: `${target.name} [卡点2]`, start: target.start + 3, duration: Number((target.duration - 3).toFixed(2)) };
+          const split2 = { ...target, id: `beat-split-${Date.now()}`, name: `${target.name} [分段2]`, start: target.start + 3,
+            sourceStart: (target.sourceStart || 0) + 3 * (target.speed || 1), duration: Number((target.duration - 3).toFixed(2)),
+            keyframes: undefined };
           return [...prev.filter(t => t.id !== target.id), split1, split2].sort((a, b) => a.start - b.start);
         }
         return prev;
       });
-      toast.success('音乐节拍识别完成！已自动将主视频片段对齐到强音节拍点');
+      toast.info('已对符合条件的主视频执行三秒切分；带关键帧或淡变的片段请用播放头切分');
     } else if (toolId === 'ai4') {
-      const sub1: TrackItem = {
-        id: `ai-sub-1-${Date.now()}`,
-        trackId: 'text',
-        name: '这款质感拉满的百搭单品，今天专场限时直降！',
-        start: currentTime,
-        duration: 3.5,
-        type: 'text',
-      };
-      const sub2: TrackItem = {
-        id: `ai-sub-2-${Date.now()}`,
-        trackId: 'text',
-        name: '高清微距展示，做工用料肉眼可见的细腻！',
-        start: currentTime + 3.6,
-        duration: 3.5,
-        type: 'text',
-      };
-      setTracks(prev => [...prev, sub1, sub2]);
-      toast.success('已自动识别语音并生成时间轴字幕轨');
+      navigate('/avatars');
     } else if (toolId === 'ai5' || toolId === 'ai6') {
-      const sbClips: TrackItem[] = [
-        { id: `sb-a-${Date.now()}`, trackId: 'video', name: '【AI脚本】3秒痛点开场', start: currentTime, duration: 3, type: 'video', url: '/Video/CreatOK_2.mp4' },
-        { id: `sb-b-${Date.now() + 1}`, trackId: 'video', name: '【AI脚本】商品细节微距特写', start: currentTime + 3, duration: 4, type: 'video', url: '/Video/CreatOK_5.mp4' },
-      ];
-      setTracks(prev => [...prev, ...sbClips]);
-      toast.success('AI 视频分镜规划完成，已将分镜镜头注入时间轴');
+      navigate('/script');
     }
-  }, [currentTime]);
+  }, [navigate]);
 
   // 资源商城商品应用
   const handleApplyShopProduct = useCallback((product: (typeof SHOP_PRODUCTS)[0]) => {
@@ -4035,81 +3870,9 @@ export default function VideoEditPage() {
     }
   }, [importId]);
 
-  async function seedTestUserVideos(userId: string) {
-    const testVideos = [
-      {
-        title: '时尚秋季外套女款展示',
-        video_url: '/Video/CreatOK_2.mp4',
-        thumbnail_url: null,
-        duration: 5,
-        video_style: '服装',
-      },
-      {
-        title: '智能手表旋转展示',
-        video_url: '/Video/CreatOK_5.mp4',
-        thumbnail_url: null,
-        duration: 10,
-        video_style: '数码',
-      },
-      {
-        title: '运动女鞋减震底测试',
-        video_url: '/Video/CreatOK_8.mp4',
-        thumbnail_url: null,
-        duration: 5,
-        video_style: '服装',
-      },
-      {
-        title: '咖啡拿铁拉花艺术过程',
-        video_url: '/Video/CreatOK_11.mp4',
-        thumbnail_url: null,
-        duration: 6,
-        video_style: '食品',
-      }
-    ];
-
-    for (const v of testVideos) {
-      const { data: existingProj } = await supabase
-        .from('video_projects')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('video_url', v.video_url)
-        .maybeSingle();
-
-      if (!existingProj) {
-        const { data: insertedProj } = await supabase
-          .from('video_projects')
-          .insert({
-            user_id: userId,
-            title: v.title,
-            video_url: v.video_url,
-            thumbnail_url: v.thumbnail_url,
-            duration: v.duration,
-            video_style: v.video_style,
-            status: 'completed',
-            progress: 100,
-          })
-          .select()
-          .single();
-
-        if (insertedProj) {
-          await supabase.from('materials').insert({
-            user_id: userId,
-            name: v.title,
-            url: v.video_url,
-            type: 'video',
-            size: 1024 * 1024 * 5,
-          });
-        }
-      }
-    }
-  }
-
   // 加载已生成完成的视频（供一键导入）
   const loadImportedVideos = useCallback(async () => {
     if (!user) return;
-    if (user.email === 'test_user@example.com') {
-      await seedTestUserVideos(user.id);
-    }
     const { data } = await supabase
       .from('video_projects')
       .select('id,title,video_url,thumbnail_url')
@@ -4117,27 +3880,18 @@ export default function VideoEditPage() {
       .eq('status', 'completed')
       .order('created_at', { ascending: false })
       .limit(20);
-    const mapped = (data ?? []).map(v => ({
+    const mapped = (data ?? []).filter(v => !!v.video_url).map(v => ({
       ...v,
-      video_url: v.video_url || 'https://www.w3schools.com/html/mov_bbb.mp4',
-      thumbnail_url: v.thumbnail_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=640&h=360&fit=crop'
+      video_url: v.video_url!, thumbnail_url: v.thumbnail_url,
     }));
     setImportedVideos(mapped);
   }, [user]);
 
   // 加载素材库（媒体库默认展示作品素材库中的 2 条视频，不再展示历史无关默认素材）
-  const DEFAULT_SAMPLE_MATERIALS = [
-    { id: 'mat-work-1', name: '咖啡拿铁拉花艺术过程', url: '/Video/CreatOK_11.mp4', type: 'video' },
-    { id: 'mat-work-2', name: '极简带货展示视频.mp4', url: '/Video/CreatOK_2.mp4', type: 'video' },
-  ];
-
   const loadMaterials = useCallback(async () => {
     if (!user) {
-      setMaterials(DEFAULT_SAMPLE_MATERIALS);
+      setMaterials([]);
       return;
-    }
-    if (user.email === 'test_user@example.com') {
-      await seedTestUserVideos(user.id);
     }
     const { data } = await supabase
       .from('materials')
@@ -4147,7 +3901,7 @@ export default function VideoEditPage() {
       .limit(30);
     const list = (data ?? []) as any[];
     // 历史分类仅影响当前面板，不在加载时删除用户资产。
-    const cleanList = list.filter(m => !isLegacyJunkMaterial(String(m.name ?? '')));
+    const cleanList = list;
     if (cleanList.length > 0) {
       setMaterials(cleanList);
       return;
@@ -4163,7 +3917,7 @@ export default function VideoEditPage() {
     const workMaterials = (works ?? [])
       .filter(w => w.video_url)
       .map(w => ({ id: `work-${w.id}`, name: w.title, url: w.video_url as string, type: 'video' }));
-    setMaterials(workMaterials.length > 0 ? workMaterials : DEFAULT_SAMPLE_MATERIALS);
+    setMaterials(workMaterials);
   }, [user]);
 
   // 智能提取封面：真实首帧优先，绝不使用占位网图
@@ -4202,14 +3956,14 @@ export default function VideoEditPage() {
     }
 
     const targetId = currentProjectIdRef.current || importId;
-    const finalDuration = Math.round(duration || 30);
+    const finalDuration = Math.ceil(duration);
     const validTitle = (options?.customTitle || projectTitle || '未命名剪辑项目').trim();
     const finalStatus = options?.customStatus || 'draft';
     const finalVideoUrl = options?.customVideoUrl ?? previewVideoUrl ?? null;
     const finalCover = options?.customThumbnailUrl ?? (await resolveProjectThumbnail(tracks, finalVideoUrl));
 
     const styleData = {
-      duration: finalDuration,
+      duration: Number(duration.toFixed(3)),
       tracks,
       zoom,
       scale,
@@ -4221,6 +3975,7 @@ export default function VideoEditPage() {
       beautyEnabled: aiBeautyEnabled,
       aiBeautyEnabled,
       aiCutoutEnabled,
+      chromaSettings, appliedTrans, pipSettings,
       previewVideoUrl: finalVideoUrl,
       currentTime,
       last_saved_at: new Date().toISOString(),
@@ -4338,10 +4093,14 @@ export default function VideoEditPage() {
         if (styleData.volume) setVolume(styleData.volume);
         if (styleData.editorAspect) setEditorAspect(styleData.editorAspect);
         if (styleData.appliedFilter) setAppliedFilter(styleData.appliedFilter);
+        if (styleData.appliedTrans) setAppliedTrans(styleData.appliedTrans);
+        if (styleData.pipSettings) setPipSettings(styleData.pipSettings);
+        if (styleData.filterIntensity) setFilterIntensity(styleData.filterIntensity);
+        if (styleData.chromaSettings) setChromaSettings(styleData.chromaSettings);
         if (styleData.aiBeautyEnabled !== undefined || styleData.beautyEnabled !== undefined) {
           setAiBeautyEnabled(Boolean(styleData.aiBeautyEnabled ?? styleData.beautyEnabled));
         }
-        if (styleData.aiCutoutEnabled !== undefined) {
+        if (styleData.aiCutoutEnabled !== undefined && styleData.chromaSettings) {
           setAiCutoutEnabled(Boolean(styleData.aiCutoutEnabled));
         }
       }
@@ -4369,6 +4128,13 @@ export default function VideoEditPage() {
           Authorization: `Bearer ${session.access_token}`, apikey: backendAnonKey,
         }));
         if (stopped) return;
+        if (!importId || parsed.importId === importId) {
+          if (parsed.appliedTrans) setAppliedTrans(parsed.appliedTrans);
+          if (parsed.pipSettings) setPipSettings(parsed.pipSettings);
+          if (parsed.filterIntensity) setFilterIntensity(parsed.filterIntensity);
+          if (parsed.chromaSettings) { setChromaSettings(parsed.chromaSettings); setAiCutoutEnabled(Boolean(parsed.aiCutoutEnabled)); }
+          if (parsed.aiBeautyEnabled !== undefined) setAiBeautyEnabled(Boolean(parsed.aiBeautyEnabled));
+        }
         if (importId) {
           if (parsed.importId === importId) {
             if (parsed.projectTitle) setProjectTitle(parsed.projectTitle);
@@ -4403,23 +4169,23 @@ export default function VideoEditPage() {
 
   // Auto-save to localStorage
   useEffect(() => {
-    if (user && tracks.length > 0) {
+    if (user) {
       const stateToSave = {
         importId: currentProjectIdRef.current || importId,
         projectTitle,
         tracks,
         zoom,
         duration,
-        previewVideoUrl
+        previewVideoUrl, appliedTrans, pipSettings, filterIntensity, chromaSettings, aiCutoutEnabled, aiBeautyEnabled,
       };
       localStorage.setItem(`video-editor-draft-${user.id}`, JSON.stringify(canonicalMediaTree(stateToSave)));
     }
-  }, [tracks, zoom, duration, projectTitle, previewVideoUrl, importId, user]);
+  }, [tracks, zoom, duration, projectTitle, previewVideoUrl, importId, user, appliedTrans, pipSettings, filterIntensity, chromaSettings, aiCutoutEnabled, aiBeautyEnabled]);
 
   // Debounced auto-save to database
   useEffect(() => {
     const targetId = currentProjectIdRef.current || importId;
-    if (!targetId || !user || tracks.length === 0) return;
+    if (!targetId || !user) return;
 
     const timer = setTimeout(async () => {
       try {
@@ -4431,7 +4197,7 @@ export default function VideoEditPage() {
     }, 2500);
 
     return () => clearTimeout(timer);
-  }, [tracks, zoom, duration, projectTitle, importId, user]);
+  }, [tracks, zoom, duration, projectTitle, importId, user, appliedTrans, pipSettings, filterIntensity, chromaSettings, aiCutoutEnabled, aiBeautyEnabled]);
 
 
   // 同步播放/暂停到 video 元素（静音态由片段属性决定，不再强制取消静音）
@@ -4743,9 +4509,6 @@ export default function VideoEditPage() {
 
     const finalTitle = (exportFileName || projectTitle || '未命名剪辑成片').trim();
     try {
-      if (aiCutoutEnabled) throw new Error('人物抠像暂未接入导出，请关闭后渲染');
-      if (pipSettings.blendMode !== '正常') throw new Error('此画中画混合模式尚未接入成片，请选择正常模式');
-      if (!['无', 't1', 't2'].includes(appliedTrans)) throw new Error('此转场尚未接入成片，请选择淡入淡出或叠化溶解');
       setExportStatusText('正在上传工程中的本地素材');
       const renderTracks: Array<Record<string, unknown>> = [];
       for (const [index, track] of tracks.entries()) {
@@ -4767,7 +4530,9 @@ export default function VideoEditPage() {
               fontColor: track.fontColor || track.fontStyle?.color || '#ffffff' }),
           ...(pip ? { x: track.x ?? pipSettings.x, y: track.y ?? pipSettings.y,
             scale: track.scale ?? pipSettings.scale * 0.35, opacity: track.opacity ?? pipSettings.opacity,
-            rotation: track.rotation ?? pipSettings.rotation } : {}),
+            rotation: track.rotation ?? pipSettings.rotation,
+            blendMode: RENDER_BLENDS.find(mode => mode.name === pipSettings.blendMode)?.id || 'normal' } : {}),
+          ...(aiCutoutEnabled && track.type === 'video' && !pip ? { chromaKey: chromaSettings } : {}),
           ...(['video', 'image'].includes(track.type) && (track.filter || appliedFilter) !== '无'
             ? { filter: track.filter || appliedFilter, filterIntensity: filterIntensity[track.filter || appliedFilter] ?? 80 } : {}),
           ...(aiBeautyEnabled && track.type === 'video' ? { brightness: 106, contrast: 103, saturation: 108 } : {}),
@@ -4853,11 +4618,11 @@ export default function VideoEditPage() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <Button variant="ghost" size="sm" className="h-8 text-zinc-400 hover:text-white hover:bg-zinc-800" onClick={handleSave} disabled={saving}>
+          <Button aria-label="保存项目" variant="ghost" size="sm" className="h-8 text-zinc-400 hover:text-white hover:bg-zinc-800" onClick={handleSave} disabled={saving}>
             {saving ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Save className="w-4 h-4 mr-1.5" />}
             <span className="hidden md:inline">保存</span>
           </Button>
-          <Button size="sm" className="h-8 bg-indigo-600 hover:bg-indigo-700 text-white" onClick={handleExport} disabled={saving}>
+          <Button aria-label="导出视频" size="sm" className="h-8 bg-indigo-600 hover:bg-indigo-700 text-white" onClick={handleExport} disabled={saving}>
             <Download className="w-4 h-4 mr-1.5" /><span className="hidden md:inline">导出</span>
           </Button>
         </div>
@@ -4869,6 +4634,7 @@ export default function VideoEditPage() {
 
         {/* 左侧边栏 */}
         <LeftSidebar
+          chromaSettings={chromaSettings}
           materials={materials}
           onAdd={addToTimeline}
           importedVideos={importedVideos}
@@ -4923,18 +4689,18 @@ export default function VideoEditPage() {
                 {aiBeautyEnabled && (
                   <div className="px-2 py-0.5 rounded-full bg-black/70 backdrop-blur border border-pink-500/50 text-[10px] text-pink-300 flex items-center gap-1 shadow-lg">
                     <Wand2 className="w-3 h-3 text-pink-400" />
-                    <span>AI美颜已启用</span>
+                    <span>画面提亮已启用</span>
                   </div>
                 )}
                 {aiCutoutEnabled && (
                   <div className="px-2 py-0.5 rounded-full bg-black/70 backdrop-blur border border-emerald-500/50 text-[10px] text-emerald-300 flex items-center gap-1 shadow-lg">
                     <Check className="w-3 h-3 text-emerald-400" />
-                    <span>智能抠像生效中</span>
+                    <span>色键去背景 · 导出后生效</span>
                   </div>
                 )}
                 {appliedTrans !== '无' && (
                   <div className="px-2 py-0.5 rounded-full bg-black/70 backdrop-blur border border-amber-500/50 text-[10px] text-amber-300 flex items-center gap-1 shadow-lg">
-                    <span>转场: {TRANSITIONS.find(t => t.id === appliedTrans)?.name || appliedTrans}</span>
+                    <span>成片转场: {TRANSITIONS.find(t => t.id === appliedTrans)?.name || appliedTrans}</span>
                   </div>
                 )}
                 {isPreloading && (
@@ -4988,7 +4754,7 @@ export default function VideoEditPage() {
                   style={{
                     transform: `scale(${(activeImageClip.scale ?? 100) / 100}) rotate(${activeImageClip.rotation ?? 0}deg)`,
                     opacity: (activeImageClip.opacity ?? 100) / 100,
-                    filter: getCssFilter(activeImageClip.filter || appliedFilter, filterIntensity[activeImageClip.filter || appliedFilter] ?? filterIntensity[appliedFilter] ?? 80, aiBeautyEnabled) + (aiCutoutEnabled ? ' drop-shadow(0 0 12px rgba(99, 102, 241, 0.8))' : ''),
+                    filter: getCssFilter(activeImageClip.filter || appliedFilter, filterIntensity[activeImageClip.filter || appliedFilter] ?? filterIntensity[appliedFilter] ?? 80, aiBeautyEnabled),
                   }}
                   onLoad={(e) => {
                     const img = e.currentTarget;
@@ -5009,7 +4775,7 @@ export default function VideoEditPage() {
                   style={{
                     transform: `scale(${(videoFxClip?.scale ?? 100) / 100}) translate(${videoFxClip?.x ?? 0}px, ${videoFxClip?.y ?? 0}px) rotate(${videoFxClip?.rotation ?? 0}deg) scaleX(${videoFxClip?.flipH ? -1 : 1}) scaleY(${videoFxClip?.flipV ? -1 : 1})`,
                     opacity: (videoFxClip?.opacity ?? 100) / 100,
-                    filter: getCssFilter(videoFxClip?.filter || appliedFilter, filterIntensity[videoFxClip?.filter || appliedFilter] ?? filterIntensity[appliedFilter] ?? 80, aiBeautyEnabled) + (aiCutoutEnabled ? ' drop-shadow(0 0 12px rgba(99, 102, 241, 0.8))' : ''),
+                    filter: getCssFilter(videoFxClip?.filter || appliedFilter, filterIntensity[videoFxClip?.filter || appliedFilter] ?? filterIntensity[appliedFilter] ?? 80, aiBeautyEnabled),
                   }}
                   onPlay={() => setIsPlaying(true)}
                   onPause={() => {
@@ -5078,13 +4844,13 @@ export default function VideoEditPage() {
                     top: `${pipSettings.y}%`,
                     transform: `translate(-50%, -50%) scale(${pipSettings.scale / 100}) rotate(${pipSettings.rotation}deg)`,
                     opacity: pipSettings.opacity / 100,
-                    mixBlendMode: pipSettings.blendMode === '正片叠底' ? 'multiply' : pipSettings.blendMode === '滤色' ? 'screen' : pipSettings.blendMode === '叠加' ? 'overlay' : 'normal',
+                    mixBlendMode: RENDER_BLENDS.find(mode => mode.name === pipSettings.blendMode)?.css || 'normal',
                     width: '32%',
                     aspectRatio: '16/9',
                   }}
                 >
                   <video
-                    src={activePipClip.url || '/Video/CreatOK_2.mp4'}
+                    src={activePipClip.url}
                     autoPlay
                     loop
                     muted

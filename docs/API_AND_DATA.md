@@ -1,5 +1,7 @@
 # 接口与数据契约
 
+render v1增量见 [迭代16](ITERATION_16_RENDER_EFFECTS.md)：十二transition标识、可选transitionDuration(0.02–2s)，视觉轨blendMode八模式、chromaKey六位RGB/容差0.01–1/平滑0–1。前后交接按时长收缩，不延长工程；转场主轨不得重叠，画中画可叠加。API/Worker双校验，沿原production-jobs/request_key/私有引用提交；项目整数duration上取整，style_data保存精确时长。
+
 00044新增 [market-intelligence契约](ITERATION_15_MARKET_INTELLIGENCE.md)：JWT POST、16KB/60次每分钟、catalog/save_target/collect/schedule/import_product/delete。collect固定request_key/target_id/confirmed_credit_cost，schedule另有request_key/runs/budget；数据库事务隔离、相同UUID重放不重复扣费/重启计划。只读供应商GET及eBay应用OAuth，结果有来源版本、观测时间/定义和空指标，不回传凭据；原phase3竞品入口410。
 
 00043新增 [knowledge-base与索引契约](ITERATION_14_KNOWLEDGE_RETRIEVAL.md)：JWT POST，catalog/query关键词、jobs、context(job_id)、create(kind=knowledge_index/search,request_key,input)。索引input={entry_id,content_hash,confirmed_credit_cost}；查询input={query,limit,confirmed_credit_cost}。正文上限64KB，90次/分钟，限流故障拒绝；400参数/402积分/409版本价格幂等/424配置/429队列/503依赖。Embedding数据仅服务端；生产任务公开结果不包含向量/凭据。旧knowledge_rag_search无任务标识410；text-generation/四层脚本可传knowledge_job_id，服务端核验引用。
