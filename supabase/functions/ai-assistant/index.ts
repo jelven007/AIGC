@@ -4,7 +4,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { generateText } from '../_shared/text-provider.ts';
 import { resolveModel, validateEndpoint } from '../_shared/model-registry.ts';
-import { generateImage } from '../_shared/image-provider.ts';
+import { createImageJob } from '../_shared/production-jobs.ts';
 
 // 避免 createClient 的泛型 ReturnType 推导为空 schema。
 function businessClient(url: string, key: string): SupabaseClient {
@@ -353,6 +353,16 @@ Deno.serve(async (req) => {
       'generate_script_four_layer','extract_highlights','content_moderation',
       'emotion_analysis','translate_script','generate_cover','extract_url_selling_points'
     ]);
+    // 封面任务自行以幂等事务预占积分，外层不重复扣费。
+    if (action === 'generate_cover') {
+      if (!userId) return err('请先登录', 4010, 401);
+      if (typeof body.request_key !== 'string') return err('封面后台任务需要 request_key 幂等标识', 4000, 400);
+      const requestKey = body.request_key;
+      const job = await createImageJob(supabase, userId, requestKey, {
+        prompt: body.prompt || `电商带货视频封面：${body.product_name || ''}`, size: '1024x1536', quality: 'auto',
+      }, body.project_id);
+      return ok({ job, task_id: job.id, status: job.status }, 202);
+    }
 
     // 若属于计费 action，强制必须登录授权
     if (billedActions.has(action)) {
@@ -427,7 +437,7 @@ Deno.serve(async (req) => {
       case 'translate_script':
         result = await translateScript(body, supabase); break;
       case 'generate_cover':
-        result = await generateCover(body, supabase); break;
+        throw new Error('封面已迁移到后台任务');
       case 'query_cover_task':
         result = await queryCoverTask(body, supabase); break;
       case 'refund_generation_credits':
@@ -1093,24 +1103,6 @@ async function translateScript(body: Record<string, unknown>, supabase: ReturnTy
 }
 
 // ─── P2-N03: 智能封面生成 ─────────────────────────────────────────────────────
-async function generateCover(body: Record<string, unknown>, supabase: ReturnType<typeof businessClient>) {
-  const { user_id, project_id, product_name, style, platform = 'douyin', prompt } = body as Record<string, string>;
-  const coverPrompt = prompt || (platform === 'tiktok'
-    ? `E-commerce product thumbnail for TikTok, ${product_name || ''}, vibrant colors, bold text overlay, 9:16 vertical, high contrast, eye-catching, professional photography`
-    : `电商带货视频封面，产品：${product_name || ''}，风格：${style || '活力高饱和'}，竖版9:16，高对比度，专业摄影，产品主体突出`);
-
-  if (!user_id || !project_id) throw new Error('缺少作品标识');
-  const project = await supabase.from('video_projects').select('id').eq('id', project_id).eq('user_id', user_id).maybeSingle();
-  if (project.error || !project.data) throw new Error('作品不存在或无权生成封面');
-  const result = await generateImage(supabase, user_id, { prompt: coverPrompt, size: '1024x1536' });
-  const { data, error } = await supabase.from('cover_candidates').insert({
-    project_id, user_id, image_url: result.image_url, ctr_score: null, gen_task_id: null,
-    status: 'completed', style_prompt: coverPrompt,
-  }).select('id').single();
-  if (error) throw new Error('封面记录保存失败');
-  return { ...result, cover_id: data.id, status: 'completed' };
-}
-
 // ─── P2-N03: 查询封面任务状态 ─────────────────────────────────────────────────
 async function queryCoverTask(body: Record<string, unknown>, supabase: ReturnType<typeof businessClient>) {
   const { task_id, cover_id, user_id } = body as Record<string, string>;

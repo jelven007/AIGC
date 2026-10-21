@@ -13,6 +13,8 @@
     "test:models": "node tests/model_settings.test.mjs && node tests/audio_models.test.mjs",
     "test:scheduler": "python3 tests/test_video_scheduler.py && python3 tests/test_video_schedule_db.py",
     "test:volcengine": "python3 tests/test_volcengine_deploy.py && node tests/volcengine.test.mjs",
+    "test:production": "node tests/production_jobs.test.mjs",
+    "test:render": "docker run --rm -v \"$PWD:/app\" -w /app shoproai-render-worker:local python tests/test_render.py",
     "deploy:prepare": "python3 scripts/deploy_volcengine.py prepare",
     "scheduler:start": "python3 scripts/manage_video_scheduler.py start",
     "scheduler:status": "python3 scripts/manage_video_scheduler.py status",

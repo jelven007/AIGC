@@ -154,6 +154,32 @@ class SchedulerTest(unittest.TestCase):
         cycle.assert_not_called()
         self.assertFalse(scheduler.healthy(self.config))
 
+    def test_production_mode_dispatches_queue_and_metrics_without_browser(self):
+        with patch.dict(os.environ, {"SUPABASE_URL": "https://project.example",
+            "VIDEO_WORKER_SECRET": self.secret, "PRODUCTION_WORKER_ENABLED": "true"}, clear=True):
+            config = scheduler.load_config()
+        self.assertTrue(config.endpoint.endswith("/production-worker"))
+        config.state_path = self.config.state_path
+        class Stop:
+            stopped = False
+            def is_set(self):
+                return self.stopped
+            def wait(self, _):
+                self.stopped = True
+        class Opener:
+            def open(inner, request, timeout):
+                self.assertEqual(json.loads(request.data), {"action": "metrics"})
+                self.assertEqual(request.headers["Authorization"], "Bearer " + self.secret)
+                return Response({"collected": 1})
+        with patch.object(scheduler, "call_worker", return_value=0), \
+             patch.object(scheduler, "run_cycle", return_value={"processed": 1, "errors": 0, "error_codes": []}), \
+             patch.object(scheduler.urllib.request, "build_opener", return_value=Opener()), \
+             patch.object(scheduler, "log"):
+            scheduler.serve(config, Stop())
+        state = json.loads(config.state_path.read_text())
+        self.assertGreater(state["last_metrics"], 0)
+        self.assertTrue(scheduler.healthy(config))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -1,6 +1,6 @@
 /**
  * P2-N03: 智能封面候选组件
- * 可嵌入 WorksPage / 视频详情，调用 image-generation-advanced
+ * 可嵌入 WorksPage / 视频详情，复用服务端图片队列。
  */
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/db/supabase';
@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useProductionJob } from '@/hooks/useProductionJob';
 
 interface CoverCandidate {
   id: string;
@@ -43,7 +44,8 @@ export default function CoverCandidates({ projectId, projectTitle }: Props) {
   const { user } = useAuth();
   const [candidates, setCandidates] = useState<CoverCandidate[]>([]);
   const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
+  const task = useProductionJob('image', user?.id, projectId);
+  const generating = task.generating;
   const [selectedStyle, setSelectedStyle] = useState('product_close');
 
   const loadCandidates = useCallback(async () => {
@@ -58,38 +60,24 @@ export default function CoverCandidates({ projectId, projectTitle }: Props) {
   }, [projectId]);
 
   useEffect(() => { loadCandidates(); }, [loadCandidates]);
+  useEffect(() => { if (task.job?.status === 'completed') void loadCandidates(); }, [task.job?.id, task.job?.status, loadCandidates]);
 
   const handleGenerate = async () => {
     if (!user) { toast.error('请先登录'); return; }
     const style = COVER_STYLES.find(s => s.id === selectedStyle);
     if (!style) return;
-    setGenerating(true);
     try {
       const prompt = `${projectTitle ? `【${projectTitle}】` : ''}带货视频封面，${style.prompt}，竖屏9:16比例`;
-      const { data, error } = await supabase.functions.invoke('ai-assistant', {
-        body: { action: 'generate_cover', project_id: projectId, prompt, user_id: user.id },
-      });
-      if (error) throw error;
-      const result = data?.data ?? data;
-      if (result?.status !== 'completed') throw new Error(data?.error || data?.message || '封面未生成完成');
-      toast.success('封面已生成并保存');
-      await loadCandidates();
+      await task.start({ prompt, size: '1024x1536', quality: 'auto' }, projectId);
     } catch (e) {
       toast.error('生成失败：' + (e instanceof Error ? e.message : '未知错误'));
-    } finally {
-      setGenerating(false);
     }
   };
 
   const handleSelect = async (id: string) => {
-    // 取消其他选中
-    await supabase.from('cover_candidates').update({ is_selected: false }).eq('project_id', projectId);
-    await supabase.from('cover_candidates').update({ is_selected: true }).eq('id', id);
+    const { error } = await supabase.rpc('select_project_cover', { p_project: projectId, p_cover: id });
+    if (error) { toast.error('封面选择失败，请刷新重试'); return; }
     setCandidates(prev => prev.map(c => ({ ...c, is_selected: c.id === id })));
-    const selected = candidates.find(c => c.id === id);
-    if (selected?.image_url) {
-      await supabase.from('video_projects').update({ thumbnail_url: selected.image_url }).eq('id', projectId);
-    }
     toast.success('已设置为视频封面');
   };
 
@@ -133,6 +121,7 @@ export default function CoverCandidates({ projectId, projectTitle }: Props) {
         </div>
 
         {/* 生成按钮 */}
+        {(task.error || task.job?.error_message) && <p role="alert" className="text-sm text-destructive">{task.error || task.job?.error_message}</p>}
         <Button onClick={handleGenerate} disabled={generating} className="w-full" size="sm">
           {generating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
           {generating ? '生成中…' : '生成封面候选'}

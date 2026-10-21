@@ -7,6 +7,7 @@ import { AlertCircle, CheckCircle2, Loader2, RefreshCw, Save, Settings2, ShieldC
 import { toast } from 'sonner';
 import { MODEL_SLOTS, modelSettingsRequest, type ModelConfigView, type ModelCatalogEntry } from '@/api/modelSettings';
 import { cn } from '@/lib/utils';
+import PlatformAppSettings from '@/components/PlatformAppSettings';
 
 const categories = [
   { id: 'text', label: '文本', description: '脚本、提示词优化、分析与翻译共用主备模型。' },
@@ -164,7 +165,7 @@ export default function ModelSettingsPage() {
     if (!admin) modelSettingsRequest<{ configs: ModelCatalogEntry[] }>({ action: 'catalog' })
       .then(result => setCatalog(result.configs)).catch(e => setError(e.message));
   }, [admin]);
-  if (admin) return <ModelSettingsEditor />;
+  if (admin) return <><ModelSettingsEditor /><PlatformAppSettings /></>;
   return <div className="mx-auto max-w-4xl p-6 md:p-10">
     <h1 className="text-2xl font-semibold">模型接口</h1><p className="text-muted-foreground mt-2 mb-6">平台管理员负责接口配置。这里显示当前可用模型。</p>
     {error && <p role="alert" className="text-destructive">{error}</p>}

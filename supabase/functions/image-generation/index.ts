@@ -1,6 +1,6 @@
 import { authenticateRequest, createServiceClient } from '../_shared/auth.ts';
 import { getCorsHeaders, handleCorsPreflight } from '../_shared/cors.ts';
-import { generateImage } from '../_shared/image-provider.ts';
+import { createImageJob } from '../_shared/production-jobs.ts';
 
 export async function handleImageGeneration(req: Request): Promise<Response> {
   const preflight = handleCorsPreflight(req); if (preflight) return preflight;
@@ -17,7 +17,12 @@ export async function handleImageGeneration(req: Request): Promise<Response> {
       p_client_id: `image:${auth.user.id}`, p_reset_at: new Date(start + 60000).toISOString(), p_max_req: 5 });
     if (limit.error) throw new Error('图片限流服务不可用');
     if (!limit.data) return Response.json({ error: '图片请求过于频繁，请稍后重试' }, { status: 429, headers });
-    return Response.json(await generateImage(db, auth.user.id, input), { headers });
+    if (typeof input.request_key !== 'string' || !/^[a-f0-9-]{36}$/i.test(input.request_key)) {
+      return Response.json({ error: '图片后台任务需要 request_key 幂等标识，请使用 production-jobs' }, { status: 400, headers });
+    }
+    return Response.json({ job: await createImageJob(db, auth.user.id, input.request_key, {
+      prompt: input.prompt, size: input.size || '1024x1024', quality: input.quality || 'auto', reference_image: input.reference_image,
+    }) }, { status: 202, headers });
   } catch (cause) {
     return Response.json({ error: cause instanceof Error ? cause.message : '图片服务暂时不可用' }, { status: 503, headers });
   }

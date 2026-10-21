@@ -20,6 +20,8 @@ import { sendDeepSeekStreamRequest, sendStepAudioASR, sendStepFlashStreamRequest
 import { makeWorkTitle } from '@/lib/utils';
 import { modelSettingsRequest, type ModelCatalogEntry } from '@/api/modelSettings';
 import { authenticatedEdgeRequest } from '@/lib/edgeRequest';
+import { mediaPreview, storedMedia } from '@/api/media';
+import { useProductionJob } from '@/hooks/useProductionJob';
 import { audioRecorder } from '@/lib/audioRecorder';
 import { Product } from '@/types/types';
 import { getCategoryFallbackImage } from './ProductsPage';
@@ -1061,13 +1063,17 @@ export default function HomePage() {
       const path = `${user.id}/references/${crypto.randomUUID()}.${file.type.split('/')[1]}`;
       const { error } = await supabase.storage.from('materials').upload(path, file, { contentType: file.type });
       if (error) throw new Error('参考图上传失败');
-      setImgRefImage(supabase.storage.from('materials').getPublicUrl(path).data.publicUrl);
+      setImgRefImage(await mediaPreview(storedMedia('materials', path)));
       toast.success('参考图已上传');
     } catch (e) { toast.error(e instanceof Error ? e.message : '上传失败'); }
   };
-  const [imgGenerating, setImgGenerating] = useState(false);
-  const [imgProgress, setImgProgress] = useState(0);
+  const imageTask = useProductionJob('image', user?.id);
+  const imgGenerating = imageTask.generating;
+  const imgProgress = imageTask.job?.progress || 0;
   const [resultImage, setResultImage] = useState<string | null>(null);
+  useEffect(() => {
+    if (imageTask.job?.status === 'completed' && imageTask.job.result?.url) setResultImage(imageTask.job.result.url);
+  }, [imageTask.job?.id, imageTask.job?.status, imageTask.job?.result?.url]);
   const abortRef = useRef<AbortController | null>(null);
 
   // 提示词增强状态
@@ -1076,20 +1082,9 @@ export default function HomePage() {
   const handleImageGenerate = async () => {
     if (!imgPrompt.trim()) { toast.error('请输入图片描述'); return; }
     if (!modelCatalog.some(item => item.slot === 'image.primary' && item.enabled)) { toast.error(modelCatalogError || '请先在模型设置中启用图片接口'); return; }
-    setImgGenerating(true);
     setResultImage(null);
-    setImgProgress(0);
-    try {
-      const response = await authenticatedEdgeRequest('image-generation', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: imgPrompt, size: imgResolutionType,
-          quality: imgQuality === '低' ? 'low' : imgQuality === '高' ? 'high' : 'medium', reference_image: imgRefImage }),
-      });
-      const result = await response.json();
-      if (!result.image_url) throw new Error('图片服务未返回结果');
-      setResultImage(result.image_url); setImgProgress(100); toast.success('图片已生成并保存');
-    } catch (e) { toast.error(e instanceof Error ? e.message : '图片生成失败'); }
-    finally { setImgGenerating(false); }
+    await imageTask.start({ prompt: imgPrompt, size: imgResolutionType,
+      quality: imgQuality === '低' ? 'low' : imgQuality === '高' ? 'high' : 'medium', reference_image: imgRefImage });
   };
 
   // 视频生成统一使用持久化服务端任务。
@@ -1957,6 +1952,7 @@ export default function HomePage() {
                 </div>
               )}
 
+              {(imageTask.error || imageTask.job?.error_message) && <p role="alert" className="px-4 py-2 text-sm text-rose-300">{imageTask.error || imageTask.job?.error_message}</p>}
               {/* 上传的参考图预览 */}
               {imgRefImage && (
                 <div className="flex gap-3 px-12 pb-2">
@@ -2024,10 +2020,10 @@ export default function HomePage() {
                     <div className="flex items-center justify-between gap-2 pt-1 text-[11px] text-pink-200/80">
                       <div className="flex items-center gap-1.5">
                         <span className="text-pink-400">💖</span>
-                        <span>任务已进入云端渲染，绘制完成将自动保存至您的「作品库」</span>
+                        <span>后台任务已保存，完成后自动归档至您的「素材库」</span>
                       </div>
                       <span className="hidden sm:inline-block text-[10px] text-white/35 bg-white/5 px-2 py-0.5 rounded-md border border-white/5">
-                        多重超分增强
+                        关闭页面后继续处理
                       </span>
                     </div>
                   </div>
@@ -2172,11 +2168,11 @@ export default function HomePage() {
                     </button>
                   )}
                   {imgGenerating ? (
-                    <button onClick={() => { setImgGenerating(false); setImgProgress(0); }}
+                    <button onClick={() => void imageTask.refresh()}
                       className="flex items-center justify-center gap-1.5 w-8 h-8 md:w-9 md:h-9 sm:w-auto sm:h-auto sm:px-3 sm:py-2 rounded-xl text-sm font-semibold transition-all shrink-0"
                       style={{ background: 'rgba(239,68,68,0.2)', border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444' }}>
-                      <X className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">取消</span>
+                      <RefreshCcw className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">刷新进度</span>
                     </button>
                   ) : (
                     <button onClick={handleImageGenerate}

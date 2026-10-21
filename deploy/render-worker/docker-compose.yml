@@ -1,0 +1,21 @@
+services:
+  renderer:
+    build:
+      context: ../..
+      dockerfile: worker/Dockerfile
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      SUPABASE_URL: ${SUPABASE_URL:?请配置自己的BaaS地址}
+      RENDER_WORKER_SECRET_FILE: /run/secrets/render_worker_secret
+    secrets: [render_worker_secret]
+    tmpfs:
+      - /tmp:size=4G,uid=10001,gid=10001
+    mem_limit: 4g
+    cpus: 2
+    pids_limit: 256
+secrets:
+  render_worker_secret:
+    file: ./render_worker_secret

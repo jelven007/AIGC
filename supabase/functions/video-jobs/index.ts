@@ -1,6 +1,7 @@
 import { authenticateRequest, createServiceClient } from '../_shared/auth.ts';
 import { providerConfig, validateVideoInput } from '../_shared/video-providers.ts';
 import { processVideoJob, publicVideoJob, type VideoJob } from '../_shared/video-jobs.ts';
+import { validateMediaTree, signMediaTree } from '../_shared/private-media.ts';
 
 const headers = {
   'Access-Control-Allow-Origin': '*',
@@ -27,7 +28,7 @@ export async function handleVideoJobs(req: Request): Promise<Response> {
       }
       let input, config;
       try {
-        input = validateVideoInput(body.provider, body.input);
+        input = validateVideoInput(body.provider, await validateMediaTree(db, body.input, auth.user.id));
         const previous = await db.from('video_jobs').select('*').eq('user_id', auth.user.id)
           .eq('request_key', body.request_key).maybeSingle();
         if (previous.error) throw new Error('任务状态读取失败，请使用相同请求标识重试');
@@ -40,9 +41,9 @@ export async function handleVideoJobs(req: Request): Promise<Response> {
               p_payload: input, p_config_version: null,
             });
             if (checked.error) return reply({ error: '同一请求标识不能用于不同任务' }, 409);
-            return reply({ job: publicVideoJob(checked.data as VideoJob) }, 202);
+            return reply({ job: await signMediaTree(db, publicVideoJob(checked.data as VideoJob), auth.user.id) }, 202);
           }
-          return reply({ job: publicVideoJob(previous.data as VideoJob) }, 202);
+          return reply({ job: await signMediaTree(db, publicVideoJob(previous.data as VideoJob), auth.user.id) }, 202);
         }
         config = await providerConfig(body.provider, db); // 扣费前校验。
       } catch (cause) {
@@ -61,7 +62,7 @@ export async function handleVideoJobs(req: Request): Promise<Response> {
         return reply({ error: '任务创建未确认，请使用相同请求标识重试' }, 503);
       }
       // 创建只负责持久化，后台定时执行与 query 均可领取；响应丢失可用 request_key 找回。
-      return reply({ job: publicVideoJob(data as VideoJob) }, 202);
+      return reply({ job: await signMediaTree(db, publicVideoJob(data as VideoJob), auth.user.id) }, 202);
     }
     if (body.action === 'query') {
       if (!uuid(body.job_id) && !uuid(body.request_key)) return reply({ error: '缺少任务标识' }, 400);
@@ -75,13 +76,13 @@ export async function handleVideoJobs(req: Request): Promise<Response> {
       }
       const current = await select().single();
       if (current.error) return reply({ error: '任务读取暂时失败' }, 503);
-      return reply({ job: publicVideoJob(current.data as VideoJob) });
+      return reply({ job: await signMediaTree(db, publicVideoJob(current.data as VideoJob), auth.user.id) });
     }
     if (body.action === 'list') {
       const { data, error } = await db.from('video_jobs').select('*').eq('user_id', auth.user.id)
         .not('charge_id', 'is', null).order('created_at', { ascending: false }).limit(30);
       if (error) return reply({ error: '任务读取暂时失败' }, 503);
-      return reply({ jobs: (data as VideoJob[]).map(publicVideoJob) });
+      return reply({ jobs: await signMediaTree(db, (data as VideoJob[]).map(publicVideoJob), auth.user.id) });
     }
     return reply({ error: '不支持的任务操作' }, 400);
   } catch {

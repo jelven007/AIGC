@@ -420,6 +420,125 @@ class FinanceTest(unittest.TestCase):
         self.assertEqual(sql(f"SELECT status,billing_state FROM video_jobs WHERE id='{job['id']}'").stdout.strip(), "failed|refunded")
         self.assertEqual(sql(f"SELECT count(*) FROM audit_logs WHERE record_id='{job['id']}' AND action='reconcile_video_submission'").stdout.strip(), "1")
 
+    def image_job_sql(self, key=None):
+        previous = sql("SELECT current_version_id FROM model_configs WHERE slot='image.primary'").stdout.strip()
+        version = sql(self.as_service(f"""SELECT save_model_config('image.primary',
+          {"'"+previous+"'" if previous else "NULL"},'{{"name":"image","model":"test"}}',true,
+          'isolated_cipher','{self.other}',true);""")).stdout.strip()
+        return self.as_service(f"""SELECT create_production_job('{self.user}','{key or uuid.uuid4()}',
+          'image','{{"prompt":"商品图片","size":"1024x1024"}}',NULL,'{version}');""")
+
+    def production_event(self, job, event, data=None):
+        payload = json.dumps(data or {}, ensure_ascii=False).replace("'", "''")
+        return self.as_service(f"SELECT update_production_job('{job['id']}','{job['lease_token']}','{event}','{payload}');")
+
+    def production_claim(self, job):
+        sql(f"UPDATE production_jobs SET next_run_at=now()-interval '1 second' WHERE id='{job['id']}';")
+        raw = sql(self.as_service(f"SELECT claim_production_job('{job['kind']}','{job['id']}');")).stdout.strip()
+        return json.loads(raw) if raw else None
+
+    def test_private_storage_isolation_and_sensitive_job_columns(self):
+        self.assertEqual(sql("SELECT count(*) FROM storage.buckets WHERE id IN ('materials','videos','thumbnails') AND public").stdout.strip(), "0")
+        sql(f"""GRANT USAGE ON SCHEMA storage TO authenticated,anon;
+          GRANT SELECT,INSERT,DELETE ON storage.objects TO authenticated,anon;
+          ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+          INSERT INTO storage.objects(bucket_id,name) VALUES('materials','{self.user}/private.png'),('materials','{self.other}/private.png');""")
+        self.assertEqual(sql(self.as_user("SELECT count(*) FROM storage.objects;")).stdout.strip(), "1")
+        self.assertEqual(sql("SET ROLE anon; SELECT count(*) FROM storage.objects;").stdout.strip(), "0")
+        self.assertNotEqual(sql(self.as_user(f"INSERT INTO storage.objects(bucket_id,name) VALUES('materials','{self.other}/forged.png');"), fail=False).returncode, 0)
+        self.assertNotEqual(sql(self.as_user("SELECT payload,evidence,resolution FROM production_jobs;"), fail=False).returncode, 0)
+        self.assertEqual(sql(self.as_user("SELECT count(id) FROM production_jobs;")).stdout.strip(), "0")
+
+    def test_image_concurrent_creation_charges_once_and_failure_refunds_once(self):
+        statement = self.image_job_sql()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+            jobs = list(pool.map(lambda _: json.loads(sql(statement).stdout), range(4)))
+        self.assertEqual(len({job["id"] for job in jobs}), 1)
+        self.assertEqual(sql(f"SELECT credits_used FROM user_plans WHERE user_id='{self.user}'").stdout.strip(), "10")
+        lease = self.production_claim(jobs[0])
+        sql(self.production_event(lease, "resolution", {"event": "failed", "data": {"error": "模型拒绝"}}))
+        sql("ALTER TABLE credit_logs ADD CONSTRAINT test_production_refund CHECK(type<>'refund') NOT VALID")
+        try:
+            self.assertNotEqual(sql(self.production_event(lease, "failed", {"error": "模型拒绝"}), fail=False).returncode, 0)
+        finally:
+            sql("ALTER TABLE credit_logs DROP CONSTRAINT test_production_refund")
+        sql(f"UPDATE production_jobs SET lease_until=now()-interval '1 second' WHERE id='{lease['id']}'")
+        recovered = self.production_claim(lease)
+        self.assertEqual(recovered["resolution"]["event"], "failed")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+            list(pool.map(lambda _: sql(self.production_event(recovered, "failed", {"error": "模型拒绝"})), range(4)))
+        self.assertEqual(sql(f"SELECT credits_used FROM user_plans WHERE user_id='{self.user}'").stdout.strip(), "0")
+        self.assertEqual(sql(f"SELECT count(*) FROM credit_logs WHERE original_charge_id='{lease['charge_id']}'").stdout.strip(), "1")
+
+    def test_image_archive_evidence_survives_outage_and_is_idempotent(self):
+        job = self.production_claim(json.loads(sql(self.image_job_sql()).stdout))
+        result = {"url": f"https://db.example/storage/v1/object/authenticated/materials/generated-images/{self.user}/image.png", "size": 100}
+        sql(self.production_event(job, "resolution", {"event": "completed", "data": result}))
+        sql("ALTER TABLE materials ADD CONSTRAINT test_production_archive CHECK(type<>'image') NOT VALID")
+        try:
+            self.assertNotEqual(sql(self.production_event(job, "completed", result), fail=False).returncode, 0)
+        finally:
+            sql("ALTER TABLE materials DROP CONSTRAINT test_production_archive")
+        sql(f"UPDATE production_jobs SET lease_until=now()-interval '1 second' WHERE id='{job['id']}'")
+        recovered = self.production_claim(job)
+        self.assertEqual(recovered["resolution"]["data"], result)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+            list(pool.map(lambda _: sql(self.production_event(recovered, "completed", result)), range(4)))
+        self.assertEqual(sql(f"SELECT count(*) FROM materials WHERE user_id='{self.user}' AND url='{result['url']}'").stdout.strip(), "1")
+        sql(self.production_event(recovered, "failed", {"error": "迟到失败"}))
+        self.assertEqual(sql(f"SELECT status FROM production_jobs WHERE id='{job['id']}'").stdout.strip(), "completed")
+
+    def test_accepted_publish_stage_crash_never_reposts(self):
+        job = json.loads(sql(self.as_service(f"""SELECT create_production_job('{self.user}','{uuid.uuid4()}','publish','{{}}');""")).stdout)
+        lease = self.production_claim(job)
+        sql(self.production_event(lease, "checkpoint", {"uploaded_video_id": "original-upload"}))
+        sql(self.production_event(lease, "executing"))
+        sql(f"UPDATE production_jobs SET lease_until=now()-interval '1 second' WHERE id='{job['id']}'")
+        self.assertIsNone(self.production_claim(job))
+        self.assertEqual(sql(f"SELECT status FROM production_jobs WHERE id='{job['id']}'").stdout.strip(), "unknown")
+        reconcile = f"SELECT reconcile_production_job('{job['id']}','{{\"platform\":\"douyin\",\"item_id\":\"verified-original\"}}','平台账号作品列表核对原发布结果');"
+        self.assertNotEqual(sql(self.as_user(reconcile), fail=False).returncode, 0)
+        sql(self.as_service(reconcile))
+        recovered = self.production_claim(job)
+        self.assertEqual(recovered["evidence"]["item_id"], "verified-original")
+        self.assertEqual(recovered["phase"], "accepted")
+        self.assertEqual(sql(f"SELECT count(*) FROM audit_logs WHERE record_id='{job['id']}' AND action='reconcile_production_job'").stdout.strip(), "1")
+
+    def test_render_project_allows_one_active_task_and_blocks_forged_result(self):
+        project = str(uuid.uuid4())
+        sql(f"INSERT INTO video_projects(id,user_id,title) VALUES('{project}','{self.user}','剪辑工程');")
+        statement = lambda: self.as_service(f"""SELECT create_production_job('{self.user}','{uuid.uuid4()}','render',
+          '{{"title":"成片"}}','{project}');""")
+        job = json.loads(sql(statement()).stdout)
+        self.assertNotEqual(sql(statement(), fail=False).returncode, 0)
+        for mutation in (f"DELETE FROM video_projects WHERE id='{project}';",
+                         f"UPDATE video_projects SET status='completed',video_url='https://fake.example/video' WHERE id='{project}';"):
+            self.assertNotEqual(sql(self.as_user(mutation), fail=False).returncode, 0)
+        self.assertEqual(job["kind"], "render")
+        sql(self.as_user(f"""UPDATE video_projects SET style_data='{{"tracks":[]}}',title='重新编辑' WHERE id='{project}';"""))
+        cover = str(uuid.uuid4())
+        sql(f"""INSERT INTO cover_candidates(id,project_id,user_id,image_url,status)
+          VALUES('{cover}','{project}','{self.user}','https://db.example/cover.png','completed');""")
+        sql(self.as_user(f"SELECT select_project_cover('{project}','{cover}');"))
+        self.assertEqual(sql(f"SELECT thumbnail_url FROM video_projects WHERE id='{project}'").stdout.strip(), "https://db.example/cover.png")
+
+    def test_metrics_history_snapshot_are_atomic_and_user_isolated(self):
+        project, task = str(uuid.uuid4()), str(uuid.uuid4())
+        sql(f"""INSERT INTO video_projects(id,user_id,title) VALUES('{project}','{self.user}','指标工程');
+          INSERT INTO publish_tasks(id,user_id,project_id,platform,status,platform_video_id)
+          VALUES('{task}','{self.user}','{project}','douyin','published','real-video');""")
+        statement = self.as_service(f"""SELECT save_platform_metrics('{task}',
+          '{{"view_count":100,"like_count":null,"comment_count":5,"share_count":3}}','https://www.douyin.com/video/real');""")
+        sql("ALTER TABLE platform_metric_history ADD CONSTRAINT test_history_outage CHECK(publish_task_id IS NULL) NOT VALID")
+        try:
+            self.assertNotEqual(sql(statement, fail=False).returncode, 0)
+            self.assertEqual(sql(f"SELECT count(*) FROM platform_video_metrics WHERE publish_task_id='{task}'").stdout.strip(), "0")
+        finally:
+            sql("ALTER TABLE platform_metric_history DROP CONSTRAINT test_history_outage")
+        sql(statement)
+        self.assertEqual(sql(self.as_user(f"SELECT view_count,like_count FROM platform_video_metrics WHERE publish_task_id='{task}'")).stdout.strip(), "100|")
+        self.assertEqual(sql(f"SET ROLE authenticated; SET request.jwt.claim.sub='{self.other}'; SELECT count(*) FROM platform_video_metrics WHERE publish_task_id='{task}';").stdout.strip(), "0")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

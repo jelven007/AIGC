@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/db/supabase';
+import { storedMedia } from '@/api/media';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -124,11 +125,11 @@ function WorkCard({
     const toastId = toast.loading('正在上传新封面...');
     try {
       const ext = file.name.split('.').pop() ?? 'jpg';
-      const path = `covers/${project.id}-${Date.now()}.${ext}`;
+      const path = `${project.user_id}/covers/${project.id}-${Date.now()}.${ext}`;
       const { data, error } = await supabase.storage.from('materials').upload(path, file);
       if (error) throw error;
       
-      const { data: urlData } = supabase.storage.from('materials').getPublicUrl(data.path);
+      const urlData = { publicUrl: storedMedia('materials', data.path) };
       
       const { error: dbError } = await supabase
         .from('video_projects')
@@ -841,7 +842,7 @@ async function seedTestUserVideos(userId: string) {
     const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
     const { data: up, error } = await supabase.storage.from('materials').upload(path, file);
     if (error) { toast.error(`上传失败：${file.name}`); return; }
-    const { data: urlData } = supabase.storage.from('materials').getPublicUrl(up.path);
+    const urlData = { publicUrl: storedMedia('materials', up.path) };
     const { data: mat } = await supabase.from('materials').insert({
       user_id: user.id, name: file.name, type: isImage ? 'image' : 'video',
       url: urlData.publicUrl, size: file.size,

@@ -1,4 +1,6 @@
 import { supabase } from '@/db/supabase';
+import { storedMedia } from './media';
+import { canonicalMedia } from '@/lib/privateMedia';
 
 export interface ServerVideoJob {
   id: string;
@@ -53,7 +55,7 @@ export async function listServerVideoJobs(): Promise<ServerVideoJob[]> {
 // 表单导入的 data URL / 本地站内素材先入 Storage，模型只接收 HTTPS 链接。
 export async function uploadVideoReference(value: string | null, userId: string): Promise<string | undefined> {
   if (!value) return undefined;
-  if (value.startsWith('https://')) return value;
+  if (value.startsWith('https://')) return canonicalMedia(value);
   if (!value.startsWith('data:') && !value.startsWith('blob:') && !value.startsWith('/')) {
     throw new Error('参考素材地址不支持');
   }
@@ -68,5 +70,5 @@ export async function uploadVideoReference(value: string | null, userId: string)
   const path = `${userId}/video-inputs/${crypto.randomUUID()}.${extension}`;
   const { error } = await supabase.storage.from('materials').upload(path, blob, { contentType: blob.type });
   if (error) throw new Error('参考素材上传失败，请重试');
-  return supabase.storage.from('materials').getPublicUrl(path).data.publicUrl;
+  return storedMedia('materials', path);
 }

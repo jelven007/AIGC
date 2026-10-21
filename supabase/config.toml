@@ -11,3 +11,10 @@ verify_jwt = false
 # 由后台调度器使用专用 VIDEO_WORKER_SECRET 鉴权。
 [functions.video-job-worker]
 verify_jwt = false
+
+# 专用调度/渲染密钥在函数内鉴权，OAuth 回调使用一次性 state。
+[functions.production-worker]
+verify_jwt = false
+
+[functions.platform-oauth-callback]
+verify_jwt = false

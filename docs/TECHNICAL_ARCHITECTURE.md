@@ -2,6 +2,8 @@
 
 更新时间：2026-10-21，源码基线 `ce90bfe`。当前实际运行在官方 Supabase，最新模型配置源码尚未全部部署；火山引擎 AI 原生 BaaS Supabase 版、Pages、ECS 是已适配的可选迁移方案。环境证据见 [当前状态](CURRENT_STATE.md)。
 
+本轮新增本地私有素材、图片持久化任务、FFmpeg 渲染及抖音/TikTok发布和指标适配；启用与验证边界见 [生产链路迭代](ITERATION_06_PRODUCTION_PIPELINE.md)。这些源码新增项不表示现有云端已部署。
+
 ## 架构总览
 
 ```mermaid
@@ -60,7 +62,10 @@ flowchart TB
 | 调度器 | 官方 Cron；Python 3.12 + Docker Compose | 当前官方 Cron / 可选常驻 ECS | 默认每 10 秒派发，最多 4 并发，退避和健康检查 |
 | 成片存储 | Supabase Storage | 当前官方 / 可选火山 BaaS | 参考素材、MP4/WebM 成片固定路径 |
 | 模型配置 | `model_configs`、`model_config_versions`、AES-GCM | 本地源码已实现；云端待 00034 | 全部模型接口统一管理、管理员授权、并发保护与任务版本绑定 |
-| 模型 | 文本主备、七种视频、同步图片 | 方舟或设置页配置的供应商 | 真实已开通 Model ID / Endpoint ID，服务端协议适配 |
+| 模型 | 文本主备、七种视频、后台图片任务 | 方舟或设置页配置的供应商 | 真实已开通 Model ID / Endpoint ID，服务端协议适配 |
+| 生产队列 | production_jobs / 租约 / 结案证据 | 本地已实现，云端待 00035–00036 | 图片恢复、剪辑、发布与原子归档/退款 |
+| 剪辑 Worker | Python 3.12 / FFmpeg / Docker | 独立 ECS 或容器宿主机，待部署 | 时间轴合成、签名素材/上传、H.264/AAC |
+| 平台与指标 | OAuth / 发布状态查询 / 数据快照 | TikTok、抖音正式 API，待账号联调 | 后台发布、审核、官方自然视频指标 |
 | 音频 | OpenAI/Step TTS、ASR 协议 | 目标 Edge Function 代理外部服务，待发布 | 配置页统一模型、接口与音色 |
 | MCP | Python FastMCP、Starlette、HTTPX | 可选 ECS 或本地 stdio | 7 个工具复用用户 JWT 与业务 API |
 | 运维发布 | `byted-supabase-cli`、Python 部署脚本 | 开发机/受控发布环境 | SQL、Secrets、函数、Pages 与发布前预检 |
@@ -83,7 +88,7 @@ flowchart TB
 
 `text-generation` 使用平台认证、数据库每用户每分钟限流，返回真实 SSE/JSON。此提示词辅助端点目前不扣积分；原 `ai-assistant` 计费 Action 保留原逐笔扣费补偿逻辑。文本主备统一从设置页读取，旧 GLM/DeepSeek/Wenxin/MiniMax 函数只作为兼容入口，不再独立使用 Secrets。
 
-`image-generation` 与封面共用真实同步图片服务并归档到 Storage，删除工作台浏览器密钥和随机现成图成功逻辑。封面统一 `gen_task_id`/`completed` 字段，不再伪造 CTR。音频合成、识别和商品 Reader 也读取同一配置服务。主加密密钥仅保存在 Edge Secrets，管理员凭据不回传；首次授权、旧配置导入与旧任务绑定见 [统一模型配置](MODEL_SETTINGS.md)。
+`image-generation` 与封面共用持久化图片队列，以 request_key 创建、预占积分并归档到私有 Storage。图片返回后保存证据，归档重试复用原结果。封面统一 `gen_task_id`/`completed` 字段，不再伪造 CTR。音频合成、识别和商品 Reader 也读取同一配置服务。主加密密钥仅保存在 Edge Secrets，管理员凭据不回传；首次授权、旧配置导入与旧任务绑定见 [统一模型配置](MODEL_SETTINGS.md)。
 
 前端删除模型 `VITE_*` 密钥、硬编码兜底密钥、代理回退与虚假文本/ASR 成功输出。构建拒绝非公开 `VITE_*KEY/SECRET/TOKEN/PASSWORD`。音频使用登录用户 JWT 调用 Edge Function。
 
@@ -92,12 +97,12 @@ MCP HTTP 使用请求中的用户 JWT，并通过 ContextVar 隔离并发调用�
 ## 数据与部署边界
 
 - 普通商品、作品、脚本等 CRUD 仍通过 Supabase SDK 直连 Data API，授权由显式 GRANT 与 RLS 共同控制；关键财务与任务变更仅服务端 RPC 可执行。
-- 成片当前为公开 Storage 桶，尚未提供私有视频与限时下载；不能宣称所有资源私有。
+- 现有云端仍需迁移才能启用私有桶。00035及匹配前后端提供用户隔离与限时签名，旧对象需核对真实归属。
 - 调度默认使用 ECS Docker，不将火山支持 pg_cron、pg_net、Vault 作为上线前提。现有 Cron SQL 仅在目标环境确认这些扩展后可选使用。
 - Pages 上传的是已构建 ZIP，URL/anon key 在构建前确定。Pages bind 建立 workspace 关联，不会改写 Vite ZIP 内已有常量。
 - `config.toml` 不承担火山函数配置。生产函数清单在 `deploy/volcengine/manifest.json`，回调与 Worker 明确使用 `--no-verify-jwt`，函数内继续验签/验证专用密钥。
 - 迁移排除 00018/00019 演示数据和演示访问策略；部署使用私有 `shopro_deploy.schema_migrations` 记录 SHA-256 回执，发现历史文件修改或无回执的旧业务库则停止重放。
-- `backend/` 缺少运营后台核心源码，未纳入部署。批量生成、完整剪辑渲染、真实跨平台发布与数据回流仍需后续实现；现有模拟模块不因迁移而变成已交付能力。
+- `backend/` 缺少运营后台核心源码，未纳入部署。FFmpeg剪辑、抖音/TikTok发布和指标回流已新增本地源码与回归，云端部署/账号验收待执行。其他平台、广告电商指标及部分编辑器演示工具仍未实现，批量生成不因迁移而变成已交付能力。
 - 图片、网页 Reader、Kling 等必须在统一设置页配置兼容协议的 HTTPS 地址；运行时不回退旧网关环境变量。部分历史 AI 业务模拟逻辑保留且需要后续治理。
 - 火山账号、BaaS 服务权限、方舟模型开通、SMTP/短信供应商、支付商户凭据和正式域名需目标环境配置。
 

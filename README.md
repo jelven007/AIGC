@@ -10,8 +10,9 @@
 - [火山引擎部署指南](docs/VOLCENGINE_DEPLOYMENT.md)
 - [视频任务与积分结算](docs/API_AND_DATA.md)
 - [后台调度](docs/VIDEO_SCHEDULER.md)
+- [私有素材、图片恢复、剪辑与平台发布](docs/ITERATION_06_PRODUCTION_PIPELINE.md)
 
-最新已提交源码基线为 `ce90bfe`。2026-10-21 只读核验：官方环境只有迁移到 00031 和三个已部署函数；最新 00032–00034、统一模型配置与图片/音频函数尚未上线。当前前端不能单独代表最新全栈版本可用。未提交的私有媒体/生产任务/渲染/平台发布开发见 [待验收变更](docs/PENDING_CHANGES.md)，不计入本轮通过结果。
+2026-10-21 云端核验基线仍为旧部署：官方环境只有迁移到 00031 和三个已部署函数。当前源码新增了 00035/00036 私有素材与生产队列、FFmpeg剪辑、抖音/TikTok OAuth发布与官方指标，已完成本地回归；00032–00036及匹配函数、容器、平台应用仍需部署与真实联调。当前前端不能单独代表最新全栈版本可用。详见 [本轮生产链路及验证边界](docs/ITERATION_06_PRODUCTION_PIPELINE.md)。
 
 ## 技术栈
 
@@ -21,7 +22,8 @@
 | 后端 | Supabase 协议的 Auth、Deno Edge Functions、PostgreSQL/RLS/RPC；当前为官方托管 |
 | 视频执行 | 数据库队列、租约、有限时长 Worker；当前官方 Cron，火山方案用 ECS Docker |
 | 模型 | 统一设置页管理文本主备、七类视频、图片、TTS/ASR、网页 Reader；方舟优先 |
-| 素材 | Storage，成片固定路径转存，当前桶公开 |
+| 素材 | 私有 Storage、用户RLS、稳定引用与限时签名；云端待迁移 |
+| 剪辑与发布 | Python/FFmpeg Worker、抖音/TikTok OAuth与发布队列、官方累计指标；云端待验收 |
 | 支付 | 支付宝/微信回调验签与原子订单权益入账 |
 | MCP | FastMCP，用户 JWT 复用业务 API、视频幂等提交 |
 

@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/db/supabase';
+import { storedMedia, mediaPreview } from '@/api/media';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -245,11 +246,10 @@ export default function StyleCopyPage() {
     if (!['mp4', 'mov', 'avi', 'webm'].includes(ext ?? '')) {
       toast.error('请上传视频文件（MP4/MOV/AVI/WebM）'); return;
     }
-    const path = `style-analysis/${user.id}/${crypto.randomUUID()}.${ext}`;
+    const path = `${user.id}/style-analysis/${crypto.randomUUID()}.${ext}`;
     const { data, error } = await supabase.storage.from('materials').upload(path, file);
     if (error) { toast.error('上传失败'); return; }
-    const { data: urlData } = supabase.storage.from('materials').getPublicUrl(data.path);
-    setFileUrl(urlData.publicUrl);
+    setFileUrl(await mediaPreview(storedMedia('materials', data.path)));
     setFileName(file.name);
     toast.success('视频上传成功');
   };

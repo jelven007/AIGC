@@ -250,7 +250,7 @@ def verify(args):
         raise ValueError("验证必须指定 --worker-secret-file")
     url, _ = public_config(args)
     secret = Path(args.worker_secret_file).read_text().strip()
-    request = Request(f"{url}/functions/v1/video-job-worker", data=b'{"action":"probe"}',
+    request = Request(f"{url}/functions/v1/production-worker", data=b'{"action":"probe"}',
                       headers={"Authorization": f"Bearer {secret}", "Content-Type": "application/json"})
     try:
         with urlopen(request, timeout=30) as response:

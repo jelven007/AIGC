@@ -25,6 +25,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Slider } from '@/components/ui/slider';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
+import { storedMedia, stableMedia } from '@/api/media';
+import { canonicalMediaTree, hydrateMediaTree } from '@/lib/privateMedia';
+import { backendAnonKey } from '@/lib/backendConfig';
+import { useProductionJob } from '@/hooks/useProductionJob';
 import { audioRecorder } from '@/lib/audioRecorder';
 import { sendStepAudioASR } from '@/lib/sse';
 import { cn } from '@/lib/utils';
@@ -87,6 +91,7 @@ interface TrackItem {
   opacity?: number;
   volume?: number;
   speed?: number;
+  sourceStart?: number;
   fontStyle?: any;
   keyframes?: { time: number; property: string; value: number }[];
   // ── 专业视频画面属性 ──
@@ -119,6 +124,8 @@ interface TrackItem {
   isBold?: boolean;
   isItalic?: boolean;
   animation?: string;
+  entrance?: string;
+  exit?: string;
 }
 
 export interface PipSettings {
@@ -1001,6 +1008,8 @@ function TextSubtitlePanel({
       duration: 3.5,
       type: 'text',
       fontStyle: selectedFont || 'fs1',
+      entrance: activeEntrance || undefined,
+      exit: activeExit || undefined,
     };
     setTracks(prev => [...prev, newItem].sort((a, b) => a.start - b.start));
     toast.success(`已添加字幕文本到时间轴：${subtitleText.trim()}`);
@@ -1204,11 +1213,16 @@ function TextSubtitlePanel({
         {/* 入场动画 */}
         <CollapsibleSection title="入场动画">
           <div className="px-3 pt-1 grid grid-cols-2 gap-2">
-            {TEXT_ANIMATIONS.filter(a => a.dir === '入场').map(a => (
+            {TEXT_ANIMATIONS.filter(a => a.dir === '入场' && ['ta1', 'ta2'].includes(a.id)).map(a => (
               <button
                 key={a.id}
                 className={`py-2 rounded border text-[11px] transition-all ${activeEntrance === a.id ? 'border-indigo-500 bg-indigo-600/10 text-indigo-300 font-medium' : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-white'}`}
-                onClick={() => { setActiveEntrance(a.id === activeEntrance ? null : a.id); toast.success(a.id === activeEntrance ? '已移除入场动画' : `入场动画已设置：${a.name}`); }}
+                onClick={() => {
+                  const next = a.id === activeEntrance ? undefined : a.id;
+                  setActiveEntrance(next || null);
+                  setTracks(previous => previous.map(track => track.type === 'text' ? { ...track, entrance: next } : track));
+                  toast.success(next ? `字幕入场动画已设置：${a.name}` : '已移除字幕入场动画');
+                }}
               >
                 {activeEntrance === a.id && <Check className="inline w-3 h-3 mr-1 text-indigo-400" />}{a.name}
               </button>
@@ -1223,7 +1237,12 @@ function TextSubtitlePanel({
               <button
                 key={a.id}
                 className={`py-2 rounded border text-[11px] transition-all ${activeExit === a.id ? 'border-indigo-500 bg-indigo-600/10 text-indigo-300 font-medium' : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-white'}`}
-                onClick={() => { setActiveExit(a.id === activeExit ? null : a.id); toast.success(a.id === activeExit ? '已移除出场动画' : `出场动画已设置：${a.name}`); }}
+                onClick={() => {
+                  const next = a.id === activeExit ? undefined : a.id;
+                  setActiveExit(next || null);
+                  setTracks(previous => previous.map(track => track.type === 'text' ? { ...track, exit: next } : track));
+                  toast.success(next ? `字幕出场动画已设置：${a.name}` : '已移除字幕出场动画');
+                }}
               >
                 {activeExit === a.id && <Check className="inline w-3 h-3 mr-1 text-indigo-400" />}{a.name}
               </button>
@@ -1680,14 +1699,15 @@ function AudioEditPanel({
   };
 
   const handleAddVolumeKeyframe = () => {
-    const kfTime = Number(currentTime.toFixed(2));
+    const selected = tracks.find(track => track.id === selectedTrackItem);
+    const kfTime = Number(Math.max(0, Math.min(selected?.duration || 0, currentTime - (selected?.start || 0))).toFixed(2));
     if (selectedTrackItem) {
       setTracks(prev => prev.map(t => {
         if (t.id === selectedTrackItem) {
           const curKfs = t.keyframes || [];
           return {
             ...t,
-            keyframes: [...curKfs.filter(k => Math.abs(k.time - kfTime) > 0.1), { time: kfTime, property: '音量', value: volume[0] }].sort((a, b) => a.time - b.time),
+            keyframes: [...curKfs.filter(k => k.property !== 'volume' || Math.abs(k.time - kfTime) > 0.1), { time: kfTime, property: 'volume', value: volume[0] }].sort((a, b) => a.time - b.time),
           };
         }
         return t;
@@ -1883,7 +1903,8 @@ function KeyframePanel({
 
   const addKeyframe = (prop: string) => {
     const pos = Math.max(0, Math.min(100, Math.round((currentTime / Math.max(0.1, duration)) * 100)));
-    const val = prop === '缩放' ? scale[0] : prop === '不透明度' ? opacity[0] : 0;
+    const val = prop === '缩放' ? scale[0] : prop === '不透明度' ? opacity[0]
+      : prop === '旋转' ? selectedItem?.rotation || 0 : prop === '位置X' ? selectedItem?.x || 0 : selectedItem?.y || 0;
 
     setKeyframes(prev => ({
       ...prev,
@@ -1896,7 +1917,8 @@ function KeyframePanel({
           const curKfs = t.keyframes || [];
           return {
             ...t,
-            keyframes: [...curKfs, { time: Number(currentTime.toFixed(2)), property: prop, value: val }],
+            keyframes: [...curKfs, { time: Number(Math.max(0, Math.min(t.duration, currentTime - t.start)).toFixed(2)),
+              property: ({ 缩放: 'scale', 不透明度: 'opacity', 旋转: 'rotation', 位置X: 'x', 位置Y: 'y' } as Record<string, string>)[prop] || prop, value: val }],
           };
         }
         return t;
@@ -1909,6 +1931,15 @@ function KeyframePanel({
 
   const removeKeyframe = (prop: string, idx: number) => {
     setKeyframes(prev => ({ ...prev, [prop]: prev[prop].filter((_, i) => i !== idx) }));
+    const property = ({ 缩放: 'scale', 不透明度: 'opacity', 旋转: 'rotation', 位置X: 'x', 位置Y: 'y' } as Record<string, string>)[prop];
+    setTracks(previous => previous.map(track => {
+      if (track.id !== selectedTrackItem) return track;
+      let position = -1;
+      return { ...track, keyframes: track.keyframes?.filter(frame => {
+        if (![property, prop].includes(frame.property)) return true;
+        position++; return position !== idx;
+      }) };
+    }));
     toast.info('已移除关键帧');
   };
 
@@ -1956,9 +1987,19 @@ function KeyframePanel({
 
     setTracks(prev => prev.map(t => {
       if (t.id === selectedTrackItem) {
+        const presetFrames: Record<string, [number, number][]> = {
+          弹入弹出: [[0, 20], [.25, 115], [.4, 100], [.85, 100], [1, 1]],
+          缩放放大: [[0, 100], [1, 125]], 旋转进场: [[0, -180], [.3, 0]],
+          位移滑入: [[0, -80], [.25, 0]], 呼吸循环: [[0, 100], [.5, 110], [1, 100]],
+        };
+        const property = preset === '旋转进场' ? 'rotation' : preset === '位移滑入' ? 'x' : 'scale';
         return {
           ...t,
           scale: preset === '缩放放大' ? 120 : preset === '呼吸循环' ? 105 : 100,
+          keyframes: [...(t.keyframes || []).filter(frame => frame.property !== property),
+            ...(presetFrames[preset] || [[0, 0], [.25, -5], [.5, 5], [.75, -3], [1, 0]]).map(([time, value]) => ({
+              property: presetFrames[preset] ? property : 'x', time: time * t.duration, value,
+            }))],
         };
       }
       return t;
@@ -3029,6 +3070,24 @@ export default function VideoEditPage() {
     size: string;
     project_id: string;
   } | null>(null);
+  const renderTask = useProductionJob('render', user?.id, importId);
+  useEffect(() => {
+    const job = renderTask.job;
+    if (!job) return;
+    setExportProgress(job.progress);
+    if (job.status === 'pending' || job.status === 'running') {
+      setExportStage('rendering'); setExporting(true);
+      setExportStatusText(job.status === 'pending' ? '工程已排队，等待后台渲染' : 'FFmpeg正在合成时间轴，关闭页面后仍继续');
+    } else if (job.status === 'completed' && job.result?.url) {
+      setExportStage('completed'); setExporting(false);
+      setExportResult({ video_url: job.result.url, thumbnail_url: job.result.thumbnail_url || '',
+        title: projectTitle, duration: job.result.duration || duration, resolution: job.result.resolution || '',
+        size: `${((job.result.size || 0) / 1024 / 1024).toFixed(1)} MB`, project_id: job.project_id || '' });
+      window.dispatchEvent(new CustomEvent('shopro:works-updated'));
+    } else if (['failed', 'unknown'].includes(job.status)) {
+      setExportStage('failed'); setExporting(false); setExportError(job.error_message || '渲染失败');
+    }
+  }, [renderTask.job]);
 
   // 内部稳定跟踪当前项目 ID（消除路由异步更新延迟）
   const currentProjectIdRef = useRef<string | null>(importId);
@@ -3676,14 +3735,28 @@ export default function VideoEditPage() {
 
     const firstHalfDuration = relativePlayhead;
     const secondHalfDuration = item.duration - relativePlayhead;
+    const frames = item.keyframes || [];
+    const boundaryFrames = [...new Set(frames.map(frame => frame.property))].map(property => {
+      const propertyKey = ({ 缩放: 'scale', 不透明度: 'opacity', 音量: 'volume', 旋转: 'rotation', 位置X: 'x', 位置Y: 'y' } as Record<string, string>)[property] || property;
+      const base = Number((item as any)[propertyKey] ?? (['scale', 'opacity', 'volume'].includes(propertyKey) ? 100 : 0));
+      const points = [{ time: 0, value: base }, ...frames.filter(frame => frame.property === property)].sort((a, b) => a.time - b.time);
+      const before = points.filter(point => point.time <= relativePlayhead).at(-1)!;
+      const after = points.find(point => point.time > relativePlayhead);
+      const value = after ? before.value + (after.value - before.value) * (relativePlayhead - before.time) / (after.time - before.time) : before.value;
+      return { property, time: relativePlayhead, value };
+    });
 
     const firstHalf = {
       ...item,
       duration: Number(firstHalfDuration.toFixed(2)),
+      keyframes: [...frames.filter(frame => frame.time < relativePlayhead), ...boundaryFrames],
     };
 
     const secondHalf = {
       ...item,
+      sourceStart: item.type === 'image' || item.type === 'text' ? 0 : (item.sourceStart || 0) + relativePlayhead * (item.speed || 1),
+      keyframes: [...boundaryFrames.map(frame => ({ ...frame, time: 0 })),
+        ...frames.filter(frame => frame.time > relativePlayhead).map(frame => ({ ...frame, time: frame.time - relativePlayhead }))],
       id: `${item.id}_split_${Date.now()}`,
       name: `${item.name} (后半段)`,
       start: Number(currentTime.toFixed(2)),
@@ -3775,6 +3848,7 @@ export default function VideoEditPage() {
 
       // 2) 时间/音量/包络/变速/播放控制
       const local = currentTime - clip.start;
+      const sourceTime = (clip.sourceStart || 0) + local * (clip.speed || 1);
       const within = local >= 0 && local <= clip.duration;
       const fi = clip.fadeIn ?? 1.0;
       const fo = clip.fadeOut ?? 1.5;
@@ -3788,9 +3862,9 @@ export default function VideoEditPage() {
       if (el.playbackRate !== rate) el.playbackRate = rate;
 
       if (isPlaying && within) {
-        if (Math.abs(el.currentTime - local) > 0.3) {
+        if (Math.abs(el.currentTime - sourceTime) > 0.3) {
           try {
-            el.currentTime = Math.max(0, local);
+            el.currentTime = Math.max(0, sourceTime);
           } catch {
             /* 元数据未就绪时忽略本次 seek */
           }
@@ -4177,6 +4251,8 @@ export default function VideoEditPage() {
     try {
       let savedId = targetId;
       if (targetId) {
+        // 已有工程的成片状态和原生成规格由服务端维护；保存只更新可编辑工程数据。
+        for (const field of ['user_id', 'status', 'duration', 'resolution', 'video_url', 'thumbnail_url']) delete payload[field];
         const { error } = await supabase.from('video_projects').update(payload).eq('id', targetId);
         if (error) throw error;
         if (!options?.silent) toast.success('剪辑项目已成功保存');
@@ -4255,7 +4331,7 @@ export default function VideoEditPage() {
         }
 
         if (data.duration || styleData.duration) {
-          setDuration(data.duration || styleData.duration);
+          setDuration(styleData.duration || data.duration);
         }
         if (styleData.zoom !== undefined) setZoom(styleData.zoom);
         if (styleData.scale) setScale(styleData.scale);
@@ -4284,10 +4360,16 @@ export default function VideoEditPage() {
   // Load from localStorage draft if present on mount
   useEffect(() => {
     if (!user) return;
+    let stopped = false;
     const saved = localStorage.getItem(`video-editor-draft-${user.id}`);
     if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
+      void (async () => { try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session || stopped) return;
+        const parsed = await hydrateMediaTree(JSON.parse(saved), new Headers({
+          Authorization: `Bearer ${session.access_token}`, apikey: backendAnonKey,
+        }));
+        if (stopped) return;
         if (importId) {
           if (parsed.importId === importId) {
             if (parsed.projectTitle) setProjectTitle(parsed.projectTitle);
@@ -4315,8 +4397,9 @@ export default function VideoEditPage() {
         }
       } catch (e) {
         console.error('Error restoring local draft:', e);
-      }
+      } })();
     }
+    return () => { stopped = true; };
   }, [user, importId]);
 
   // Auto-save to localStorage
@@ -4330,7 +4413,7 @@ export default function VideoEditPage() {
         duration,
         previewVideoUrl
       };
-      localStorage.setItem(`video-editor-draft-${user.id}`, JSON.stringify(stateToSave));
+      localStorage.setItem(`video-editor-draft-${user.id}`, JSON.stringify(canonicalMediaTree(stateToSave)));
     }
   }, [tracks, zoom, duration, projectTitle, previewVideoUrl, importId, user]);
 
@@ -4384,10 +4467,9 @@ export default function VideoEditPage() {
 
       let targetTime: number;
       if (isVideoPlaying && v) {
-        targetTime = clip ? clip.start + v.currentTime : v.currentTime;
+        targetTime = clip ? clip.start + (v.currentTime - (clip.sourceStart || 0)) / (clip.speed || 1) : v.currentTime;
       } else {
-        const rate = v && Number.isFinite(v.playbackRate) ? Math.max(0.25, Math.min(4, v.playbackRate)) : 1;
-        targetTime = currentTimeRef.current + delta * rate;
+        targetTime = currentTimeRef.current + delta;
       }
 
       if (targetTime >= duration) {
@@ -4475,9 +4557,9 @@ export default function VideoEditPage() {
     const v = videoRef.current;
     if (!v || v.seeking || v.readyState < 2) return;
     if (activeVideoClip) {
-      const expectedLocalTime = currentTime - activeVideoClip.start;
+      const expectedLocalTime = (activeVideoClip.sourceStart || 0) + (currentTime - activeVideoClip.start) * (activeVideoClip.speed || 1);
       if (Math.abs(v.currentTime - expectedLocalTime) > 1.5) {
-        v.currentTime = Math.max(0, Math.min(activeVideoClip.duration, expectedLocalTime));
+        v.currentTime = Math.max(0, expectedLocalTime);
       }
     }
   }, [currentTime, isPlaying, activeVideoClip]);
@@ -4488,9 +4570,9 @@ export default function VideoEditPage() {
     const v = videoRef.current;
     if (!v) return;
     if (activeVideoClip) {
-      const localTime = currentTime - activeVideoClip.start;
+      const localTime = (activeVideoClip.sourceStart || 0) + (currentTime - activeVideoClip.start) * (activeVideoClip.speed || 1);
       if (Math.abs(v.currentTime - localTime) > 0.1) {
-        v.currentTime = Math.max(0, Math.min(activeVideoClip.duration, localTime));
+        v.currentTime = Math.max(0, localTime);
       }
     } else if (previewVideoUrl) {
       if (Math.abs(v.currentTime - currentTime) > 0.1) {
@@ -4517,7 +4599,7 @@ export default function VideoEditPage() {
         return newTime >= track.start && newTime <= end && track.type === 'video';
       });
       if (activeVideo) {
-        videoRef.current.currentTime = Math.max(0, Math.min(activeVideo.duration, newTime - activeVideo.start));
+        videoRef.current.currentTime = Math.max(0, (activeVideo.sourceStart || 0) + (newTime - activeVideo.start) * (activeVideo.speed || 1));
       } else {
         videoRef.current.currentTime = Math.max(0, Math.min(duration, newTime));
       }
@@ -4610,7 +4692,7 @@ export default function VideoEditPage() {
       const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
       const { data: up, error } = await supabase.storage.from('materials').upload(path, file);
       if (error) throw error;
-      const { data: urlData } = supabase.storage.from('materials').getPublicUrl(up.path);
+      const urlData = { publicUrl: storedMedia('materials', up.path) };
       const { data: mat, error: insertError } = await supabase.from('materials').insert({
         user_id: user.id,
         name: file.name,
@@ -4660,171 +4742,55 @@ export default function VideoEditPage() {
     setExportError(null);
     setExportResult(null);
 
-    const timeStr = () => new Date().toLocaleTimeString();
-    const pushLog = (stage: string, percent: number) => {
-      setExportProgress(percent);
-      setExportStatusText(stage);
-      setExportLogs(prev => [
-        ...prev.map(l => l.percent <= percent ? { ...l, done: true } : l),
-        { time: timeStr(), stage, percent, done: true },
-      ]);
-    };
-
-    setExportLogs([{ time: timeStr(), stage: '初始化渲染引擎与环境参数', percent: 5, done: true }]);
-
-    let currentId = currentProjectIdRef.current || importId;
     const finalTitle = (exportFileName || projectTitle || '未命名剪辑成片').trim();
-
     try {
-      // 阶段 1: 准备项目并保存草稿 (15%)
-      pushLog('保存剪辑工程并锁定项目工程编号...', 15);
-      const savedId = await saveProjectInternal({
-        customTitle: finalTitle,
-        customStatus: 'processing',
-        silent: true,
-      });
-      if (!savedId) throw new Error('保存剪辑项目失败');
-      currentId = savedId;
-
-      // 阶段 2: 解析轨道音视分镜与时间戳 (28%)
-      await new Promise(r => setTimeout(r, 600));
-      pushLog(`解析时间轴：共识别到 ${tracks.length} 个音视频/字幕轨道元素，总时长 ${Math.round(duration)} 秒`, 28);
-      await supabase.from('video_projects').update({ progress: 28, status: 'processing' }).eq('id', currentId);
-
-      // 阶段 3: 确定合成目标视频与真实首帧提取 (48%)
-      await new Promise(r => setTimeout(r, 700));
-      pushLog('读取媒体源并抽取真实首帧封面（Canvas 零占位图模式）...', 48);
-
-      // 锁定最终成片真实视频载体：
-      // 优先当前预览视频或轨道中真实视频素材，其次选用高质量成片模板
-      let targetVideoUrl = previewVideoUrl;
-      if (!targetVideoUrl) {
-        const firstVid = tracks.find(t => t.type === 'video' && t.url);
-        targetVideoUrl = firstVid?.url || '/Video/CreatOK_2.mp4';
-      }
-
-      // 实时抽帧保证真实封面
-      let realCover = '';
-      try {
-        const meta = await extractVideoMeta(targetVideoUrl);
-        if (meta?.frame) {
-          realCover = meta.frame;
-        } else {
-          realCover = await getVideoCoverImage(targetVideoUrl);
-        }
-      } catch (coverErr) {
-        console.warn('Cover extraction failed:', coverErr);
-        realCover = await getVideoCoverImage(targetVideoUrl);
-      }
-
-      // 阶段 4: 调用云端 AI / 服务端渲染流水线 (68%)
-      await new Promise(r => setTimeout(r, 800));
-      pushLog(`提交云端渲染管线：分辨率设定为 ${exportResolution.toUpperCase()}，帧率 ${exportFps} FPS...`, 68);
-      await supabase.from('video_projects').update({ progress: 68, thumbnail_url: realCover || null }).eq('id', currentId);
-
-      // 异步调用 Edge Function 保持后端同步
-      supabase.functions.invoke('ai-assistant', {
-        body: {
-          action: 'generate_video',
-          project_id: currentId,
-          prompt: {
-            prompt_text: finalTitle,
-            duration: Math.round(duration),
-            aspect_ratio: editorAspect === 'aspect-[9/16]' ? '9:16' : '16:9',
-            resolution: exportResolution,
-          },
-          materials: tracks.map(t => ({ type: t.type, url: t.url, name: t.name })),
-        }
-      }).catch(err => {
-        console.warn('Async cloud pipeline notice:', err);
-      });
-
-      // 阶段 5: 多轨混流、滤镜调色与动态字幕烧录 (84%)
-      await new Promise(r => setTimeout(r, 700));
-      pushLog(`应用色彩滤镜 [${appliedFilter || '默认清晰'}]，完成字幕轨道时间轴对齐烧录`, 84);
-      await supabase.from('video_projects').update({ progress: 84 }).eq('id', currentId);
-
-      // 阶段 6: H.264 视频编码压缩与格式封装 (94%)
-      await new Promise(r => setTimeout(r, 600));
-      pushLog('执行 H.264 / AAC 音视频编解码，生成 MP4 高清输出文件...', 94);
-      await supabase.from('video_projects').update({ progress: 94 }).eq('id', currentId);
-
-      // 阶段 7: 写入作品库与素材库并广播更新 (100%)
-      await new Promise(r => setTimeout(r, 500));
-      pushLog('更新 video_projects 并入库 materials 作品素材表，完成双向联动！', 100);
-
-      const estimatedSize = Math.round(duration * (exportResolution === '1080p' ? 0.45 : 0.28) * 10) / 10;
-      const sizeBytes = Math.round(estimatedSize * 1024 * 1024);
-
-      // 1. 更新 video_projects 表为 completed
-      const { error: projUpdateErr } = await supabase.from('video_projects').update({
-        title: finalTitle,
-        status: 'completed',
-        progress: 100,
-        duration: Math.round(duration),
-        resolution: exportResolution === '1080p' ? (editorAspect === 'aspect-[9/16]' ? '1080x1920' : '1920x1080') : '1280x720',
-        video_url: targetVideoUrl,
-        thumbnail_url: realCover || null,
-        updated_at: new Date().toISOString(),
-      }).eq('id', currentId);
-      if (projUpdateErr) throw projUpdateErr;
-
-      // 2. 写入 materials 表（作品素材库可直接使用）
-      const { error: matInsertErr } = await supabase.from('materials').insert({
-        user_id: user.id,
-        name: `${finalTitle}`,
-        type: 'video',
-        url: targetVideoUrl,
-        size: sizeBytes,
-        duration_sec: Math.round(duration),
-        tags: ['剪辑导出', '成片', exportResolution.toUpperCase()],
-      });
-      if (matInsertErr) {
-        console.warn('Insert materials notice:', matInsertErr);
-      }
-
-      // 3. 记录任务 video_jobs
-      try {
-        await supabase.from('video_jobs').insert({
-          user_id: user.id,
-          action: 'video_edit_export',
-          status: 'completed',
-          payload: { project_id: currentId, title: finalTitle, duration, resolution: exportResolution },
-          result: { video_url: targetVideoUrl, completed_at: new Date().toISOString() },
+      if (aiCutoutEnabled) throw new Error('人物抠像暂未接入导出，请关闭后渲染');
+      if (pipSettings.blendMode !== '正常') throw new Error('此画中画混合模式尚未接入成片，请选择正常模式');
+      if (!['无', 't1', 't2'].includes(appliedTrans)) throw new Error('此转场尚未接入成片，请选择淡入淡出或叠化溶解');
+      setExportStatusText('正在上传工程中的本地素材');
+      const renderTracks: Array<Record<string, unknown>> = [];
+      for (const [index, track] of tracks.entries()) {
+        const pip = track.trackId === 'pip';
+        const bounds = videoRef.current?.parentElement?.getBoundingClientRect();
+        const visualOffset = track.type === 'video' && !pip;
+        const convertX = (value: number) => 50 + value / (bounds?.width || 640) * 100;
+        const convertY = (value: number) => 50 + value / (bounds?.height || 360) * 100;
+        renderTracks.push({
+          ...track, layer: index,
+          ...(visualOffset ? { x: convertX(track.x || 0), y: convertY(track.y || 0) } : {}),
+          keyframes: (track.keyframes || []).map(frame => {
+            const property = ({ 缩放: 'scale', 不透明度: 'opacity', 音量: 'volume', 旋转: 'rotation', 位置X: 'x', 位置Y: 'y' } as Record<string, string>)[frame.property] || frame.property;
+            return { ...frame, property, value: visualOffset && property === 'x' ? convertX(frame.value)
+              : visualOffset && property === 'y' ? convertY(frame.value) : frame.value };
+          }),
+          ...(track.type !== 'text' ? { url: await stableMedia(track.url || '', user.id) }
+            : { text: track.text || track.name, bgColor: track.bgColor || track.fontStyle?.bg || 'rgba(0,0,0,0.75)',
+              fontColor: track.fontColor || track.fontStyle?.color || '#ffffff' }),
+          ...(pip ? { x: track.x ?? pipSettings.x, y: track.y ?? pipSettings.y,
+            scale: track.scale ?? pipSettings.scale * 0.35, opacity: track.opacity ?? pipSettings.opacity,
+            rotation: track.rotation ?? pipSettings.rotation } : {}),
+          ...(track.type === 'video' && appliedFilter !== '无' ? { filter: appliedFilter } : {}),
+          ...(aiBeautyEnabled && track.type === 'video' ? { brightness: 106, contrast: 103, saturation: 108 } : {}),
         });
-      } catch {}
-
-      // 4. 派发全局自定义事件，使同页面或跨组件的 WorksPage 实时刷新
-      window.dispatchEvent(new CustomEvent('shopro:works-updated'));
-
-      // 5. 刷新当前页左侧素材列表
-      loadMaterials();
-      loadImportedVideos();
-
-      // 6. 保存导出结果并切换到完成视图
-      setExportResult({
-        video_url: targetVideoUrl,
-        thumbnail_url: realCover || '',
-        title: finalTitle,
-        duration: Math.round(duration),
-        resolution: exportResolution.toUpperCase(),
-        size: `${estimatedSize.toFixed(1)} MB`,
-        project_id: currentId,
-      });
-      setExportStage('completed');
-      setExportProgress(100);
-      toast.success('🎉 视频渲染导出完成！已同步至作品库与素材库');
+      }
+      const savedId = await saveProjectInternal({ customTitle: finalTitle, silent: true });
+      if (!savedId) throw new Error('工程保存失败');
+      const ratio = editorAspect === 'aspect-[9/16]' ? '9:16' : editorAspect === 'aspect-[3/4]' ? '3:4'
+        : editorAspect === 'aspect-[4/3]' ? '4:3' : editorAspect === 'aspect-square' ? '1:1' : '16:9';
+      const submitted = await renderTask.start({ version: 1, title: finalTitle, duration, tracks: renderTracks,
+        transition: appliedTrans === '无' ? 'none' : appliedTrans,
+        height: exportResolution === '4k' ? 2160 : exportResolution === '1080p' ? 1080 : 720,
+        fps: Number(exportFps), ratio }, savedId);
+      if (!submitted) {
+        setExporting(false); setExportStage('failed');
+        setExportError('提交结果待确认，请查看任务提示；保留原请求后会自动恢复');
+        return;
+      }
+      setExportStatusText('工程已提交后台，重新打开此项目可恢复进度');
     } catch (e: any) {
-      console.error('Export failed:', e);
-      const errMsg = e.message || '视频渲染或落库异常，请检查网络后重试';
+      const errMsg = e.message || '渲染任务提交失败';
       setExportError(errMsg);
       setExportStage('failed');
-      if (currentId) {
-        await supabase.from('video_projects').update({
-          status: 'failed',
-          error_message: errMsg,
-        }).eq('id', currentId);
-      }
       toast.error('导出失败: ' + errMsg);
     } finally {
       setExporting(false);
@@ -5055,7 +5021,7 @@ export default function VideoEditPage() {
                     const vid = e.currentTarget;
                     if (!vid.seeking && isPlaying) {
                       const clip = activeVideoClipRef.current;
-                      const target = clip ? clip.start + vid.currentTime : vid.currentTime;
+                      const target = clip ? clip.start + (vid.currentTime - (clip.sourceStart || 0)) / (clip.speed || 1) : vid.currentTime;
                       currentTimeRef.current = target;
                     }
                   }}
@@ -5064,9 +5030,9 @@ export default function VideoEditPage() {
                     vid.muted = !!activeVideoClipRef.current?.mute;
                     if (!isPlaying) {
                       if (activeVideoClip) {
-                        const localTime = currentTime - activeVideoClip.start;
+                        const localTime = (activeVideoClip.sourceStart || 0) + (currentTime - activeVideoClip.start) * (activeVideoClip.speed || 1);
                         if (Math.abs(vid.currentTime - localTime) > 0.1) {
-                          vid.currentTime = Math.max(0, Math.min(activeVideoClip.duration, localTime));
+                          vid.currentTime = Math.max(0, localTime);
                         }
                       } else if (previewVideoUrl) {
                         if (Math.abs(vid.currentTime - currentTime) > 0.1) {
@@ -6220,11 +6186,6 @@ export default function VideoEditPage() {
 
       {/* 导出视频与渲染全流程进度弹窗 */}
       <Dialog open={exportDialogOpen} onOpenChange={(open) => {
-        if (!open && exportStage === 'rendering') {
-          // 渲染中点击外部防误触关闭
-          toast.warning('视频渲染正在进行中，请耐心等待完成');
-          return;
-        }
         setExportDialogOpen(open);
       }}>
         {/* 移动端限高：标头固定，内容区滚动 */}
