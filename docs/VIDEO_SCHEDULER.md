@@ -1,5 +1,7 @@
 # 视频任务后台调度
 
+当前 [迭代20](ITERATION_20_CASH_OPERATIONS.md)新增现金退款核对轮转：专用Worker仅查询已发出原申请，10秒至10分钟退避/租约、最多100次后保留人工核对。production模式严格匹配version9、00048、render2，video-job-worker仍version1；调度器与production-worker/迁移须一起升级。没有支付配置时退款runner不影响其他队列；云端仍旧基线，源码增加调度不代表已运行验收。
+
 当前 [迭代19](ITERATION_19_PRODUCT_MANAGEMENT.md)production-worker新增product_import轮转和30天原文/结果清理。常驻调度修复旧version1预检：生产模式严格要求version8、00046、render2，旧video-job-worker模式仍version1。数据库、函数和调度器须一起升级；探针只读通过不证明真实商家/模型任务和生产持续运行已验收。
 
 新增 [发布组迭代18](ITERATION_18_PUBLISH_GROUPS.md)：各账号仍按原publish任务轮转和next_run_at领取，不依赖页面；无整组重发执行器。probe v7要求00045的组/子任务结构，render_version仍2。部署匹配函数/迁移后验收定时、多账号并发和unknown核对，原10秒调度机制保持。

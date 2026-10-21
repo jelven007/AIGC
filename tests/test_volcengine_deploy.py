@@ -71,7 +71,7 @@ class DeployTest(unittest.TestCase):
                                   "wechat-payment-webhook", "alipay-payment-notify", "text-generation",
                                   "video-jobs", "batch-video-jobs", "production-jobs", "platform-publish",
                                   "platform-accounts", "measurements", "knowledge-base",
-                                  "market-intelligence", "product-management", "measurement-ingest"})
+                                  "market-intelligence", "product-management", "operations", "measurement-ingest"})
 
     def test_service_role_cannot_be_packaged_as_anon_key(self):
         with tempfile.TemporaryDirectory() as directory:

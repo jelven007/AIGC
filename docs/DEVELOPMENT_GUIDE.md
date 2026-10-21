@@ -1,5 +1,7 @@
 # 开发指南
 
+新增 [现金退款与运营入口](ITERATION_20_CASH_OPERATIONS.md)：00047/00048、cash-refunds共享模块、operations/Alipay两函数、OperationsPage与用户订单回执。不得恢复profile角色/浮点累计/浏览器财务写、供应商原响应日志或无UUID重发；所有新扣费均经账户锁/UTC日预算。修改权益需验证欠额、旧周期/加油包和支付锁顺序，执行test:cash/finance/payments、browser_operations、Deno/调度/工程检查；发布probe v9/00048与匹配服务。
+
 商品模块最新入口见 [迭代19](ITERATION_19_PRODUCT_MANAGEMENT.md)：共享product-contract/product-import、product-management、ProductFields/UrlProductImportDialog、productCsv和00046；修改字段须同步前后端规范化及RPC回执。使用test:products与浏览器专项验证，禁止恢复默认商品/库存/图片或本地隐藏删除。MCP目录由真实SDK导出，重建镜像并检查52工具；常驻调度要求probe v8/00046。
 
 发布组入口见 [迭代18](ITERATION_18_PUBLISH_GROUPS.md)：00045、publish-contract.ts、platform-publish、PublishPage及MCP两个工具。`npm run test:publish`执行真实PG和Edge，browser_publish_groups.mjs验证页面恢复；修改options须同步三端。不得为每账号另建供应商直连或重试整组旁路，保存预览源/原UUID，SQL原子回滚并共用24队列配额。MCP当前47工具需重新导出与镜像重建。

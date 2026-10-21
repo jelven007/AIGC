@@ -10,6 +10,7 @@ import { KNOWLEDGE_KINDS, processKnowledgeJob } from '../_shared/knowledge.ts';
 import { INTELLIGENCE_KINDS } from '../_shared/intelligence-provider.ts';
 import { processIntelligenceJob } from '../_shared/intelligence-jobs.ts';
 import { processProductImport } from '../_shared/product-import.ts';
+import { processCashRefund } from '../_shared/cash-refunds.ts';
 
 export async function handleProductionWorker(req: Request): Promise<Response> {
   if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
@@ -36,12 +37,14 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
       const publishTasks = await db.from('publish_tasks').select('id,group_id,connection_id').limit(0);
       const products = await db.from('products').select('id,currency,source,import_job_id').limit(0);
       const receipts = await db.from('product_mutation_receipts').select('request_key,request_hash').limit(0);
+      const cash = await db.from('alipay_refunds').select('request_key,lease_token,applied_at,next_query_at').limit(0);
+      const operators = await db.from('operator_mutations').select('request_key,actor_id').limit(0);
       const ready = !error && !voices.error && !costs.error && costs.data?.length === Object.keys(MEDIA_JOB_SLOTS).length
         && !analysis.error && !!analysis.data && !measurements.error && !experiments.error && !knowledge.error && !chunks.error
         && !knowledgeCosts.error && knowledgeCosts.data?.length === 2 && knowledgeCosts.data.every(row => Number.isInteger(row.cost) && row.cost >= 0)
         && !intelligence.error && !intelligenceCosts.error && intelligenceCosts.data?.length === 2
-        && !publishGroups.error && !publishTasks.error && !products.error && !receipts.error;
-      return Response.json({ ready, version: 8, render_version: 2, required_migration: '00046' }, { status: ready ? 200 : 503 });
+        && !publishGroups.error && !publishTasks.error && !products.error && !receipts.error && !cash.error && !operators.error;
+      return Response.json({ ready, version: 9, render_version: 2, required_migration: '00048' }, { status: ready ? 200 : 503 });
     }
     if (general && body.action === 'run') {
       const scheduled = await db.rpc('enqueue_intelligence_schedule');
@@ -53,6 +56,7 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
       // 以轮转顺序避免长视频队列使图片或发布饿死。
       const runners = [() => processVideoJob(db), () => processImageJob(db), () => processPublishJob(db), () => processAnalysisJob(db),
         () => processProductImport(db),
+        () => processCashRefund(db),
         ...KNOWLEDGE_KINDS.map(kind => () => processKnowledgeJob(db, kind)),
         ...INTELLIGENCE_KINDS.map(kind => () => processIntelligenceJob(db, kind)),
         ...Object.keys(MEDIA_JOB_SLOTS).map(kind => () => processMediaJob(db, kind))];

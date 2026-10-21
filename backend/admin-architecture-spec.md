@@ -1,4 +1,4 @@
-> 规格/历史设计，非当前可运行后台：2026-10-21 仓库 backend/ 缺少核心应用源码；下文接口、角色、seed/mock、运行指令和功能描述不能作为已实现/已部署证据。业务后端仍为 Supabase，最新后台开发范围见 [后端方案](../docs/后端.md)，实际环境见 [当前状态](../docs/CURRENT_STATE.md)，接受条件见 [测试计划](../docs/TEST_PLAN.md)。
+> 历史Vue/Mock设计，非当前实现规格。2026-10-22 已在现有React/Supabase新增 `/operations` 的真实资金/范围权限/预算/观测入口，见 [迭代20](../docs/ITERATION_20_CASH_OPERATIONS.md)。下文接口、seed/mock与演示运行指令不能作为已实现/已部署证据，也不用于替代真实账本。完整中台边界见 [后端方案](../docs/后端.md)、[当前状态](../docs/CURRENT_STATE.md) 和 [测试计划](../docs/TEST_PLAN.md)。
 
 # Shopro AI 厂商运营后台 Demo：架构与构建规格
 

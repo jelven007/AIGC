@@ -1,5 +1,7 @@
 # Shopro AI 技术架构
 
+最新 [迭代20](ITERATION_20_CASH_OPERATIONS.md)在现有React/Supabase新增真实运营入口，避免复建Vue/Mock中台；可信权限/客户范围与资金/预算回执在DB执行。现金退款统一账户→订单→退款锁、金额预占/原UUID/签名证据、到账/权益/审计原子化；支付发放同锁顺序且保留欠额。UTC日预算统一在deduct_credits执行，队列复用只查询退款，probe v9/00048。完整租户/工单/风险处置/现金成本与实际部署仍待交付。
+
 最新 [商品管理迭代19](ITERATION_19_PRODUCT_MANAGEMENT.md)统一两处导入/表单/字段校验/API，撤销浏览器商品写权限。后台product_import复用租约队列，以真实来源/图片/证据归档；商品写入/版本/来源一次性/回执/审计同事务。CSV与页面不再重复解析/猜测结果。00046、MCP52/18权限，常驻调度严格匹配probe v8/00046；目标云端部署仍待验收。
 
 00045 [发布组](ITERATION_18_PUBLISH_GROUPS.md)复用原production_jobs：用户→作品锁、源/时长快照、整组事务与每账号独立Worker证据；单账号与组共用24配额，unknown保持占用。发布契约在页面/API/Worker共用，47工具沿原业务权限；probe v7要求00045。后端/迁移/MCP/前端须匹配部署，真实平台仍待验收。

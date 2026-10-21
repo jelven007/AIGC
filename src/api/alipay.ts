@@ -34,6 +34,15 @@ async function extractInvokeError(error: any): Promise<Error> {
   return new Error(error?.message || '支付服务请求失败');
 }
 
+export interface CashRefundReceipt {
+  id: string; order_id: string; out_request_no: string; request_key: string | null;
+  refund_amount: string; refund_status: 'init' | 'requested' | 'success' | 'unknown';
+  applied_at: string | null; revoked_credits: number; needs_attention: boolean; next_query_at: string | null;
+}
+export class AlipayOperationError extends Error {
+  constructor(message: string, readonly status: number, readonly outcome: string) { super(message); }
+}
+
 /** 统一下单：服务端创建订单并返回 alipay.trade.page.pay 表单 HTML */
 export async function createAlipayOrder(planId: string): Promise<AlipayOrderResult> {
   const { data, error } = await supabase.functions.invoke('alipay-payment-order', {
@@ -70,18 +79,24 @@ export async function queryAlipayOrder(orderNo: string): Promise<AlipayQueryResu
   return data.data as AlipayQueryResult;
 }
 
-/** 交易操作：退款 / 退款查询（管理员）/ 关闭交易（本人或管理员） */
+/** 交易操作：退款 / 原申请查询（运营授权）/ 关闭交易（本人或财务） */
 export async function alipayTradeOps(params: {
-  action: 'refund' | 'refundQuery' | 'close';
+  action: 'refund' | 'refundQuery' | 'receipt' | 'close';
   order_no: string;
+  request_key?: string;
   refund_amount?: string;
   refund_reason?: string;
   out_request_no?: string;
 }): Promise<Record<string, unknown>> {
   const { data, error } = await supabase.functions.invoke('alipay-trade-ops', {
     body: params,
+    timeout: 25000,
   });
-  if (error) throw await extractInvokeError(error);
+  if (error) {
+    const response = error.context instanceof Response ? error.context : null;
+    const details = await response?.json().catch(() => null);
+    throw new AlipayOperationError(details?.message || error.message, response?.status || 0, details?.outcome || 'unknown');
+  }
   if (data?.code !== 0) throw new Error(data?.message || '交易操作失败');
   return (data.data ?? {}) as Record<string, unknown>;
 }
