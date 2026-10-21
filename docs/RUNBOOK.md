@@ -8,6 +8,8 @@
 
 00039新增多规格导出，见 [迭代10](ITERATION_10_RENDER_EXPORTS.md)。先迁移/production-jobs，重建更新FFmpeg镜像和既有production调度，前端最后发布。每用户24个未结案渲染共用队列上限；429等待原任务释放容量。监控production_jobs按export_id的状态/年龄/租约/归档失败，不输出payload/签名/凭据。批次失联恢复原UUID，单项失败不改其他成片；父进度只汇总，不手动标成功。官方Sora API已关闭，旧接口410是退役状态，不通过启用历史端点处理。
 
+00040新增TTS/ASR/即时克隆/照片口播/口型，见 [迭代11](ITERATION_11_AUDIO_AVATAR_JOBS.md)。部署匹配production-jobs/production-worker/model-settings与兼容音频入口；probe版本2要求voice_clones和五计费项。每用户共用10个未结案媒体任务，默认积分2/2/10/10/10，价格变化拒绝且不扣。unknown核对原账号后用reconcile_production_job提交原音频/正文/voice_id/任务ID及至少10字依据，确定未受理传NULL进入退款事务，不重发POST。需供应商验证的声纹不可配音；监控任务年龄、证据/Storage大小和原流水补偿，生产调度轮转执行，旧视频Cron不能替代。云端记录未刷新。
+
 ## 1. 环境与访问责任
 
 生产记录至少包含平台、项目/workspace/branch、URL、前端构建 Git/校验值、迁移回执、函数版本与对应源码、调度方式、配置版本、负责人和验收链接。URL 是公开信息，密钥不写运行记录。

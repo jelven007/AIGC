@@ -4,6 +4,8 @@
 
 源码增量包含00035–00039，最新多规格导出须部署匹配production-jobs、重建FFmpeg镜像与既有production调度，前端最后发布。00039的导出事务/共用渲染队列配额/4:5/旧回执与实际验收见 [迭代10](ITERATION_10_RENDER_EXPORTS.md)；本段不更新真实云端回执，不重放已应用旧迁移。
 
+最新媒体增量扩展到00040，配套production-worker版本2和16槽model-settings，旧同步音频入口410；D-ID/Sync/ElevenLabs服务端协议与五类后台计费任务见 [迭代11](ITERATION_11_AUDIO_AVATAR_JOBS.md)。只应用缺失增量，更新匹配共享模块/生产调度，再发布前端；真实签名素材、声音/口型/账单和关页恢复仍须在目标账号验收，本地夹具不改变云端部署事实。
+
 ## 1. 工具与资源
 
 本地需要 Node.js 22+、pnpm 10、Python 3、`byted-supabase-cli`；ECS 需要 Docker Compose。CLI 已核实版本 `0.1.34` 的 SQL、函数、Secrets、Pages 参数。

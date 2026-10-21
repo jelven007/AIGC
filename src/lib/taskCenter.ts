@@ -4,7 +4,7 @@ import type { PlatformPublishTask } from '@/api/platforms';
 
 export type TaskSource = 'video' | 'production' | 'publish';
 export type TaskStatus = 'pending' | 'running' | 'review' | 'completed' | 'failed' | 'unknown' | 'cancelled';
-export type TaskKind = 'video' | 'image' | 'cover' | 'render' | 'publish' | 'metrics';
+export type TaskKind = 'video' | 'image' | 'cover' | 'render' | 'publish' | 'metrics' | 'tts' | 'asr' | 'voice_clone' | 'avatar' | 'lipsync';
 export interface CenterTask {
   key: string;
   id: string;
@@ -29,6 +29,7 @@ export interface TaskSnapshot {
 }
 export const TASK_KINDS: Record<TaskKind, string> = {
   video: '视频生成', image: '图片生成', cover: '封面生成', render: '剪辑渲染', publish: '平台发布', metrics: '指标采集',
+  tts: '语音合成', asr: '语音识别', voice_clone: '声纹克隆', avatar: '照片口播', lipsync: '口型同步',
 };
 export const TASK_STATUSES: Record<TaskStatus, string> = {
   pending: '等待中', running: '处理中', review: '平台处理中', completed: '已完成',
@@ -38,6 +39,7 @@ const percent = (value: number): number | null => Number.isFinite(value) ? Math.
 const projectQuery = (id: string | null) => id ? `?projectId=${encodeURIComponent(id)}` : '';
 
 export function taskDestination(task: CenterTask): { href: string; label: string } {
+  if (['tts', 'asr', 'voice_clone', 'avatar', 'lipsync'].includes(task.kind)) return { href: '/avatars#media-jobs', label: '管理媒体任务' };
   if (task.kind === 'publish') return { href: `/publish${projectQuery(task.projectId)}`, label: '管理发布' };
   if (task.kind === 'metrics') return { href: `/data-feedback${projectQuery(task.projectId)}`, label: '查看数据' };
   if (task.kind === 'render' && task.projectId) {
@@ -69,7 +71,7 @@ export function videoCenterTask(job: ServerVideoJob): CenterTask {
 
 export function productionCenterTask(job: ProductionJob): CenterTask {
   const kind: TaskKind = job.kind === 'image' ? job.project_id ? 'cover' : 'image'
-    : ['render', 'publish', 'metrics'].includes(job.kind) ? job.kind as TaskKind : 'metrics';
+    : ['render', 'publish', 'metrics', 'tts', 'asr', 'voice_clone', 'avatar', 'lipsync'].includes(job.kind) ? job.kind as TaskKind : 'metrics';
   const status: TaskStatus = ['pending', 'running', 'completed', 'failed', 'unknown', 'cancelled'].includes(job.status)
     ? job.status : 'unknown';
   const phases: Record<string, string> = { ready: '等待后台领取', claimed: '后台已领取',

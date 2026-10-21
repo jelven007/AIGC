@@ -3,7 +3,8 @@ import { canonicalMediaTree } from '@/lib/privateMedia';
 export interface ProductionJob {
   id: string; request_key: string; kind: string; project_id: string | null;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'unknown' | 'cancelled';
-  progress: number; phase: string; result: { url?: string; thumbnail_url?: string; size?: number; duration?: number; resolution?: string } | null;
+  progress: number; phase: string; result: { url?: string; thumbnail_url?: string; size?: number; duration?: number; resolution?: string;
+    text?: string; segments?: { start: number; end: number; text: string }[]; voice_clone_id?: string; requires_verification?: boolean } | null;
   error_message: string | null; credit_cost: number; created_at: string;
 }
 export interface RenderExport {

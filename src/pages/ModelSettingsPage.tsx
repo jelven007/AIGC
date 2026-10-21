@@ -14,6 +14,7 @@ const categories = [
   { id: 'video', label: '视频', description: '选择供应商协议，提交与查询地址分别配置。' },
   { id: 'image', label: '图片', description: '工作台绘图与视频封面共用此模型。' },
   { id: 'audio', label: '音频', description: '语音合成与识别分别设置模型和接口。' },
+  { id: 'avatar', label: '数字人', description: '照片口播与视频口型同步使用独立供应商，音频需先上传或生成。' },
   { id: 'reader', label: '网页读取', description: '读取商品网页后交给文本模型提炼卖点。' },
 ];
 function RetiredModels() {
@@ -133,8 +134,8 @@ export function ModelSettingsEditor({ request = modelSettingsRequest }: { reques
             </div>
             <label className="block space-y-2 text-sm">完整调用地址<Input type="url" required={draft.enabled} value={draft.settings.endpoint} onChange={event => patch('endpoint', event.target.value)} placeholder="https://供应商域名/v1/chat/completions" />
               <p className="text-xs text-muted-foreground">填写完整 HTTPS 接口路径。请选择与供应商文档一致的协议。</p></label>
-            {category === 'video' && <label className="block space-y-2 text-sm">任务查询地址<Input type="url" required={draft.enabled} value={draft.settings.query_endpoint} onChange={event => patch('query_endpoint', event.target.value)} /><p className="text-xs text-muted-foreground">填写任务查询基础路径，服务端按协议追加任务 ID。</p></label>}
-            {category !== 'reader' && <label className="block space-y-2 text-sm">模型 ID<Input required={draft.enabled && slot !== 'video.Kling'} value={draft.settings.model} onChange={event => patch('model', event.target.value)} placeholder="账号已开通的 Model ID 或 Endpoint ID" /></label>}
+            {['video', 'avatar'].includes(category) && <label className="block space-y-2 text-sm">任务查询地址<Input type="url" required={draft.enabled} value={draft.settings.query_endpoint} onChange={event => patch('query_endpoint', event.target.value)} /><p className="text-xs text-muted-foreground">填写任务查询基础路径，服务端按协议追加任务 ID。</p></label>}
+            {category !== 'reader' && <label className="block space-y-2 text-sm">模型 ID<Input required={draft.enabled && !['video.Kling', 'avatar.photo'].includes(slot)} value={draft.settings.model} onChange={event => patch('model', event.target.value)} placeholder="账号已开通的 Model ID 或 Endpoint ID" /></label>}
             {slot === 'audio.tts' && <label className="block space-y-2 text-sm">默认音色<Input value={draft.settings.voice} onChange={event => patch('voice', event.target.value)} /></label>}
             <label className="block space-y-2 text-sm">API Key <span className="text-xs text-muted-foreground">{draft.has_key ? '已保存 · 留空保留原密钥' : '尚未保存'}</span>
               <Input type="password" autoComplete="new-password" value={apiKey} onChange={event => { setApiKey(event.target.value); setDirty(true); }} placeholder={draft.has_key ? '输入新密钥可替换' : '输入供应商密钥'} maxLength={4096} /></label>
@@ -142,12 +143,12 @@ export function ModelSettingsEditor({ request = modelSettingsRequest }: { reques
               <summary className="text-sm cursor-pointer">认证、超时与连接检查</summary>
               <div className="grid gap-4 sm:grid-cols-2 pt-4">
                 <label className="space-y-2 text-sm">认证请求头<select className="w-full h-10 rounded-md border border-input bg-background px-3" value={draft.settings.auth_header} onChange={event => patch('auth_header', event.target.value)}>
-                  {['Authorization', 'X-Gateway-Authorization', 'api-key'].map(value => <option key={value}>{value}</option>)}
+                  {['Authorization', 'X-Gateway-Authorization', 'api-key', 'x-api-key', 'xi-api-key'].map(value => <option key={value}>{value}</option>)}
                 </select></label>
                 <label className="space-y-2 text-sm">认证格式<select className="w-full h-10 rounded-md border border-input bg-background px-3" value={draft.settings.auth_scheme} onChange={event => patch('auth_scheme', event.target.value)}>
-                  <option value="Bearer">Bearer + 密钥</option><option value="raw">仅密钥</option>
+                  <option value="Bearer">Bearer + 密钥</option><option value="raw">仅密钥</option><option value="Basic">Basic + 已编码凭据</option>
                 </select></label>
-                <label className="space-y-2 text-sm">超时（秒）<Input type="number" min={1} max={category === 'video' ? 30 : 120} required value={draft.settings.timeout_ms / 1000} onChange={event => patch('timeout_ms', Number(event.target.value) * 1000)} /></label>
+                <label className="space-y-2 text-sm">超时（秒）<Input type="number" min={1} max={['video', 'avatar'].includes(category) ? 30 : 120} required value={draft.settings.timeout_ms / 1000} onChange={event => patch('timeout_ms', Number(event.target.value) * 1000)} /></label>
                 <label className="space-y-2 text-sm">只读检查地址<Input type="url" value={draft.settings.test_endpoint} onChange={event => patch('test_endpoint', event.target.value)} placeholder="供应商模型列表或健康检查地址" /></label>
               </div>
               <p className="text-xs text-muted-foreground mt-3">连接检查使用已保存配置，仅发出 GET 请求。模型生成权限仍需业务验收。</p>

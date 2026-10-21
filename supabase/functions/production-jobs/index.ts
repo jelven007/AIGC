@@ -1,10 +1,11 @@
 import { authenticateRequest, createServiceClient } from '../_shared/auth.ts';
 import { getCorsHeaders, handleCorsPreflight } from '../_shared/cors.ts';
-import { resolveModel } from '../_shared/model-registry.ts';
+import { ConfigError, resolveModel } from '../_shared/model-registry.ts';
 import { validateMediaTree } from '../_shared/private-media.ts';
 import { publicProductionJob, type ProductionJob } from '../_shared/production-jobs.ts';
 import { validateRender } from '../_shared/render-spec.ts';
 import { exportRequest, publicRenderExport } from '../_shared/render-exports.ts';
+import { createMediaJob, MEDIA_JOB_SLOTS, mediaJobInput } from '../_shared/media-jobs.ts';
 
 const uuid = (value: unknown) => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 export async function handleProductionJobs(req: Request): Promise<Response> {
@@ -16,10 +17,22 @@ export async function handleProductionJobs(req: Request): Promise<Response> {
     const body = await req.json().catch(() => null);
     if (!body) return reply({ error: '任务参数非法' }, 400);
     const auth = await authenticateRequest(req, body.action === 'export' ? 'render:create' : body.action === 'create'
-      ? body.kind === 'image' ? 'image:create' : body.kind === 'render' ? 'render:create' : undefined
-      : ['query', 'list', 'exports', 'query-export'].includes(body.action) ? 'jobs:read' : undefined);
+      ? body.kind === 'image' ? 'image:create' : body.kind === 'render' ? 'render:create'
+        : MEDIA_JOB_SLOTS[body.kind] ? ['avatar', 'lipsync'].includes(body.kind) ? 'avatar:create' : 'audio:create' : undefined
+      : ['query', 'list', 'exports', 'query-export', 'voices', 'media-prices'].includes(body.action) ? 'jobs:read' : undefined);
     if (auth.error || !auth.user || auth.isServiceRole) return reply({ error: auth.error || '请先登录' }, auth.status || 401);
     const db = createServiceClient();
+    if (body.action === 'media-prices') {
+      const result = await db.from('credit_costs').select('action,cost').in('action', Object.keys(MEDIA_JOB_SLOTS).map(kind => `generate_${kind}`));
+      if (result.error || result.data?.length !== Object.keys(MEDIA_JOB_SLOTS).length) throw new Error('媒体计费配置缺失');
+      return reply({ costs: Object.fromEntries(result.data.map(row => [row.action.replace('generate_', ''), row.cost])) });
+    }
+    if (body.action === 'voices') {
+      const result = await db.from('voice_clones').select('id,name,requires_verification,created_at')
+        .eq('user_id', auth.user.id).order('created_at', { ascending: false }).limit(100);
+      if (result.error) throw new Error('声纹列表读取失败');
+      return reply({ voices: result.data });
+    }
     if (body.action === 'export') {
       if (!uuid(body.request_key)) return reply({ error: '缺少有效幂等标识' }, 400);
       let request;
@@ -71,6 +84,18 @@ export async function handleProductionJobs(req: Request): Promise<Response> {
       return reply({ exports: await Promise.all(data.map(group => publicRenderExport(db, group))) });
     }
     if (body.action === 'create') {
+      if (MEDIA_JOB_SLOTS[body.kind]) {
+        try { mediaJobInput(body.kind, body.input); }
+        catch (cause) { return reply({ error: cause instanceof Error ? cause.message : '媒体任务参数非法' }, 400); }
+        if (!uuid(body.request_key)) return reply({ error: '缺少有效幂等标识' }, 400);
+        try {
+          return reply({ job: await createMediaJob(db, auth.user.id, body.kind, body.request_key, body.input, body.project_id) }, 202);
+        } catch (cause) {
+          const message = cause instanceof Error ? cause.message : '任务创建失败';
+          return reply({ error: message }, cause instanceof ConfigError ? 424 : message.includes('积分不足') ? 402 : message.includes('队列') ? 429
+            : /同一请求标识|价格已更新|配置已更新/.test(message) ? 409 : /素材|无权|声纹|语速|音色|WAV/.test(message) ? 400 : 503);
+        }
+      }
       if (!uuid(body.request_key) || !['image', 'render'].includes(body.kind) || !body.input) return reply({ error: '缺少任务类型与幂等标识' }, 400);
       let input;
       try { input = await validateMediaTree(db, body.input, auth.user.id); }
@@ -112,8 +137,13 @@ export async function handleProductionJobs(req: Request): Promise<Response> {
       return reply({ job: await publicProductionJob(db, data as ProductionJob) });
     }
     if (body.action === 'list') {
-      const { data, error } = await db.from('production_jobs').select('*').eq('user_id', auth.user.id)
-        .order('created_at', { ascending: false }).limit(30);
+      let query = db.from('production_jobs').select('*').eq('user_id', auth.user.id);
+      if (body.kinds !== undefined) {
+        if (!Array.isArray(body.kinds) || !body.kinds.length || body.kinds.some((kind: string) =>
+          !['image', 'render', 'publish', 'metrics', ...Object.keys(MEDIA_JOB_SLOTS)].includes(kind))) return reply({ error: '任务类型筛选非法' }, 400);
+        query = query.in('kind', body.kinds);
+      }
+      const { data, error } = await query.order('created_at', { ascending: false }).limit(30);
       if (error) throw new Error('任务查询失败');
       return reply({ jobs: await Promise.all((data as ProductionJob[]).map(job => publicProductionJob(db, job))) });
     }

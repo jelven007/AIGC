@@ -425,36 +425,6 @@ const MOCK_SELECTOR_PRODUCTS: Product[] = [
   }
 ];
 
-// ── 图片生成模型与对应标识 ──────────────────────────────────────────────
-// 预设高频常用数字人快捷列表 (使用 public/person 目录资源)
-const QUICK_AVATARS = [
-  { id: 'avatar-005', name: '萌萌·零食吃播', preview_image: '/person/girl3.png', gender: 'female', tags: ['零食', '甜美'] },
-  { id: 'avatar-003', name: '安娜·时尚穿搭', preview_image: '/person/girl2.png', gender: 'female', tags: ['服装', '高级感'] },
-  { id: 'avatar-004', name: '张总·大疆Pocket 4品牌风格宣传', preview_image: '/person/boy2.png', gender: 'male', tags: ['大疆Pocket4', '沉稳'] },
-  { id: 'avatar-001', name: '小雅·美妆达人', preview_image: '/person/girl1.png', gender: 'female', tags: ['美妆', '亲和力'] },
-  { id: 'avatar-002', name: '阿杰·数码评测', preview_image: '/person/boy1.png', gender: 'male', tags: ['数码', '专业'] },
-  { id: 'avatar-007', name: '美玲·韩系美妆', preview_image: '/person/girl4.png', gender: 'female', tags: ['美妆', '精致'] },
-  { id: 'avatar-006', name: '陆沉·男装潮流风尚', preview_image: '/person/boy3.png', gender: 'male', tags: ['潮服', '帅气'] },
-  { id: 'avatar-008', name: '雪儿·轻奢珠宝', preview_image: '/person/girl5.png', gender: 'female', tags: ['珠宝', '典雅'] },
-];
-
-export function getAvatarMatchedVideo(avatarName?: string, avatarImage?: string): string {
-  if (!avatarName && !avatarImage) return '/Video/CreatOK_10.mp4';
-  const name = avatarName || '';
-  const img = avatarImage || '';
-
-  if (name.includes('萌萌') || img.includes('girl3')) return '/Video/CreatOK_10.mp4';
-  if (name.includes('安娜') || img.includes('girl2')) return '/Video/CreatOK_7.mp4';
-  if (name.includes('张总') || name.includes('Pocket') || img.includes('boy2')) return '/Video/CreatOK_8.mp4';
-  if (name.includes('小雅') || img.includes('girl1')) return '/Video/CreatOK_2.mp4';
-  if (name.includes('阿杰') || img.includes('boy1')) return '/Video/CreatOK_4.mp4';
-  if (name.includes('美玲') || img.includes('girl4')) return '/Video/CreatOK_9.mp4';
-  if (name.includes('陆沉') || img.includes('boy3')) return '/Video/CreatOK_6.mp4';
-  if (name.includes('雪儿') || img.includes('girl5')) return '/Video/CreatOK_11.mp4';
-
-  return '/Video/CreatOK_10.mp4';
-}
-
 // ── 主页组件 ───────────────────────────────────────────────────────────
 export default function HomePage() {
   const { projectId } = useParams();
@@ -1459,64 +1429,11 @@ export default function HomePage() {
                       </div>
                     ) : inputTab === '数字人' ? (
                       <div className="flex flex-col gap-1.5 shrink-0 mr-1 select-none">
-                        {selectedAvatar ? (
-                          <div className="flex items-center gap-2 bg-primary/15 border border-primary/40 rounded-xl px-2.5 py-1.5 text-xs text-white relative group">
-                            <img
-                              src={selectedAvatar.preview_image || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80'}
-                              alt={selectedAvatar.name}
-                              className="w-10 h-10 rounded-lg object-cover border border-primary/50"
-                            />
-                            <div className="flex flex-col">
-                              <span className="font-semibold text-primary-foreground text-xs leading-tight">{selectedAvatar.name}</span>
-                              <span className="text-[10px] text-primary/90">已选数字人形象</span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setSelectedAvatar(null)}
-                              className="w-4 h-4 rounded-full bg-black/60 hover:bg-black flex items-center justify-center text-white ml-1.5"
-                              title="清除数字人"
-                            >
-                              <X className="w-2.5 h-2.5" />
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1.5 flex-wrap max-w-md">
-                            {QUICK_AVATARS.map(avatar => (
-                              <button
-                                key={avatar.id}
-                                type="button"
-                                onClick={() => {
-                                  setSelectedAvatar(avatar);
-                                  toast.success(`已成功选择数字人「${avatar.name}」，形象与发音人已同步载入！`, {
-                                    duration: 4000,
-                                    style: {
-                                      background: '#161324',
-                                      color: '#ffffff',
-                                      border: '1.5px solid #8b5cf6',
-                                      boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.8), 0 8px 10px -6px rgba(0, 0, 0, 0.8)',
-                                      borderRadius: '16px',
-                                      padding: '14px 18px',
-                                      fontSize: '13px',
-                                      fontWeight: '600',
-                                    },
-                                  });
-                                }}
-                                className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg border border-white/10 hover:border-primary/50 bg-white/5 hover:bg-primary/10 transition-all text-xs text-white/80"
-                              >
-                                <img src={avatar.preview_image} className="w-5 h-5 rounded-full object-cover" />
-                                <span className="text-[11px] font-medium truncate max-w-[80px]">{avatar.name.split('·')[0]}</span>
-                              </button>
-                            ))}
-                            <button
-                              type="button"
-                              onClick={() => navigate('/avatars')}
-                              className="px-2.5 py-1.5 rounded-lg border border-dashed border-primary/50 text-primary hover:bg-primary/10 transition-all text-xs font-medium shrink-0 flex items-center gap-1"
-                            >
-                              <Users2 className="w-3.5 h-3.5" />
-                              更多数字人
-                            </button>
-                          </div>
-                        )}
+                        <button type="button" onClick={() => navigate('/avatars#media-jobs')}
+                          className="px-3 py-2 rounded-lg border border-primary/50 text-primary hover:bg-primary/10 text-xs flex items-center gap-2">
+                          <Users2 className="w-4 h-4" />打开数字人工作台
+                        </button>
+                        <p className="text-xs text-white/60 max-w-xs">上传人物照片或视频与口播音频，创建照片口播或口型同步任务。</p>
                       </div>
                     ) : (
                       <>

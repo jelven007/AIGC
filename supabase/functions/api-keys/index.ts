@@ -2,7 +2,7 @@ import { authenticateRequest, createServiceClient, hashApiKey } from '../_shared
 import { getCorsHeaders, handleCorsPreflight } from '../_shared/cors.ts';
 
 export const apiScopes = ['video:create', 'video:read', 'image:create', 'render:create', 'jobs:read',
-  'script:generate', 'publish:create', 'publish:read', 'metrics:read'];
+  'script:generate', 'publish:create', 'publish:read', 'metrics:read', 'audio:create', 'avatar:create'];
 const fields = 'id,name,key_prefix,scopes,rate_limit,last_used_at,expires_at,is_active,total_calls,created_at';
 export async function handleApiKeys(req: Request): Promise<Response> {
   const preflight = handleCorsPreflight(req); if (preflight) return preflight;

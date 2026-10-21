@@ -12,8 +12,11 @@
 - [后台调度](docs/VIDEO_SCHEDULER.md)
 - [私有素材、图片恢复、剪辑与平台发布](docs/ITERATION_06_PRODUCTION_PIPELINE.md)
 - [多规格事务导出、4:5与供应商退役管理](docs/ITERATION_10_RENDER_EXPORTS.md)
+- [后台配音、识别、即时声纹、照片口播与口型](docs/ITERATION_11_AUDIO_AVATAR_JOBS.md)
 
 2026-10-21 云端核验基线仍为旧部署：官方环境只有迁移到 00031 和三个已部署函数。当前源码新增了 00035/00036 私有素材与生产队列、FFmpeg剪辑、抖音/TikTok OAuth发布与官方指标，已完成本地回归；00032–00036及匹配函数、容器、平台应用仍需部署与真实联调。当前前端不能单独代表最新全栈版本可用。详见 [本轮生产链路及验证边界](docs/ITERATION_06_PRODUCTION_PIPELINE.md)。
+
+后续源码已到00040：团队/Key/私有形象、批量事务、多规格导出和五类媒体任务均已本地交付；最新16槽与数字人后台链通过7项PG/8组协议/2组移动页面及工程检查。发布须覆盖缺失00032–00040、匹配API与生产调度，真实供应商/平台/支付/云端仍待验收。
 
 ## 技术栈
 
@@ -47,6 +50,7 @@ pnpm dev
 pnpm typecheck
 pnpm test:video
 pnpm test:models
+pnpm test:media
 pnpm test:payments
 pnpm test:volcengine
 pnpm test:finance
@@ -71,6 +75,6 @@ docs/                       技术架构和操作指南
 backend/                    历史运营后台规格，核心源码尚缺失
 ```
 
-已提交基线素材桶公开，私有视频授权与生产任务处于后续开发。批量生成、完整剪辑渲染、真实跨平台发布和部分数据分析仍待验收；历史模拟功能不代表可生产交付。应用积分和供应商用量分开核算，收费范围见 [运营手册](docs/OPERATIONS_GUIDE.md)。
+私有素材、批量单视频、FFmpeg已支持效果、两平台发布及媒体任务已有本地实现，云端与真实业务仍待验收。自动编排、完整视频分析/RAG、广告归因、全编辑器效果和运营后台继续开发；历史模拟功能不代表可生产交付。应用积分和供应商用量分开核算，收费范围见 [运营手册](docs/OPERATIONS_GUIDE.md)。
 
 MIT License，见 [LICENSE](LICENSE)。

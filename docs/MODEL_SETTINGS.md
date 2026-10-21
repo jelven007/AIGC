@@ -4,7 +4,9 @@
 
 入口：侧边栏「模型接口设置」→ `/settings/models`。平台管理员可编辑，普通用户仅看到模型名称与启用状态。所有客户端和 MCP 共用服务端配置。
 
-供应商生命周期：OpenAI官方确认Sora 2和Videos API已于2026-09-24关闭，无一对一替代接口。设置页展示退役日期及 [官方说明](https://developers.openai.com/api/reference/resources/videos/methods/create)，退役信息独立于13个可配置槽，不能启用或计费；原Sora函数保持410。不得使用历史API文档宣称当前服务可用，详见 [迭代10](ITERATION_10_RENDER_EXPORTS.md)。
+供应商生命周期：OpenAI官方确认Sora 2和Videos API已于2026-09-24关闭，无一对一替代接口。设置页展示退役日期及 [官方说明](https://developers.openai.com/api/reference/resources/videos/methods/create)，退役信息独立于16个可配置槽，不能启用或计费；原Sora函数保持410。不得使用历史API文档宣称当前服务可用，详见 [迭代10](ITERATION_10_RENDER_EXPORTS.md)。
+
+00040新增audio.voice_clone/ElevenLabs IVC（基础`/v1`、xi-api-key/raw）、avatar.photo/D-ID Talks（`/talks`、Basic已编码凭据）、avatar.lipsync/Sync（`/v2/generate`、x-api-key/raw）；数字人另填查询基础地址，提交最多30秒。后台音频、克隆声纹与原版本配音、人物输入、计费与验收见 [迭代11](ITERATION_11_AUDIO_AVATAR_JOBS.md)。匹配数据库/API/production调度须先发布。
 
 ## 首次启用
 
@@ -33,6 +35,8 @@ WHERE id = '实际管理员用户UUID';
 | 语音识别 | OpenAI Audio Transcriptions 或 Step ASR SSE，服务端兼容上传文件与原 Step 输入 |
 | 网页读取 | Jina Reader，将商品网页转换为文本再交给文本模型 |
 | 视频 | ArkSeedance、MiniMax、SeedanceMini、Wan3、HappyHorse、Kling、Seedance 七个现有协议 |
+| 即时声纹与克隆配音 | ElevenLabs IVC，同一历史版本与供应商账号；需本人样本授权，requires_verification=true不可配音 |
+| 照片口播 / 视频口型 | D-ID Talks / Sync Lipsync，已有口播音频与人物输入，保存原ID查询 |
 
 通用字段还包括显示名称、认证请求头、Bearer/原始密钥格式、超时、只读连接检查地址。视频提交最长 30 秒，其余最长 120 秒。协议特有的素材能力和视频规格由现有适配器校验；新的供应商协议仍需新增适配器，修改 URL 不会自动改变协议。
 
@@ -58,7 +62,7 @@ SELECT public.bind_legacy_video_config(
 
 ## 计费与边界
 
-视频沿用 `credit_costs.generate_video`（默认10积分）及预占、结算、逐笔退款。工作台图片和封面统一进入production_jobs，分别按 `generate_image/generate_cover` 计费（默认各10积分），同请求不重复扣费。提示词辅助 `text-generation` 和直接音频暂不收应用积分；供应商用量仍由平台账号承担。正式运营需结合成本设置收费口径。
+视频沿用 `credit_costs.generate_video`（默认10积分）及预占、结算、逐笔退款。图片/封面默认各10积分；TTS/ASR默认各2；即时克隆/照片口播/口型默认各10。媒体任务每用户共用10个活跃上限，网页提交确认价格，变化409零扣费。提示词辅助暂不收应用积分，旧同步音频入口410。应用积分与实际供应商用量分开记录。
 
 图片供应商协议仍返回同步结果，应用调用已任务化：保存原返回证据、归档失败重试保存、关闭页面后按同一UUID恢复；受理未知不能重新调用。此能力须部署00035、匹配函数和生产调度器。图片尺寸为1024×1024、1024×1536、1536×1024，质量为auto/low/medium/high，需供应商协议支持。参考图仅chat-image支持；OpenAI Images的编辑、扩图及掩码暂未接入。
 

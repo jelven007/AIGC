@@ -7,20 +7,20 @@
 | 模态 | 入口/配置 | 当前代码能力 | 边界 |
 | --- | --- | --- | --- |
 | 文本 | text-generation、ai-assistant、text.primary/fallback | OpenAI Chat 协议、真实 SSE/JSON、主备 | 部分历史 AI Action 仍有模板兜底/模拟业务，不能整体宣称无 Mock |
-| 图片/封面 | image-generation、generate_cover、image.primary | OpenAI Images URL/base64，Chat 图片 URL/参考图，校验 PNG/JPEG/WebP 并入库 | 同步请求，无视频式关页恢复；Images 编辑/扩图/掩码未接入 |
-| TTS | siliconflow-audio/stepaudio、audio.tts | OpenAI/Step Speech，配置模型/音色，JWT | 可用音色/语言/质量需实际账号验证 |
-| ASR | 同上、audio.asr | OpenAI 文件、Step SSE/输入兼容 | ASR 20MB；供应商支持范围需实测 |
+| 图片/封面 | image-generation、production-jobs、image.primary | OpenAI Images URL/base64，Chat 图片 URL/参考图，真实图片后台归档与恢复 | Images 编辑/扩图/掩码未接入 |
+| TTS/ASR | production-jobs、audio.tts/asr | OpenAI/Step，后台版本/计费/证据/归档恢复 | ASR 20MB，Step仅WAV/MP3；声音/质量待供应商验收 |
+| 即时声纹/照片口播/口型 | audio.voice_clone、avatar.photo/lipsync | ElevenLabs IVC及原版本配音、D-ID/Sync异步ID查询/MP4归档 | 需声音/形象授权及供应商验证；专业训练和全身动作未实现 |
 | Reader | reader.primary | Jina 协议读取公开商品页交给文本业务 | 登录/CAPTCHA/动态网页不保证；商品事实需核对 |
 | 视频 | video-jobs/Worker、七个 video 槽 | ArkSeedance/MiniMax/SeedanceMini/Wan3/HappyHorse/Kling/Seedance 适配，持久化队列/退款 | 真实权限/素材/画质/时长待验收；不代表七模型云端已开通 |
 | MCP | 7 个工具共用业务端点 | 登录用户 JWT，视频显式 UUID，统一配置 | 无独立模型/计费旁路；不是自动拼接/投放流水线 |
 
-设置页共有 13 槽，协议与管理员授权见 [MODEL_SETTINGS](../MODEL_SETTINGS.md)。所有真实运行接口读取该配置服务，历史 Secrets 仅可一次导入，不自动回退。
+设置页共有16槽，协议与管理员授权见 [MODEL_SETTINGS](../MODEL_SETTINGS.md)。后台语音与数字人契约/测试见 [迭代11](../ITERATION_11_AUDIO_AVATAR_JOBS.md)。所有真实运行接口读取该配置服务，历史Secrets仅可一次导入，不自动回退。
 
 ## 2. 任务与配置
 
 视频创建在同一数据库事务检查启用状态、扣费、绑定不可变配置版本。提交/查询按原版本，成功先转存再结算；明确失败关联原流水返还积分。POST 超时/5xx/无 ID 保留待核对，不能认为未受理或自动换供应商重提。
 
-文本/图片/音频在 ce90bfe 为同步调用。供应商可能受理但客户端中断，需核对已有结果与账单，不承诺后台自动恢复。工作区后续任务化开发未计入本次测试报告。
+文本仍为同步调用；图片和五类媒体任务均已后台化，归档复用原证据，响应失联恢复原UUID，未知受理保留预占。旧同步音频接口410，浏览器朗读不作为模型成功结果。当前云端仍缺最新增量，不能据源码推断已启用。
 
 ## 3. 提示词设计规范
 
@@ -41,7 +41,7 @@
 
 固定商品样本、输入、供应商/配置版本、规格和评价标准；记录所有尝试、失败/unknown、人工接受原因、总费用与耗时。质量数据不得取自随机 CTR、模拟选品/竞品或虚构业务指标。
 
-视频默认 10 应用积分；ai-assistant Action 按表计费，直接文本/图片/音频暂不收应用积分。上游用量由平台承担，退款应用积分不意味着供应商退款。免费辅助频控为文本20/图片5/音频10每用户每分钟，预算仍需运营配置。
+视频默认10应用积分，图片/封面各10，TTS/ASR各2，即时克隆/照片口播/口型各10；媒体提交确认真实价格，共用10个未结案任务上限。ai-assistant Action按表计费，文本辅助暂不收积分。供应商用量与应用积分分开，退款积分不表示供应商退款。
 
 测试见 [TEST_PLAN](../TEST_PLAN.md)，本次本地证据见 [TEST_REPORT](../TEST_REPORT_20261021.md)。真实模型开通、主备失败、输出质量、供应商价格/账单必须单独实测。
 
@@ -49,4 +49,4 @@
 
 先升级匹配后端/管理员/主密钥并验收真实模型。继续治理 ai-assistant 模板兜底/模拟分析，若失败不能完成需求，应明确失败并按原流水补偿。工作区生产任务/私有素材完成后再更新接口与验收；新协议、按模型定价、完整渲染/发布/数据回流另立需求。
 
-当前没有证据支持“完整 RAG 自进化、智能体十步自动生产、数字人口型同步、销量优化闭环”已交付。技术结构见 [架构](../TECHNICAL_ARCHITECTURE.md)，MCP 用法见 [接入指南](../../mcp/mcp.md)。
+数字人口型已有正式协议与后台任务本地验证；完整RAG、自学习、全自动生产和销量优化尚未交付。技术结构见 [架构](../TECHNICAL_ARCHITECTURE.md)，MCP用法见 [接入指南](../../mcp/mcp.md)。

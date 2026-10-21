@@ -51,18 +51,18 @@ export async function validateSettings(slot: string, raw: unknown, enabled: bool
   if (!(definition.protocols as readonly string[]).includes(result.protocol) || !result.name) {
     throw new ConfigError('模型名称或协议不正确');
   }
-  if (!['Authorization', 'X-Gateway-Authorization', 'api-key'].includes(String(input.auth_header))
-    || !['Bearer', 'raw'].includes(String(input.auth_scheme))) throw new ConfigError('认证方式不正确');
+  if (!['Authorization', 'X-Gateway-Authorization', 'api-key', 'x-api-key', 'xi-api-key'].includes(String(input.auth_header))
+    || !['Bearer', 'raw', 'Basic'].includes(String(input.auth_scheme))) throw new ConfigError('认证方式不正确');
   result.auth_header = input.auth_header as ModelSettings['auth_header'];
   result.auth_scheme = input.auth_scheme as ModelSettings['auth_scheme'];
   result.timeout_ms = Number(input.timeout_ms);
   if (!Number.isInteger(result.timeout_ms) || result.timeout_ms < 1000 || result.timeout_ms > 120000
-    || (definition.category === 'video' && result.timeout_ms > 30000)) throw new ConfigError('超时应为 1–120 秒，视频提交最多 30 秒');
+    || (['video', 'avatar'].includes(definition.category) && result.timeout_ms > 30000)) throw new ConfigError('超时应为 1–120 秒，视频提交最多 30 秒');
   for (const key of ['endpoint', 'query_endpoint', 'test_endpoint'] as const) {
     if (result[key]) result[key] = await validateEndpoint(result[key]);
   }
-  if (enabled && (!result.endpoint || (definition.category === 'video' && !result.query_endpoint)
-    || (definition.id !== 'reader.primary' && definition.id !== 'video.Kling' && !result.model))) {
+  if (enabled && (!result.endpoint || (['video', 'avatar'].includes(definition.category) && !result.query_endpoint)
+    || (!['reader.primary', 'video.Kling', 'avatar.photo'].includes(definition.id) && !result.model))) {
     throw new ConfigError('启用前请填写接口、模型及视频查询地址');
   }
   return result;
@@ -109,7 +109,7 @@ export async function resolveModel(slot: string, db: SupabaseClient = createServ
   const headers: Record<string, string> = {};
   if (data.key_ciphertext) {
     const key = await decryptKey(slot, data.key_ciphertext);
-    headers[settings.auth_header] = settings.auth_scheme === 'Bearer' ? `Bearer ${key}` : key;
+    headers[settings.auth_header] = settings.auth_scheme === 'raw' ? key : `${settings.auth_scheme} ${key}`;
   } else if (slot !== 'reader.primary') throw new ConfigError('模型密钥未配置');
   return { slot, version_id: data.id, settings, headers };
 }
