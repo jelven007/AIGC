@@ -1122,7 +1122,7 @@ export default function LandingPage() {
                       {/* 竞品 1：通用视频 AI 大模型 */}
                       <th className="py-5 px-4 text-xs font-semibold text-white/70 w-[18%] border-r border-white/5 bg-white/[0.01]">
                         <p className="text-sm font-bold text-white/90">通用视频 AI</p>
-                        <p className="text-[11px] text-white/40 font-normal mt-0.5">Sora / Runway / Kling 等</p>
+                        <p className="text-[11px] text-white/40 font-normal mt-0.5">Seedance / MiniMax / Kling 等</p>
                       </th>
 
                       {/* 竞品 2：基础数字人软件 */}

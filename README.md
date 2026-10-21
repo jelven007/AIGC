@@ -11,6 +11,7 @@
 - [视频任务与积分结算](docs/API_AND_DATA.md)
 - [后台调度](docs/VIDEO_SCHEDULER.md)
 - [私有素材、图片恢复、剪辑与平台发布](docs/ITERATION_06_PRODUCTION_PIPELINE.md)
+- [多规格事务导出、4:5与供应商退役管理](docs/ITERATION_10_RENDER_EXPORTS.md)
 
 2026-10-21 云端核验基线仍为旧部署：官方环境只有迁移到 00031 和三个已部署函数。当前源码新增了 00035/00036 私有素材与生产队列、FFmpeg剪辑、抖音/TikTok OAuth发布与官方指标，已完成本地回归；00032–00036及匹配函数、容器、平台应用仍需部署与真实联调。当前前端不能单独代表最新全栈版本可用。详见 [本轮生产链路及验证边界](docs/ITERATION_06_PRODUCTION_PIPELINE.md)。
 

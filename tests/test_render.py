@@ -95,6 +95,28 @@ class RenderTest(unittest.TestCase):
         with self.assertRaisesRegex(RenderError, "最大执行"):
             render(self.spec, files, self.root / "timeout", timeout=0)
 
+    def test_four_five_real_encoding_preserves_short_edge(self):
+        self.spec["ratio"] = "4:5"
+        self.spec["duration"] = 1
+        self.spec["tracks"] = [{**self.spec["tracks"][0], "duration": 1}]
+        result = render(self.spec, {"one": self.root / "red.mp4"}, self.root / "four-five")
+        stream = probe(result["file"])["streams"][0]
+        self.assertEqual((stream["width"], stream["height"]), (720, 900))
+        self.assertEqual(result["resolution"], "720x900")
+        self.assertAlmostEqual(result["duration"], 1, delta=.1)
+
+    def test_filter_intensity_changes_pixels_and_zero_preserves_source(self):
+        self.spec["duration"] = .5
+        self.spec["tracks"] = [{**self.spec["tracks"][0], "duration": .5, "filter": "f6"}]
+        pixels = []
+        for intensity in (0, 50, 100):
+            self.spec["tracks"][0]["filterIntensity"] = intensity
+            result = render(self.spec, {"one": self.root / "red.mp4"}, self.root / f"intensity-{intensity}")
+            pixels.append(self.pixels(result["file"], .2))
+        self.assertGreater(pixels[0][0], pixels[0][2] + 100)
+        self.assertLess(max(pixels[1]) - min(pixels[1]), 10)
+        self.assertGreater(pixels[2][2], pixels[2][0] + 100)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

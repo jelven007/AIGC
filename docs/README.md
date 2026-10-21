@@ -13,6 +13,7 @@
 | 任务中心 | [协议修复](ITERATION_07_TASK_CENTER.md) | 视频/生产/发布合并、审核与未知、错误保留、取消及真实UI验证 |
 | 访问控制 | [团队与开放接口](ITERATION_08_ACCESS_CONTROL.md) | Key鉴权/权限/限流、团队成员事务与共享、形象隔离、素材删除outbox |
 | 批量生成 | [批次与预算](ITERATION_09_BATCH_VIDEO.md) | 商品快照、整批预占、父子任务、暂停/取消与退款、刷新恢复及验证 |
+| 多规格导出 | [导出与供应商生命周期](ITERATION_10_RENDER_EXPORTS.md) | 六画幅含4:5/三短边多选、全批输出事务/渲染配额、刷新/旧回执恢复、独立成片、滤镜强度与Sora退役 |
 | 开发 | [开发指南](DEVELOPMENT_GUIDE.md)、[接口与数据](API_AND_DATA.md) | 本地配置、目录、协议、状态、变更与发布顺序 |
 | 测试 | [测试计划](TEST_PLAN.md)、[验证报告](TEST_REPORT_20261021.md) | 用例、覆盖边界、真实验收、当前执行结果 |
 | 运营 | [运营手册](OPERATIONS_GUIDE.md)、[商业化方案](plan/商业化.md) | 准入、成本、指标、客服退款、试点与推广口径 |

@@ -2,6 +2,8 @@
 
 目标方案：火山 AI 原生 BaaS Supabase 版 + 火山 Pages + ECS Docker 调度器，模型可用火山方舟。该方案使用火山独立管理面，前端无需 Vercel；**当前实际仍连接官方 Supabase，未切换火山**。源码基线 `ce90bfe`，尚无火山资源创建/部署验收证据；授权准备不等于资源上线。见 [当前状态](CURRENT_STATE.md)。
 
+源码增量包含00035–00039，最新多规格导出须部署匹配production-jobs、重建FFmpeg镜像与既有production调度，前端最后发布。00039的导出事务/共用渲染队列配额/4:5/旧回执与实际验收见 [迭代10](ITERATION_10_RENDER_EXPORTS.md)；本段不更新真实云端回执，不重放已应用旧迁移。
+
 ## 1. 工具与资源
 
 本地需要 Node.js 22+、pnpm 10、Python 3、`byted-supabase-cli`；ECS 需要 Docker Compose。CLI 已核实版本 `0.1.34` 的 SQL、函数、Secrets、Pages 参数。

@@ -6,7 +6,7 @@ export function validateRender(raw: Record<string, any>) {
   if (raw.version !== 1 || !Array.isArray(raw.tracks) || raw.tracks.length < 1 || raw.tracks.length > 80) throw new Error('工程应包含1–80个轨道元素');
   number(raw.duration, 0.1, 600, '工程时长');
   if (![24, 25, 30, 60].includes(raw.fps) || ![720, 1080, 2160].includes(raw.height)
-    || !['16:9', '9:16', '1:1', '4:3', '3:4'].includes(raw.ratio)) throw new Error('输出规格不支持');
+    || !['16:9', '9:16', '1:1', '4:3', '3:4', '4:5'].includes(raw.ratio)) throw new Error('输出规格不支持');
   if (typeof raw.title !== 'string' || !raw.title.trim() || raw.title.length > 80) throw new Error('标题应为1–80字');
   if (raw.transition && !['none', 't1', 't2'].includes(raw.transition)) throw new Error('此转场尚未接入成片渲染');
   const ids = new Set();
@@ -22,7 +22,7 @@ export function validateRender(raw: Record<string, any>) {
       ['sourceStart', 0, 36000], ['speed', 0.25, 4], ['scale', 1, 400], ['opacity', 0, 100],
       ['x', -100, 200], ['y', -100, 200], ['rotation', -360, 360], ['volume', 0, 200],
       ['fadeIn', 0, 600], ['fadeOut', 0, 600], ['brightness', 0, 200], ['contrast', 0, 200],
-      ['saturation', 0, 200], ['fontSize', 8, 300], ['strokeWidth', 0, 20], ['pan', -100, 100], ['pitch', -12, 12],
+      ['saturation', 0, 200], ['filterIntensity', 0, 100], ['fontSize', 8, 300], ['strokeWidth', 0, 20], ['pan', -100, 100], ['pitch', -12, 12],
     ] as const) if (item[key] !== undefined) number(item[key], min, max, key);
     if (item.keyframes && (!Array.isArray(item.keyframes) || item.keyframes.length > 100)) throw new Error('关键帧数量不支持');
     const ranges: Record<string, [number, number]> = { x: [-100, 200], y: [-100, 200], scale: [1, 400], opacity: [0, 100], rotation: [-360, 360], volume: [0, 200] };

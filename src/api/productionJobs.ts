@@ -6,6 +6,21 @@ export interface ProductionJob {
   progress: number; phase: string; result: { url?: string; thumbnail_url?: string; size?: number; duration?: number; resolution?: string } | null;
   error_message: string | null; credit_cost: number; created_at: string;
 }
+export interface RenderExport {
+  id: string; request_key: string; source_project_id: string | null; title: string; created_at: string;
+  status: 'completed' | 'partial' | 'failed' | 'attention' | 'processing';
+  total_count: number; completed_count: number; progress: number;
+  jobs: (ProductionJob & { title: string; output_ratio: string; output_height: number })[];
+}
+export interface RenderExportRequest {
+  request_key: string; source_project_id: string; formats: { ratio: string; height: number }[];
+}
+export async function createRenderExport(request: RenderExportRequest): Promise<RenderExport> {
+  return (await productionRequest({ action: 'export', ...request })).export;
+}
+export async function listRenderExports(): Promise<RenderExport[]> {
+  return (await productionRequest({ action: 'exports' })).exports;
+}
 export class ProductionJobError extends Error {
   constructor(message: string, readonly status: number) { super(message); }
 }
