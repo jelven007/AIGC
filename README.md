@@ -3,6 +3,8 @@
 面向商家的商品脚本与 AI 短视频创作工具。部署目标为火山引擎 AI 原生 BaaS Supabase 版、火山 Pages、ECS 后台调度和火山方舟模型服务，无需 supabase.com 或 Vercel。
 
 - [最新技术架构](docs/TECHNICAL_ARCHITECTURE.md)
+- [改造前后对比与遗漏检查](docs/ARCHITECTURE_REVIEW_20261021.md)
+- [统一模型接口设置](docs/MODEL_SETTINGS.md)
 - [火山引擎部署指南](docs/VOLCENGINE_DEPLOYMENT.md)
 - [视频任务与积分结算](docs/ITERATION_03_VIDEO_JOBS.md)
 - [后台调度](docs/VIDEO_SCHEDULER.md)
@@ -16,7 +18,7 @@
 | 商家前端 | React 18、TypeScript、Vite、Tailwind、Radix、React Query |
 | 后端 | 火山 BaaS Auth、Deno Edge Functions、PostgreSQL/RLS/RPC |
 | 视频执行 | 持久化数据库队列、租约领取、有限时长 Worker、ECS Docker 调度 |
-| 模型 | 火山方舟文本与 Seedance，其他供应商可选 |
+| 模型 | 统一设置页管理文本主备、七类视频、图片、TTS/ASR、网页 Reader；方舟优先 |
 | 素材 | BaaS Storage，成片固定路径转存 |
 | 支付 | 支付宝/微信回调验签与原子订单权益入账 |
 | MCP | FastMCP，用户 JWT 复用业务 API、视频幂等提交 |
@@ -32,13 +34,14 @@ cp .env.example .env.local
 pnpm dev
 ```
 
-前端仅允许公开后端 URL 与 anon key。模型、支付、Worker 和 service_role 密钥配置到服务端；构建拒绝敏感 `VITE_*` 变量。
+前端仅允许公开后端 URL 与 anon key。模型在 `/settings/models` 统一配置；加密主密钥、支付、Worker 和 service_role 密钥配置到服务端，构建拒绝敏感 `VITE_*` 变量。首次管理员授权见模型配置指南。
 
 ## 验证
 
 ```sh
 pnpm typecheck
 pnpm test:video
+pnpm test:models
 pnpm test:payments
 pnpm test:volcengine
 pnpm test:finance

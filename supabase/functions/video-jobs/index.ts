@@ -25,20 +25,38 @@ export async function handleVideoJobs(req: Request): Promise<Response> {
       if (!uuid(body.request_key) || typeof body.provider !== 'string' || !body.input || typeof body.input !== 'object') {
         return reply({ error: '缺少请求标识或视频参数' }, 400);
       }
-      let input;
+      let input, config;
       try {
         input = validateVideoInput(body.provider, body.input);
-        providerConfig(body.provider); // 缺少密钥/模型不支持，创建扣费之前拒绝。
+        const previous = await db.from('video_jobs').select('*').eq('user_id', auth.user.id)
+          .eq('request_key', body.request_key).maybeSingle();
+        if (previous.error) throw new Error('任务状态读取失败，请使用相同请求标识重试');
+        if (previous.data) {
+          if (previous.data.provider !== body.provider || JSON.stringify(previous.data.payload)
+            !== JSON.stringify(input)) {
+            // jsonb 键顺序由数据库规范化；用数据库函数检查真实参数相等性。
+            const checked = await db.rpc('create_video_job', {
+              p_user_id: auth.user.id, p_request_key: body.request_key, p_provider: body.provider,
+              p_payload: input, p_config_version: null,
+            });
+            if (checked.error) return reply({ error: '同一请求标识不能用于不同任务' }, 409);
+            return reply({ job: publicVideoJob(checked.data as VideoJob) }, 202);
+          }
+          return reply({ job: publicVideoJob(previous.data as VideoJob) }, 202);
+        }
+        config = await providerConfig(body.provider, db); // 扣费前校验。
       } catch (cause) {
         return reply({ error: cause instanceof Error ? cause.message : '视频参数非法' }, 400);
       }
       const { data, error } = await db.rpc('create_video_job', {
         p_user_id: auth.user.id, p_request_key: body.request_key,
         p_provider: body.provider, p_payload: input,
+        p_config_version: config.versionId,
       });
       if (error) {
         if (error.message.includes('积分不足')) return reply({ error: error.message }, 402);
         if (error.message.includes('同一请求标识')) return reply({ error: error.message }, 409);
+        if (error.message.includes('模型配置')) return reply({ error: '模型配置已更新，请重新提交' }, 409);
         console.error('video job create transaction failed', error.code);
         return reply({ error: '任务创建未确认，请使用相同请求标识重试' }, 503);
       }

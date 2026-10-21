@@ -20,7 +20,7 @@ interface CoverCandidate {
   id: string;
   project_id: string;
   image_url: string;
-  task_id: string | null;
+  gen_task_id: string | null;
   status: 'pending' | 'processing' | 'completed' | 'failed';
   is_selected: boolean;
   style_prompt: string | null;
@@ -45,12 +45,11 @@ export default function CoverCandidates({ projectId, projectTitle }: Props) {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [selectedStyle, setSelectedStyle] = useState('product_close');
-  const [pollingIds, setPollingIds] = useState<Set<string>>(new Set());
 
   const loadCandidates = useCallback(async () => {
     const { data } = await supabase
       .from('cover_candidates')
-      .select('id, project_id, image_url, task_id, status, is_selected, style_prompt, created_at')
+      .select('id, project_id, image_url, gen_task_id, status, is_selected, style_prompt, created_at')
       .eq('project_id', projectId)
       .order('created_at', { ascending: false })
       .limit(12);
@@ -59,33 +58,6 @@ export default function CoverCandidates({ projectId, projectTitle }: Props) {
   }, [projectId]);
 
   useEffect(() => { loadCandidates(); }, [loadCandidates]);
-
-  // 轮询处理中的任务
-  useEffect(() => {
-    const processing = candidates.filter(c => c.status === 'processing' && c.task_id);
-    if (processing.length === 0) return;
-    const ids = new Set(processing.map(c => c.id));
-    setPollingIds(ids);
-
-    const interval = setInterval(async () => {
-      for (const cand of processing) {
-        if (!cand.task_id) continue;
-        const { data } = await supabase.functions.invoke('ai-assistant', {
-          body: { action: 'query_cover_task', task_id: cand.task_id, cover_id: cand.id },
-        });
-        const result = data?.data ?? data;
-        if (result?.status === 'completed') {
-          await supabase.from('cover_candidates')
-            .update({ status: 'completed', image_url: result.image_url })
-            .eq('id', cand.id);
-          setCandidates(prev => prev.map(c =>
-            c.id === cand.id ? { ...c, status: 'completed', image_url: result.image_url } : c
-          ));
-        }
-      }
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [candidates.filter(c => c.status === 'processing').length]);
 
   const handleGenerate = async () => {
     if (!user) { toast.error('请先登录'); return; }
@@ -99,7 +71,8 @@ export default function CoverCandidates({ projectId, projectTitle }: Props) {
       });
       if (error) throw error;
       const result = data?.data ?? data;
-      toast.success('封面生成任务已提交，稍后自动刷新');
+      if (result?.status !== 'completed') throw new Error(data?.error || data?.message || '封面未生成完成');
+      toast.success('封面已生成并保存');
       await loadCandidates();
     } catch (e) {
       toast.error('生成失败：' + (e instanceof Error ? e.message : '未知错误'));
@@ -135,7 +108,6 @@ export default function CoverCandidates({ projectId, projectTitle }: Props) {
             </CardTitle>
             <CardDescription className="text-xs mt-0.5">AI 生成多种风格封面，点击选为正式封面</CardDescription>
           </div>
-          <Badge variant="outline" className="text-xs shrink-0 border-primary/40 text-primary">P2-N03</Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -186,8 +158,8 @@ export default function CoverCandidates({ projectId, projectTitle }: Props) {
                   <img src={c.image_url} alt="封面候选" className="w-full h-full object-cover" />
                 ) : c.status === 'processing' || c.status === 'pending' ? (
                   <div className="w-full h-full bg-muted flex flex-col items-center justify-center gap-2">
-                    <Loader2 className="w-5 h-5 text-muted-foreground animate-spin" />
-                    <span className="text-xs text-muted-foreground">生成中</span>
+                    <ImageIcon className="w-5 h-5 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">历史任务待核对</span>
                   </div>
                 ) : (
                   <div className="w-full h-full bg-muted/50 flex items-center justify-center">

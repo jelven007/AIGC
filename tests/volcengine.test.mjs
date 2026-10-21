@@ -1,45 +1,46 @@
 import assert from 'node:assert/strict';
-import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
-import ts from 'typescript';
-
-const directory = '/tmp/shoproai-volcengine-test';
-mkdirSync(directory, { recursive: true });
+import { loadEdge } from './edge-loader.mjs';
 let env = {};
 let handler;
-globalThis.Deno = { env: { get: name => env[name] }, serve: value => { handler = value; } };
+let enabled = true;
+globalThis.Deno = { env: { get: name => env[name] }, serve: value => { handler = value; },
+  resolveDns: async () => ['8.8.8.8'] };
+const { defaultSettings } = await loadEdge('supabase/functions/_shared/model-catalog.ts', 'volc-catalog');
+env.MODEL_CONFIG_ENCRYPTION_KEY = '2'.repeat(64);
+const registry = await loadEdge('supabase/functions/_shared/model-registry.ts', 'volc-registry');
+const keys = {
+  'video.ArkSeedance': await registry.encryptKey('video.ArkSeedance', 'private'),
+  'text.primary': await registry.encryptKey('text.primary', 'private'),
+};
+let activeSlot;
 globalThis.__createClient = () => ({
   auth: { getUser: async token => ({ data: { user: token === 'user' ? { id: 'user-id' } : null } }) },
   rpc: async () => ({ data: true, error: null }),
+  from(table) {
+    return {
+      select() { return this; },
+      eq(key, value) { if (key === 'slot') activeSlot = value; return this; },
+      async maybeSingle() { return { data: { enabled, current_version_id: 'config-id' } }; },
+      async single() { return { data: { id: 'config-id', slot: activeSlot,
+        settings: { ...defaultSettings(activeSlot), model: activeSlot === 'text.primary' ? 'ep-text' : 'ep-video' },
+        key_ciphertext: keys[activeSlot] } }; },
+    };
+  },
 });
-for (const [name, path] of [
-  ['video', 'supabase/functions/_shared/video-providers.ts'],
-  ['text', 'supabase/functions/_shared/text-provider.ts'],
-  ['auth', 'supabase/functions/_shared/auth.ts'],
-  ['cors', 'supabase/functions/_shared/cors.ts'],
-  ['handler', 'supabase/functions/text-generation/index.ts'],
-]) {
-  const source = readFileSync(path, 'utf8')
-    .replace(/import \{ createClient, User \} from 'npm:@supabase\/supabase-js@2';/, 'const createClient = globalThis.__createClient;')
-    .replaceAll("'../_shared/auth.ts'", "'./auth.mjs'")
-    .replaceAll("'../_shared/cors.ts'", "'./cors.mjs'")
-    .replaceAll("'../_shared/text-provider.ts'", "'./text.mjs'");
-  writeFileSync(`${directory}/${name}.mjs`, ts.transpileModule(source, {
-    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
-  }).outputText);
-}
-const video = await import(pathToFileURL(`${directory}/video.mjs`).href);
-const text = await import(pathToFileURL(`${directory}/text.mjs`).href);
-await import(pathToFileURL(`${directory}/handler.mjs`).href);
+const video = await loadEdge('supabase/functions/_shared/video-providers.ts', 'volc-video');
+const text = await loadEdge('supabase/functions/_shared/text-provider.ts', 'volc-text');
+await loadEdge('supabase/functions/text-generation/index.ts', 'volc-handler');
 const input = { prompt: '商品镜头', title: '商品', duration: 5, ratio: '9:16', resolution: '720P',
   reference_images: [], reference_videos: [] };
 
-assert.throws(() => video.providerConfig('ArkSeedance'));
-env = { ARK_API_KEY: 'private', ARK_TEXT_MODEL: 'ep-text', ARK_VIDEO_MODEL: 'ep-video',
+enabled = false;
+await assert.rejects(() => video.providerConfig('ArkSeedance'));
+enabled = true;
+env = { MODEL_CONFIG_ENCRYPTION_KEY: '2'.repeat(64),
   SUPABASE_URL: 'https://backend.example', SUPABASE_ANON_KEY: 'anon', SUPABASE_SERVICE_ROLE_KEY: 'service' };
-const config = video.providerConfig('ArkSeedance');
+const config = await video.providerConfig('ArkSeedance');
 assert.equal(config.createUrl, 'https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks');
-assert.deepEqual(video.providerBody('ArkSeedance', input), {
+assert.deepEqual(video.providerBody('ArkSeedance', input, config.model), {
   model: 'ep-video', content: [{ type: 'text', text: '商品镜头' }], duration: 5,
   resolution: '720p', ratio: '9:16', watermark: false, generate_audio: true,
 });
@@ -78,9 +79,9 @@ const request = (body, token = 'user') => new Request('https://backend.example/t
 const body = { messages: [{ role: 'user', content: '测试' }] };
 assert.equal((await handler(request(body, 'anon'))).status, 401);
 assert.equal((await handler(request({ ...body, max_tokens: 999999 }))).status, 400);
-env.ARK_TEXT_MODEL = '';
+enabled = false;
 assert.equal((await handler(request(body))).status, 503);
-env.ARK_TEXT_MODEL = 'ep-text';
+enabled = true;
 globalThis.fetch = async () => new Response('data: {"choices":[{"delta":{"content":"正文"}}]}\n\ndata: [DONE]\n\n');
 const response = await handler(request(body));
 assert.equal(response.status, 200);

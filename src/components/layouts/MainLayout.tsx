@@ -21,7 +21,7 @@ import {
   Package, Users2, CreditCard, Wand2,
   Search, X, ArrowRight, Scissors, Moon, Sun,
   Layers, Share2, Code2, Gift, LayoutGrid, Bell, House, CheckCheck, LogOut,
-  Zap, History, CheckCircle2, ChevronDown,
+  Zap, History, CheckCircle2, ChevronDown, Settings2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -70,6 +70,7 @@ const navGroups = [
     items: [
       { path: '/team', label: '团队协作空间', icon: Users2 },
       { path: '/open-api', label: '开放 API', icon: Code2 },
+      { path: '/settings/models', label: '模型接口设置', icon: Settings2 },
     ],
   },
 ];

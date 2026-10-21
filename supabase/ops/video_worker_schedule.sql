@@ -63,6 +63,7 @@ BEGIN
   IF v_slots <= 0 THEN RETURN; END IF;
   SELECT count(*) INTO v_due FROM (
     SELECT id FROM public.video_jobs WHERE charge_id IS NOT NULL AND status IN ('pending','processing')
+      AND (model_config_version_id IS NOT NULL OR resolution_event IS NOT NULL)
       AND submission_state IN ('queued','submitting','submitted') AND next_poll_at <= now()
       AND (lease_until IS NULL OR lease_until < now()) LIMIT v_slots
   ) due_jobs;

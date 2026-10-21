@@ -61,8 +61,16 @@ class FinanceTest(unittest.TestCase):
           INSERT INTO plans(id,name,price,credits,level) VALUES
           ('{self.free}','免费版',0,20,0), ('{self.plan}','专业版',10,100,1),
           ('{self.booster}','加油包',2,30,-1);
-          INSERT INTO auth.users VALUES ('{self.user}','same@test.example'), ('{self.other}','same@other.example');
+          INSERT INTO auth.users(id,email) VALUES ('{self.user}','same@test.example'), ('{self.other}','same@other.example');
         """)
+        sql(f"UPDATE auth.users SET raw_app_meta_data='{{\"role\":\"admin\"}}' WHERE id='{self.other}';")
+        self.versions = {}
+        for provider in ("SeedanceMini", "ArkSeedance"):
+            previous = sql(f"SELECT current_version_id FROM model_configs WHERE slot='video.{provider}'").stdout.strip()
+            expected = f"'{previous}'" if previous else "NULL"
+            self.versions[provider] = sql(self.as_service(f"""SELECT save_model_config(
+              'video.{provider}',{expected},'{{"name":"test","model":"test"}}',true,
+              'isolated_cipher','{self.other}',true);""")).stdout.strip()
 
     def as_user(self, statement):
         return f"""SET ROLE authenticated;
@@ -205,7 +213,8 @@ class FinanceTest(unittest.TestCase):
 
     def create_job_sql(self, key=None, prompt="商品特写"):
         return self.as_service(f"""SELECT create_video_job('{self.user}','{key or uuid.uuid4()}','SeedanceMini',
-          '{{"prompt":"{prompt}","duration":5,"resolution":"720P","ratio":"16:9"}}');""")
+          '{{"prompt":"{prompt}","duration":5,"resolution":"720P","ratio":"16:9"}}',
+          '{self.versions["SeedanceMini"]}');""")
 
     def create_job(self):
         return json.loads(sql(self.create_job_sql()).stdout)
@@ -223,6 +232,49 @@ class FinanceTest(unittest.TestCase):
         job = self.claim_job(self.create_job())
         sql(self.job_event_sql(job, "accepted", task=f"'upstream-{uuid.uuid4()}'"))
         return self.claim_job(job)
+
+    def test_model_versions_permissions_and_optimistic_update(self):
+        version = self.versions["SeedanceMini"]
+        for statement in (
+            "SELECT * FROM model_config_versions;",
+            "SELECT * FROM model_configs;",
+            f"SELECT save_model_config('text.primary',NULL,'{{}}',false,NULL,'{self.user}',false);",
+            f"SELECT create_video_job_without_config('{self.user}','{uuid.uuid4()}','MiniMax','{{}}');",
+        ):
+            self.assertNotEqual(sql(self.as_user(statement), fail=False).returncode, 0)
+        self.assertNotEqual(sql(self.as_service(
+            f"UPDATE model_config_versions SET key_ciphertext='forged' WHERE id='{version}'"), fail=False).returncode, 0)
+        self.assertNotEqual(sql(self.as_service(
+            f"SELECT save_model_config('text.primary',NULL,'{{}}',false,NULL,'{self.user}',false)"), fail=False).returncode, 0)
+        statement = self.as_service(f"""SELECT save_model_config('video.SeedanceMini',
+          '{version}','{{"name":"next","model":"next"}}',true,NULL,'{self.other}',false);""")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(lambda _: sql(statement, fail=False), range(2)))
+        self.assertEqual(sum(result.returncode == 0 for result in results), 1)
+        self.assertEqual(sql(f"SELECT key_ciphertext FROM model_config_versions WHERE id='{version}'").stdout.strip(), "isolated_cipher")
+
+    def test_config_change_keeps_old_job_and_rejects_new_charge(self):
+        key = str(uuid.uuid4())
+        job = json.loads(sql(self.create_job_sql(key)).stdout)
+        version = self.versions["SeedanceMini"]
+        sql(self.as_service(f"""SELECT save_model_config('video.SeedanceMini','{version}',
+          '{{"name":"disabled","model":"next"}}',false,NULL,'{self.other}',false);"""))
+        same = json.loads(sql(self.create_job_sql(key)).stdout)
+        self.assertEqual(same["id"], job["id"])
+        self.assertEqual(same["model_config_version_id"], version)
+        self.assertNotEqual(sql(self.create_job_sql(), fail=False).returncode, 0)
+        self.assertEqual(sql(f"SELECT credits_used FROM user_plans WHERE user_id='{self.user}'").stdout.strip(), "10")
+        self.assertEqual(self.claim_job(job)["model_config_version_id"], version)
+
+    def test_legacy_jobs_wait_for_explicit_config_binding(self):
+        job = self.create_job()
+        sql(f"UPDATE video_jobs SET model_config_version_id=NULL WHERE id='{job['id']}'")
+        self.assertIsNone(self.claim_job(job))
+        self.assertNotEqual(sql(self.as_service(f"""SELECT bind_legacy_video_config('{job['id']}',
+          '{self.versions["ArkSeedance"]}','核对原供应商接口和账号一致');"""), fail=False).returncode, 0)
+        sql(self.as_service(f"""SELECT bind_legacy_video_config('{job['id']}',
+          '{self.versions["SeedanceMini"]}','核对原供应商接口和账号一致');"""))
+        self.assertIsNotNone(self.claim_job(job))
 
     def test_video_concurrent_create_is_once_and_payload_bound(self):
         key = str(uuid.uuid4())
@@ -243,7 +295,8 @@ class FinanceTest(unittest.TestCase):
             sql("ALTER TABLE video_jobs DROP CONSTRAINT test_reject_new_job")
 
     def test_ark_task_uses_same_atomic_charge_and_refund(self):
-        statement = self.create_job_sql().replace("'SeedanceMini'", "'ArkSeedance'")
+        statement = self.create_job_sql().replace("'SeedanceMini'", "'ArkSeedance'").replace(
+            self.versions["SeedanceMini"], self.versions["ArkSeedance"])
         job = json.loads(sql(statement).stdout)
         self.assertEqual(job["provider"], "ArkSeedance")
         self.assertEqual(job["billing_state"], "reserved")
@@ -276,7 +329,7 @@ class FinanceTest(unittest.TestCase):
         lease = next(lease for lease in leases if lease)
         for statement in (
             f"SELECT claim_video_job('{job['id']}');",
-            f"SELECT create_video_job('{self.user}','{uuid.uuid4()}','MiniMax','{{}}');",
+            f"SELECT create_video_job('{self.user}','{uuid.uuid4()}','MiniMax','{{}}',NULL);",
             f"SELECT checkpoint_video_job_result('{job['id']}','{lease['lease_token']}','submit_rejected');",
             f"SELECT record_video_job_event('{job['id']}','{lease['lease_token']}','failed');",
             f"SELECT reconcile_video_submission('{job['id']}',NULL,'fake upstream evidence');",

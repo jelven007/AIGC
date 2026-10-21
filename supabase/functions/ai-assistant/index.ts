@@ -3,7 +3,8 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { generateText } from '../_shared/text-provider.ts';
-import { requiredServiceUrl } from '../_shared/service-config.ts';
+import { resolveModel, validateEndpoint } from '../_shared/model-registry.ts';
+import { generateImage } from '../_shared/image-provider.ts';
 
 // 避免 createClient 的泛型 ReturnType 推导为空 schema。
 function businessClient(url: string, key: string): SupabaseClient {
@@ -473,19 +474,20 @@ async function extractUrlSellingPoints(body: Record<string, string>) {
   const { url } = body;
   if (!url) throw new Error('Missing URL');
 
-  const apiKey = Deno.env.get('URL_READER_API_KEY');
-
-  // 1. 获取网页内容
-  const encodedUrl = encodeURIComponent(url);
-  const readerEndpoint = `${requiredServiceUrl('URL_READER_BASE_URL')}/${encodedUrl}`;
+  const target = new URL(url);
+  const checkedTarget = new URL(target); checkedTarget.search = '';
+  await validateEndpoint(checkedTarget.href);
+  const config = await resolveModel('reader.primary');
+  const readerEndpoint = `${config.settings.endpoint.replace(/\/+$/, '')}/${encodeURIComponent(url)}`;
   
   const readerRes = await fetch(readerEndpoint, {
     method: 'GET',
     headers: {
-      ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+      ...config.headers,
       'X-Return-Format': 'markdown',
       'X-Timeout': '15',
-    }
+    },
+    redirect: 'error', signal: AbortSignal.timeout(config.settings.timeout_ms),
   });
 
   if (!readerRes.ok) {
@@ -1097,134 +1099,24 @@ async function generateCover(body: Record<string, unknown>, supabase: ReturnType
     ? `E-commerce product thumbnail for TikTok, ${product_name || ''}, vibrant colors, bold text overlay, 9:16 vertical, high contrast, eye-catching, professional photography`
     : `电商带货视频封面，产品：${product_name || ''}，风格：${style || '活力高饱和'}，竖版9:16，高对比度，专业摄影，产品主体突出`);
 
-  const seedanceApiKey = Deno.env.get('VECTRUST_API_KEY') || Deno.env.get('SEEDANCE_API_KEY');
-
-  // If Seedance API Key is available, use Seedance to generate a highly dynamic video cover and extract its thumbnail!
-  if (seedanceApiKey) {
-    try {
-      let finalPrompt = coverPrompt;
-      if (!finalPrompt.includes('--resolution')) {
-        finalPrompt += ` --resolution 720p`;
-      }
-      if (!finalPrompt.includes('--duration')) {
-        finalPrompt += ` --duration 5`;
-      }
-      if (!finalPrompt.includes('--aspect_ratio') && !finalPrompt.includes('--ratio')) {
-        finalPrompt += ` --aspect_ratio 9:16`;
-      }
-
-      const requestBody: any = {
-        model: 'doubao-seedance-2-0-fast-260128',
-        prompt: finalPrompt,
-        watermark: false,
-      };
-
-      const submitRes = await fetch('https://draw.openai-next.com/v1/video/generations', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${seedanceApiKey}`,
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (submitRes.ok) {
-        const resJson = await submitRes.json();
-        const requestId = resJson.id || resJson.task_id || resJson.request_id;
-        if (requestId) {
-          const taggedTaskId = `seedance_${requestId}`;
-          if (user_id && project_id) {
-            await supabase.from('cover_candidates').insert({
-              project_id, user_id, image_url: '', ctr_score: 0, gen_task_id: taggedTaskId,
-              status: 'processing', style_prompt: coverPrompt,
-            });
-          }
-          return { task_id: taggedTaskId, status: 'PENDING', message: 'Seedance 封面视频生成任务已提交' };
-        }
-      }
-    } catch (err) {
-      console.warn('Seedance cover generation failed, falling back to standard image generation:', err);
-    }
-  }
-  
-  const apiKey = Deno.env.get('INTEGRATIONS_API_KEY');
-  if (!apiKey) throw new Error('Missing INTEGRATIONS_API_KEY');
-  const submitRes = await fetch(requiredServiceUrl('IMAGE_GATEWAY_CREATE_URL'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Gateway-Authorization': `Bearer ${apiKey}` },
-    body: JSON.stringify({ contents: [{ parts: [{ text: coverPrompt }] }] }),
-  });
-  const submitJson = await submitRes.json();
-  if (submitJson.status !== 0) throw new Error(`Image submit failed: ${submitJson.message}`);
-  const taskId = submitJson.data.taskId;
-  if (user_id && project_id) {
-    await supabase.from('cover_candidates').insert({
-      project_id, user_id, image_url: '', ctr_score: 0, gen_task_id: taskId,
-      status: 'processing', style_prompt: coverPrompt,
-    });
-  }
-  return { task_id: taskId, status: 'PENDING', message: '封面生成任务已提交，请轮询状态' };
+  if (!user_id || !project_id) throw new Error('缺少作品标识');
+  const project = await supabase.from('video_projects').select('id').eq('id', project_id).eq('user_id', user_id).maybeSingle();
+  if (project.error || !project.data) throw new Error('作品不存在或无权生成封面');
+  const result = await generateImage(supabase, user_id, { prompt: coverPrompt, size: '1024x1536' });
+  const { data, error } = await supabase.from('cover_candidates').insert({
+    project_id, user_id, image_url: result.image_url, ctr_score: null, gen_task_id: null,
+    status: 'completed', style_prompt: coverPrompt,
+  }).select('id').single();
+  if (error) throw new Error('封面记录保存失败');
+  return { ...result, cover_id: data.id, status: 'completed' };
 }
 
 // ─── P2-N03: 查询封面任务状态 ─────────────────────────────────────────────────
 async function queryCoverTask(body: Record<string, unknown>, supabase: ReturnType<typeof businessClient>) {
-  const { task_id, user_id } = body as Record<string, string>;
-  if (!task_id) throw new Error('缺少 task_id');
-
-  if (task_id.startsWith('seedance_')) {
-    const rawTaskId = task_id.replace('seedance_', '');
-    const seedanceApiKey = Deno.env.get('VECTRUST_API_KEY') || Deno.env.get('SEEDANCE_API_KEY');
-    if (!seedanceApiKey) throw new Error('Missing VECTRUST_API_KEY for querying cover task');
-
-    const queryRes = await fetch(`https://draw.openai-next.com/v1/tasks/${rawTaskId}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${seedanceApiKey}`,
-      },
-    });
-
-    if (!queryRes.ok) throw new Error(`Seedance query status error: ${queryRes.status}`);
-    const qj = await queryRes.json();
-    const status = qj.status;
-    let imageUrl = null;
-    
-    if (status === 'completed' || status === 'success' || status === 'succeeded') {
-      imageUrl = qj.result_url || qj.result?.data?.content?.thumbnail_image_url || qj.result?.data?.content?.video_url || qj.thumbnail_url || qj.video_url;
-      if (imageUrl && user_id) {
-        const ctrScore = 75 + Math.floor(Math.random() * 20); // Seedance generates higher-converting covers!
-        await supabase.from('cover_candidates')
-          .update({ image_url: imageUrl, ctr_score: ctrScore, status: 'completed' })
-          .eq('gen_task_id', task_id).eq('user_id', user_id);
-      }
-    } else if (status === 'failed' || status === 'cancelled') {
-      if (user_id) {
-        await supabase.from('cover_candidates')
-          .update({ status: 'failed' })
-          .eq('gen_task_id', task_id).eq('user_id', user_id);
-      }
-    }
-    return { status: (status === 'completed' || status === 'success' || status === 'succeeded') ? 'SUCCESS' : (status === 'failed' || status === 'cancelled') ? 'FAILED' : 'PROCESSING', image_url: imageUrl, task_id };
-  }
-
-  const apiKey = Deno.env.get('INTEGRATIONS_API_KEY');
-  if (!apiKey) throw new Error('Missing INTEGRATIONS_API_KEY');
-  const queryRes = await fetch(requiredServiceUrl('IMAGE_GATEWAY_QUERY_URL'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Gateway-Authorization': `Bearer ${apiKey}` },
-    body: JSON.stringify({ taskId: task_id }),
-  });
-  const qj = await queryRes.json();
-  if (qj.status !== 0) throw new Error(`Image query failed: ${qj.message}`);
-  const { status, result } = qj.data;
-  if (status === 'SUCCESS' && result?.imageUrl && user_id) {
-    const ctrScore = 55 + Math.floor(Math.random() * 40);
-    await supabase.from('cover_candidates')
-      .update({ image_url: result.imageUrl, ctr_score: ctrScore, status: 'completed' })
-      .eq('gen_task_id', task_id).eq('user_id', user_id);
-  } else if (status === 'FAILED' && user_id) {
-    await supabase.from('cover_candidates')
-      .update({ status: 'failed' })
-      .eq('gen_task_id', task_id).eq('user_id', user_id);
-  }
-  return { status, image_url: result?.imageUrl ?? null, task_id };
+  const { task_id, cover_id, user_id } = body as Record<string, string>;
+  if (!user_id || (!task_id && !cover_id)) throw new Error('缺少封面标识');
+  const query = supabase.from('cover_candidates').select('id,status,image_url,gen_task_id').eq('user_id', user_id);
+  const { data, error } = await (cover_id ? query.eq('id', cover_id) : query.eq('gen_task_id', task_id)).maybeSingle();
+  if (error || !data) throw new Error('封面不存在或无权查询');
+  return { cover_id: data.id, status: data.status, image_url: data.image_url, task_id: data.gen_task_id };
 }

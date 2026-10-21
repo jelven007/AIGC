@@ -10,6 +10,7 @@
     "test:finance": "python3 tests/test_finance.py",
     "test:payments": "node tests/run_wechat.mjs && node tests/ai_billing.test.mjs && node tests/payment_notify.test.mjs",
     "test:video": "node tests/video_jobs.test.mjs",
+    "test:models": "node tests/model_settings.test.mjs && node tests/audio_models.test.mjs",
     "test:scheduler": "python3 tests/test_video_scheduler.py && python3 tests/test_video_schedule_db.py",
     "test:volcengine": "python3 tests/test_volcengine_deploy.py && node tests/volcengine.test.mjs",
     "deploy:prepare": "python3 scripts/deploy_volcengine.py prepare",

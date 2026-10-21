@@ -1,0 +1,47 @@
+// 浏览器与服务端共用的协议目录，不包含凭据或运行时环境读取。
+export const MODEL_SLOTS = [
+  { id: 'text.primary', name: '主文本模型', category: 'text', protocols: ['openai-chat'], model: '', endpoint: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions' },
+  { id: 'text.fallback', name: '备用文本模型', category: 'text', protocols: ['openai-chat'], model: 'deepseek-chat', endpoint: 'https://api.deepseek.com/v1/chat/completions' },
+  { id: 'image.primary', name: '图片与封面', category: 'image', protocols: ['openai-images', 'chat-image'], model: '', endpoint: '' },
+  { id: 'audio.tts', name: '语音合成', category: 'audio', protocols: ['openai-tts', 'step-tts'], model: '', endpoint: '' },
+  { id: 'audio.asr', name: '语音识别', category: 'audio', protocols: ['openai-asr', 'step-asr'], model: '', endpoint: '' },
+  { id: 'reader.primary', name: '商品网页读取', category: 'reader', protocols: ['jina-reader'], model: '', endpoint: 'https://r.jina.ai/' },
+  { id: 'video.ArkSeedance', name: '火山方舟 Seedance', category: 'video', protocols: ['ArkSeedance'], model: '', endpoint: 'https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks' },
+  { id: 'video.MiniMax', name: 'MiniMax 视频', category: 'video', protocols: ['MiniMax'], model: 'MiniMax-H3', endpoint: '' },
+  { id: 'video.SeedanceMini', name: 'Seedance Mini', category: 'video', protocols: ['SeedanceMini'], model: 'seedance-2.0-mini', endpoint: '' },
+  { id: 'video.Wan3', name: 'Wan3', category: 'video', protocols: ['Wan3'], model: 'wan3.0-video-prime', endpoint: '' },
+  { id: 'video.HappyHorse', name: 'HappyHorse', category: 'video', protocols: ['HappyHorse'], model: 'happyhorse-1.1-t2v', endpoint: '' },
+  { id: 'video.Kling', name: 'Kling', category: 'video', protocols: ['Kling'], model: '', endpoint: '' },
+  { id: 'video.Seedance', name: 'Seedance 网关', category: 'video', protocols: ['Seedance'], model: 'Cdance2.0-A', endpoint: '' },
+] as const;
+
+export interface ModelSettings {
+  name: string;
+  protocol: string;
+  endpoint: string;
+  query_endpoint: string;
+  model: string;
+  auth_header: 'Authorization' | 'X-Gateway-Authorization' | 'api-key';
+  auth_scheme: 'Bearer' | 'raw';
+  timeout_ms: number;
+  voice: string;
+  test_endpoint: string;
+}
+export interface ModelConfigView {
+  slot: string;
+  enabled: boolean;
+  version_id: string | null;
+  has_key: boolean;
+  settings: ModelSettings;
+  updated_at?: string;
+}
+export function defaultSettings(slot: string): ModelSettings {
+  const definition = MODEL_SLOTS.find(item => item.id === slot);
+  if (!definition) throw new Error('不支持的模型配置项');
+  return {
+    name: definition.name, protocol: definition.protocols[0], endpoint: definition.endpoint,
+    query_endpoint: definition.category === 'video' ? definition.endpoint : '',
+    model: definition.model, auth_header: 'Authorization', auth_scheme: 'Bearer',
+    timeout_ms: definition.category === 'video' ? 30_000 : 90_000, voice: '', test_endpoint: '',
+  };
+}

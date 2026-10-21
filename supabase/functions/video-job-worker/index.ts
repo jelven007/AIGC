@@ -16,7 +16,7 @@ export async function handleVideoWorker(req: Request): Promise<Response> {
     if (body.action === 'probe') {
       // 部署与调度预检仅验证队列结构，不领取任务或调用模型。
       const { error } = await db.from('video_jobs')
-        .select('id,charge_id,submission_state,next_poll_at,resolution_event').limit(0);
+        .select('id,charge_id,submission_state,next_poll_at,resolution_event,model_config_version_id').limit(0);
       if (error) return Response.json({ ready: false, error: '视频任务迁移尚未就绪' }, { status: 503 });
       return Response.json({ ready: true, version: 1 });
     }

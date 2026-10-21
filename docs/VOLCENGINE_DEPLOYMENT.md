@@ -31,7 +31,7 @@ python3 scripts/deploy_volcengine.py migrate --workspace-id "$SHOPRO_WORKSPACE_I
 byted-supabase-cli db advisors --workspace-id "$SHOPRO_WORKSPACE_ID"
 ```
 
-先读取业务表/迁移回执，再按顺序执行未应用迁移。一次 SQL 事务包含部署锁、迁移和 SHA-256 回执，响应丢失可安全查询回执后恢复。00018/00019 的演示数据与公开策略被排除。`00031` 免费套餐种子、`00032` 方舟 Provider、`00033` Data API ACL 属于当前生产迁移。
+先读取业务表/迁移回执，再按顺序执行未应用迁移。一次 SQL 事务包含部署锁、迁移和 SHA-256 回执，响应丢失可安全查询回执后恢复。00018/00019 的演示数据与公开策略被排除。`00031` 免费套餐种子、`00032` 方舟 Provider、`00033` Data API ACL、`00034` 统一模型配置与任务版本绑定属于当前生产迁移。
 
 新库需要 Auth、Storage schema、Supabase Auth 角色、`supabase_realtime` publication 和历史迁移使用的扩展可用。SQL 隔离测试使用 PostgreSQL 16 和平台替身，云端权限与扩展必须通过实际迁移确认。
 
@@ -43,12 +43,11 @@ byted-supabase-cli db advisors --workspace-id "$SHOPRO_WORKSPACE_ID"
 
 复制 `deploy/volcengine/secrets.env.example` 为 `secrets.env`，权限设为 600，填入：
 
-- `ARK_API_KEY`、账号已开通的 `ARK_TEXT_MODEL`、`ARK_VIDEO_MODEL`；
+- `MODEL_CONFIG_ENCRYPTION_KEY`：32 字节随机主密钥的 64 位十六进制表示；
 - 独立随机 `VIDEO_WORKER_SECRET`，与调度器一致；
-- 音频需要的 `SILICONFLOW_API_KEY`；
 - 需要上线支付时的支付宝/微信商户配置。
 
-没有必要的功能可留空；未配置的模型在扣积分前拒绝。模型 ID 和 Endpoint ID 必须来自当前火山账号，不在代码中猜测。
+模型 API Key、地址、Model ID、音色在 `/settings/models` 配置。首次管理员授权与历史 Secrets 导入见 [统一模型配置](MODEL_SETTINGS.md)。没有必要的功能保持关闭；未配置视频模型在扣积分前拒绝。模型 ID 和 Endpoint ID 必须来自当前火山账号。
 
 ```sh
 byted-supabase-cli secrets set --env-file deploy/volcengine/secrets.env --workspace-id "$SHOPRO_WORKSPACE_ID"
@@ -61,7 +60,7 @@ python3 scripts/deploy_volcengine.py functions --workspace-id "$SHOPRO_WORKSPACE
 
 在目标 BaaS 配置实际站点 URL、允许重定向地址、SMTP 邮件或短信供应商。邮箱注册需要验证时页面提示查收邮件；短信登录通过 `signInWithOtp` / `verifyOtp` 建立用户会话，不能使用旧短信代理。未配置短信供应商时使用邮箱登录。
 
-迁移初始化 `materials`、`videos`、`thumbnails` 桶及对象策略。前端参考素材路径以用户 ID 开头；成片由 service_role 写入固定路径。当前桶公开，生产如需私有素材需另行加入签名 URL 授权。
+迁移初始化 `materials`、`videos`、`thumbnails` 桶及对象策略。前端参考素材路径以用户 ID 开头；成片由 service_role 写入固定路径。当前桶公开，生产如需私有素材需另行加入签名 URL 授权。升级前核对旧视频的原供应商配置，再按模型配置文档绑定版本；不要让新配置接管旧账号任务。
 
 ## 5. ECS 后台调度
 
@@ -139,6 +138,7 @@ npm run typecheck
 npm run test:finance
 npm run test:payments
 npm run test:video
+npm run test:models
 npm run test:volcengine
 npm run build
 ```

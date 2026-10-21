@@ -6,6 +6,13 @@
   ],
   "functions": [
     { "name": "text-generation", "verify_jwt": true },
+    { "name": "model-settings", "verify_jwt": true },
+    { "name": "image-generation", "verify_jwt": true },
+    { "name": "glm-5-3-flash", "verify_jwt": true },
+    { "name": "deepseek-v4-pro", "verify_jwt": true },
+    { "name": "wenxin-text-generation", "verify_jwt": true },
+    { "name": "minimax-chat", "verify_jwt": true },
+    { "name": "stepaudio", "verify_jwt": true },
     { "name": "send-sms-code", "verify_jwt": true },
     { "name": "verify-sms-code", "verify_jwt": true },
     { "name": "ai-assistant", "verify_jwt": true },

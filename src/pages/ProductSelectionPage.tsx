@@ -3152,14 +3152,9 @@ export default function ProductSelectionPage() {
                       <div className="flex flex-col gap-1.5 items-center justify-center">
                         {isImported ? (
                           <>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-7 w-20 text-[11px] border-emerald-500 text-emerald-600 bg-emerald-50/50 hover:bg-emerald-50 dark:border-emerald-900/30 dark:text-emerald-400 cursor-default"
-                              disabled
-                            >
+                            <span className="inline-flex h-7 w-20 items-center justify-center rounded-md border text-[11px] border-emerald-500 text-emerald-600 bg-emerald-50/50 dark:border-emerald-900/30 dark:text-emerald-400">
                               <Check className="w-3.5 h-3.5 mr-0.5" /> 已导入
-                            </Button>
+                            </span>
                             <Button
                               size="sm"
                               className="h-7 w-20 text-[11px] bg-rose-500 hover:bg-rose-600 text-white shadow-sm flex items-center justify-center gap-0.5"

@@ -1,39 +1,23 @@
 import assert from 'node:assert/strict';
-import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
-import ts from 'typescript';
-
-const directory = '/tmp/shoproai-video-jobs-test';
-mkdirSync(directory, { recursive: true });
-for (const [name, path] of [
-  ['providers', 'supabase/functions/_shared/video-providers.ts'],
-  ['jobs', 'supabase/functions/_shared/video-jobs.ts'],
-  ['auth', 'supabase/functions/_shared/auth.ts'],
-  ['handler', 'supabase/functions/video-jobs/index.ts'],
-  ['worker', 'supabase/functions/video-job-worker/index.ts'],
-]) {
-  const source = readFileSync(path, 'utf8')
-    .replace(/import \{ createClient, User \} from 'npm:@supabase\/supabase-js@2';/,
-      'const createClient = globalThis.__createClient;')
-    .replaceAll("'./video-providers.ts'", "'./providers.mjs'")
-    .replaceAll("'../_shared/video-providers.ts'", "'./providers.mjs'")
-    .replaceAll("'../_shared/video-jobs.ts'", "'./jobs.mjs'")
-    .replaceAll("'../_shared/auth.ts'", "'./auth.mjs'");
-  writeFileSync(`${directory}/${name}.mjs`, ts.transpileModule(source, {
-    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
-  }).outputText);
-}
+import { loadEdge } from './edge-loader.mjs';
 let environment = {};
-globalThis.Deno = { env: { get: key => environment[key] }, serve() {} };
+globalThis.Deno = { env: { get: key => environment[key] }, serve() {}, resolveDns: async () => ['8.8.8.8'] };
 globalThis.__createClient = (...args) => db;
-const providers = await import(pathToFileURL(`${directory}/providers.mjs`).href);
-const { processVideoJob } = await import(pathToFileURL(`${directory}/jobs.mjs`).href);
-const { handleVideoJobs } = await import(pathToFileURL(`${directory}/handler.mjs`).href);
-const { handleVideoWorker } = await import(pathToFileURL(`${directory}/worker.mjs`).href);
+const providers = await loadEdge('supabase/functions/_shared/video-providers.ts', 'video-provider');
+const { processVideoJob } = await loadEdge('supabase/functions/_shared/video-jobs.ts', 'video-jobs');
+const { handleVideoJobs } = await loadEdge('supabase/functions/video-jobs/index.ts', 'video-handler');
+const { handleVideoWorker } = await loadEdge('supabase/functions/video-job-worker/index.ts', 'video-worker');
+const { encryptKey } = await loadEdge('supabase/functions/_shared/model-registry.ts', 'video-registry');
+const { defaultSettings } = await loadEdge('supabase/functions/_shared/model-catalog.ts', 'video-catalog');
+environment.MODEL_CONFIG_ENCRYPTION_KEY = '1'.repeat(64);
+const ciphertext = await encryptKey('video.Wan3', 'test-model-key');
+const settings = { ...defaultSettings('video.Wan3'), endpoint: 'https://provider.example/tasks',
+  query_endpoint: 'https://provider.example/tasks', model: 'configured-video' };
 const input = { prompt: '商品特写', title: '商品', duration: 5, ratio: '16:9', resolution: '720P',
   reference_images: [], reference_videos: [] };
 const config = { provider: 'Wan3', createUrl: 'https://provider.example/create',
-  queryUrl: 'https://provider.example/query', headers: { Authorization: 'Bearer private' } };
+  queryUrl: 'https://provider.example/query', headers: { Authorization: 'Bearer private' },
+  model: 'configured-model', timeoutMs: 30000, versionId: 'version-old' };
 
 let passes = 0;
 async function test(name, run) { await run(); passes++; console.log(`PASS ${name}`); }
@@ -44,7 +28,7 @@ await test('参数校验、规格归一化、模型素材能力', () => {
     assert.throws(() => providers.validateVideoInput('MiniMax', { ...input, ...extra }));
   }
   assert.throws(() => providers.validateVideoInput('Wan3', { ...input, last_frame: 'https://assets.example/last.png' }));
-  assert.equal(providers.providerBody('HappyHorse', { ...input, resolution: '1080P', ratio: '9:16' }).parameters.size, '1080*1920');
+  assert.equal(providers.providerBody('HappyHorse', { ...input, resolution: '1080P', ratio: '9:16' }, 'configured').parameters.size, '1080*1920');
 });
 await test('六种协议提交成功均提取上游 ID', async () => {
   const responses = {
@@ -92,13 +76,16 @@ const jobId = '11111111-1111-4111-8111-111111111111';
 const userId = '22222222-2222-4222-8222-222222222222';
 const db = {
   auth: { getUser: async () => ({ data: { user: state.authenticated ? { id: userId } : null } }) },
-  from() {
+  from(table) {
     const q = {
       select() { return this; },
       eq(key, value) { state.filters.push([key, value]); return this; },
       not() { return this; }, order() { return this; }, limit() { return this; },
-      maybeSingle: async () => ({ data: state.foreignJob ? null : state.job, error: null }),
-      single: async () => ({ data: state.job, error: null }),
+      maybeSingle: async () => ({ data: table === 'model_configs'
+        ? { enabled: !state.disabledModel, current_version_id: 'version-current' }
+        : state.foreignJob || state.creating ? null : state.job, error: null }),
+      single: async () => ({ data: table === 'model_config_versions'
+        ? { id: 'version-old', slot: 'video.Wan3', settings, key_ciphertext: ciphertext } : state.job, error: null }),
       then(resolve) {
         return Promise.resolve({ data: [state.job], error: state.schemaError ? { message: 'missing column' } : null }).then(resolve);
       },
@@ -123,10 +110,11 @@ const db = {
 };
 function reset(overrides = {}) {
   environment = { SUPABASE_URL: 'https://db.example', SUPABASE_ANON_KEY: 'public',
-    SUPABASE_SERVICE_ROLE_KEY: 'server', VIDEO_WORKER_SECRET: 'worker', TOKENDANCE_API_KEY: 'model' };
+    SUPABASE_SERVICE_ROLE_KEY: 'server', VIDEO_WORKER_SECRET: 'worker', MODEL_CONFIG_ENCRYPTION_KEY: '1'.repeat(64) };
   state = {
     authenticated: true, claim: true, calls: [], filters: [], uploads: [],
     job: { id: jobId, user_id: userId, project_id: 'project', provider: 'Wan3', payload: input,
+      model_config_version_id: 'version-old',
       lease_token: 'lease', submission_state: 'submitted', provider_task_id: 'provider-task',
       status: 'processing', billing_state: 'reserved', credit_cost: 10, progress: 5 },
     ...overrides,
@@ -201,7 +189,8 @@ await test('未登录、跨用户查询和伪造退款均拒绝', async () => {
 });
 await test('缺少模型密钥与非法参数在扣费前拒绝', async () => {
   reset();
-  delete environment.TOKENDANCE_API_KEY;
+  state.creating = true;
+  state.disabledModel = true;
   assert.equal((await handleVideoJobs(request({ action: 'create', request_key: jobId, provider: 'Wan3', input }))).status, 400);
   assert.equal(state.calls.length, 0);
   reset();
@@ -211,6 +200,7 @@ await test('缺少模型密钥与非法参数在扣费前拒绝', async () => {
 });
 await test('创建按认证用户计费，响应隐藏上游标识与扣费流水', async () => {
   reset();
+  state.creating = true;
   const response = await handleVideoJobs(request({ action: 'create', request_key: jobId, provider: 'Wan3',
     input, user_id: 'attacker', cost: 0 }));
   assert.equal(response.status, 202);
