@@ -1,5 +1,7 @@
 # 火山引擎部署指南
 
+新增 [MCP迭代17](ITERATION_17_MCP_PRODUCTION.md)发布要求：45工具镜像、16权限与匹配六业务函数；manifest/config关闭platform-accounts网关JWT，函数内仅list/creator接受受限Key，OAuth/应用管理仍用户JWT。schema仍00044，先后端/Worker再MCP与前端；公网TLS/Host和真实模型/平台验收尚未执行。
+
 当前清单新增market-intelligence，需00032–00044和匹配production-worker探针v6/20槽设置页；官方协议、授权数据商、预算监控和留存验收见 [迭代15](ITERATION_15_MARKET_INTELLIGENCE.md)。仍只有适配代码与本地验证，火山资源/真实供应商未运行验收；先发布后端/Worker并验证，再发布前端。
 
 本轮清单新增knowledge-base，最新版增量00032–00043与production探针v5，当前17槽含独立Embedding。需在目标环境核实新知识RPC、加密历史版本、真实模型权限与有界向量性能，按 [知识迭代14](ITERATION_14_KNOWLEDGE_RETRIEVAL.md)验收后最后发布前端。本轮只有本地代码/清单更新，火山资源与真实供应商尚未运行验收。
@@ -139,7 +141,7 @@ cp .env.example .env
 docker compose -f docker-compose.mcp.yml up -d --build
 ```
 
-配置 BaaS URL/anon key及实际公开域名 `MCP_ALLOWED_HOSTS`。HTTP 只绑定 ECS 本机端口，用 TLS 反向代理公开 `/mcp`；请求携带登录用户 JWT。MCP 不使用模型 key 或 service_role。视频创建必须携带 `request_key` UUID，重试复用相同参数与 UUID。
+配置BaaS HTTPS根地址/anon key及实际域名MCP_ALLOWED_HOSTS，HTTP绑定ECS本机端口经TLS代理公开/mcp；请求携带用户JWT或受限业务Key。45工具不配置模型Key/service_role，创建保存原UUID/参数，媒体确认价格，不自动重发POST。
 
 ## 8. 验收
 

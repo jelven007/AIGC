@@ -8,6 +8,7 @@ import { exportRequest, publicRenderExport } from '../_shared/render-exports.ts'
 import { createMediaJob, MEDIA_JOB_SLOTS, mediaJobInput } from '../_shared/media-jobs.ts';
 import { analysisInput, createAnalysisJob } from '../_shared/video-analysis.ts';
 import { KNOWLEDGE_KINDS } from '../_shared/knowledge.ts';
+import { INTELLIGENCE_KINDS } from '../_shared/intelligence-provider.ts';
 
 const uuid = (value: unknown) => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 export async function handleProductionJobs(req: Request): Promise<Response> {
@@ -160,7 +161,7 @@ export async function handleProductionJobs(req: Request): Promise<Response> {
       let query = db.from('production_jobs').select('*').eq('user_id', auth.user.id);
       if (body.kinds !== undefined) {
         if (!Array.isArray(body.kinds) || !body.kinds.length || body.kinds.some((kind: string) =>
-          !['image', 'render', 'publish', 'metrics', 'analysis', ...Object.keys(MEDIA_JOB_SLOTS), ...KNOWLEDGE_KINDS].includes(kind))) return reply({ error: '任务类型筛选非法' }, 400);
+          !['image', 'render', 'publish', 'metrics', 'analysis', ...Object.keys(MEDIA_JOB_SLOTS), ...KNOWLEDGE_KINDS, ...INTELLIGENCE_KINDS].includes(kind))) return reply({ error: '任务类型筛选非法' }, 400);
         query = query.in('kind', body.kinds);
       }
       const { data, error } = await query.order('created_at', { ascending: false }).limit(30);

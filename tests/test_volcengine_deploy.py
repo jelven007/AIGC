@@ -69,7 +69,9 @@ class DeployTest(unittest.TestCase):
         public = {item["name"] for item in functions if not item["verify_jwt"]}
         self.assertEqual(public, {"video-job-worker", "production-worker", "platform-oauth-callback",
                                   "wechat-payment-webhook", "alipay-payment-notify", "text-generation",
-                                  "video-jobs", "batch-video-jobs", "production-jobs", "platform-publish"})
+                                  "video-jobs", "batch-video-jobs", "production-jobs", "platform-publish",
+                                  "platform-accounts", "measurements", "knowledge-base",
+                                  "market-intelligence", "measurement-ingest"})
 
     def test_service_role_cannot_be_packaged_as_anon_key(self):
         with tempfile.TemporaryDirectory() as directory:

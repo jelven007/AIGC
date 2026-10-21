@@ -2,7 +2,7 @@
   "tools": [
     {
       "name": "extract_product_highlights",
-      "description": "Extracts key selling points, target audience pain points, and core marketing angles from raw product descriptions or URL landing text using DeepSeek-V4-Pro.",
+      "description": "从提供的商品事实提取卖点；使用统一文本接口，不自动抓取URL。",
       "inputSchema": {
         "properties": {
           "product_info": {
@@ -19,7 +19,7 @@
     },
     {
       "name": "generate_marketing_script",
-      "description": "Generates a structured TikTok/Douyin/Shorts style high-converting marketing script with detailed scene instructions (Hook, Pain Point, Solution, Call to Action) and digital human speech texts using DeepSeek-V4-Pro.",
+      "description": "创作营销脚本，可引用已完成且属于当前用户的知识检索任务。",
       "inputSchema": {
         "properties": {
           "product_highlights": {
@@ -39,6 +39,18 @@
             "default": "Chinese",
             "title": "Language",
             "type": "string"
+          },
+          "knowledge_job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Knowledge Job Id"
           }
         },
         "required": [
@@ -51,7 +63,7 @@
     },
     {
       "name": "translate_marketing_script",
-      "description": "Translates the generated marketing script to a target language (e.g. Chinese to English, Spanish, etc.) while preserving scene instructions and placeholders intact using DeepSeek-V4-Pro.",
+      "description": "翻译脚本并保留分镜，使用管理员启用的文本模型。",
       "inputSchema": {
         "properties": {
           "script": {
@@ -73,15 +85,25 @@
     },
     {
       "name": "synthesize_voice_tts",
-      "description": "通过火山 BaaS 音频函数合成语音，返回 Base64 MP3。",
+      "description": "创建后台配音任务。先get_media_prices确认tts价格，重试复用原UUID和参数；用query_production_status获取结果。",
       "inputSchema": {
         "properties": {
           "text": {
             "title": "Text",
             "type": "string"
           },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          },
+          "confirmed_credit_cost": {
+            "maximum": 100000,
+            "minimum": 0,
+            "title": "Confirmed Credit Cost",
+            "type": "integer"
+          },
           "voice_id": {
-            "default": "fnlp/MOSS-TTSD-v0.5:alex",
+            "default": "",
             "title": "Voice Id",
             "type": "string"
           },
@@ -90,14 +112,38 @@
             "title": "Speed",
             "type": "number"
           },
-          "volume": {
-            "default": 0.9,
-            "title": "Volume",
-            "type": "number"
+          "response_format": {
+            "default": "mp3",
+            "enum": [
+              "mp3",
+              "wav",
+              "opus"
+            ],
+            "title": "Response Format",
+            "type": "string"
+          },
+          "instruction": {
+            "default": "",
+            "title": "Instruction",
+            "type": "string"
+          },
+          "voice_clone_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Voice Clone Id"
           }
         },
         "required": [
-          "text"
+          "text",
+          "request_key",
+          "confirmed_credit_cost"
         ],
         "title": "synthesize_voice_ttsArguments",
         "type": "object"
@@ -105,7 +151,7 @@
     },
     {
       "name": "enhance_prompt",
-      "description": "Enhances/optimizes a raw prompt text into a detailed, high-quality prompt suitable for digital human or video generation using StepFun step-3.7-flash.",
+      "description": "扩展商品镜头提示词，模型由服务端配置。",
       "inputSchema": {
         "properties": {
           "prompt": {
@@ -122,7 +168,7 @@
     },
     {
       "name": "submit_video_generation",
-      "description": "通过业务用户 JWT 创建方舟视频队列任务，按 request_key 幂等扣费。",
+      "description": "创建服务端视频任务，七种协议按配置启用；参考图/视频使用已上传私有素材。同一请求重试必须复用UUID及参数。",
       "inputSchema": {
         "properties": {
           "prompt": {
@@ -131,8 +177,7 @@
           },
           "request_key": {
             "title": "Request Key",
-            "type": "string",
-            "format": "uuid"
+            "type": "string"
           },
           "duration": {
             "default": 5,
@@ -165,6 +210,62 @@
             "default": false,
             "title": "Watermark",
             "type": "boolean"
+          },
+          "provider": {
+            "default": "ArkSeedance",
+            "enum": [
+              "ArkSeedance",
+              "MiniMax",
+              "SeedanceMini",
+              "Wan3",
+              "HappyHorse",
+              "Kling",
+              "Seedance"
+            ],
+            "title": "Provider",
+            "type": "string"
+          },
+          "last_frame_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Last Frame Url"
+          },
+          "reference_images": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reference Images"
+          },
+          "reference_videos": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reference Videos"
           }
         },
         "required": [
@@ -177,18 +278,1188 @@
     },
     {
       "name": "query_video_status",
-      "description": "Queries the status of a submitted video generation task by request_id.",
+      "description": "用本地job.id或原UUID恢复视频任务；unknown需核对供应商，不能更换UUID重提。",
       "inputSchema": {
         "properties": {
           "request_id": {
-            "title": "Request Id",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Request Id"
+          },
+          "request_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Request Key"
+          }
+        },
+        "title": "query_video_statusArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_video_jobs",
+      "description": "读取当前用户最近视频任务。",
+      "inputSchema": {
+        "properties": {},
+        "title": "list_video_jobsArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_media_prices",
+      "description": "读取tts/asr/voice_clone/avatar/lipsync当前积分价格；创建前传入确认价格。",
+      "inputSchema": {
+        "properties": {},
+        "title": "get_media_pricesArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_voice_clones",
+      "description": "读取当前用户声纹及供应商验证状态，未验证声纹不可用于配音。",
+      "inputSchema": {
+        "properties": {},
+        "title": "list_voice_clonesArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "submit_audio_transcription",
+      "description": "识别已上传私有音频，返回后台asr任务；价格由get_media_prices读取。",
+      "inputSchema": {
+        "properties": {
+          "audio_url": {
+            "title": "Audio Url",
+            "type": "string"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          },
+          "confirmed_credit_cost": {
+            "maximum": 100000,
+            "minimum": 0,
+            "title": "Confirmed Credit Cost",
+            "type": "integer"
+          },
+          "language": {
+            "default": "",
+            "title": "Language",
             "type": "string"
           }
         },
         "required": [
-          "request_id"
+          "audio_url",
+          "filename",
+          "request_key",
+          "confirmed_credit_cost"
         ],
-        "title": "query_video_statusArguments",
+        "title": "submit_audio_transcriptionArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "submit_voice_clone",
+      "description": "根据已授权私有样本创建即时声纹任务，必须显式确认授权；供应商验证状态随结果返回。",
+      "inputSchema": {
+        "properties": {
+          "audio_url": {
+            "title": "Audio Url",
+            "type": "string"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "consent": {
+            "title": "Consent",
+            "type": "boolean"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          },
+          "confirmed_credit_cost": {
+            "maximum": 100000,
+            "minimum": 0,
+            "title": "Confirmed Credit Cost",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "audio_url",
+          "filename",
+          "name",
+          "consent",
+          "request_key",
+          "confirmed_credit_cost"
+        ],
+        "title": "submit_voice_cloneArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "submit_avatar_video",
+      "description": "使用已授权的私有照片与音频创建口播任务；返回任务，完成后可读取归档成片。",
+      "inputSchema": {
+        "properties": {
+          "image_url": {
+            "title": "Image Url",
+            "type": "string"
+          },
+          "audio_url": {
+            "title": "Audio Url",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "consent": {
+            "title": "Consent",
+            "type": "boolean"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          },
+          "confirmed_credit_cost": {
+            "maximum": 100000,
+            "minimum": 0,
+            "title": "Confirmed Credit Cost",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "image_url",
+          "audio_url",
+          "title",
+          "consent",
+          "request_key",
+          "confirmed_credit_cost"
+        ],
+        "title": "submit_avatar_videoArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "submit_lipsync",
+      "description": "使用已授权的私有视频与音频创建口型同步任务；不等待供应商完成。",
+      "inputSchema": {
+        "properties": {
+          "video_url": {
+            "title": "Video Url",
+            "type": "string"
+          },
+          "audio_url": {
+            "title": "Audio Url",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "consent": {
+            "title": "Consent",
+            "type": "boolean"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          },
+          "confirmed_credit_cost": {
+            "maximum": 100000,
+            "minimum": 0,
+            "title": "Confirmed Credit Cost",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "video_url",
+          "audio_url",
+          "title",
+          "consent",
+          "request_key",
+          "confirmed_credit_cost"
+        ],
+        "title": "submit_lipsyncArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "submit_image_generation",
+      "description": "创建图片/作品封面任务，服务端按generate_image或generate_cover预占积分；参考图须为授权私有素材。",
+      "inputSchema": {
+        "properties": {
+          "prompt": {
+            "title": "Prompt",
+            "type": "string"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          },
+          "size": {
+            "default": "1024x1024",
+            "enum": [
+              "1024x1024",
+              "1024x1536",
+              "1536x1024"
+            ],
+            "title": "Size",
+            "type": "string"
+          },
+          "quality": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "low",
+              "medium",
+              "high"
+            ],
+            "title": "Quality",
+            "type": "string"
+          },
+          "reference_image": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reference Image"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Project Id"
+          }
+        },
+        "required": [
+          "prompt",
+          "request_key"
+        ],
+        "title": "submit_image_generationArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "submit_render",
+      "description": "提交FFmpeg剪辑工程v1：title/duration/fps/height/ratio/tracks必填；支持视频/图片/音频/文本、转场、色键和混合。API与Worker二次校验。",
+      "inputSchema": {
+        "properties": {
+          "render_spec": {
+            "additionalProperties": true,
+            "title": "Render Spec",
+            "type": "object"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "render_spec",
+          "request_key",
+          "project_id"
+        ],
+        "title": "submit_renderArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "submit_render_export",
+      "description": "将已完成且不超过10分钟的作品导出1–18种比例/分辨率。返回导出组及子任务，使用query_render_export恢复。",
+      "inputSchema": {
+        "$defs": {
+          "ExportFormat": {
+            "additionalProperties": false,
+            "properties": {
+              "ratio": {
+                "enum": [
+                  "9:16",
+                  "16:9",
+                  "1:1",
+                  "4:3",
+                  "3:4",
+                  "4:5"
+                ],
+                "title": "Ratio",
+                "type": "string"
+              },
+              "height": {
+                "enum": [
+                  720,
+                  1080,
+                  2160
+                ],
+                "title": "Height",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "ratio",
+              "height"
+            ],
+            "title": "ExportFormat",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "source_project_id": {
+            "title": "Source Project Id",
+            "type": "string"
+          },
+          "formats": {
+            "items": {
+              "$ref": "#/$defs/ExportFormat"
+            },
+            "title": "Formats",
+            "type": "array"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_project_id",
+          "formats",
+          "request_key"
+        ],
+        "title": "submit_render_exportArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "query_render_export",
+      "description": "用导出组ID或原UUID恢复多规格导出，读取各子任务及签名成片地址。",
+      "inputSchema": {
+        "properties": {
+          "export_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Export Id"
+          },
+          "request_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Request Key"
+          }
+        },
+        "title": "query_render_exportArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "query_production_status",
+      "description": "读取当前用户图片/渲染/音频/数字人/分析/知识/情报任务，完成结果含短效签名URL；过期后重新查询。",
+      "inputSchema": {
+        "properties": {
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Job Id"
+          },
+          "request_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Request Key"
+          }
+        },
+        "title": "query_production_statusArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_production_jobs",
+      "description": "读取当前用户最近生产任务和计费/结果状态。",
+      "inputSchema": {
+        "properties": {},
+        "title": "list_production_jobsArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_analysis_price",
+      "description": "读取素材分析当前积分价格。",
+      "inputSchema": {
+        "properties": {},
+        "title": "get_analysis_priceArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "submit_video_analysis",
+      "description": "分析私有视频的高光或风格，经过真实抽帧/转录；平台播放页不能作为素材。",
+      "inputSchema": {
+        "properties": {
+          "source_url": {
+            "title": "Source Url",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "live",
+              "style"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          },
+          "confirmed_credit_cost": {
+            "maximum": 100000,
+            "minimum": 0,
+            "title": "Confirmed Credit Cost",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "source_url",
+          "title",
+          "mode",
+          "request_key",
+          "confirmed_credit_cost"
+        ],
+        "title": "submit_video_analysisArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_batch_video_quote",
+      "description": "读取批量视频单价、批次上限和队列上限，创建前确认预算。",
+      "inputSchema": {
+        "properties": {},
+        "title": "get_batch_video_quoteArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "submit_batch_videos",
+      "description": "按1–50个自有商品创建批次，事务固定商品事实和模型版本，预算覆盖预占；重试复用原UUID。",
+      "inputSchema": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "product_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Product Ids",
+            "type": "array"
+          },
+          "provider": {
+            "enum": [
+              "ArkSeedance",
+              "MiniMax",
+              "SeedanceMini",
+              "Wan3",
+              "HappyHorse",
+              "Kling",
+              "Seedance"
+            ],
+            "title": "Provider",
+            "type": "string"
+          },
+          "style": {
+            "title": "Style",
+            "type": "string"
+          },
+          "language": {
+            "enum": [
+              "zh",
+              "en",
+              "ja",
+              "ko",
+              "th",
+              "vi"
+            ],
+            "title": "Language",
+            "type": "string"
+          },
+          "expected_unit_cost": {
+            "maximum": 100000,
+            "minimum": 0,
+            "title": "Expected Unit Cost",
+            "type": "integer"
+          },
+          "budget": {
+            "maximum": 100000,
+            "minimum": 0,
+            "title": "Budget",
+            "type": "integer"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          },
+          "duration": {
+            "default": 5,
+            "title": "Duration",
+            "type": "integer"
+          },
+          "ratio": {
+            "default": "9:16",
+            "title": "Ratio",
+            "type": "string"
+          },
+          "resolution": {
+            "default": "720p",
+            "title": "Resolution",
+            "type": "string"
+          },
+          "overrides": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Overrides"
+          }
+        },
+        "required": [
+          "name",
+          "product_ids",
+          "provider",
+          "style",
+          "language",
+          "expected_unit_cost",
+          "budget",
+          "request_key"
+        ],
+        "title": "submit_batch_videosArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "query_video_batch",
+      "description": "读取当前用户批次、逐项状态及退款结果。",
+      "inputSchema": {
+        "properties": {
+          "batch_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Batch Id"
+          },
+          "request_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Request Key"
+          }
+        },
+        "title": "query_video_batchArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_video_batches",
+      "description": "读取当前用户最近批次。",
+      "inputSchema": {
+        "properties": {},
+        "title": "list_video_batchesArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "control_video_batch",
+      "description": "暂停/恢复/取消批次；已提交上游项保留原结果核对，未执行项按原流水释放积分。",
+      "inputSchema": {
+        "properties": {
+          "batch_id": {
+            "title": "Batch Id",
+            "type": "string"
+          },
+          "action": {
+            "enum": [
+              "pause",
+              "resume",
+              "cancel"
+            ],
+            "title": "Action",
+            "type": "string"
+          }
+        },
+        "required": [
+          "batch_id",
+          "action"
+        ],
+        "title": "control_video_batchArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_publish_accounts",
+      "description": "读取当前用户已连接平台账号的安全摘要；授权/撤销和应用密钥需在网页操作。",
+      "inputSchema": {
+        "properties": {},
+        "title": "list_publish_accountsArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_publish_options",
+      "description": "读取账号实际可见范围与发布能力，发布前必须调用并取得用户同意。",
+      "inputSchema": {
+        "properties": {
+          "connection_id": {
+            "title": "Connection Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "connection_id"
+        ],
+        "title": "get_publish_optionsArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "submit_platform_publish",
+      "description": "创建已授权账号发布任务，可定时未来30天内发布。每个账号独立UUID，必须确认可见范围、商业/AIGC声明与consent。",
+      "inputSchema": {
+        "$defs": {
+          "PublishOptions": {
+            "additionalProperties": false,
+            "properties": {
+              "consent": {
+                "const": true,
+                "title": "Consent",
+                "type": "boolean"
+              },
+              "privacy_level": {
+                "title": "Privacy Level",
+                "type": "string"
+              },
+              "disable_comment": {
+                "title": "Disable Comment",
+                "type": "boolean"
+              },
+              "disable_duet": {
+                "title": "Disable Duet",
+                "type": "boolean"
+              },
+              "disable_stitch": {
+                "title": "Disable Stitch",
+                "type": "boolean"
+              },
+              "brand_content_toggle": {
+                "title": "Brand Content Toggle",
+                "type": "boolean"
+              },
+              "brand_organic_toggle": {
+                "title": "Brand Organic Toggle",
+                "type": "boolean"
+              },
+              "is_aigc": {
+                "title": "Is Aigc",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "consent",
+              "privacy_level",
+              "disable_comment",
+              "disable_duet",
+              "disable_stitch",
+              "brand_content_toggle",
+              "brand_organic_toggle",
+              "is_aigc"
+            ],
+            "title": "PublishOptions",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "connection_id": {
+            "title": "Connection Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "options": {
+            "$ref": "#/$defs/PublishOptions"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          },
+          "scheduled_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Scheduled At"
+          }
+        },
+        "required": [
+          "project_id",
+          "connection_id",
+          "title",
+          "description",
+          "tags",
+          "options",
+          "request_key"
+        ],
+        "title": "submit_platform_publishArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "query_platform_publish",
+      "description": "按原UUID查询平台发布，平台作品标识和终态是成功证据。",
+      "inputSchema": {
+        "properties": {
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_key"
+        ],
+        "title": "query_platform_publishArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_platform_publish_tasks",
+      "description": "读取当前用户发布任务。",
+      "inputSchema": {
+        "properties": {},
+        "title": "list_platform_publish_tasksArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "cancel_platform_publish",
+      "description": "取消尚未提交上游的发布任务；提交后不能以此删除平台作品。",
+      "inputSchema": {
+        "properties": {
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id"
+        ],
+        "title": "cancel_platform_publishArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_platform_metrics",
+      "description": "读取已采集官方平台指标，不生成预测或经营收入。",
+      "inputSchema": {
+        "properties": {},
+        "title": "get_platform_metricsArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "sync_platform_metrics",
+      "description": "主动采集已发布作品官方指标，每用户最多2次/分钟；API Key需要metrics:sync。",
+      "inputSchema": {
+        "properties": {},
+        "title": "sync_platform_metricsArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_knowledge",
+      "description": "读取当前用户知识条目、正文版本、索引状态及当前知识任务价格。",
+      "inputSchema": {
+        "properties": {
+          "query": {
+            "default": "",
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "title": "list_knowledgeArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "submit_knowledge_index",
+      "description": "为当前知识条目版本创建Embedding索引；先list_knowledge读取hash/价格。",
+      "inputSchema": {
+        "properties": {
+          "entry_id": {
+            "title": "Entry Id",
+            "type": "string"
+          },
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          },
+          "confirmed_credit_cost": {
+            "maximum": 100000,
+            "minimum": 0,
+            "title": "Confirmed Credit Cost",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "entry_id",
+          "content_hash",
+          "request_key",
+          "confirmed_credit_cost"
+        ],
+        "title": "submit_knowledge_indexArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "search_knowledge",
+      "description": "创建计费的语义检索任务，query_production_status完成后用任务ID引用脚本；搜索不是模型训练。",
+      "inputSchema": {
+        "properties": {
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          },
+          "confirmed_credit_cost": {
+            "maximum": 100000,
+            "minimum": 0,
+            "title": "Confirmed Credit Cost",
+            "type": "integer"
+          },
+          "limit": {
+            "default": 5,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "query",
+          "request_key",
+          "confirmed_credit_cost"
+        ],
+        "title": "search_knowledgeArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_knowledge_context",
+      "description": "读取完成检索的当前有效引用；条目删除或更新后旧引用不再可用。",
+      "inputSchema": {
+        "properties": {
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id"
+        ],
+        "title": "get_knowledge_contextArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_market_intelligence",
+      "description": "读取当前用户竞品/商品对象、来源、观测时间、历史、采集任务与价格。",
+      "inputSchema": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "intelligence_competitor",
+              "intelligence_products"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "list_market_intelligenceArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "save_intelligence_target",
+      "description": "保存竞品账号或商品关键词对象；YouTube用account_id，eBay用query/market，授权数据源还需platform。",
+      "inputSchema": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "intelligence_competitor",
+              "intelligence_products"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "source_slot": {
+            "enum": [
+              "intelligence.youtube",
+              "intelligence.ebay",
+              "intelligence.licensed"
+            ],
+            "title": "Source Slot",
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Params",
+            "type": "object"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "source_slot",
+          "params",
+          "request_key"
+        ],
+        "title": "save_intelligence_targetArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "collect_market_intelligence",
+      "description": "创建一次情报采集任务，按确认价格预占，结果保留真实来源及空指标。",
+      "inputSchema": {
+        "properties": {
+          "target_id": {
+            "title": "Target Id",
+            "type": "string"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          },
+          "confirmed_credit_cost": {
+            "maximum": 100000,
+            "minimum": 0,
+            "title": "Confirmed Credit Cost",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "target_id",
+          "request_key",
+          "confirmed_credit_cost"
+        ],
+        "title": "collect_market_intelligenceArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "schedule_market_intelligence",
+      "description": "设置0–30次监控及总积分预算；runs=0停止计划，原UUID重放不会重启已执行计划。",
+      "inputSchema": {
+        "properties": {
+          "target_id": {
+            "title": "Target Id",
+            "type": "string"
+          },
+          "runs": {
+            "title": "Runs",
+            "type": "integer"
+          },
+          "budget": {
+            "maximum": 100000,
+            "minimum": 0,
+            "title": "Budget",
+            "type": "integer"
+          },
+          "confirmed_credit_cost": {
+            "maximum": 100000,
+            "minimum": 0,
+            "title": "Confirmed Credit Cost",
+            "type": "integer"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target_id",
+          "runs",
+          "budget",
+          "confirmed_credit_cost",
+          "request_key"
+        ],
+        "title": "schedule_market_intelligenceArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "import_intelligence_product",
+      "description": "把当前用户真实采集快照中的商品入库，保留来源；不编造缺失销量或价格币种。",
+      "inputSchema": {
+        "properties": {
+          "sample_id": {
+            "title": "Sample Id",
+            "type": "string"
+          },
+          "item_id": {
+            "title": "Item Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sample_id",
+          "item_id"
+        ],
+        "title": "import_intelligence_productArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "delete_intelligence_target",
+      "description": "删除当前用户情报对象及其快照；活跃采集需先完成，停止监控不等于删除。",
+      "inputSchema": {
+        "properties": {
+          "target_id": {
+            "title": "Target Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target_id"
+        ],
+        "title": "delete_intelligence_targetArguments",
         "type": "object"
       }
     }

@@ -1,5 +1,7 @@
 # 测试与验收计划
 
+新增AT-MCP-02–05，见 [迭代17](ITERATION_17_MCP_PRODUCTION.md)：真实SDK45工具清单/旧配音参数拒绝、多模态与批量/发布/知识/情报业务载荷、并发JWT/Key隔离、响应丢失原键恢复/跨用户拒绝、HTTP错误脱敏/不重发/重定向/正文上限。`npm run test:mcp`与真实PG `test:access`核验16权限、撤销/限额/归属及账号管理旁路拒绝；目标仍需TLS/域名和真实供应商/平台验收。
+
 新增AT-RENDER-03–06，见 [迭代16](ITERATION_16_RENDER_EFFECTS.md)：十二转场像素/时长与打乱输入顺序，RGB混合参考/空间时间边界、色键前景及透明度、非法参数计费前拒绝、效果保存刷新/稳定URL和390px控件。`test:render`覆盖协议和真实FFmpeg；真实4K/长工程、多编码/透明素材、租约失效与供应商/云端容量仍需上线验收。
 
 新增AT-INTELLIGENCE-01–04，见 [迭代15](ITERATION_15_MARKET_INTELLIGENCE.md)：正式协议/加密凭据目的地、原请求与计划并发、一次扣费退款及来源入库、有限采集恢复、用户隔离和30天所有副本清理；移动端空态、缺失指标、原UUID刷新及读取失败。目标环境必须验收YouTube配额/隐私口径、eBay正式访问和市场、数据商合同/时效、每日预算与真实清理；协议夹具不计为供应商上线。
@@ -34,7 +36,7 @@
 | MOD-01 | `npm run test:models` | MODEL-01–03、IMAGE-01、AUDIO-01 |
 | DEP-01 | `npm run test:volcengine` | OPS-01、TEXT-01、Ark 协议 |
 | SCH-01 | `npm run test:scheduler` | VIDEO-02、OPS-01 |
-| MCP-01 | `python3 tests/test_mcp_backend.py` | MCP-01 |
+| MCP-01/02–05 | `npm run test:mcp`，先构建shoproai-mcp:local | MCP-01–04、OPENAPI-02 |
 | ACCESS-01 | `npm run test:access`；`node tests/browser_access_control.mjs`（本地UI夹具） | OPENAPI-01、TEAM-01、ASSET-02 |
 | BATCH-01 | `npm run test:batch`；`node tests/browser_batch_video.mjs`（本地UI夹具） | BATCH-01/02；整批回滚/预算/套餐/并发恢复/暂停/取消退款与领取竞态 |
 | EXPORT-01 | `npm run test:exports`、`npm run test:render`、`node tests/browser_render_exports.mjs` | RENDER-02、MODEL-04；全批回滚/并发/配额/源删除恢复、4:5像素尺寸/滤镜强度、刷新/旧回执兼容 |
