@@ -1,49 +1,45 @@
 # Shopro AI 技术架构
 
-更新时间：2026-10-21，源码基线 `ce90bfe`。当前实际运行在官方 Supabase，最新模型配置源码尚未全部部署；火山引擎 AI 原生 BaaS Supabase 版、Pages、ECS 是已适配的可选迁移方案。环境证据见 [当前状态](CURRENT_STATE.md)。
+更新时间：2026-10-21，业务源码基线 `53be501`。最近核验的实际后端为官方 Supabase，最新全栈源码尚未全部部署；火山引擎 AI 原生 BaaS Supabase 版、Pages、ECS 是已适配的可选迁移方案。环境证据见 [当前状态](CURRENT_STATE.md)。
 
-本轮新增本地私有素材、图片持久化任务、FFmpeg 渲染及抖音/TikTok发布和指标适配；启用与验证边界见 [生产链路迭代](ITERATION_06_PRODUCTION_PIPELINE.md)。这些源码新增项不表示现有云端已部署。
+本轮新增本地私有素材、图片持久化任务、FFmpeg 渲染及抖音/TikTok发布和指标适配；启用与验证边界见 [生产链路迭代](ITERATION_06_PRODUCTION_PIPELINE.md)。这些源码新增项不表示现有云端已部署。[原版功能覆盖校验](FUNCTION_COVERAGE_REVIEW_20261021.md)确认页面全部保留，但原版全部功能范围尚未覆盖。
 
 ## 架构总览
 
 ```mermaid
 flowchart TB
-    Browser["商家端 React 18 / TypeScript / Vite"]
-    Agent["外部智能体"]
-    Pages["当前本地 Vite<br/>可选火山 Pages / 静态托管"]
-    MCP["可选服务器 · MCP HTTP / stdio"]
-    Auth["Supabase Auth / JWT<br/>当前官方 · 火山可选"]
-    API["Supabase Deno Edge Functions<br/>当前官方 · 火山可选"]
-    Settings["统一设置页 /settings/models<br/>管理员配置 · 普通用户目录"]
-    Registry["模型配置服务<br/>AES-GCM · 不可变版本"]
-    DB[("PostgreSQL<br/>业务表 / RLS / RPC / 持久化队列")]
-    Storage[("Supabase Storage<br/>素材 / 成片")]
-    Scheduler["当前官方 Cron<br/>可选 ECS Docker 调度器"]
-    Worker["video-job-worker<br/>租约领取 / 状态查询 / 归档结算"]
-    Ark["火山方舟<br/>文本模型 / Seedance 视频"]
-    External["可选外部服务<br/>音频 / 备用视频 / 支付"]
+    Browser["React 商家端<br/>商品 / 脚本 / 视频图片 / 剪辑 / 发布 / 数据"]
+    MCP["外部 Agent → MCP<br/>当前7工具 / 用户JWT"]
+    Auth["Supabase Auth / JWT"]
+    API["Deno 业务 API<br/>video-jobs / production-jobs / platform-publish"]
+    Settings["管理员统一设置<br/>模型版本 / 平台应用 / 加密凭据"]
+    DB[("PostgreSQL<br/>业务 / 积分流水 / video_jobs / production_jobs")]
+    Storage[("私有 Storage<br/>用户路径RLS / 稳定引用 / 限时签名")]
+    Scheduler["后台调度<br/>旧Cron仅视频 / 新Docker生产调度待部署"]
+    Worker["Edge执行器<br/>视频 / 图片 / 发布 / 指标"]
+    Renderer["独立FFmpeg容器<br/>专用渲染租约与上传密钥"]
+    Models["模型接口<br/>文本主备 / 七视频协议 / 图片 / TTS / ASR"]
+    Platforms["平台开放接口<br/>抖音 / TikTok OAuth · 审核 · 视频指标"]
+    Payment["支付平台<br/>支付宝 / 微信验签"]
 
-    Pages --> Browser
     Browser --> Auth
-    Browser -->|"用户 JWT"| API
-    Browser -->|"RLS CRUD"| DB
-    Browser -->|"素材上传"| Storage
-    Agent -->|"用户 JWT"| MCP
-    MCP -->|"同一业务 API"| API
-    API --> DB
-    Browser --> Settings
-    Settings -->|"管理员 JWT"| API
-    API --> Registry
-    Registry --> DB
-    API --> Ark
-    API --> External
-    Scheduler -->|"专用密钥"| Worker
-    Worker --> DB
-    Worker -->|"任务绑定版本"| Registry
-    Worker --> Ark
-    Worker --> External
-    Worker --> Storage
-    Storage -->|"播放下载"| Browser
+    Browser -->|"用户JWT"| API
+    MCP -->|"同业务API"| API
+    Browser -->|"授权CRUD"| DB
+    Browser -->|"授权上传/签名播放"| Storage
+    Settings -->|"管理员API"| API
+    API -->|"事务创建/预占"| DB
+    API --> Models
+    API --> Platforms
+    Payment -->|"验签/原子入账"| API
+    Scheduler -->|"VIDEO_WORKER_SECRET"| Worker
+    Worker -->|"领取/续租/结案"| DB
+    Worker --> Models
+    Worker --> Platforms
+    Worker -->|"原结果归档"| Storage
+    Renderer -->|"RENDER_WORKER_SECRET"| Worker
+    Renderer -->|"签名下载/上传"| Storage
+    Worker -->|"素材/作品/官方指标"| DB
 ```
 
 系统仍依赖 Supabase SDK、Auth、PostgreSQL、Storage 与 Edge Functions。当前资源由 supabase.com 管理，实际 URL 为 `bbqqhkukgbgpebqpesub.supabase.co`；火山采用独立 workspace/branch 与管理 CLI，迁移验收后才切换。前端不要求 Vercel，可使用任意支持 SPA 的静态托管。
@@ -70,7 +66,13 @@ flowchart TB
 | MCP | Python FastMCP、Starlette、HTTPX | 可选 ECS 或本地 stdio | 7 个工具复用用户 JWT 与业务 API |
 | 运维发布 | `byted-supabase-cli`、Python 部署脚本 | 开发机/受控发布环境 | SQL、Secrets、函数、Pages 与发布前预检 |
 
-当前不需要 Redis：低至中等负载的任务队列使用 PostgreSQL `FOR UPDATE SKIP LOCKED`。执行器及用户查询共享租约。未来任务规模明显增长时再评估独立队列。
+当前不需要 Redis：任务队列使用 PostgreSQL `FOR UPDATE SKIP LOCKED`。旧视频查询可触发一次受控处理，图片/发布依赖新生产调度，FFmpeg依赖独立容器；不能只升级旧视频Cron。上述为源码逻辑架构，实际吞吐/并发容量需部署后测量。
+
+## 当前业务全景与覆盖边界
+
+商品/素材准备、文本脚本/翻译、七种视频协议、图片/封面恢复、真实FFmpeg成片、抖音/TikTok发布、累计自然视频指标已有对应本地执行链。用户需要分步选取、编辑和确认发布，系统尚无全部商品/脚本/配音/分镜/发布自动编排。
+
+基础支撑包括账号、积分/套餐/订单、配置版本、用户数据隔离、MCP、调度与部署回执。原任务中心仍未适配production_jobs，旧重试/删除入口需修复。数字人照片/口型克隆、批量执行、Sora、4:5与多格式一批导出、真实竞品选品、Embedding/RAG、团队共享资产、OpenAPI Key鉴权、广告电商归因、自学习优化和完整运营后台尚未全部实现。详细逐项证据见 [功能覆盖报告](FUNCTION_COVERAGE_REVIEW_20261021.md)。
 
 ## 视频任务与积分
 
