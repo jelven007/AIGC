@@ -46,6 +46,8 @@ docker run --rm -it -p 127.0.0.1:5173:5173 \
 
 多规格增量要求00039、production-jobs与更新的FFmpeg镜像；沿既有production调度。客户端createRenderExport只提交源作品ID/规格/原UUID，禁止先写占位作品。共享队列配额/旧回执兼容见 [迭代10](ITERATION_10_RENDER_EXPORTS.md)。专项 `npm run test:exports`、`npm run test:render`、`tests/browser_render_exports.mjs`。`npm run lint`要求PATH可找到ast-grep；缺工具或规则失败会终止，不再记录为通过。
 
+媒体增量要求00040及匹配production-jobs/production-worker/model-settings，16槽包括D-ID/Sync/ElevenLabs；新types为tts/asr/voice_clone/avatar/lipsync，统一原流水计费、版本、租约和证据。客户端MediaJobsPanel及原services/audio调用后台任务，先持久化原UUID/确认价格，503不换键；旧同步入口410。专项`npm run test:media`和`tests/browser_media_jobs.mjs`，完整协议、声纹版本、输入/响应限制与真实验收见 [迭代11](ITERATION_11_AUDIO_AVATAR_JOBS.md)。
+
 ## 3. 目录与修改位置
 
 | 目录 | 职责 |

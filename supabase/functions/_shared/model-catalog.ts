@@ -5,6 +5,9 @@ export const MODEL_SLOTS = [
   { id: 'image.primary', name: '图片与封面', category: 'image', protocols: ['openai-images', 'chat-image'], model: '', endpoint: '' },
   { id: 'audio.tts', name: '语音合成', category: 'audio', protocols: ['openai-tts', 'step-tts'], model: '', endpoint: '' },
   { id: 'audio.asr', name: '语音识别', category: 'audio', protocols: ['openai-asr', 'step-asr'], model: '', endpoint: '' },
+  { id: 'audio.voice_clone', name: 'ElevenLabs 声纹克隆与配音', category: 'audio', protocols: ['elevenlabs-ivc'], model: 'eleven_multilingual_v2', endpoint: 'https://api.elevenlabs.io/v1' },
+  { id: 'avatar.photo', name: '照片数字人口播', category: 'avatar', protocols: ['did-talks'], model: '', endpoint: 'https://api.d-id.com/talks' },
+  { id: 'avatar.lipsync', name: '视频口型同步', category: 'avatar', protocols: ['sync-lipsync'], model: 'lipsync-2', endpoint: 'https://api.sync.so/v2/generate' },
   { id: 'reader.primary', name: '商品网页读取', category: 'reader', protocols: ['jina-reader'], model: '', endpoint: 'https://r.jina.ai/' },
   { id: 'video.ArkSeedance', name: '火山方舟 Seedance', category: 'video', protocols: ['ArkSeedance'], model: '', endpoint: 'https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks' },
   { id: 'video.MiniMax', name: 'MiniMax 视频', category: 'video', protocols: ['MiniMax'], model: 'MiniMax-H3', endpoint: '' },
@@ -28,8 +31,8 @@ export interface ModelSettings {
   endpoint: string;
   query_endpoint: string;
   model: string;
-  auth_header: 'Authorization' | 'X-Gateway-Authorization' | 'api-key';
-  auth_scheme: 'Bearer' | 'raw';
+  auth_header: 'Authorization' | 'X-Gateway-Authorization' | 'api-key' | 'x-api-key' | 'xi-api-key';
+  auth_scheme: 'Bearer' | 'raw' | 'Basic';
   timeout_ms: number;
   voice: string;
   test_endpoint: string;
@@ -47,8 +50,9 @@ export function defaultSettings(slot: string): ModelSettings {
   if (!definition) throw new Error('不支持的模型配置项');
   return {
     name: definition.name, protocol: definition.protocols[0], endpoint: definition.endpoint,
-    query_endpoint: definition.category === 'video' ? definition.endpoint : '',
-    model: definition.model, auth_header: 'Authorization', auth_scheme: 'Bearer',
-    timeout_ms: definition.category === 'video' ? 30_000 : 90_000, voice: '', test_endpoint: '',
+    query_endpoint: ['video', 'avatar'].includes(definition.category) ? definition.endpoint : '',
+    model: definition.model, auth_header: slot === 'avatar.lipsync' ? 'x-api-key' : slot === 'audio.voice_clone' ? 'xi-api-key' : 'Authorization',
+    auth_scheme: slot === 'avatar.photo' ? 'Basic' : ['avatar.lipsync', 'audio.voice_clone'].includes(slot) ? 'raw' : 'Bearer',
+    timeout_ms: ['video', 'avatar'].includes(definition.category) ? 30_000 : 90_000, voice: '', test_endpoint: '',
   };
 }

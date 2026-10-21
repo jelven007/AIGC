@@ -28,6 +28,7 @@
 | ACCESS-01 | `npm run test:access`；`node tests/browser_access_control.mjs`（本地UI夹具） | OPENAPI-01、TEAM-01、ASSET-02 |
 | BATCH-01 | `npm run test:batch`；`node tests/browser_batch_video.mjs`（本地UI夹具） | BATCH-01/02；整批回滚/预算/套餐/并发恢复/暂停/取消退款与领取竞态 |
 | EXPORT-01 | `npm run test:exports`、`npm run test:render`、`node tests/browser_render_exports.mjs` | RENDER-02、MODEL-04；全批回滚/并发/配额/源删除恢复、4:5像素尺寸/滤镜强度、刷新/旧回执兼容 |
+| MEDIA-01 | `npm run test:media`、`node tests/browser_media_jobs.mjs` | AUDIO-02、AVATAR-01；版本/价格/声纹权限/配额、原受理未知、归档恢复、照片口播/口型、同请求刷新 |
 | ENG-01 | `npm run typecheck`、关键函数 `deno check`、`npm run build` | 编译与打包，不替代业务验收 |
 
 MCP 需安装 `mcp/requirements_mcp.txt`。按实际修改选择回归：计费/RPC 跑真实 DB；提交/查询跑 VID；配置跑 DB+MOD；调度跑 SCH；发布脚本跑 DEP。文档更新做链接、事实和差异检查，无需反复全量测试。
@@ -35,6 +36,8 @@ MCP 需安装 `mcp/requirements_mcp.txt`。按实际修改选择回归：计费/
 ## 3. 云端验收用例
 
 多规格导出启用还需验证：00039与匹配API/FFmpeg镜像已部署，私有源作品六画幅/三分辨率实际编码和下载播放，关页同键恢复、部分失败/独立发布、队列容量429、旧回执恢复。Sora按官方退役信息检查，不调用关闭API。新增要求对应REQ-RENDER-02/REQ-MODEL-04；本地夹具不代替此验收。
+
+00040媒体启用还需验收真实OpenAI/Step配音/识别、ElevenLabs即时声纹及验证、D-ID/Sync私有签名输入与可播放MP4，双用户访问、同请求账单、换价拒绝、关页恢复、旧配置/旧声纹账号、未知核对与自动返还。production-worker probe版本2需ready且required_migration=00040；专业训练与动作控制不在本地已交付范围。对应REQ-AUDIO-02/REQ-AVATAR-01，见 [迭代11](ITERATION_11_AUDIO_AVATAR_JOBS.md)。
 
 | ID | 前置与操作 | 预期结果/证据 | 需求 |
 | --- | --- | --- | --- |

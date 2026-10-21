@@ -23,6 +23,7 @@ import {
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { sendStepAudioTTS } from '@/lib/sse';
+import MediaJobsPanel from '@/components/MediaJobsPanel';
 
 
 // ── CR-06: 情绪时间轴类型 ────────────────────────────────────────────────────
@@ -296,15 +297,6 @@ function AvatarCard({
 }
 
 // TTS 声音列表（与数字人性别/风格匹配）
-const TTS_VOICES = [
-  { id: 'female-shaonv', label: '少女音', gender: 'female' },
-  { id: 'female-yujie', label: '御姐音', gender: 'female' },
-  { id: 'female-chengshu', label: '成熟女声', gender: 'female' },
-  { id: 'male-qingxin', label: '清新男声', gender: 'male' },
-  { id: 'male-chunhou', label: '醇厚男声', gender: 'male' },
-  { id: 'male-jingying', label: '精英男声', gender: 'male' },
-];
-
 // ── 视频模板库常量 ────────────────────────────────────────────────────────
 const TEMPLATE_INDUSTRIES = ['全部', '电商', '教育', '金融', '美妆', '其他'];
 const TEMPLATE_SCENES = ['全部场景', '产品介绍', '节日促销', '课程推广', '品牌宣传', '开箱测评'];
@@ -388,6 +380,7 @@ export default function AvatarsPage() {
   const [language, setLanguage] = useState('all');
   const [style, setStyle] = useState('全部风格');
   const [previewAvatar, setPreviewAvatar] = useState<AvatarType | null>(null);
+  const [selectedImage, setSelectedImage] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
 
   // 头像上传状态
@@ -402,9 +395,8 @@ export default function AvatarsPage() {
 
   // P2-N01 TTS 状态
   const [ttsText, setTtsText] = useState('');
-  const [ttsVoice, setTtsVoice] = useState('female-shaonv');
+  const [ttsVoice, setTtsVoice] = useState('');
   const [ttsSpeed, setTtsSpeed] = useState(1.0);
-  const [ttsVolume, setTtsVolume] = useState(0.9);
   const [ttsGenerating, setTtsGenerating] = useState(false);
   const [ttsAudioUrl, setTtsAudioUrl] = useState<string | null>(null);
   const [ttsPlaying, setTtsPlaying] = useState(false);
@@ -507,39 +499,16 @@ export default function AvatarsPage() {
     setTtsGenerating(true);
     setTtsAudioUrl(null);
     try {
-      const voiceMap: Record<string, string> = {
-        'female-shaonv': 'livelybreezy-female',
-        'female-yujie': 'elegantgentle-female',
-        'female-chengshu': 'elegantgentle-female',
-        'male-qingxin': 'zhengpaiqingnian',
-        'male-chunhou': 'shuangkuainansheng',
-        'male-jingying': 'shuangkuainansheng',
-      };
-      const mappedVoice = voiceMap[ttsVoice] || ttsVoice || 'livelybreezy-female';
-      const instruction = `语气表现得自然、饱满，语速为 ${ttsSpeed}x，音量为 ${ttsVolume}`;
       const audioUrl = await sendStepAudioTTS({
         input: ttsText,
-        voice: mappedVoice,
-        instruction,
+        voice: ttsVoice,
+        speed: ttsSpeed,
         response_format: 'mp3',
       });
       setTtsAudioUrl(audioUrl);
       toast.success('语音合成完成！');
     } catch (err) {
-      console.warn('TTS synthesis failed, falling back to Web Speech API:', err);
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(ttsText);
-        utterance.rate = ttsSpeed;
-        utterance.pitch = ttsVoice.includes('female') ? 1.2 : 0.9;
-        utterance.onstart = () => setTtsPlaying(true);
-        utterance.onend = () => setTtsPlaying(false);
-        utterance.onerror = () => setTtsPlaying(false);
-        window.speechSynthesis.speak(utterance);
-        toast.success('已切换至智能发音引擎完成试听！');
-      } else {
-        toast.error(`语音合成失败: ${(err as Error).message}`);
-      }
+      toast.error(`语音任务尚未完成: ${(err as Error).message}。可在语音工作台或任务中心继续核对。`);
     } finally {
       setTtsGenerating(false);
     }
@@ -554,20 +523,6 @@ export default function AvatarsPage() {
         audioRef.current.play();
         setTtsPlaying(true);
       }
-    } else if (ttsText && 'speechSynthesis' in window) {
-      if (ttsPlaying) {
-        window.speechSynthesis.cancel();
-        setTtsPlaying(false);
-      } else {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(ttsText);
-        utterance.rate = ttsSpeed;
-        utterance.pitch = ttsVoice.includes('female') ? 1.2 : 0.9;
-        utterance.onstart = () => setTtsPlaying(true);
-        utterance.onend = () => setTtsPlaying(false);
-        utterance.onerror = () => setTtsPlaying(false);
-        window.speechSynthesis.speak(utterance);
-      }
     }
   };
 
@@ -578,19 +533,13 @@ export default function AvatarsPage() {
     setTtsPlaying(false);
     setFusionScript('');
     setEmotionSegments([]);
-    // 根据性别预设声音
-    const matchedVoice = TTS_VOICES.find(v => v.gender === a.gender);
-    if (matchedVoice) setTtsVoice(matchedVoice.id);
+    setTtsVoice('');
   };
 
   const handleUseAvatar = (a: AvatarType) => {
-    toast.success(`已选择数字人「${a.name}」，已为您自动切换至工作台！`);
-    navigate('/video/create', {
-      state: {
-        inputTab: '数字人',
-        selectedAvatar: a,
-      },
-    });
+    setSelectedImage(a.preview_image || a.cover_url || '');
+    setPreviewAvatar(null);
+    document.getElementById('media-jobs')?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const handleDeleteAvatar = async (id: string, name: string) => {
@@ -620,7 +569,6 @@ export default function AvatarsPage() {
   const handleFusionAnalyze = async () => {
     if (!fusionScript.trim()) { toast.error('请输入带货脚本'); return; }
     setFusionAnalyzing(true);
-    await new Promise(r => setTimeout(r, 1100));
     const segs = parseScriptToTimeline(fusionScript);
     setEmotionSegments(segs);
     setFusionAnalyzing(false);
@@ -684,6 +632,7 @@ export default function AvatarsPage() {
 
   return (
     <div className="flex flex-col min-h-0 h-full">
+      <MediaJobsPanel imageUrl={selectedImage} />
       {/* ── Tab 切换头部 ───────────────────────────────────────────────── */}
       <div className="border-b border-border bg-card px-4 md:px-6 pt-4 pb-4">
         {/* 移动端允许换行，避免两个 Tab 按钮横向溢出 */}
@@ -1048,7 +997,7 @@ export default function AvatarsPage() {
                       <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
                           <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                          <span className="text-[10px] text-white/90 font-medium">AI 驱动演示</span>
+                          <span className="text-[10px] text-white/90 font-medium">已上传形象</span>
                         </div>
                         <span className="text-[10px] text-white/70">{previewAvatar.language === 'zh' ? '中文' : previewAvatar.language === 'en' ? '英文' : '双语'} · {previewAvatar.style}</span>
                       </div>
@@ -1059,15 +1008,15 @@ export default function AvatarsPage() {
                         size="sm"
                         variant="outline"
                         className="flex-1 h-8 text-xs gap-1.5"
-                        onClick={() => toast.info('示例视频生成中，请稍候...')}
+                        onClick={() => handleUseAvatar(previewAvatar)}
                       >
-                        <Play className="w-3 h-3" />生成示例视频
+                        <Play className="w-3 h-3" />创建口播任务
                       </Button>
                       <Button
                         size="sm"
                         variant="ghost"
                         className="h-8 text-xs text-muted-foreground gap-1.5"
-                        onClick={() => setPreviewAvatar(null)}
+                        onClick={() => handleUseAvatar(previewAvatar)}
                       >
                         <Wand2 className="w-3 h-3" />使用此数字人
                       </Button>
@@ -1082,7 +1031,7 @@ export default function AvatarsPage() {
                     <Wand2 className="w-4 h-4 text-primary" />脚本深度融合
                     <Badge variant="outline" className="text-xs border-primary/40 text-primary">CR-06</Badge>
                   </h3>
-                  <p className="text-xs text-muted-foreground">粘贴带货脚本，数字人将根据结构自动调整表情/手势节奏</p>
+                  <p className="text-xs text-muted-foreground">按文本关键词估计脚本节奏，时间与手势建议需人工确认，当前不传入供应商。</p>
 
                   <div className="space-y-1.5">
                     <Label className="text-xs text-muted-foreground">带货脚本</Label>
@@ -1145,14 +1094,7 @@ export default function AvatarsPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label className="text-xs text-muted-foreground">声音音色</Label>
-                      <Select value={ttsVoice} onValueChange={setTtsVoice}>
-                        <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {TTS_VOICES.filter(v => v.gender === previewAvatar.gender || v.gender === 'neutral').map(v => (
-                            <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Input value={ttsVoice} onChange={event => setTtsVoice(event.target.value)} placeholder="供应商音色ID，留空用默认" className="h-9 text-xs" />
                     </div>
 
                     <div className="space-y-1.5">

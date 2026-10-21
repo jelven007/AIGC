@@ -18,6 +18,7 @@
 | 访问控制迭代 | Key签发/鉴权、团队事务/共享、私有形象、素材清理outbox | OPENAPI-01、TEAM-01、ASSET-02 | 00037、api-keys/team-space/material-assets、auth/private-media、production-worker，见ITERATION_08 | 5项PG、3组API、2组页面及既有回归/编译检查 | 旧Key停用；4业务入口函数内JWT/Key鉴权；production调度执行清理；云端待部署 |
 | 批量视频迭代 | 整批预算/套餐/版本、商品快照、父子任务、暂停取消/退款、同键恢复、积分刷新保留页面 | BATCH-01/02、TASK-01 | 00038、batch-video-jobs、batch-video、BatchCreatePage/PlanGate、videoWorker，见ITERATION_09 | 8项PG、5组API、2组浏览器、既有33资金/16视频/8任务中心及编译检查 | 复用视频调度；仅queued取消退款；00038/API/Worker待发布 |
 | 多规格导出迭代 | 六画幅/三短边多选、输出全批事务/配额/恢复、滤镜强度、Sora退役和检查失败真实退出 | RENDER-02、MODEL-04、OPS-01 | 00039、render-exports、production-jobs、ExportFormatsPage、worker/render、model-catalog、rules，见ITERATION_10 | 5项PG、8项FFmpeg、API与两组移动页面、33项PG回归及Deno/编译检查 | 00039/API/更新FFmpeg镜像须一起发布，前端最后；Sora关闭不可启用 |
+| 语音与数字人迭代 | TTS/ASR/IVC/D-ID/Sync队列、16槽、原声纹版本、价格/配额/原子退款/私有归档/刷新恢复，旧同步入口410 | AUDIO-02、AVATAR-01、MODEL-01、TASK-01 | 00040、media-jobs/audio-provider、MediaJobsPanel、production API/Worker，见ITERATION_11 | 7项PG、8组协议、2组390px页面，既有回归及lint/build/Deno通过 | 00040/API/兼容入口/生产调度一起发布；真实供应商未验收，专业训练/全身动作未实现 |
 
 提交名与更详细时点见 [历史迭代](ITERATION_03_VIDEO_JOBS.md) 与 [架构对比](ARCHITECTURE_REVIEW_20261021.md)。旧审计的行号和未修复清单需结合此矩阵，不直接当作当前缺陷。
 
@@ -38,7 +39,7 @@
 
 | 项目 | 现状 | 下一步与负责领域 |
 | --- | --- | --- |
-| 官方后端升级 | 最近核验到 00031，3 个旧函数，缺 model_configs | 开发/运维核对并应用 00032–00036 与匹配函数/容器；前端最后发布 |
+| 官方后端升级 | 最近核验到 00031，3 个旧函数，缺 model_configs | 开发/运维核对并应用 00032–00040 与匹配函数/容器；前端最后发布 |
 | 模型与旧任务 | 无真实供应商验收；旧任务版本迁移未执行 | 模型管理员/运维设置主密钥、授权、配置；核对原账号绑定；测试 AT-05/09/13–16 |
 | 付费与预算 | 商户未验收，免费同步调用无金额预算系统 | 财务/运营验证实际成本、沙箱/回调、供应商额度与收费 |
 | 现金退款 | 遗留 alipay-trade-ops 非原子资金/权益闭环，权限口径不同 | 开发/财务单独统一授权、退款额度/幂等/回收及专项回归，未纳入已交付 |

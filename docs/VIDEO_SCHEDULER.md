@@ -4,6 +4,8 @@
 
 独立 Docker 调度器和 Supabase Cron 配置均已就绪，部署时选择其中一种。调度完全不依赖网页；主机或云端服务必须保持运行。2026-10-21 已创建并接入用户的官方 Supabase `aigcp` 项目，云端 Cron 已启用且完成后台退款验收，见 [部署记录](DEPLOYMENT_AIGCP.md)。当前使用云端 Cron，独立 Docker 调度器未同时启动。
 
+新增媒体队列要求00040与production-worker版本2，开启既有production调度后轮转视频/图片/发布/TTS/ASR/即时克隆/照片口播/口型，不需要独立数字人调度器。旧视频Cron仅覆盖视频，不能据其运行推断媒体后台已启用。probe要求voice_clones/五计费项，真实关页、配置变更与原受理未知验收见 [迭代11](ITERATION_11_AUDIO_AVATAR_JOBS.md)；云端最近记录仍是00031/旧函数。
+
 ## 推荐：常驻服务器的 Docker 调度器
 
 最新版需要目标环境已核对并应用 00030–00034，特别是 `model_config_version_id`、新版领取函数与配置权限；部署匹配的 `video-job-worker` 与共享模块，并在 Edge Secrets 配置 `VIDEO_WORKER_SECRET`（至少 32 字符）和 `MODEL_CONFIG_ENCRYPTION_KEY`。模型密钥在管理员设置页保存加密版本，调度器无需 service_role、主密钥或模型密钥。

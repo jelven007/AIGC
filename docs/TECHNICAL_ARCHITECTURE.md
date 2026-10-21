@@ -10,6 +10,8 @@
 
 新增 [多规格导出](ITERATION_10_RENDER_EXPORTS.md)：00039的render_exports把全部输出作品/production_jobs放在一个事务，每人24个未结案渲染共用账户锁和配额，最多18种六画幅/三分辨率组合。受理恢复先查询原请求，源删除不重建任务，独立成片归档沿既有Worker。模型目录独立维护退役记录，官方Sora API于2026-09-24关闭，不加入可启用槽。
 
+新增 [后台语音与数字人](ITERATION_11_AUDIO_AVATAR_JOBS.md)：00040扩展production_jobs的tts/asr/voice_clone/avatar/lipsync，复用账户锁、配置版本、证据与原流水退款。16槽包括D-ID/Sync/ElevenLabs，原声纹配音绑定克隆账号历史版本；每用户10个未结案媒体任务，共用生产调度轮转领取。网页提交前确认实际价格，失联恢复原UUID，照片口播工程原子创建，专业训练/全身动作仍未实现，云端未更新。
+
 ## 架构总览
 
 ```mermaid
@@ -22,9 +24,9 @@ flowchart TB
     DB[("PostgreSQL<br/>业务 / 积分流水 / video_jobs / production_jobs")]
     Storage[("私有 Storage<br/>用户路径RLS / 稳定引用 / 限时签名")]
     Scheduler["后台调度<br/>旧Cron仅视频 / 新Docker生产调度待部署"]
-    Worker["Edge执行器<br/>视频 / 图片 / 发布 / 指标"]
+    Worker["Edge执行器<br/>视频 / 图片 / 语音 / 数字人 / 发布 / 指标"]
     Renderer["独立FFmpeg容器<br/>专用渲染租约与上传密钥"]
-    Models["模型接口<br/>文本主备 / 七视频协议 / 图片 / TTS / ASR"]
+    Models["模型接口<br/>文本主备 / 七视频协议 / 图片 / TTS / ASR / D-ID / Sync / ElevenLabs"]
     Platforms["平台开放接口<br/>抖音 / TikTok OAuth · 审核 · 视频指标"]
     Payment["支付平台<br/>支付宝 / 微信验签"]
 
@@ -68,7 +70,7 @@ flowchart TB
 | 生产队列 | production_jobs / 租约 / 结案证据 | 本地已实现，云端待 00035–00036 | 图片恢复、剪辑、发布与原子归档/退款 |
 | 剪辑 Worker | Python 3.12 / FFmpeg / Docker | 独立 ECS 或容器宿主机，待部署 | 时间轴合成、签名素材/上传、H.264/AAC |
 | 平台与指标 | OAuth / 发布状态查询 / 数据快照 | TikTok、抖音正式 API，待账号联调 | 后台发布、审核、官方自然视频指标 |
-| 音频 | OpenAI/Step TTS、ASR 协议 | 目标 Edge Function 代理外部服务，待发布 | 配置页统一模型、接口与音色 |
+| 音频/数字人 | OpenAI/Step、ElevenLabs IVC、D-ID Talks、Sync | 本地实现，00040/API/生产调度待发布 | 配音/识别/声纹/口播/口型队列、私有归档及积分闭环 |
 | MCP | Python FastMCP、Starlette、HTTPX | 可选 ECS 或本地 stdio | 7 个工具复用用户 JWT 与业务 API |
 | 运维发布 | `byted-supabase-cli`、Python 部署脚本 | 开发机/受控发布环境 | SQL、Secrets、函数、Pages 与发布前预检 |
 
@@ -78,7 +80,7 @@ flowchart TB
 
 商品/素材准备、文本脚本/翻译、七种视频协议、图片/封面恢复、真实FFmpeg成片、抖音/TikTok发布、累计自然视频指标已有对应本地执行链。用户需要分步选取、编辑和确认发布，系统尚无全部商品/脚本/配音/分镜/发布自动编排。
 
-基础支撑包括账号、积分/套餐/订单、配置版本、用户数据隔离、MCP、调度与部署回执。任务中心已统一新协议，团队共享/OpenAPI见迭代08，批量视频见迭代09，4:5/多规格一批导出见迭代10。数字人照片/口型克隆、完整批量混剪发布编排、真实竞品选品、Embedding/RAG、团队共同预算/工程编辑、广告电商归因、自学习优化和完整运营后台尚未全部实现。Sora属于已关闭供应商。详细证据见 [功能覆盖报告](FUNCTION_COVERAGE_REVIEW_20261021.md)。
+基础支撑包括账号、积分/套餐/订单、配置版本、用户数据隔离、MCP、调度与部署回执。任务中心见迭代07，团队共享/OpenAPI见08，批量见09，多规格导出见10，语音/即时声纹/照片口播/口型见11。完整混剪发布编排、专业训练、真实竞品选品、Embedding/RAG、团队共同预算/工程编辑、广告电商归因、自学习优化和完整运营后台尚未全部实现。Sora属于已关闭供应商。详细证据见 [功能覆盖报告](FUNCTION_COVERAGE_REVIEW_20261021.md)。
 
 ## 视频任务与积分
 
@@ -98,7 +100,7 @@ flowchart TB
 
 `image-generation` 与封面共用持久化图片队列，以 request_key 创建、预占积分并归档到私有 Storage。图片返回后保存证据，归档重试复用原结果。封面统一 `gen_task_id`/`completed` 字段，不再伪造 CTR。音频合成、识别和商品 Reader 也读取同一配置服务。主加密密钥仅保存在 Edge Secrets，管理员凭据不回传；首次授权、旧配置导入与旧任务绑定见 [统一模型配置](MODEL_SETTINGS.md)。
 
-前端删除模型 `VITE_*` 密钥、硬编码兜底密钥、代理回退与虚假文本/ASR 成功输出。构建拒绝非公开 `VITE_*KEY/SECRET/TOKEN/PASSWORD`。音频使用登录用户 JWT 调用 Edge Function。
+前端删除模型 `VITE_*` 密钥、硬编码兜底密钥、代理回退与虚假文本/ASR 成功输出。构建拒绝非公开 `VITE_*KEY/SECRET/TOKEN/PASSWORD`。音频/数字人通过production-jobs使用JWT或限定scope Key，旧同步音频入口410，浏览器朗读不再冒充生成结果。
 
 MCP HTTP 使用请求中的用户 JWT，并通过 ContextVar 隔离并发调用身份；无状态 HTTP 避免会话复用混淆。视频工具要求显式幂等 UUID，复用 `video-jobs`；模型和 service_role 密钥不配置到 MCP。stdio 的用户 JWT 由受控环境提供。HTTP 服务需 TLS 反向代理及真实域名 allowlist。
 

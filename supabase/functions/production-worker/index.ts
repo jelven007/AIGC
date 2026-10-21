@@ -4,6 +4,7 @@ import { mediaReference, signMediaTree } from '../_shared/private-media.ts';
 import { processPublishJob, collectPlatformMetrics } from '../_shared/platform-jobs.ts';
 import { processVideoJob } from '../_shared/video-jobs.ts';
 import { processMediaDeletions } from '../_shared/media-cleanup.ts';
+import { processMediaJob, MEDIA_JOB_SLOTS } from '../_shared/media-jobs.ts';
 
 export async function handleProductionWorker(req: Request): Promise<Response> {
   if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
@@ -16,11 +17,15 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
     const body = await req.json();
     if (body.action === 'probe') {
       const { error } = await db.from('production_jobs').select('id,kind,lease_token,evidence').limit(0);
-      return Response.json({ ready: !error, version: 1 }, { status: error ? 503 : 200 });
+      const voices = await db.from('voice_clones').select('id,model_config_version_id').limit(0);
+      const costs = await db.from('credit_costs').select('action,cost').in('action', Object.keys(MEDIA_JOB_SLOTS).map(kind => `generate_${kind}`));
+      const ready = !error && !voices.error && !costs.error && costs.data?.length === Object.keys(MEDIA_JOB_SLOTS).length;
+      return Response.json({ ready, version: 2, required_migration: '00040' }, { status: ready ? 200 : 503 });
     }
     if (general && body.action === 'run') {
       // 以轮转顺序避免长视频队列使图片或发布饿死。
-      const runners = [() => processVideoJob(db), () => processImageJob(db), () => processPublishJob(db)];
+      const runners = [() => processVideoJob(db), () => processImageJob(db), () => processPublishJob(db),
+        ...Object.keys(MEDIA_JOB_SLOTS).map(kind => () => processMediaJob(db, kind))];
       const offset = Math.floor(Date.now() / 1000) % runners.length;
       let processed = false;
       for (let index = 0; index < runners.length && !processed; index++) processed = await runners[(index + offset) % runners.length]();

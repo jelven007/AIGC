@@ -85,6 +85,7 @@ export async function sendStepAudioASR(options: StepASROptions): Promise<void> {
     const result = await transcribeAudio({
       file: base64ToBlob(options.audioData, 'audio/wav'),
       signal: options.signal,
+      language: options.language,
     });
     if (options.signal?.aborted) return;
     if (!result.text.trim()) throw new Error('未识别到清晰语音，请重试或键入提示词');
@@ -98,6 +99,7 @@ export async function sendStepAudioASR(options: StepASROptions): Promise<void> {
 export interface StepTTSOptions {
   input: string;
   voice?: string;
+  speed?: number;
   instruction?: string;
   response_format?: string;
 }
@@ -106,6 +108,8 @@ export async function sendStepAudioTTS(options: StepTTSOptions): Promise<string>
   const result = await synthesizeSpeech({
     input: options.input,
     voice: options.voice,
+    speed: options.speed,
+    instruction: options.instruction,
     response_format: options.response_format as 'mp3' | 'wav' | 'opus',
   });
   return result.audioUrl;

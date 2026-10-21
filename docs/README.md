@@ -14,11 +14,12 @@
 | 访问控制 | [团队与开放接口](ITERATION_08_ACCESS_CONTROL.md) | Key鉴权/权限/限流、团队成员事务与共享、形象隔离、素材删除outbox |
 | 批量生成 | [批次与预算](ITERATION_09_BATCH_VIDEO.md) | 商品快照、整批预占、父子任务、暂停/取消与退款、刷新恢复及验证 |
 | 多规格导出 | [导出与供应商生命周期](ITERATION_10_RENDER_EXPORTS.md) | 六画幅含4:5/三短边多选、全批输出事务/渲染配额、刷新/旧回执恢复、独立成片、滤镜强度与Sora退役 |
+| 语音与数字人 | [后台语音/声纹/口播/口型](ITERATION_11_AUDIO_AVATAR_JOBS.md) | 16槽、五类任务、原声纹版本、价格与配额、私有归档、退款/刷新恢复，专业训练及真实账号验收边界 |
 | 开发 | [开发指南](DEVELOPMENT_GUIDE.md)、[接口与数据](API_AND_DATA.md) | 本地配置、目录、协议、状态、变更与发布顺序 |
 | 测试 | [测试计划](TEST_PLAN.md)、[验证报告](TEST_REPORT_20261021.md) | 用例、覆盖边界、真实验收、当前执行结果 |
 | 运营 | [运营手册](OPERATIONS_GUIDE.md)、[商业化方案](plan/商业化.md) | 准入、成本、指标、客服退款、试点与推广口径 |
 | 运维 | [运维手册](RUNBOOK.md) | 监控、告警、任务核对、密钥、发布、备份与恢复 |
-| 模型 | [模型设置](MODEL_SETTINGS.md)、[AI 能力](ai/ai.md) | 13 槽目录、管理员授权、协议与供应商实测 |
+| 模型 | [模型设置](MODEL_SETTINGS.md)、[AI 能力](ai/ai.md) | 16 槽目录、管理员授权、协议与供应商实测 |
 | 财务 | [支付与积分方案](plan/支付.md) | 支付验签、原子入账、任务退款与对账 |
 | 当前环境 | [官方部署记录](DEPLOYMENT_AIGCP.md)、[调度指南](VIDEO_SCHEDULER.md) | 实际部署清单、已验证事实、版本差距 |
 | 火山方案 | [火山部署指南](VOLCENGINE_DEPLOYMENT.md) | workspace/branch、迁移回执、Pages 和 ECS |

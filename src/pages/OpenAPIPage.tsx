@@ -16,6 +16,7 @@ const permissions = [
   ['video:create', '创建视频'], ['video:read', '查看视频任务'], ['image:create', '生成图片'],
   ['render:create', '渲染成片'], ['jobs:read', '查看生产任务'], ['script:generate', '文本生成'],
   ['publish:create', '发布作品'], ['publish:read', '查看发布任务'], ['metrics:read', '读取平台指标'],
+  ['audio:create', '语音识别、配音和声纹克隆'], ['avatar:create', '照片口播和口型同步'],
 ];
 const examples = [
   { name: '创建视频 · video:create', endpoint: 'video-jobs', body: {
@@ -25,6 +26,9 @@ const examples = [
   { name: '任务查询 · video:read', endpoint: 'video-jobs', body: { action: 'query', request_key: '原请求UUID' } },
   { name: '生成图片 · image:create', endpoint: 'production-jobs', body: {
     action: 'create', request_key: '新UUID', kind: 'image', input: { prompt: '商品主图', size: '1024x1024' },
+  } },
+  { name: '配音任务 · audio:create', endpoint: 'production-jobs', body: {
+    action: 'create', request_key: '新UUID', kind: 'tts', input: { input: '已确认的商品口播台词' },
   } },
   { name: '文本生成 · script:generate', endpoint: 'text-generation', body: {
     messages: [{ role: 'user', content: '根据已确认的商品卖点编写视频脚本' }], stream: false,

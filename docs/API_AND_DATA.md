@@ -14,6 +14,8 @@ JSON 请求使用 `Content-Type: application/json`，允许的预检由各函数
 
 导出增量00039：production-jobs新增export（render:create）、query-export/exports（jobs:read）。export传request_key、source_project_id、formats[{ratio,height}]；源URL/时长由服务端读取。六画幅含4:5、三短边，最多18组合，全部输出作品/渲染任务同事务；24个未结案渲染共用配额，容量不足429。同键不同参数409，失联503保留原请求；query-export缺本人记录404。返回export包含独立jobs的规格/状态/结果，未返回原始输入或租约。完整兼容见 [多规格导出接口](ITERATION_10_RENDER_EXPORTS.md)。
 
+媒体增量00040：production-jobs create支持tts/asr/voice_clone（audio:create）、avatar/lipsync（avatar:create），list可按kinds筛选；voices与media-prices使用jobs:read。完整输入/返回与原声纹版本绑定见 [媒体任务接口](ITERATION_11_AUDIO_AVATAR_JOBS.md)。确认价格变化409零扣费；未配置424；共享10个活跃媒体任务上限429；503保持原回执。旧同步音频入口410，原客户端已切后台队列。production-worker probe版本2要求00040，不消费任务。
+
 ## 2. 视频任务
 
 入口 [video-jobs](../supabase/functions/video-jobs/index.ts)，仅 POST：
@@ -96,12 +98,13 @@ stateDiagram-v2
 | 入口 | 核心输入/返回 | 应用计费与边界 |
 | --- | --- | --- |
 | `text-generation` | `messages`、`stream`、`temperature`、`max_tokens`；真实 SSE/JSON | 暂不扣应用积分，20 次/用户/分钟；最多 30 消息、单消息 16000 字符、输出最多 8192 tokens |
-| `image-generation` | `prompt/size/quality/reference_image`；返回 `{image_url}` | 暂不扣应用积分，5 次/用户/分钟；真实图片转存，不提供视频式任务恢复 |
-| `siliconflow-audio`、`stepaudio` | TTS 文本/音色，或 ASR 上传/Step 格式 | 暂不扣应用积分，10 次/用户/分钟；输入输出依协议 |
+| `image-generation` | request_key、prompt/size/quality/reference_image；202 `{job}` | 进入图片后台计费队列；默认10积分，原结果归档恢复 |
+| `siliconflow-audio`、`stepaudio` | 历史同步入口 | 410迁移说明；改用production-jobs后台语音任务 |
+| `production-jobs`媒体类型 | tts/asr/voice_clone/avatar/lipsync；202 `{job}` | 真实确认价格、版本与私有输出；默认2/2/10/10/10，详见迭代11 |
 | `ai-assistant` | `action` 与业务参数 | 按 `credit_costs` Action 收费；缓存/限流拒绝不扣，失败按原流水补偿；部分 Action 仍有模拟业务逻辑 |
 | 旧文本函数 | GLM/DeepSeek/Wenxin/MiniMax 兼容入口 | 复用统一主备配置；名称不代表固定供应商运行 |
 
-图片处理器见 [image-provider](../supabase/functions/_shared/image-provider.ts)，音频见 [audio-handler](../supabase/functions/_shared/audio-handler.ts)。封面数据库/前端统一 `gen_task_id` 与 `completed`；不生成 CTR 预测值。网页 Reader 配置供商品卖点读取使用，没有独立公开任意抓取服务。
+图片处理器见 [image-provider](../supabase/functions/_shared/image-provider.ts)，音频协议见 [audio-provider](../supabase/functions/_shared/audio-provider.ts)，任务执行见 [media-jobs](../supabase/functions/_shared/media-jobs.ts)。封面数据库/前端统一 `gen_task_id` 与 `completed`；不生成 CTR 预测值。网页 Reader 配置供商品卖点读取使用，没有独立公开任意抓取服务。
 
 ## 6. 数据与事务边界
 
@@ -112,6 +115,7 @@ stateDiagram-v2
 | `orders/alipay_notify_events/alipay_refunds` | 订单渠道、金额、权益快照、支付宝通知/遗留退款记录；收款原子发放，现金退款另待验收 |
 | `video_jobs/video_projects` | UUID 幂等、输入、原扣费、配置版本、租约、终态证据、作品结果 |
 | `model_configs/model_config_versions` | 当前指针与不可变设置/密文版本；仅服务端管理 |
+| `production_jobs/voice_clones` | 五类媒体任务的幂等、预占、证据/归档/原流水退款，声纹归属及历史配置；供应商声纹ID为受限列 |
 | `audit_logs/rate_limit_windows` | 配置和异常核对证据、频率控制 |
 | Storage | `materials/videos/thumbnails`；成片固定 `generated-videos/{user_id}/{job_id}.mp4|webm`，当前公开桶 |
 

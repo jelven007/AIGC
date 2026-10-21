@@ -10,6 +10,8 @@
 
 后续 [多规格导出](ITERATION_10_RENDER_EXPORTS.md) 新增00039、六画幅含4:5/三档短边多选、整批输出事务/共用渲染配额、同键刷新恢复、独立下载发布和滤镜强度。2026-10-21官方核实Sora API已于2026-09-24关闭，作为退役供应商而非待启用缺口处理。
 
+后续 [后台语音与数字人](ITERATION_11_AUDIO_AVATAR_JOBS.md) 新增00040与TTS/ASR/即时声纹克隆/D-ID照片口播/Sync视频口型执行链，16槽、历史声纹版本、积分与共用配额、私有归档、刷新恢复；旧音频入口410，移除浏览器朗读/预设视频冒充成功。本地7项PG/8组协议/2组页面通过；专业训练、全身动作、供应商验证自动化和云端验收仍未完成。
+
 ## 结论
 
 **没有覆盖原版全部功能范围。** 原有 43 个页面文件全部保留，当前 44 个，增加 ModelSettingsPage；原 App.tsx 中 45 个不同 route path 全部保留，当前 46 个，增加 `/settings/models`。页面文件数量包含未挂载页面，路由包含重定向，不等于已交付功能数量。
@@ -30,7 +32,7 @@
 | 商品管理/URL导入/卖点 | 部分覆盖 | 用户商品CRUD；LLM提炼/网页Reader入口；部分URL/口令直接交给文本模型、预置商品与封面仍存在，不能保证准确抓取平台商品详情 | ProductsPage、UrlProductImportDialog、ai-assistant |
 | 多国选品/热卖排行榜 | 页面保留，正式数据未接入 | 页面含大量预置市场与商品数据，无已验证真实数据商采集链 | ProductSelectionPage |
 | 四层脚本/Prompt/翻译 | 已实现核心，部分演示保留 | 文本主备、SSE、结构化脚本、翻译/个性偏好；旧generate_storyboard等仍返回固定模板，部分失败降级内容未消除 | ScriptPage、text-provider、ai-assistant、PersonalizePage |
-| 统一模型设置 | 新增 | 13槽、管理员、密钥加密、不可变版本、只读连接检查；任意供应商仍需支持相应协议 | ModelSettingsPage、model-catalog/registry、00034 |
+| 统一模型设置 | 新增 | 16槽含语音克隆/照片口播/口型、管理员、密钥加密、不可变版本、只读连接检查 | ModelSettingsPage、model-catalog/registry、00034/00040 |
 | 视频模型矩阵 | 七协议，Sora已退役 | ArkSeedance、MiniMax、SeedanceMini、Wan3、HappyHorse、Kling、Seedance；官方Sora API于2026-09-24关闭，设置页标注退役，旧旁路410 | model-catalog、video-providers、ITERATION_10 |
 | 首尾帧/多模态参考 | 已实现，因模型受限 | 不同模型素材组合有校验；生成2–15秒，MiniMax等规格会归一化；非任意时长/任意输入通用 | video-providers、HomePage |
 | 服务端视频任务/恢复/归档 | 已实现并强化 | 幂等预占、租约查询、成片固定路径、页面恢复、确定失败退款、受理未知核对 | video-jobs、useVideoGeneration、00030/00034 |
@@ -41,8 +43,8 @@
 | 多轨剪辑/成片 | 已实现一部分真实渲染 | 裁剪/拼接/变速、图片、PIP、字幕、翻转/旋转/调色、音轨、关键帧；不是全部原编辑器效果 | VideoEditPage、render-spec、worker/render.py |
 | 转场/字幕动画/抠像 | 部分覆盖 | 淡入淡出/叠化、四种字幕动画、八滤镜RGB变换及强度；特殊转场、抠像、非正常混合拒绝；全部素材色彩一致性待验收 | VideoEditPage、render-spec、worker/render.py |
 | 格式导出 | 多规格真实编码已新增 | MP4 H.264/AAC，六画幅含4:5/三档短边，多选最多18组合；全部输出事务创建、共享24任务上限、刷新同键恢复、独立下载发布，云端待验收 | ExportFormatsPage、render-exports、00039、ITERATION_10 |
-| TTS/ASR | 已实现核心，待供应商验收 | OpenAI/Step协议、用户JWT、音色与文件限制；仍是同步调用，没有图片式后台恢复；部分页面保留浏览器语音降级 | audio-handler、services/audio、AvatarsPage |
-| 数字人选择/克隆/口型 | 部分界面，完整能力未覆盖 | 图库、上传UI、配音；照片克隆模型、声纹克隆、lip-sync与独立合成任务未接入，选头像不等于数字人视频合成 | AvatarsPage、HomePage提交参数、video-providers |
+| TTS/ASR | 后台任务已新增，待供应商验收 | OpenAI/Step、幂等/版本/计费/归档恢复，真实正文与可用分段，旧同步入口410 | media-jobs/audio-provider、services/audio、00040 |
+| 数字人选择/克隆/口型 | 即时克隆/照片口播/视频口型已新增 | ElevenLabs IVC及原版本配音、D-ID照片口播、Sync口型、私有归档与积分；专业声纹/全身训练/动作控制未实现 | MediaJobsPanel、media-jobs、00040、ITERATION_11 |
 | 情绪/风格DNA/直播高光 | 部分分析/演示 | 文本解读、关键词分段；随机分数、预设高光仍存在，无全链路视频视觉/ASR分析；高光页导出TXT清单，不是切片视频 | EmotionAnalysisPage、StyleCopyPage、LiveHighlightPage、phase3-assistant |
 | 竞品监控 | 演示为主 | 可建账号记录，crawl_competitor明确simulated=true；LLM/随机数不是平台抓取，24小时持续采集未实现 | CompetitorPage、phase3-assistant |
 | 跨平台发布 | 部分覆盖，新增正式适配 | 抖音/TikTok OAuth、排期、上传、状态与审核查询；小红书/快手/B站等未接入，UI每次一个账号，无多账号一次派发 | PublishPage、platform-jobs/platforms、00036 |
@@ -87,12 +89,12 @@
 架构可沿现有Auth/业务API/PostgreSQL队列/Worker/私有Storage拓展剩余模块，基础设施本身不阻止完整产品；但“架构容得下”不同于“所有模块已实现”。后续需要显式新增：
 
 - 统一任务中心已修复；批量父子任务与预占预算、完整项目编排仍需实现。
-- 独立数字人/口型/语音克隆协议；新增供应商先确认实际仍可用，Sora官方已退役。
+- 数字人/口型/即时语音克隆已新增正式协议和后台链，需真实账号、签名素材和质量验收；专业训练与动作控制仍待开发，Sora官方已退役。
 - 可验证的视频分析/ASR抽帧管线、真实竞品与选品采集。
 - 团队资源ACL、API Key鉴权网关、Embedding/RAG服务。
 - 多平台多账号派发、广告/电商授权与归因、实验分流/自动优化策略。
 - 完整运营后台及成本、预算、告警、备份恢复和上线验收。
 
-最近云端证据仍是官方Supabase旧部署（数据库到00031、3个旧函数）；本次没有刷新云端状态。火山BaaS/Pages/ECS仍是可选迁移方案。应用当前源码需要增量迁移00032–00036、匹配函数、production调度和FFmpeg容器、真实模型与平台应用配置。
+最近云端证据仍是官方Supabase旧部署（数据库到00031、3个旧函数）；本次没有刷新云端状态。火山BaaS/Pages/ECS仍是可选迁移方案。应用当前源码需要增量迁移00032–00040、匹配函数、production调度和FFmpeg容器、真实模型与平台应用配置。
 
 优先顺序：先修新旧契约/页面兼容和事实口径，再部署验收核心链路；随后补批量/数字人/团队/OpenAPI等覆盖，最后接真实情报、广告归因与自动优化。原版“低于1元、3–5分钟、50+语言、显著转化提升”应由模型规格和真实运营实验验证，不作为本次核验结论。

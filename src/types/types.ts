@@ -52,6 +52,7 @@ export interface Avatar {
   style: string;
   tags: string[];
   preview_image: string | null;
+  cover_url?: string | null;
   sample_video: string | null;
   is_active: boolean;
   use_count: number;
