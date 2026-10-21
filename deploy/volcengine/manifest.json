@@ -33,6 +33,7 @@
     { "name": "knowledge-base", "verify_jwt": false },
     { "name": "market-intelligence", "verify_jwt": false },
     { "name": "product-management", "verify_jwt": false },
+    { "name": "operations", "verify_jwt": false },
     { "name": "measurement-ingest", "verify_jwt": false },
     { "name": "create-payment-order", "verify_jwt": true },
     { "name": "wechat-payment-webhook", "verify_jwt": false },

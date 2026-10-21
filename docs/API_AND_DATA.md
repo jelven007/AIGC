@@ -1,5 +1,7 @@
 # 接口与数据契约
 
+新增 [现金/运营契约](ITERATION_20_CASH_OPERATIONS.md)：operations POST access/list/mutate（个人JWT、可信角色/客户范围、25条分页、预算原版本/UUID、授权撤销审计）；alipay-trade-ops新refund必须原UUID/金额/原因、refundQuery/receipt支持原UUID或out_request_no、unknown保留预占/202/503恢复。00047/00048事务绑定到账签名/金额/原编号与权益；用户仅cash_refund_receipts只读。两入口8KB正文，运营60/资金30请求每分钟，浏览器25秒；后台只查询原退款。probe v9/00048，资金接口不接受MCP/API Key。
+
 新增 [商品管理契约](ITERATION_19_PRODUCT_MANAGEMENT.md)：product-management的list/imports/extract/save/delete；products:read/write权限、1MB正文、60请求/分钟、1–100条原子操作。00046新增来源、原币种、生成价格列、可空库存/销量、只读浏览器商品、版本检查与哈希回执；受理未知503保留原UUID。后台任务与MCP52工具共用，目标待部署。
 
 00045新增 [发布组契约](ITERATION_18_PUBLISH_GROUPS.md)：platform-publish/create_group接受原UUID、project_id、稳定source_url/真实duration、内容/时间与1–10个targets，各target完整options/consent。publish:create创建、publish:read/query_group核对；202返回组与独立任务，list新增20组/100任务。409明确区分publish_group_rejected与publish_group_conflict，超时503保留原键。组表/RPC仅服务身份可用，API绑定当前用户。

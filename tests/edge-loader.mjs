@@ -17,6 +17,8 @@ export async function loadEdge(entry, suite) {
     let source = readFileSync(absolute, 'utf8').replace(
       /import \{ createClient(?:, User)? \} from ['"]npm:@supabase\/supabase-js@2['"];/g,
       'const createClient = (...args) => globalThis.__createClient(...args);');
+    source = source.replace("import { AlipaySdk } from 'npm:alipay-sdk@4.14.0';",
+      'const AlipaySdk = class { constructor(config) { return globalThis.__alipaySdk(config); } };');
     source = source.replace(/(['"])(\.\.?\/[^'"]+)\1/g, (_, quote, relative) => {
       const dependency = compile(resolve(dirname(absolute), relative.endsWith('.ts') ? relative : `${relative}.ts`));
       return `${quote}${pathToFileURL(dependency).href}${quote}`;

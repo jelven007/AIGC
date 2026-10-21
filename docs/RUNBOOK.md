@@ -1,5 +1,7 @@
 # 运维运行手册
 
+新增 [现金/运营运维](ITERATION_20_CASH_OPERATIONS.md)：00047/00048与资金函数、operations/production-worker/常驻调度/前端同窗口，probe v9/00048/render2。监控unknown/租约超时/入账失败/待核对及100次自动查询上限；调度只查询原编号，不能删预占或新建编号绕过未知退款。核对历史累计/周期、原签名证据/账单、负余额欠额与授权撤销/UTC预算；证据白名单无原响应。真实支付宝与完整账套/备份仍待目标验收。
+
 新增 [商品导入运维](ITERATION_19_PRODUCT_MANAGEMENT.md)：00046与product-management/production-worker/常驻调度/MCP52一起发布，probe v8要求00046/render2，旧版探针不可通过。监控商品提取三次失败/共享4队列/503回执与签名上传、版本409和30天清理；原UUID回执保留，不能靠删客户端恢复记录替代核对。源图片私有归档后的孤立对象TTL/备份仍需后续目标验收。
 
 发布组运行见 [迭代18](ITERATION_18_PUBLISH_GROUPS.md)：先00032–00045与匹配platform-publish/production-worker，probe v7，再47工具MCP与前端。关注每用户24未结案/unknown容量、每账号状态和原平台ID；503查询原组，409冲突保留参数，确定拒绝才改内容。账号撤销不删除已提交证据，取消仅未提交项，不能通过回滚页面重发成功项。备份新增publish_groups及关联任务/审计。

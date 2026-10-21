@@ -1,5 +1,7 @@
 # 测试与验收计划
 
+新增REQ-CASH-01–02/OPS-01/BUDGET-01对应 [迭代20](ITERATION_20_CASH_OPERATIONS.md)：真实PG16验证现金预占/并发/原参数/查询节流/崩溃租约、签名到账绑定/权益/欠额/旧周期/加油包与事务回滚，可信角色/客户范围/安全分页/角色撤销、日预算并发和版本回执；8组Edge/调度协议，4组390px退款/预算503原UUID刷新、确定拒绝与权限UI。`npm run test:cash`、browser_operations与资金/支付/调度/部署/工程检查；目标补真实支付宝签名/退款字段/到账、历史账与权益规则，微信退款仍待实现。
+
 新增 [迭代19专项](ITERATION_19_PRODUCT_MANAGEMENT.md)及test:products/browser_products：PG身份/回执并发/整批回滚/版本冲突/删除重放/来源墓碑/队列/留存，真实HTTP解析/内网重定向拒绝/空值/币种/CSV多行引号、后台证据恢复、页面503刷新恢复和390px布局。同步finance/intelligence/production/MCP/scopes与调度/部署；目标补真实商家页、图片签名/存储留存/备份/吞吐。仅本地通过不证明云端生产可用。
 
 新增AT-PUBLISH-02–06，见 [迭代18](ITERATION_18_PUBLISH_GROUPS.md)：中途账号失败整组回滚、并发同UUID/排序/权限撤销后恢复、预览源/用户/日期/确认边界、单账号与组共享24容量与unknown、独立执行/取消。页面验证各账号确认/内容变化撤销确认、503锁定参数/刷新同UUID重试、旧单账号回执、390px布局。MCP新增两工具/47目录与22操作权限拒绝；目标必须用真实账号验证定时、审核终态与原平台ID。

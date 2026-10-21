@@ -14,8 +14,10 @@ import QRCodeDataUrl from '@/components/ui/qrcodedataurl';
 interface Order {
   id: string;
   order_no: string;
-  status: 'pending' | 'paid' | 'cancelled' | 'refunded';
+  status: 'pending' | 'paid' | 'cancelled' | 'refunded' | 'partial_refunded';
   total_amount: number;
+  refunded_amount: number;
+  pay_channel: string;
   wechat_pay_url: string | null;
   created_at: string;
   paid_at: string | null;
@@ -27,6 +29,7 @@ const STATUS_CONFIG = {
   paid:      { label: '已支付',  icon: CheckCircle2, cls: 'bg-success/10 text-success border-success/30' },
   cancelled: { label: '已取消',  icon: XCircle,      cls: 'bg-destructive/10 text-destructive border-destructive/30' },
   refunded:  { label: '已退款',  icon: RefreshCw,    cls: 'bg-muted text-muted-foreground border-border' },
+  partial_refunded: { label: '部分退款', icon: RefreshCw, cls: 'bg-warning/10 text-warning border-warning/30' },
 };
 
 export default function OrderDetailPage() {
@@ -35,26 +38,47 @@ export default function OrderDetailPage() {
   const { user } = useAuth();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
+  const [readError, setReadError] = useState('');
+  const [refunds, setRefunds] = useState<{ id: string; out_request_no: string; refund_amount: number;
+    status: string; revoked_credits: number; applied_at: string | null }[]>([]);
   const pollRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+  const ownerRef = useRef('');
+  ownerRef.current = `${user?.id || ''}:${orderId || ''}`;
 
   const fetchOrder = async () => {
     if (!orderId || !user) return;
-    const { data } = await supabase
+    const owner = `${user.id}:${orderId}`;
+    const { data, error } = await supabase
       .from('orders')
-      .select('id, order_no, status, total_amount, wechat_pay_url, created_at, paid_at, plan_id')
+      .select('id, order_no, status, total_amount, refunded_amount, pay_channel, wechat_pay_url, created_at, paid_at, plan_id')
       .eq('id', orderId)
       .eq('user_id', user.id)
       .maybeSingle();
-    if (data) setOrder(data as Order);
+    if (ownerRef.current !== owner) return;
+    if (error) { setReadError('订单读取失败，请刷新后重试'); setLoading(false); return; }
+    setReadError('');
+    if (data) {
+      setOrder({ ...data, total_amount: Number(data.total_amount), refunded_amount: Number(data.refunded_amount) } as Order);
+      const receipt = await supabase.from('cash_refund_receipts').select('id,out_request_no,refund_amount,status,revoked_credits,applied_at')
+        .eq('order_id', data.id).order('created_at', { ascending: false }).limit(50);
+      if (ownerRef.current !== owner) return;
+      if (receipt.error) setReadError('退款回执暂不可用，请刷新后核对');
+      else setRefunds(receipt.data || []);
+    }
     setLoading(false);
     return data;
   };
 
   // 自动轮询：pending 状态每 2s 刷新
   useEffect(() => {
-    fetchOrder();
+    setOrder(null); setRefunds([]); setLoading(true);
+    void fetchOrder();
+    let polling = false;
     pollRef.current = setInterval(async () => {
+      if (polling) return;
+      polling = true;
       const data = await fetchOrder();
+      polling = false;
       if (data && data.status !== 'pending') {
         clearInterval(pollRef.current);
         if (data.status === 'paid') {
@@ -78,7 +102,7 @@ export default function OrderDetailPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <XCircle className="w-12 h-12 text-destructive" />
-        <p className="text-lg font-medium">订单不存在</p>
+        <p className="text-lg font-medium">{readError || '订单不存在'}</p>
         <Button variant="outline" onClick={() => navigate('/credits')}>
           <ArrowLeft className="w-4 h-4 mr-2" />返回套餐页
         </Button>
@@ -97,6 +121,7 @@ export default function OrderDetailPage() {
         </Button>
         <h1 className="text-xl font-bold text-balance">订单详情</h1>
       </div>
+      {readError && <p role="alert" className="text-destructive text-sm">{readError}</p>}
 
       {/* 订单状态 */}
       <Card>
@@ -110,14 +135,22 @@ export default function OrderDetailPage() {
             </Badge>
             <p className="mt-2 text-3xl font-bold">¥{order.total_amount.toFixed(2)}</p>
             {order.status === 'pending' && (
-              <p className="mt-1 text-sm text-muted-foreground">请使用微信扫码支付</p>
+              <p className="mt-1 text-sm text-muted-foreground">{order.pay_channel === 'alipay' ? '请在支付宝收银台完成支付' : '请使用微信扫码支付'}</p>
             )}
             {order.status === 'paid' && (
               <p className="mt-1 text-sm text-success">支付成功，套餐权益已自动开通</p>
             )}
+            {['partial_refunded', 'refunded'].includes(order.status) && <p className="mt-2 text-sm text-muted-foreground">
+              已退款 ¥{order.refunded_amount.toFixed(2)} · 对应积分已按退款比例回收
+            </p>}
           </div>
         </CardContent>
       </Card>
+      {refunds.length > 0 && <Card><CardHeader><CardTitle className="text-base">现金退款回执</CardTitle></CardHeader>
+        <CardContent className="space-y-4">{refunds.map(refund => <div key={refund.id} className="text-sm space-y-1 border-b pb-3 last:border-b-0">
+          <p className="break-all font-mono text-xs">{refund.out_request_no}</p>
+          <p>¥{Number(refund.refund_amount).toFixed(2)} · {refund.status === 'success' && refund.applied_at ? '已到账' : '结果待核对'} · 回收 {refund.revoked_credits} 积分</p>
+        </div>)}</CardContent></Card>}
 
       {/* 二维码 (pending 状态显示) */}
       {order.status === 'pending' && order.wechat_pay_url && (

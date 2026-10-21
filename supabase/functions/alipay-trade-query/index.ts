@@ -64,31 +64,34 @@ Deno.serve(async (req) => {
     // 1. 订单归属校验（只允许查询本人订单）
     const { data: order } = await supabaseAdmin
       .from('orders')
-      .select('id, order_no, user_id, plan_id, total_amount, status, pay_channel, alipay_trade_no, entitlement_granted_at')
+      .select('id, order_no, user_id, plan_id, total_amount, refunded_amount, status, pay_channel, alipay_trade_no, entitlement_granted_at')
       .eq('order_no', orderNo)
       .maybeSingle();
     if (!order || order.user_id !== user.id) return err('订单不存在', corsHeaders, 404);
     if (order.pay_channel !== 'alipay') return err('订单渠道不匹配', corsHeaders, 400);
 
-    // 本地已支付直接返回，避免重复外呼
-    if (order.status === 'paid' && order.entitlement_granted_at) {
-      return ok({ order_no: order.order_no, local_status: 'paid', trade_status: 'TRADE_SUCCESS', amount: order.total_amount }, corsHeaders);
+    // 终态优先使用本地事务回执；退款后不能由支付宝原支付状态覆盖为 paid。
+    if (['paid', 'partial_refunded', 'refunded'].includes(order.status) && order.entitlement_granted_at) {
+      return ok({ order_no: order.order_no, local_status: order.status, trade_status: 'TRADE_SUCCESS',
+        amount: order.total_amount, refunded_amount: order.refunded_amount }, corsHeaders);
     }
+    if (order.status === 'cancelled') return ok({ order_no: order.order_no, local_status: 'cancelled',
+      trade_status: 'TRADE_CLOSED', amount: order.total_amount }, corsHeaders);
     if (order.status === 'paid') return err('历史订单权益需要核对，请联系客服', corsHeaders, 409);
 
     // 2. 调起 alipay.trade.query（非页面跳转类 API 使用 exec）
     const sdk = createAlipaySdk();
     const res = await sdk.exec('alipay.trade.query', {
       bizContent: { out_trade_no: order.order_no },
-    });
+    }, { validateSign: true });
     const response = res as any;
     const subCode = readResultField(response, 'sub_code') ?? response?.error_response?.subCode;
     if (subCode === 'ACQ.TRADE_NOT_EXIST') {
       // 用户尚未在支付宝完成下单，本地保持 pending
       return ok({ order_no: order.order_no, local_status: order.status, trade_status: 'NOT_EXIST', amount: order.total_amount }, corsHeaders);
     }
-    if (response?.error_response || (readResultField(response, 'code') && readResultField(response, 'code') !== '10000')) {
-      console.error('[alipay-trade-query] upstream failed:', JSON.stringify(response?.error_response ?? response));
+    if (response?.error_response || readResultField(response, 'code') !== '10000'
+      || readResultField(response, 'out_trade_no') !== order.order_no) {
       return err('支付宝查询失败', corsHeaders, 502);
     }
 
@@ -105,22 +108,21 @@ Deno.serve(async (req) => {
       }
       // 幂等补偿入账（与异步通知互斥，重复不二次发放）
       await finalizePaidOrder(supabaseAdmin, order.order_no, tradeNo ?? '', String(queryAmount ?? ''));
-      return ok({ order_no: order.order_no, local_status: 'paid', trade_status: tradeStatus, amount: order.total_amount }, corsHeaders);
+      const latest = await supabaseAdmin.from('orders').select('status,refunded_amount').eq('id', order.id).single();
+      if (latest.error || !latest.data) return err('支付结果入账待确认，请查询原订单', corsHeaders, 503);
+      return ok({ order_no: order.order_no, local_status: latest.data.status, trade_status: tradeStatus,
+        amount: order.total_amount, refunded_amount: latest.data.refunded_amount }, corsHeaders);
     }
 
     // 已关闭交易同步本地状态
     if (mapped === 'CLOSED' && order.status === 'pending') {
-      await supabaseAdmin
-        .from('orders')
-        .update({ status: 'cancelled', updated_at: new Date().toISOString() })
-        .eq('order_no', order.order_no)
-        .eq('status', 'pending');
+      const closed = await supabaseAdmin.rpc('close_paid_order_guarded', { p_actor: user.id, p_order_no: order.order_no });
+      if (closed.error) return err('关闭结果待确认，请查询原订单', corsHeaders, 503);
+      return ok({ order_no: order.order_no, local_status: closed.data, trade_status: tradeStatus, amount: order.total_amount }, corsHeaders);
     }
 
     return ok({ order_no: order.order_no, local_status: mapped === 'CLOSED' ? 'cancelled' : order.status, trade_status: tradeStatus, amount: order.total_amount }, corsHeaders);
   } catch (e) {
-    const msg = e instanceof Error ? e.message : '服务内部错误';
-    console.error('[alipay-trade-query]', msg);
-    return err(msg, corsHeaders, 500);
+    return err('支付宝查询暂不可用，请查询原订单', corsHeaders, 503);
   }
 });

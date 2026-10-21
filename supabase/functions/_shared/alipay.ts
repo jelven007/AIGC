@@ -53,7 +53,7 @@ export function createAlipaySdk(): AlipaySdk {
   const privateKey = (Deno.env.get('ALIPAY_PRIVATE_KEY') || '').trim();
   const alipayPublicKey = (Deno.env.get('ALIPAY_PUBLIC_KEY') || '').trim();
   const gateway = (Deno.env.get('ALIPAY_GATEWAY') || '').trim();
-  const key = `${appId}|${gateway}|${alipayPublicKey.length}`;
+  const key = `${appId}|${gateway}|${alipayPublicKey}|${privateKey}`;
   if (sdkCache && sdkCache.key === key) return sdkCache.sdk;
   const config = getAlipayConfig();
   const sdk = new AlipaySdk({
@@ -63,6 +63,7 @@ export function createAlipaySdk(): AlipaySdk {
     gateway: config.gateway,
     signType: 'RSA2',
     charset: 'utf-8',
+    timeout: 15000,
   });
   sdkCache = { key, sdk };
   return sdk;
