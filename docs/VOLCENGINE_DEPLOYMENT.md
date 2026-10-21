@@ -1,6 +1,6 @@
 # 火山引擎部署指南
 
-目标：火山 AI 原生 BaaS Supabase 版 + 火山 Pages + ECS Docker 调度器，模型使用火山方舟。无需 supabase.com 或 Vercel。当前为已适配代码与部署入口；尚未登录火山账号，未创建或验收火山资源。
+目标方案：火山 AI 原生 BaaS Supabase 版 + 火山 Pages + ECS Docker 调度器，模型可用火山方舟。该方案使用火山独立管理面，前端无需 Vercel；**当前实际仍连接官方 Supabase，未切换火山**。源码基线 `ce90bfe`，尚无火山资源创建/部署验收证据；授权准备不等于资源上线。见 [当前状态](CURRENT_STATE.md)。
 
 ## 1. 工具与资源
 
@@ -33,7 +33,7 @@ byted-supabase-cli db advisors --workspace-id "$SHOPRO_WORKSPACE_ID"
 
 先读取业务表/迁移回执，再按顺序执行未应用迁移。一次 SQL 事务包含部署锁、迁移和 SHA-256 回执，响应丢失可安全查询回执后恢复。00018/00019 的演示数据与公开策略被排除。`00031` 免费套餐种子、`00032` 方舟 Provider、`00033` Data API ACL、`00034` 统一模型配置与任务版本绑定属于当前生产迁移。
 
-新库需要 Auth、Storage schema、Supabase Auth 角色、`supabase_realtime` publication 和历史迁移使用的扩展可用。SQL 隔离测试使用 PostgreSQL 16 和平台替身，云端权限与扩展必须通过实际迁移确认。
+新库需要 Auth、Storage schema、Supabase Auth 角色、`supabase_realtime` publication 和历史迁移使用的扩展可用。SQL 隔离测试使用 PostgreSQL 16 和平台替身，云端权限与扩展必须通过实际迁移确认。当前官方数据库没有火山脚本的私有 SHA-256 回执，禁止把本文 migrate 命令指向官方旧库。
 
 已有业务表但没有本项目部署回执时脚本拒绝自动重放。迁移原 Supabase 项目需要先核对结构与历史版本，并单独迁移 Auth 用户、业务数据和 Storage 对象；本轮未自动复制任何源项目数据。
 
@@ -145,4 +145,4 @@ npm run build
 
 云端验收：邮箱/OTP 登录、RLS 用户隔离、方舟文本 SSE、视频提交/刷新恢复、页面关闭后执行、明确失败退款、成片转存播放、重复支付通知只入账一次、MCP 用户隔离、Pages 深链接刷新。真实模型验收会产生供应商用量，部署前先配置账号与配额。
 
-最新设计见 [技术架构](TECHNICAL_ARCHITECTURE.md)。
+最新设计见 [技术架构](TECHNICAL_ARCHITECTURE.md)。验收计划见 [TEST_PLAN](TEST_PLAN.md)，本地结果与未覆盖项见 [验证报告](TEST_REPORT_20261021.md)；正式运行还须执行 [运维手册](RUNBOOK.md) 的备份、告警和恢复要求。

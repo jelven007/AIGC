@@ -1,12 +1,14 @@
 # 视频任务后台调度
 
-当前部署目标为火山 BaaS，默认使用常驻火山 ECS 的 Docker 调度器，见 [火山部署指南](VOLCENGINE_DEPLOYMENT.md)。下述官方 Supabase 部署属于历史环境，本轮不操作该环境；火山 Cron 扩展需在目标环境确认后才能使用。
+更新：2026-10-21，源码基线 `ce90bfe`。当前实际使用官方 Supabase 云端 Cron；火山方案默认常驻 ECS Docker，尚未部署验收。火山 Cron 扩展需在目标环境确认后才能使用，见 [火山部署指南](VOLCENGINE_DEPLOYMENT.md)。
 
 独立 Docker 调度器和 Supabase Cron 配置均已就绪，部署时选择其中一种。调度完全不依赖网页；主机或云端服务必须保持运行。2026-10-21 已创建并接入用户的官方 Supabase `aigcp` 项目，云端 Cron 已启用且完成后台退款验收，见 [部署记录](DEPLOYMENT_AIGCP.md)。当前使用云端 Cron，独立 Docker 调度器未同时启动。
 
 ## 推荐：常驻服务器的 Docker 调度器
 
-需要目标环境已应用 `00030_server_video_jobs.sql`，部署新版 `video-job-worker` 与共享模块，并在 Edge Function Secrets 配置 `VIDEO_WORKER_SECRET`（至少 32 字符）。模型密钥仍只配置在 Edge Function，调度器无需 service_role 或模型密钥。
+最新版需要目标环境已核对并应用 00030–00034，特别是 `model_config_version_id`、新版领取函数与配置权限；部署匹配的 `video-job-worker` 与共享模块，并在 Edge Secrets 配置 `VIDEO_WORKER_SECRET`（至少 32 字符）和 `MODEL_CONFIG_ENCRYPTION_KEY`。模型密钥在管理员设置页保存加密版本，调度器无需 service_role、主密钥或模型密钥。
+
+当前官方旧环境仅到 00031、旧 Worker 与 Cron 已运行；不得只替换新版 Worker。缺 00034 时新版 probe 将失败，旧任务还需要核对原账号后绑定版本。升级顺序见 [开发指南](DEVELOPMENT_GUIDE.md)。
 
 1. 在 `deploy/video-scheduler/` 将 `.env.example` 复制为 `.env`，填入自己的 `SUPABASE_URL`。不要使用源仓库演示项目。
 2. 将同一 `VIDEO_WORKER_SECRET` 原值写入该目录的 `video_worker_secret` 文件，无变量名，建议文件权限 `600`。该文件及 `.env` 均被 Git 忽略。
@@ -44,7 +46,7 @@ python3 scripts/manage_video_scheduler.py stop
 
 在自己的测试账号提交一条模型任务后关闭网页，查看调度器日志或 Cron 派发摘要。数据库应从 `queued` 到 `submitted`，最终 `completed/settled` 或 `failed/refunded`；再次登录时作品库可见成片，失败流水能关联原扣费。重复调度不会重复扣费或退款。
 
-`unknown` 提交结果不按超时自动退款，须按 [第三轮异常核对说明](ITERATION_03_VIDEO_JOBS.md#异常核对)核对上游受理情况。健康检查通过也不等于真实模型生成成功，实际验收需目标模型已配置并联调。
+`unknown` 提交结果不按超时自动退款，须按 [运维核对流程](RUNBOOK.md#42-受理未知)核对原账号与上游受理情况。健康检查通过也不等于真实模型生成成功或配置可解密，实际验收需目标模型已配置并联调。`video-jobs.query` 可能执行任务，不是只读 probe。
 
 本地验证：
 
@@ -55,3 +57,5 @@ npm run test:video
 ```
 
 测试包含周期恢复、预检不消费任务、HTTP 异常脱敏、并发限制、Cron 重装、到期派发及过期请求回收。数据库测试使用真实 PostgreSQL 与业务迁移；Cron/pg_net/Vault 使用隔离替身，不连接云端、不调用收费模型。
+
+关闭网页和停用调度是不同动作：停用只停止后续派发，浏览器查询仍可领取；发布冻结需同时控制用户生成/查询入口。监控阈值、发布、故障和恢复见 [运维手册](RUNBOOK.md)，本次结果见 [验证报告](TEST_REPORT_20261021.md)。

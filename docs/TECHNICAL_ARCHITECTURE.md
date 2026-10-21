@@ -1,6 +1,6 @@
 # Shopro AI 技术架构
 
-更新时间：2026-10-21。部署目标为火山引擎 AI 原生 BaaS 平台 Supabase 版。本文描述当前代码及部署方式；本轮尚未登录火山账号、创建资源或进行火山云端验收。
+更新时间：2026-10-21，源码基线 `ce90bfe`。当前实际运行在官方 Supabase，最新模型配置源码尚未全部部署；火山引擎 AI 原生 BaaS Supabase 版、Pages、ECS 是已适配的可选迁移方案。环境证据见 [当前状态](CURRENT_STATE.md)。
 
 ## 架构总览
 
@@ -8,15 +8,15 @@
 flowchart TB
     Browser["商家端 React 18 / TypeScript / Vite"]
     Agent["外部智能体"]
-    Pages["火山 Pages · 静态站点"]
-    MCP["可选 ECS · MCP HTTP / stdio"]
-    Auth["火山 BaaS · Auth / JWT"]
-    API["火山 BaaS · Deno Edge Functions"]
+    Pages["当前本地 Vite<br/>可选火山 Pages / 静态托管"]
+    MCP["可选服务器 · MCP HTTP / stdio"]
+    Auth["Supabase Auth / JWT<br/>当前官方 · 火山可选"]
+    API["Supabase Deno Edge Functions<br/>当前官方 · 火山可选"]
     Settings["统一设置页 /settings/models<br/>管理员配置 · 普通用户目录"]
     Registry["模型配置服务<br/>AES-GCM · 不可变版本"]
-    DB[("火山 BaaS · PostgreSQL<br/>业务表 / RLS / RPC / 持久化队列")]
-    Storage[("火山 BaaS · Storage<br/>素材 / 成片")]
-    Scheduler["ECS Docker · 视频调度器"]
+    DB[("PostgreSQL<br/>业务表 / RLS / RPC / 持久化队列")]
+    Storage[("Supabase Storage<br/>素材 / 成片")]
+    Scheduler["当前官方 Cron<br/>可选 ECS Docker 调度器"]
     Worker["video-job-worker<br/>租约领取 / 状态查询 / 归档结算"]
     Ark["火山方舟<br/>文本模型 / Seedance 视频"]
     External["可选外部服务<br/>音频 / 备用视频 / 支付"]
@@ -44,24 +44,24 @@ flowchart TB
     Storage -->|"播放下载"| Browser
 ```
 
-不依赖 supabase.com 创建项目，也不依赖 Vercel。Supabase SDK 是应用协议客户端；资源和管理面由火山引擎运营。数据库、Auth、Storage、Edge Functions 使用同一 workspace / branch 的地址与密钥。
+系统仍依赖 Supabase SDK、Auth、PostgreSQL、Storage 与 Edge Functions。当前资源由 supabase.com 管理，实际 URL 为 `bbqqhkukgbgpebqpesub.supabase.co`；火山采用独立 workspace/branch 与管理 CLI，迁移验收后才切换。前端不要求 Vercel，可使用任意支持 SPA 的静态托管。
 
 ## 技术与部署映射
 
-| 模块 | 技术 | 部署位置 | 职责 |
+| 模块 | 技术 | 当前 / 可选部署位置 | 职责 |
 |---|---|---|---|
-| 商家应用 | React 18、TypeScript、Vite、React Router、React Query | 火山 Pages | 工作台、商品素材、作品、支付与数据页面 |
+| 商家应用 | React 18、TypeScript、Vite、React Router、React Query | 当前本地 Vite / 可选火山 Pages | 工作台、商品素材、作品、支付与数据页面 |
 | UI | Tailwind CSS、Radix、Framer Motion、Recharts | 浏览器 | 表单、交互、图表 |
-| 用户认证 | Supabase Auth / JWT | 火山 BaaS | 邮箱登录注册、密码找回、配置后的短信 OTP |
-| 业务 API | Deno TypeScript Edge Functions | 火山 BaaS | 文本、视频任务、AI 业务、支付回调 |
-| 业务数据 | PostgreSQL、RLS、SQL RPC | 火山 BaaS | 用户隔离、扣费、原子入账、幂等与审计 |
+| 用户认证 | Supabase Auth / JWT | 当前官方 / 可选火山 BaaS | 邮箱登录注册、密码找回、配置后的短信 OTP |
+| 业务 API | Deno TypeScript Edge Functions | 当前官方旧三函数 / 可选火山 BaaS | 文本、视频任务、AI 业务、支付回调；最新入口待发布 |
+| 业务数据 | PostgreSQL、RLS、SQL RPC | 当前官方到 00031 / 可选火山 BaaS | 用户隔离、扣费、原子入账、幂等与审计 |
 | 视频队列 | `video_jobs`、`lease_token`、`next_poll_at` | PostgreSQL | 持久化任务、到期领取与故障恢复 |
-| 执行器 | `video-job-worker` | 火山 BaaS | 有限时长提交/查询，不在函数中持续轮询 |
-| 调度器 | Python 3.12 + Docker Compose | 常驻火山 ECS | 默认每 10 秒派发，最多 4 并发，退避和健康检查 |
-| 成片存储 | Supabase Storage | 火山 BaaS | 参考素材、MP4/WebM 成片固定路径 |
-| 模型配置 | `model_configs`、`model_config_versions`、AES-GCM | 火山 BaaS | 全部模型接口统一管理、管理员授权、并发保护与任务版本绑定 |
+| 执行器 | `video-job-worker` | 当前官方 / 可选火山 BaaS | 有限时长提交/查询，不在函数中持续轮询 |
+| 调度器 | 官方 Cron；Python 3.12 + Docker Compose | 当前官方 Cron / 可选常驻 ECS | 默认每 10 秒派发，最多 4 并发，退避和健康检查 |
+| 成片存储 | Supabase Storage | 当前官方 / 可选火山 BaaS | 参考素材、MP4/WebM 成片固定路径 |
+| 模型配置 | `model_configs`、`model_config_versions`、AES-GCM | 本地源码已实现；云端待 00034 | 全部模型接口统一管理、管理员授权、并发保护与任务版本绑定 |
 | 模型 | 文本主备、七种视频、同步图片 | 方舟或设置页配置的供应商 | 真实已开通 Model ID / Endpoint ID，服务端协议适配 |
-| 音频 | OpenAI/Step TTS、ASR 协议 | 火山 Edge Function 代理外部服务 | 配置页统一模型、接口与音色 |
+| 音频 | OpenAI/Step TTS、ASR 协议 | 目标 Edge Function 代理外部服务，待发布 | 配置页统一模型、接口与音色 |
 | MCP | Python FastMCP、Starlette、HTTPX | 可选 ECS 或本地 stdio | 7 个工具复用用户 JWT 与业务 API |
 | 运维发布 | `byted-supabase-cli`、Python 部署脚本 | 开发机/受控发布环境 | SQL、Secrets、函数、Pages 与发布前预检 |
 
@@ -101,4 +101,4 @@ MCP HTTP 使用请求中的用户 JWT，并通过 ContextVar 隔离并发调用�
 - 图片、网页 Reader、Kling 等必须在统一设置页配置兼容协议的 HTTPS 地址；运行时不回退旧网关环境变量。部分历史 AI 业务模拟逻辑保留且需要后续治理。
 - 火山账号、BaaS 服务权限、方舟模型开通、SMTP/短信供应商、支付商户凭据和正式域名需目标环境配置。
 
-完整操作顺序见 [火山部署指南](VOLCENGINE_DEPLOYMENT.md)。
+当前官方记录见 [DEPLOYMENT_AIGCP](DEPLOYMENT_AIGCP.md)，可选迁移顺序见 [火山部署指南](VOLCENGINE_DEPLOYMENT.md)。接口/状态见 [API_AND_DATA](API_AND_DATA.md)，发布、监控与恢复见 [运维手册](RUNBOOK.md)，验证范围见 [测试报告](TEST_REPORT_20261021.md)。
