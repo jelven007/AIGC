@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/db/supabase';
 import { storedMedia } from '@/api/media';
+import { deleteMaterial } from '@/api/accessControl';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -200,19 +201,16 @@ export default function MaterialsPage() {
   const handleDelete = async () => {
     if (!deleteId) return;
     setDeleting(true);
-    const mat = materials.find(m => m.id === deleteId);
-    if (mat) {
-      const path = mat.url.split('/materials/')[1];
-      if (path) await supabase.storage.from('materials').remove([path]);
-    }
-    const { error } = await supabase.from('materials').delete().eq('id', deleteId);
-    if (error) toast.error('删除失败');
-    else {
+    try {
+      await deleteMaterial(deleteId);
       setMaterials(prev => prev.filter(m => m.id !== deleteId));
       toast.success('已删除');
+      setDeleteId(null);
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : '删除失败');
+    } finally {
+      setDeleting(false);
     }
-    setDeleting(false);
-    setDeleteId(null);
   };
 
   // ── 下载 ────────────────────────────────────────────────────────────────

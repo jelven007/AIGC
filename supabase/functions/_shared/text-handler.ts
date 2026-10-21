@@ -7,9 +7,9 @@ export async function handleTextGeneration(req: Request): Promise<Response> {
   if (preflight) return preflight;
   const headers = { ...getCorsHeaders(req), 'Content-Type': 'application/json' };
   if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405, headers });
-  const auth = await authenticateRequest(req);
+  const auth = await authenticateRequest(req, 'script:generate');
   if (auth.error || !auth.user || auth.isServiceRole) {
-    return Response.json({ error: '请先登录' }, { status: 401, headers });
+    return Response.json({ error: auth.error || '请先登录' }, { status: auth.status || 401, headers });
   }
   const body = await req.json().catch(() => null);
   if (!body || !Array.isArray(body.messages) || !body.messages.length || body.messages.length > 30

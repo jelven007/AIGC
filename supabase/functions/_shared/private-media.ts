@@ -22,10 +22,8 @@ export async function signedMedia(db: SupabaseClient, value: string, userId: str
   const backend = Deno.env.get('SUPABASE_URL') || '';
   const object = mediaObject(value, backend);
   if (!object) return value;
-  if (!ownsMedia(object.path, userId)) {
-    const allowed = await db.from('legacy_media_access').select('path').eq('bucket', object.bucket).eq('path', object.path).eq('user_id', userId).maybeSingle();
-    if (allowed.error || !allowed.data) throw new Error('无权访问此素材');
-  }
+  const allowed = await db.rpc('can_read_media', { p_uid: userId, p_bucket: object.bucket, p_path: object.path });
+  if (allowed.error || !allowed.data) throw new Error('无权访问此素材');
   const { data, error } = await db.storage.from(object.bucket).createSignedUrl(object.path, seconds);
   if (error || !data?.signedUrl) throw new Error('素材签名失败或素材不存在');
   return data.signedUrl;

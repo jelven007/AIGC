@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/db/supabase';
 import { storedMedia } from '@/api/media';
+import { deleteMaterial } from '@/api/accessControl';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -871,16 +872,16 @@ async function seedTestUserVideos(userId: string) {
   const handleMatDelete = async () => {
     if (!matDeleteId) return;
     setMatDeleting(true);
-    const mat = materials.find(m => m.id === matDeleteId);
-    if (mat) {
-      const path = mat.url.split('/materials/')[1];
-      if (path) await supabase.storage.from('materials').remove([path]);
+    try {
+      await deleteMaterial(matDeleteId);
+      setMaterials(prev => prev.filter(m => m.id !== matDeleteId));
+      toast.success('已删除');
+      setMatDeleteId(null);
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : '删除失败');
+    } finally {
+      setMatDeleting(false);
     }
-    const { error } = await supabase.from('materials').delete().eq('id', matDeleteId);
-    if (error) toast.error('删除失败');
-    else { setMaterials(prev => prev.filter(m => m.id !== matDeleteId)); toast.success('已删除'); }
-    setMatDeleting(false);
-    setMatDeleteId(null);
   };
 
   const handleMatDownload = (m: Material) => {
@@ -960,14 +961,19 @@ async function seedTestUserVideos(userId: string) {
         toast.success(`已成功删除 ${idsArray.length} 个作品`);
       } else {
         const matsToDelete = materials.filter(m => selectedIds.has(m.id));
-        const paths = matsToDelete.map(m => m.url.split('/materials/')[1]).filter(Boolean);
-        if (paths.length) {
-          await supabase.storage.from('materials').remove(paths);
+        let deleted = 0;
+        const failures: string[] = [];
+        for (const material of matsToDelete) {
+          try {
+            await deleteMaterial(material.id);
+            deleted++;
+            setMaterials(prev => prev.filter(m => m.id !== material.id));
+          } catch (cause) {
+            failures.push(cause instanceof Error ? cause.message : '删除失败');
+          }
         }
-        const { error } = await supabase.from('materials').delete().in('id', idsArray);
-        if (error) throw error;
-        setMaterials(prev => prev.filter(m => !selectedIds.has(m.id)));
-        toast.success(`已成功删除 ${idsArray.length} 个素材`);
+        if (deleted) toast.success(`已删除 ${deleted} 个素材`);
+        if (failures.length) throw new Error(`${failures.length} 个素材未删除：${failures[0]}`);
       }
       setSelectedIds(new Set());
       setSelectMode(false);

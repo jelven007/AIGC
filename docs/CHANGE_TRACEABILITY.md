@@ -15,6 +15,7 @@
 | ce90bfe | 13 槽、管理员设置、AES-GCM 版本、视频绑定、真实图片/音频 | MODEL-01–03、VIDEO-05、IMAGE-01、AUDIO-01 | 00034、model-settings、model-registry/catalog、image/audio handlers | Finance/Models/Audio/Video | 主密钥备份、管理员授权、旧任务绑定；当前云端缺部署 |
 | 53be501 | 私有媒体、图片恢复、FFmpeg、抖音/TikTok发布与官方指标 | ASSET-01、IMAGE-01、RENDER-01、PUBLISH-01、METRIC-01 | 00035/00036、production-jobs/worker、platform-*、worker/ | 33数据库/6FFmpeg测试、API夹具、UI恢复、类型/Deno/lint/build，见ITERATION_06 | 新函数、production调度、FFmpeg容器、私有迁移一起启用；云端/平台真实验收待执行 |
 | 本轮任务中心修复 | 新协议合并、审核/未知/计费、取消与错误保留，移除旧重试/删除 | TASK-01 | TaskQueuePage、taskCenter、平台API类型，见ITERATION_07 | 8专项测试、真实UI夹具、视频/生产回归与lint/build | 无新迁移/后端接口；需既有production-jobs/platform-publish匹配部署 |
+| 访问控制迭代 | Key签发/鉴权、团队事务/共享、私有形象、素材清理outbox | OPENAPI-01、TEAM-01、ASSET-02 | 00037、api-keys/team-space/material-assets、auth/private-media、production-worker，见ITERATION_08 | 5项PG、3组API、2组页面及既有回归/编译检查 | 旧Key停用；4业务入口函数内JWT/Key鉴权；production调度执行清理；云端待部署 |
 
 提交名与更详细时点见 [历史迭代](ITERATION_03_VIDEO_JOBS.md) 与 [架构对比](ARCHITECTURE_REVIEW_20261021.md)。旧审计的行号和未修复清单需结合此矩阵，不直接当作当前缺陷。
 

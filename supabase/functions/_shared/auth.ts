@@ -5,9 +5,16 @@ export interface AuthResult {
   userId: string | null;
   isServiceRole: boolean;
   error: string | null;
+  status?: number;
+  apiKeyId?: string;
 }
 
-export async function authenticateRequest(req: Request): Promise<AuthResult> {
+export async function hashApiKey(token: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+export async function authenticateRequest(req: Request, scope?: string): Promise<AuthResult> {
   const authHeader = req.headers.get('authorization') || req.headers.get('Authorization') || '';
   const token = authHeader.replace(/^Bearer\s+/i, '').trim();
 
@@ -17,6 +24,24 @@ export async function authenticateRequest(req: Request): Promise<AuthResult> {
 
   if (!token) {
     return { user: null, userId: null, isServiceRole: false, error: '缺少 Authorization 凭据' };
+  }
+
+  if (token.startsWith('ak_')) {
+    const denied = (error: string, status = 401): AuthResult =>
+      ({ user: null, userId: null, isServiceRole: false, error, status });
+    if (!scope || !/^ak_live_[0-9a-f]{64}$/.test(token)) return denied('此接口不接受 API Key 或密钥已失效');
+    try {
+      const db = createServiceClient();
+      const consumed = await db.rpc('consume_api_key', {
+        p_hash: await hashApiKey(token), p_scope: scope, p_endpoint: new URL(req.url).pathname,
+      });
+      if (consumed.error || !consumed.data) return denied('密钥验证服务暂不可用', 503);
+      if (consumed.data.error) return denied(consumed.data.error === 'scope_denied' ? '密钥缺少所需权限'
+        : consumed.data.error === 'rate_limited' ? '密钥请求过于频繁' : '密钥已撤销或过期', consumed.data.status);
+      const { data, error } = await db.auth.admin.getUserById(consumed.data.user_id);
+      if (error || !data.user || data.user.banned_until && Date.parse(data.user.banned_until) > Date.now()) return denied('密钥账号不可用');
+      return { user: data.user, userId: data.user.id, isServiceRole: false, error: null, apiKeyId: consumed.data.key_id };
+    } catch { return denied('密钥验证服务暂不可用', 503); }
   }
 
   // 1. 判断是否是内部 service_role 凭据

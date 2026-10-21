@@ -4,6 +4,8 @@
 
 本轮新增本地私有素材、图片持久化任务、FFmpeg 渲染及抖音/TikTok发布和指标适配；启用与验证边界见 [生产链路迭代](ITERATION_06_PRODUCTION_PIPELINE.md)。这些源码新增项不表示现有云端已部署。[原版功能覆盖校验](FUNCTION_COVERAGE_REVIEW_20261021.md)确认页面全部保留，但原版全部功能范围尚未覆盖。
 
+后续 [访问控制迭代](ITERATION_08_ACCESS_CONTROL.md) 新增服务端 Key 签发/摘要/权限/限流，业务 API 可接受 JWT 或限定权限 Key；团队成员事务与共享素材 ACL、私有形象、对象删除 outbox 已实现并本地验证。`00037` 与相关函数/Worker 待部署。团队任务费用仍由提交者承担，未交付共同预算和工程编辑；既有签名在到期前仍可使用。
+
 ## 架构总览
 
 ```mermaid

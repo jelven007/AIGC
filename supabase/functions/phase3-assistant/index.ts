@@ -39,6 +39,10 @@ Deno.serve(async (req) => {
   }
 
   try {
+    if (['generate_api_key', 'revoke_api_key', 'create_team', 'get_team', 'create_invitation',
+      'remove_member', 'change_member_role'].includes(action)) {
+      return err('团队与密钥管理已迁移至 team-space / api-keys，请更新客户端', 410);
+    }
     switch (action) {
       // ─── P3-M01: 竞品监控 — 添加竞品账号 ────────────────────────────────
       case 'add_competitor': {

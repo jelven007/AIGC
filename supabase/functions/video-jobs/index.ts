@@ -17,10 +17,11 @@ export async function handleVideoJobs(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') return new Response(null, { headers });
   if (req.method !== 'POST') return reply({ error: '仅支持 POST' }, 405);
   try {
-    const auth = await authenticateRequest(req);
-    if (auth.error || !auth.user || auth.isServiceRole) return reply({ error: '请先登录' }, 401);
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== 'object') return reply({ error: '请求格式非法' }, 400);
+    const auth = await authenticateRequest(req, body.action === 'create' ? 'video:create'
+      : ['query', 'list'].includes(body.action) ? 'video:read' : undefined);
+    if (auth.error || !auth.user || auth.isServiceRole) return reply({ error: auth.error || '请先登录' }, auth.status || 401);
     const db = createServiceClient();
     if (body.action === 'create') {
       if (!uuid(body.request_key) || typeof body.provider !== 'string' || !body.input || typeof body.input !== 'object') {

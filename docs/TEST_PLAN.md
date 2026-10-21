@@ -25,6 +25,7 @@
 | DEP-01 | `npm run test:volcengine` | OPS-01、TEXT-01、Ark 协议 |
 | SCH-01 | `npm run test:scheduler` | VIDEO-02、OPS-01 |
 | MCP-01 | `python3 tests/test_mcp_backend.py` | MCP-01 |
+| ACCESS-01 | `npm run test:access`；`node tests/browser_access_control.mjs`（本地UI夹具） | OPENAPI-01、TEAM-01、ASSET-02 |
 | ENG-01 | `npm run typecheck`、关键函数 `deno check`、`npm run build` | 编译与打包，不替代业务验收 |
 
 MCP 需安装 `mcp/requirements_mcp.txt`。按实际修改选择回归：计费/RPC 跑真实 DB；提交/查询跑 VID；配置跑 DB+MOD；调度跑 SCH；发布脚本跑 DEP。文档更新做链接、事实和差异检查，无需反复全量测试。
