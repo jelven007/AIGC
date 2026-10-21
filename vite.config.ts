@@ -16,6 +16,9 @@ export default defineConfig(({ mode }) => {
     }
   }
   return {
+  // 多个本地后端/测试服务共享依赖时，预构建缓存不能互相覆盖。
+  cacheDir: path.resolve(__dirname, '.vite_cache', mode, new URL(env.VITE_SUPABASE_URL).hostname),
+  server: { watch: { ignored: ['**/.volcengine-build/**'] } },
   plugins: [
     react(),
     svgr({
@@ -29,6 +32,21 @@ export default defineConfig(({ mode }) => {
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+    },
+  },
+  build: {
+    manifest: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('/node_modules/')) return;
+          if (/\/(?:react|react-dom|scheduler)\/|\/@remix-run\/router\/|\/react-router(?:-dom)?\//.test(id)) return 'react-core';
+          if (id.includes('/@supabase/')) return 'supabase';
+          if (id.includes('/@tanstack/')) return 'query';
+          if (id.includes('/framer-motion/') || id.includes('/motion-')) return 'motion';
+          // 保持页面专用编辑/图表/导出依赖按其动态入口加载。
+        },
+      },
     },
   },
   };

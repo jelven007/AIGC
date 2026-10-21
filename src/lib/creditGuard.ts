@@ -44,13 +44,17 @@ export async function ensureCreditsForGeneration(
   userId: string | null | undefined,
   cost: number = VIDEO_GENERATE_COST
 ): Promise<{ ok: boolean; left: number }> {
-  if (!userId) return { ok: true, left: 0 }; // 未登录沿用各页面既有演示流程，不拦截
+  if (!userId) { toast.error('请先登录'); return { ok: false, left: 0 }; }
 
   const { peekCreditsLeft } = await import('@/hooks/useCredits');
-  let left = peekCreditsLeft();
+  let left = peekCreditsLeft(userId);
 
   if (left === null) {
     const res = await fetchUserCredits(userId);
+    if (res.error || !res.data) {
+      toast.error('积分余额暂不可用，请稍后重试');
+      return { ok: false, left: 0 };
+    }
     left = res.data?.left ?? 0;
   }
 

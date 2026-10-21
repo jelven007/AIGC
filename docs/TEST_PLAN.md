@@ -1,5 +1,7 @@
 # 测试与验收计划
 
+新增 [迭代22收银/加载专项](ITERATION_22_CHECKOUT_LOADING.md)：test:checkout验证真实PG同UUID并发、改价原快照、终态、账号/RLS/封禁和十待支付配额；协议验证两渠道精确金额/签名表单/原订单/未知回执/未开通，browser_checkout覆盖空账单/读取失败/总额使用率/订单分页、503刷新原请求、金额冲突重选、微信QR与支付宝NOT_EXIST/退款终态、积分不足事件和390px。构建按静态依赖闭包与旧提交同环境对比；目标补真实商户、CDN/Web Vitals、微信查单/过期和退款。
+
 新增 [迭代21专项](ITERATION_21_TRANSLATION_NOTIFICATIONS.md)：test:translation执行PG原商品版本/价格/共享并发/指纹/原结果核对/退款和通知隔离/终态/去重/cutoff/偏好/TTL，协议验证私有图片/流量上限与翻译未知不重发。browser_translation_notifications验证同UUID关页恢复、JSON/编辑版本、图片地址指纹、竞品使用权、真实通知分页/铃铛同步/偏好失败和390px；MCP/任务中心/调度/部署/工程同步。目标补eBay图片权限、视觉模型质量/费用、真实触发/清理及吞吐。
 
 新增REQ-CASH-01–02/OPS-01/BUDGET-01对应 [迭代20](ITERATION_20_CASH_OPERATIONS.md)：真实PG16验证现金预占/并发/原参数/查询节流/崩溃租约、签名到账绑定/权益/欠额/旧周期/加油包与事务回滚，可信角色/客户范围/安全分页/角色撤销、日预算并发和版本回执；8组Edge/调度协议，4组390px退款/预算503原UUID刷新、确定拒绝与权限UI。`npm run test:cash`、browser_operations与资金/支付/调度/部署/工程检查；目标补真实支付宝签名/退款字段/到账、历史账与权益规则，微信退款仍待实现。

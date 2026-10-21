@@ -43,13 +43,14 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
       const notifications = await db.from('notifications').select('event_key,read_at,deleted_at').limit(0);
       const references = await db.from('analysis_intelligence_references').select('job_id,context').limit(0);
       const translations = await db.from('credit_costs').select('cost').eq('action', 'generate_product_translate').maybeSingle();
+      const checkout = await db.from('orders').select('id,checkout_request_key').limit(0);
       const ready = !error && !voices.error && !costs.error && costs.data?.length === Object.keys(MEDIA_JOB_SLOTS).length
         && !analysis.error && !!analysis.data && !measurements.error && !experiments.error && !knowledge.error && !chunks.error
         && !knowledgeCosts.error && knowledgeCosts.data?.length === 2 && knowledgeCosts.data.every(row => Number.isInteger(row.cost) && row.cost >= 0)
         && !intelligence.error && !intelligenceCosts.error && intelligenceCosts.data?.length === 2
         && !publishGroups.error && !publishTasks.error && !products.error && !receipts.error && !cash.error && !operators.error
-        && !notifications.error && !references.error && !translations.error && Number.isInteger(translations.data?.cost) && translations.data!.cost >= 0;
-      return Response.json({ ready, version: 10, render_version: 2, required_migration: '00049' }, { status: ready ? 200 : 503 });
+        && !checkout.error && !notifications.error && !references.error && !translations.error && Number.isInteger(translations.data?.cost) && translations.data!.cost >= 0;
+      return Response.json({ ready, version: 11, render_version: 2, required_migration: '00050' }, { status: ready ? 200 : 503 });
     }
     if (general && body.action === 'run') {
       const scheduled = await db.rpc('enqueue_intelligence_schedule');

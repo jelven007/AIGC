@@ -8,7 +8,7 @@ import {
   CheckCircle2, XCircle, Award, Layers,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import PaymentDialog from '@/components/common/PaymentDialog';
+import { useAuth } from '@/contexts/AuthContext';
 import LandingHero from '@/components/LandingHero';
 
 // ── 型別 ─────────────────────────────────────────────────────────────────
@@ -297,61 +297,6 @@ const reviews = [
 ];
 
 // ── 会员数据 ──────────────────────────────────────────────────────────────
-const plans = [
-  {
-    name: '免费版',
-    price: '¥0',
-    period: '永久免费',
-    highlight: false,
-    tag: '',
-    color: '#ffffff',
-    features: [
-      '每月 5 个视频生成配额',
-      '基础 AI 脚本生成',
-      '3 款视频模板',
-      '720P 视频导出',
-      '社区支持',
-    ],
-    cta: '立即体验',
-  },
-  {
-    name: '专业版',
-    price: '¥299',
-    period: '/ 月',
-    highlight: true,
-    tag: '最受欢迎',
-    color: '#FF6B00',
-    features: [
-      '每月 100 个视频生成配额',
-      '高级 AI 脚本 + Prompt 优化',
-      '爆款风格复刻（无限次）',
-      '全部视频模板 & 数字人库',
-      '流量分析 & 一键优化',
-      '1080P 高清导出',
-      '优先客服支持',
-    ],
-    cta: '升级专业版',
-  },
-  {
-    name: '企业版',
-    price: '¥999',
-    period: '/ 月',
-    highlight: false,
-    tag: '',
-    color: '#00E599',
-    features: [
-      '无限视频生成配额',
-      '企业级知识库 & AI 定制',
-      '多账号团队协作',
-      '专属数字人定制',
-      'API 接口开放',
-      '私有化部署方案',
-      '专属客户成功经理',
-    ],
-    cta: '联系销售',
-  },
-];
-
 // ── 特色功能数据（配对应封面图） ─────────────────────────────────────────
 const features = [
   {
@@ -848,8 +793,7 @@ export default function LandingPage() {
   const navigate = useNavigate();
   const [navOpen, setNavOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [payDialogOpen, setPayDialogOpen] = useState(false);
-  const [payPkg, setPayPkg] = useState({ name: '专业版', price: '299', credits: '1,000' });
+  const { user } = useAuth();
 
   // 导航栏滚动透明→不透明
   useEffect(() => {
@@ -1289,96 +1233,15 @@ export default function LandingPage() {
           <SectionTitle
             tag="会员计划"
             title={<>选择适合你的<br /><span style={{ color: '#FF6B00' }}>成长方案</span></>}
-            sub="从免费体验到企业定制，满足不同规模的电商团队需求"
+            sub="登录后查看当前可购买套餐、积分和权益，在下单前确认实际金额。"
           />
 
-          <div className="flex md:grid md:grid-cols-3 overflow-x-auto md:overflow-x-visible pb-6 md:pb-0 -mx-4 px-4 md:mx-0 md:px-0 gap-6 snap-x snap-mandatory scrollbar-none">
-            {plans.map((plan, i) => {
-              const { ref, inView } = useInView(0.1);
-              return (
-                <div key={plan.name} ref={ref}
-                  className={cn('transition-all duration-700 w-[80vw] sm:w-[350px] md:w-auto shrink-0 snap-center', inView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8')}
-                  style={{ transitionDelay: `${i * 120}ms` }}>
-                  <TiltCard className="h-full">
-                    <div className={cn('rounded-2xl p-6 h-full flex flex-col relative overflow-hidden transition-all duration-300 hover:shadow-2xl')}
-                      style={{
-                        background: plan.highlight ? 'rgba(255,107,0,0.06)' : 'rgba(255,255,255,0.03)',
-                        border: `1px solid ${plan.highlight ? 'rgba(255,107,0,0.4)' : 'rgba(255,255,255,0.08)'}`,
-                        boxShadow: plan.highlight ? '0 0 40px rgba(255,107,0,0.1)' : 'none',
-                      }}>
-                      {/* 热门标签 */}
-                      {plan.tag && (
-                        <div className="absolute top-4 right-4 text-xs font-bold px-2.5 py-1 rounded-full"
-                          style={{ background: '#FF6B00', color: '#fff' }}>
-                          {plan.tag}
-                        </div>
-                      )}
-
-                      {/* 计划名称 & 价格 */}
-                      <div className="mb-6">
-                        <h3 className="text-lg font-bold text-white mb-1" style={{ color: plan.color }}>{plan.name}</h3>
-                        <div className="flex items-end gap-1">
-                          <span className="text-4xl font-extrabold text-white">{plan.price}</span>
-                          <span className="text-white/40 text-sm pb-1">{plan.period}</span>
-                        </div>
-                      </div>
-
-                      {/* 权益列表 */}
-                      <ul className="space-y-3 flex-1 mb-8">
-                        {plan.features.map(f => (
-                          <li key={f} className="flex items-start gap-2.5 text-sm text-white/70">
-                            <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0 mt-0.5"
-                              style={{ background: `${plan.color}20`, border: `1px solid ${plan.color}40` }}>
-                              <Check className="w-2.5 h-2.5" style={{ color: plan.color }} />
-                            </div>
-                            {f}
-                          </li>
-                        ))}
-                      </ul>
-
-                      {/* CTA 按钮 */}
-                      <button
-                        onClick={() => {
-                          if (plan.price === '¥0') {
-                            goToApp();
-                          } else {
-                            setPayPkg({
-                              name: plan.name,
-                              price: plan.price.replace('¥', ''),
-                              credits: plan.name.includes('专业') ? '1,000' : '5,000',
-                            });
-                            setPayDialogOpen(true);
-                          }
-                        }}
-                        className={cn(
-                          'w-full py-3 rounded-xl text-sm font-bold transition-all duration-200 hover:scale-[1.02] hover:shadow-lg',
-                          plan.highlight ? 'text-white animate-border-glow' : 'text-white/80 hover:text-white'
-                        )}
-                        style={plan.highlight
-                          ? { background: 'linear-gradient(135deg, #FF6B00, #ff9500)' }
-                          : { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }
-                        }
-                      >
-                        {plan.cta}
-                      </button>
-                    </div>
-                  </TiltCard>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* 底部保障 */}
-          <div className="flex flex-wrap justify-center gap-6 mt-10 text-sm text-white/35">
-            {[
-              { icon: Shield, text: '7 天无理由退款' },
-              { icon: Zap, text: '即开即用，无需安装' },
-              { icon: Users2, text: '专属客服支持' },
-            ].map(({ icon: Icon, text }) => (
-              <span key={text} className="flex items-center gap-1.5">
-                <Icon className="w-3.5 h-3.5 text-green-400/60" />{text}
-              </span>
-            ))}
+          <div className="mx-auto max-w-xl rounded-2xl border border-white/10 p-6 text-center">
+            <p className="mb-6 text-sm leading-relaxed text-white/60">套餐价格与积分由当前服务配置提供。支付后可以在账户内核对订单和积分流水。</p>
+            <button onClick={() => navigate(user ? '/credits?tab=plans' : '/login?redirect=%2Fcredits%3Ftab%3Dplans')}
+              className="rounded-xl bg-[#FF6B00] px-8 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#e65f00]">
+              查看实际套餐
+            </button>
           </div>
         </div>
       </section>
@@ -1500,13 +1363,6 @@ export default function LandingPage() {
         </div>
       </footer>
 
-      <PaymentDialog
-        open={payDialogOpen}
-        onOpenChange={setPayDialogOpen}
-        pkgName={payPkg.name}
-        price={payPkg.price}
-        credits={payPkg.credits}
-      />
     </div>
   );
 }

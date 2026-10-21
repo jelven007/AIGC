@@ -6,14 +6,6 @@
  */
 import { supabase } from '@/db/supabase';
 
-export interface AlipayOrderResult {
-  order_no: string;
-  order_id: string;
-  payment_html: string;
-  plan_name: string;
-  amount: string;
-}
-
 export interface AlipayQueryResult {
   order_no: string;
   local_status: string;
@@ -43,29 +35,31 @@ export class AlipayOperationError extends Error {
   constructor(message: string, readonly status: number, readonly outcome: string) { super(message); }
 }
 
-/** 统一下单：服务端创建订单并返回 alipay.trade.page.pay 表单 HTML */
-export async function createAlipayOrder(planId: string): Promise<AlipayOrderResult> {
-  const { data, error } = await supabase.functions.invoke('alipay-payment-order', {
-    body: { plan_id: planId },
-  });
-  if (error) throw await extractInvokeError(error);
-  if (data?.code !== 0 || !data?.data) throw new Error(data?.message || '下单失败');
-  return data.data as AlipayOrderResult;
-}
-
 /**
  * 渲染 pageExec 生成的表单并自动提交（页面跳转类 API 唯一正确调起方式）。
- * 必须在用户点击手势的同步调用链中执行，避免浏览器拦截跳转。
+ * 仅保留服务端签名字段，以 POST 导航到官方支付宝网关。
  */
 export function renderAndSubmitAlipayForm(paymentHtml: string): void {
   const doc = new DOMParser().parseFromString(paymentHtml, 'text/html');
-  const form = doc.querySelector('form');
-  if (!form) throw new Error('支付表单解析失败，请重试');
-  const container = document.createElement('div');
-  container.style.display = 'none';
-  container.appendChild(form);
-  document.body.appendChild(container);
-  form.submit();
+  const source = doc.querySelector('form');
+  if (!source) throw new Error('支付表单解析失败，请恢复原订单');
+  const action = new URL(source.getAttribute('action') || '');
+  if (action.protocol !== 'https:' || action.username || action.password
+    || !['openapi.alipay.com', 'openapi-sandbox.dl.alipaydev.com', 'openapi.alipaydev.com'].includes(action.hostname)
+    || action.pathname !== '/gateway.do' || source.method.toUpperCase() !== 'POST') {
+    throw new Error('支付网关地址异常，请核对原订单');
+  }
+  const form = document.createElement('form');
+  form.method = 'POST'; form.action = action.href; form.style.display = 'none';
+  for (const input of source.querySelectorAll('input[type="hidden"][name]')) {
+    const field = document.createElement('input');
+    field.type = 'hidden'; field.name = (input as HTMLInputElement).name; field.value = (input as HTMLInputElement).value;
+    form.appendChild(field);
+  }
+  if (!form.querySelector('input[name="sign"]')) throw new Error('支付签名字段缺失，请恢复原订单');
+  document.body.appendChild(form);
+  HTMLFormElement.prototype.submit.call(form);
+  form.remove();
 }
 
 /** 交易查询兜底：GET 参数必须拼接在 URL 上（.rules/supabase-edge-function-get-body） */

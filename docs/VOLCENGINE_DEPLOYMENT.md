@@ -1,5 +1,7 @@
 # 火山引擎部署指南
 
+最新 [迭代22](ITERATION_22_CHECKOUT_LOADING.md)发布范围00032–00050，两支付创建函数/checkout共享模块/production-worker/常驻调度/前端同窗口；verify要求probe v11/00050/render2，MCP仍54工具。客户端须确认原UUID/金额/积分，旧支付客户端不兼容。目标验收商户签名/回调、同单恢复和改价权益；火山资源无新增部署回执。
+
 最新 [迭代21](ITERATION_21_TRANSLATION_NOTIFICATIONS.md)需发布00032–00049与匹配product-management/market-intelligence/production-jobs/production-worker、常驻调度/MCP54/前端；verify要求probe v10/00049/render2与迁移回执。通知不新增Edge入口，authenticated RPC/RLS与页面同窗口。eBay图片搜索权限、视觉文本模型、私有素材与真实通知/关页/版本/清理需目标验收；火山仍无新增部署证据。
 
 最新 [现金与运营迭代20](ITERATION_20_CASH_OPERATIONS.md)要求发布00032–00048、operations/资金函数/匹配production-worker/调度与前端。verify要求probe v9/00048/render2及迁移回执，manifest增加operations（函数内个人JWT鉴权、拒绝service/API Key）。按实际Auth服务端元数据或operator_grants授予运营角色，profile.role无效；真实支付宝和历史权益/预算/授权范围必须验收。火山资源仍无新增部署回执。

@@ -10,8 +10,9 @@ import { AlertCircle, CheckCircle2, Clock, Loader2, RefreshCw } from 'lucide-rea
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { queryAlipayOrder, type AlipayQueryResult } from '@/api/alipay';
+import { useAuth } from '@/contexts/AuthContext';
 
-type ViewState = 'checking' | 'paid' | 'pending' | 'closed' | 'error';
+type ViewState = 'checking' | 'paid' | 'refunded' | 'pending' | 'closed' | 'error';
 
 const POLL_INTERVAL_MS = 3000;
 const MAX_POLL_COUNT = 30; // 约 90 秒兜底窗口，之后以异步通知最终一致
@@ -20,12 +21,17 @@ export default function AlipayReturnPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const orderNo = (searchParams.get('order_no') || '').trim();
+  const { user } = useAuth();
+  const owner = `${user?.id || ''}:${orderNo}`;
 
   const [view, setView] = useState<ViewState>(orderNo ? 'checking' : 'error');
   const [result, setResult] = useState<AlipayQueryResult | null>(null);
   const [errmsg, setErrmsg] = useState('');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countRef = useRef(0);
+  const runningRef = useRef(false);
+  const ownerRef = useRef(owner);
+  ownerRef.current = owner;
 
   const stopPoll = useCallback(() => {
     if (pollRef.current) {
@@ -35,17 +41,21 @@ export default function AlipayReturnPage() {
   }, []);
 
   const checkOnce = useCallback(async () => {
-    if (!orderNo) return;
+    if (!orderNo || runningRef.current) return;
+    runningRef.current = true;
     countRef.current += 1;
     try {
       const res = await queryAlipayOrder(orderNo);
+      if (ownerRef.current !== owner) return;
       setResult(res);
       if (res.local_status === 'paid') {
         stopPoll();
         setView('paid');
         window.dispatchEvent(new Event('credits_changed'));
         toast.success('支付成功，积分/权益已发放');
-      } else if (res.local_status === 'cancelled' || res.trade_status === 'TRADE_CLOSED' || res.trade_status === 'NOT_EXIST') {
+      } else if (['partial_refunded', 'refunded'].includes(res.local_status)) {
+        stopPoll(); setView('refunded');
+      } else if (res.local_status === 'cancelled') {
         stopPoll();
         setView('closed');
       } else if (countRef.current >= MAX_POLL_COUNT) {
@@ -53,30 +63,34 @@ export default function AlipayReturnPage() {
         setView('pending');
       }
     } catch (e) {
+      if (ownerRef.current !== owner) return;
       if (countRef.current >= MAX_POLL_COUNT) {
         stopPoll();
         setErrmsg(e instanceof Error ? e.message : '订单查询失败');
         setView('error');
       }
-    }
-  }, [orderNo, stopPoll]);
+    } finally { runningRef.current = false; }
+  }, [orderNo, owner, stopPoll]);
 
   useEffect(() => {
+    ownerRef.current = owner;
+    countRef.current = 0; setResult(null); setErrmsg(''); setView(orderNo ? 'checking' : 'error');
     if (!orderNo) {
       setErrmsg('缺少订单号，请从积分与套餐页面重新发起支付');
       setView('error');
       return;
     }
-    checkOnce();
     pollRef.current = setInterval(checkOnce, POLL_INTERVAL_MS);
-    return stopPoll;
+    void checkOnce();
+    return () => { ownerRef.current = ''; stopPoll(); };
   }, [orderNo, checkOnce, stopPoll]);
 
   const viewConfig = {
-    checking: { icon: <Loader2 className="w-10 h-10 animate-spin text-primary" />, title: '正在确认支付结果…', desc: '已在支付宝完成支付？服务端正在轮询交易状态，请勿关闭页面' },
+    checking: { icon: <Loader2 className="w-10 h-10 animate-spin text-primary" />, title: '正在确认支付结果…', desc: '服务端正在核对交易状态，关闭页面后仍可从订单记录查看。' },
     paid:     { icon: <CheckCircle2 className="w-10 h-10 text-success" />, title: '支付成功', desc: `订单 ${orderNo} 已完成支付${result?.amount ? `，金额 ¥${result.amount}` : ''}，积分与权益已发放到账` },
     pending:  { icon: <Clock className="w-10 h-10 text-warning" />, title: '支付结果确认中', desc: '异步结算可能存在短暂延迟，稍后回到「积分与套餐」页面即可看到最新状态' },
     closed:   { icon: <AlertCircle className="w-10 h-10 text-destructive" />, title: '支付未完成', desc: '该订单已取消或已关闭，如已付款请联系客服核实' },
+    refunded: { icon: <RefreshCw className="w-10 h-10 text-warning" />, title: '订单已退款', desc: '请从订单记录查看现金退款回执与权益回收结果。' },
     error:    { icon: <AlertCircle className="w-10 h-10 text-destructive" />, title: '查询失败', desc: errmsg || '请稍后重试' },
   }[view];
 

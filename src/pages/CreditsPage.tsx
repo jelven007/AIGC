@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/db/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Plan, UserPlan, CreditLog } from '@/types/types';
@@ -9,11 +10,9 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { toast } from 'sonner';
 import {
   CreditCard, Zap, Star, Building2, CheckCircle2, ArrowUpCircle,
   Loader2, TrendingDown, TrendingUp, AlertCircle, Calendar,
@@ -21,8 +20,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import PaymentDialog from '@/components/common/PaymentDialog';
-import { createAlipayOrder, renderAndSubmitAlipayForm } from '@/api/alipay';
-import QRCodeDataUrl from '@/components/ui/qrcodedataurl';
+import { readPendingCheckout } from '@/api/checkout';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import InvitePage from '@/pages/InvitePage';
@@ -104,7 +102,7 @@ function PlanCard({ plan, isCurrent, onSelect, idx }: {
         <div className="space-y-3 flex-1 mb-6">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">核心权益</p>
           <ul className="space-y-2.5">
-            {(plan.features as string[]).map((f, i) => (
+            {(Array.isArray(plan.features) ? plan.features : []).map((f, i) => (
               <li key={i} className="flex items-start gap-2.5 text-sm">
                 <CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                 <span className="text-muted-foreground leading-snug">{f}</span>
@@ -118,215 +116,85 @@ function PlanCard({ plan, isCurrent, onSelect, idx }: {
         <Button
           className={cn('w-full h-11 font-semibold rounded-lg', isCurrent ? 'opacity-60 cursor-not-allowed' : '')}
           variant={isCurrent ? 'outline' : plan.is_popular ? 'default' : 'secondary'}
-          disabled={isCurrent}
+          disabled={isCurrent || Number(plan.price) === 0}
           onClick={() => !isCurrent && onSelect(plan)}
         >
-          {isCurrent ? '当前使用中' : plan.price === 0 ? '降级至免费版' : '立即升级'}
+          {isCurrent ? '当前使用中' : Number(plan.price) === 0 ? '注册基础权益' : '选择套餐'}
         </Button>
       </CardFooter>
     </Card>
   );
 }
 
-const MOCK_LOGS: CreditLog[] = [
-  {
-    id: 'mock-1',
-    user_id: 'mock-user',
-    type: 'bonus',
-    amount: 100,
-    credits_after: 100,
-    description: '新用户注册，系统赠送免费版初始积分',
-    created_at: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString(),
-  },
-  {
-    id: 'mock-2',
-    user_id: 'mock-user',
-    type: 'material_upload',
-    amount: 10,
-    credits_after: 110,
-    description: '完成首次头像及个人资料完善奖励',
-    created_at: new Date(Date.now() - 1.5 * 24 * 3600 * 1000).toISOString(),
-  },
-  {
-    id: 'mock-3',
-    user_id: 'mock-user',
-    type: 'video_generate',
-    amount: -10,
-    credits_after: 100,
-    description: '生成智能带货视频《智能空气炸锅宣传片V1》',
-    created_at: new Date(Date.now() - 1 * 24 * 3600 * 1000).toISOString(),
-  },
-  {
-    id: 'mock-4',
-    user_id: 'mock-user',
-    type: 'template_download',
-    amount: -5,
-    credits_after: 95,
-    description: '下载《爆款服装带货转场模板》',
-    created_at: new Date(Date.now() - 12 * 3600 * 1000).toISOString(),
-  },
-  {
-    id: 'mock-5',
-    user_id: 'mock-user',
-    type: 'material_upload',
-    amount: 5,
-    credits_after: 100,
-    description: '上传商超果蔬背景空镜素材奖励',
-    created_at: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
-  }
-];
-
 // ── 主页面 ────────────────────────────────────────────────────────────────
 export default function CreditsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const query = new URLSearchParams(window.location.search);
-  const initialTab = query.get('tab') || 'plans';
-  const [activeTab, setActiveTab] = useState(initialTab);
-
-  useEffect(() => {
-    const q = new URLSearchParams(window.location.search);
-    const t = q.get('tab');
-    if (t && ['plans', 'overview', 'invite', 'logs'].includes(t)) {
-      setActiveTab(t);
-    }
-  }, [window.location.search]);
-
-  const handleTabChange = (val: string) => {
-    setActiveTab(val);
-    navigate(`/credits?tab=${val}`, { replace: true });
-  };
-
-  const [userPlan, setUserPlan] = useState<UserPlan | null>(null);
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [boosters, setBoosters] = useState<Plan[]>([]);
-  const [logs, setLogs] = useState<CreditLog[]>([]);
-  const [loadingPlan, setLoadingPlan] = useState(true);
-  const [loadingLogs, setLoadingLogs] = useState(true);
+  const [params, setParams] = useSearchParams();
+  const activeTab = ['plans', 'overview', 'invite', 'logs', 'orders'].includes(params.get('tab') || '')
+    ? params.get('tab')! : 'plans';
+  const handleTabChange = (val: string) => setParams({ tab: val }, { replace: true });
+  const client = useQueryClient();
   const [logType, setLogType] = useState('all');
   const [page, setPage] = useState(0);
+  const [orderPage, setOrderPage] = useState(0);
   const PAGE_SIZE = 10;
-
-  const isMockLogs = logs.length === 0;
-  const displayLogs = isMockLogs
-    ? MOCK_LOGS.filter(log => logType === 'all' || log.type === logType)
-    : logs;
-
-  // 支付相关
-  const [payOpen, setPayOpen] = useState(false);
-  const [payingObj, setPayingObj] = useState<Plan | null>(null);
-  const [payStatus, setPayStatus] = useState<'idle'|'creating'|'polling'|'success'|'error'>('idle');
-  const [payUrl, setPayUrl] = useState('');
-  const [payOrderNo, setPayOrderNo] = useState('');
-
-  // 加载套餐
-  const loadPlan = useCallback(async () => {
-    if (!user) return;
-    setLoadingPlan(true);
-    try {
-      const [{ data: upData }, { data: plData }] = await Promise.all([
-        supabase.from('user_plans').select('*').eq('user_id', user.id).maybeSingle(),
-        supabase.from('plans').select('*').order('level', { ascending: true }),
+  const planQuery = useQuery({
+    queryKey: ['billing', user?.id, 'plans'], enabled: !!user, retry: 1,
+    queryFn: async () => {
+      const [up, catalog] = await Promise.all([
+        supabase.from('user_plans').select('*').eq('user_id', user!.id).abortSignal(AbortSignal.timeout(15000)).maybeSingle(),
+        supabase.from('plans').select('*').order('level', { ascending: true }).abortSignal(AbortSignal.timeout(15000)),
       ]);
-      const pl = Array.isArray(plData) ? plData : [];
-      setPlans(pl.filter(p => p.level >= 0));
-      setBoosters(pl.filter(p => p.level < 0));
-      if (upData) {
-        const plan = pl.find(p => p.id === upData.plan_id);
-        setUserPlan({ ...upData, plan });
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoadingPlan(false);
-    }
-  }, [user]);
-
-  // 加载积分记录
-  const loadLogs = useCallback(async () => {
-    if (!user) return;
-    setLoadingLogs(true);
-    try {
-      let q = supabase
-        .from('credit_logs')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+      if (up.error || catalog.error) throw new Error('套餐与余额读取失败，请重试');
+      const all = (catalog.data || []) as Plan[];
+      return { plans: all.filter(p => p.level >= 0), boosters: all.filter(p => p.level < 0),
+        userPlan: up.data ? { ...up.data, plan: all.find(p => p.id === up.data.plan_id) } as UserPlan : null };
+    },
+  });
+  const logsQuery = useQuery({
+    queryKey: ['billing', user?.id, 'logs', page, logType], enabled: !!user && activeTab === 'logs', retry: 1,
+    queryFn: async () => {
+      let q = supabase.from('credit_logs').select('*', { count: 'exact' }).eq('user_id', user!.id)
+        .order('created_at', { ascending: false }).order('id', { ascending: false })
+        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1).abortSignal(AbortSignal.timeout(15000));
       if (logType !== 'all') q = q.eq('type', logType);
-      const { data } = await q;
-      setLogs(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoadingLogs(false);
-    }
-  }, [user, logType, page]);
-
-  useEffect(() => { loadPlan(); }, [loadPlan]);
-  useEffect(() => { loadLogs(); }, [loadLogs]);
-
+      const result = await q;
+      if (result.error) throw new Error('积分流水读取失败，请重试');
+      return { logs: (result.data || []) as CreditLog[], total: result.count || 0 };
+    },
+  });
+  const ordersQuery = useQuery({
+    queryKey: ['billing', user?.id, 'orders', orderPage], enabled: !!user && activeTab === 'orders', retry: 1,
+    queryFn: async () => {
+      const result = await supabase.from('orders')
+        .select('id,order_no,status,total_amount,pay_channel,plan_snapshot,created_at', { count: 'exact' })
+        .eq('user_id', user!.id).order('created_at', { ascending: false }).order('id', { ascending: false })
+        .range(orderPage * PAGE_SIZE, (orderPage + 1) * PAGE_SIZE - 1).abortSignal(AbortSignal.timeout(15000));
+      if (result.error) throw new Error('订单记录读取失败，请重试');
+      return { orders: result.data || [], total: result.count || 0 };
+    },
+  });
+  const { plans = [], boosters = [], userPlan = null } = planQuery.data || {};
+  const loadingPlan = planQuery.isPending;
+  const loadingLogs = logsQuery.isPending;
+  const logs = logsQuery.data?.logs || [];
+  const refreshBilling = useCallback(() => { void client.invalidateQueries({ queryKey: ['billing', user?.id] }); }, [client, user?.id]);
   useEffect(() => {
-    const handleChanged = () => { loadPlan(); loadLogs(); };
-    window.addEventListener('credits_changed', handleChanged);
-    return () => window.removeEventListener('credits_changed', handleChanged);
-  }, [loadPlan, loadLogs]);
-
-
-  // 轮询订单状态
-  useEffect(() => {
-    let timer: any;
-    if (payStatus === 'polling' && payOrderNo) {
-      timer = setInterval(async () => {
-        const { data } = await supabase.from('orders').select('status').eq('order_no', payOrderNo).maybeSingle();
-        if (data?.status === 'paid') {
-          setPayStatus('success');
-          toast.success('支付成功！');
-          loadPlan();
-          loadLogs();
-        }
-      }, 2000);
-    }
-    return () => clearInterval(timer);
-  }, [payStatus, payOrderNo, loadPlan, loadLogs]);
-
+    window.addEventListener('credits_changed', refreshBilling);
+    return () => window.removeEventListener('credits_changed', refreshBilling);
+  }, [refreshBilling]);
   const [payModalOpen, setPayModalOpen] = useState(false);
-  const [selectedPayPkg, setSelectedPayPkg] = useState({ name: '专业版', price: '299', credits: '1000' });
-  const [alipaySubmitting, setAlipaySubmitting] = useState(false);
-
-  // 支付宝 AI 付下单：服务端签名生成表单后整页跳转；失败时回退手动扫码支付弹窗
-  const handleSelectPlan = async (plan: Plan | any) => {
-    if (plan.price === 0) {
-      toast.info('您当前已在享有体验权益');
-      return;
-    }
-    if (alipaySubmitting) return;
-    setSelectedPayPkg({
-      name: plan.name,
-      price: String(plan.price),
-      credits: String(plan.credits || '500'),
-    });
-    setAlipaySubmitting(true);
-    const toastId = toast.loading(`正在创建支付宝订单（${plan.name}）…`);
-    try {
-      const order = await createAlipayOrder(plan.id);
-      toast.success(`订单 ${order.order_no} 已创建，正在跳转支付宝支付 ¥${order.amount}…`, { id: toastId });
-      // 表单提交为整页跳转，支付完成后由 returnUrl 回跳 /alipay-return 查询最终结果
-      renderAndSubmitAlipayForm(order.payment_html);
-    } catch (e) {
-      toast.error(`支付宝下单失败：${e instanceof Error ? e.message : '未知错误'}，已切换为手动扫码支付`, { id: toastId });
-      setPayModalOpen(true);
-    } finally {
-      setAlipaySubmitting(false);
-    }
-  };
+  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+  const handleSelectPlan = (plan: Plan) => { setSelectedPlan(plan); setPayModalOpen(true); };
+  const hasPending = user ? !!readPendingCheckout(user.id) : false;
+  useEffect(() => { setPage(0); setOrderPage(0); setPayModalOpen(false); setSelectedPlan(null); }, [user?.id]);
 
   // 积分使用率
-  const usagePercent = userPlan?.plan
-    ? Math.min(100, Math.round((userPlan.credits_used / Math.max(userPlan.plan.credits, 1)) * 100))
+  const usagePercent = userPlan
+    ? Math.min(100, Math.round((userPlan.credits_used / Math.max(userPlan.credits_total, 1)) * 100))
     : 0;
-  // TODO: Fix the formula? user_plans now uses credits_total and credits_used.
-  const creditsLeft = userPlan ? userPlan.credits_total - userPlan.credits_used : 0;
+  const creditsLeft = userPlan ? Math.max(0, userPlan.credits_total - userPlan.credits_used) : 0;
 
   return (
     <div className="p-4 md:p-6 space-y-6">
@@ -337,9 +205,13 @@ export default function CreditsPage() {
         </h1>
         <p className="text-sm text-muted-foreground mt-0.5">管理您的套餐订阅和积分使用情况</p>
       </div>
+      {planQuery.error && <div role="alert" className="text-sm text-destructive flex flex-wrap gap-3 items-center">
+        {planQuery.error.message}<Button variant="outline" onClick={() => void planQuery.refetch()}>重试套餐读取</Button>
+      </div>}
+      {hasPending && <Button variant="outline" onClick={() => { setSelectedPlan(null); setPayModalOpen(true); }}>恢复原支付请求</Button>}
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 w-full max-w-5xl bg-transparent h-auto p-0 mb-6">
+        <TabsList className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3 w-full max-w-5xl bg-transparent h-auto p-0 mb-6">
           <TabsTrigger
             value="invite"
             className="h-12 rounded-full font-semibold text-xs sm:text-sm md:text-base px-2 sm:px-4 transition-all duration-300 gap-1.5 sm:gap-2 flex items-center justify-center border
@@ -377,6 +249,7 @@ export default function CreditsPage() {
             <ClipboardList className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
             <span className="truncate">积分记录 · 收支明细</span>
           </TabsTrigger>
+          <TabsTrigger value="orders" className="h-12 rounded-full border text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">订单记录</TabsTrigger>
         </TabsList>
 
         {/* ── 概览 Tab ── */}
@@ -444,7 +317,7 @@ export default function CreditsPage() {
               {/* 快速统计 */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
-                  { label: '总积分', value: (userPlan.plan?.credits || 0).toLocaleString(), icon: Zap, color: 'text-primary' },
+                  { label: '总积分', value: userPlan.credits_total.toLocaleString(), icon: Zap, color: 'text-primary' },
                   { label: '已使用', value: userPlan.credits_used.toLocaleString(), icon: TrendingDown, color: 'text-destructive' },
                   { label: '剩余积分', value: creditsLeft.toLocaleString(), icon: TrendingUp, color: 'text-success' },
                   { label: '使用率', value: `${usagePercent}%`, icon: CreditCard, color: 'text-info' },
@@ -503,7 +376,7 @@ export default function CreditsPage() {
         <TabsContent value="plans" className="mt-4">
           {loadingPlan ? (
             <div className="flex items-center justify-center py-16"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
-          ) : (
+          ) : !planQuery.error && plans.length === 0 ? <p className="py-12 text-center text-muted-foreground">暂无可购买套餐</p> : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {plans.map((plan, idx) => (
                 <PlanCard
@@ -536,16 +409,20 @@ export default function CreditsPage() {
                 <SelectItem value="video_generate">视频生成</SelectItem>
                 <SelectItem value="template_download">模板下载</SelectItem>
                 <SelectItem value="material_upload">素材上传</SelectItem>
-                <SelectItem value="purchase">套餐购买</SelectItem>
+                <SelectItem value="plan_purchase">套餐开通</SelectItem>
+                <SelectItem value="booster_purchase">加油包购买</SelectItem>
+                <SelectItem value="refund">退款</SelectItem>
                 <SelectItem value="bonus">赠送积分</SelectItem>
                 <SelectItem value="deduct">扣除</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">共 {isMockLogs ? displayLogs.length : logs.length} 条记录 {isMockLogs && '(演示示例)'}</p>
+            <p className="text-xs text-muted-foreground">共 {logsQuery.data?.total ?? 0} 条记录</p>
           </div>
 
           {/* 表格 */}
-          {loadingLogs ? (
+          {logsQuery.error ? <div role="alert" className="text-sm text-destructive">
+            {logsQuery.error.message}<Button variant="outline" className="ml-3" onClick={() => void logsQuery.refetch()}>重试流水读取</Button>
+          </div> : loadingLogs ? (
             <Card>
               <div className="overflow-x-auto w-full max-w-full">
                 <Table className="[&>div]:max-w-full">
@@ -578,7 +455,7 @@ export default function CreditsPage() {
                 </Table>
               </div>
             </Card>
-          ) : displayLogs.length === 0 ? (
+          ) : logs.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 gap-3">
               <CreditCard className="w-10 h-10 text-muted-foreground/30" />
               <p className="text-sm text-muted-foreground">暂无积分记录</p>
@@ -586,12 +463,6 @@ export default function CreditsPage() {
           ) : (
             <>
               <Card className="relative overflow-hidden border border-border/60">
-                {isMockLogs && (
-                  <div className="absolute top-2 right-2 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 text-[10px] px-2.5 py-1 rounded-full border border-indigo-100 dark:border-indigo-900/30 font-semibold flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
-                    系统初始演示记录
-                  </div>
-                )}
                 <div className="overflow-x-auto w-full max-w-full">
                   <Table className="[&>div]:max-w-full">
                     <TableHeader>
@@ -604,7 +475,7 @@ export default function CreditsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {displayLogs.map(log => {
+                      {logs.map(log => {
                         const typeInfo = TYPE_LABELS[log.type] ?? { label: log.type, cls: 'bg-muted text-muted-foreground' };
                         return (
                           <TableRow key={log.id}>
@@ -639,7 +510,7 @@ export default function CreditsPage() {
                   <Button size="sm" variant="outline" className="h-8" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
                     上一页
                   </Button>
-                  <Button size="sm" variant="outline" className="h-8" disabled={isMockLogs || logs.length < PAGE_SIZE} onClick={() => setPage(p => p + 1)}>
+                  <Button size="sm" variant="outline" className="h-8" disabled={(page + 1) * PAGE_SIZE >= (logsQuery.data?.total || 0)} onClick={() => setPage(p => p + 1)}>
                     下一页
                   </Button>
                 </div>
@@ -647,57 +518,37 @@ export default function CreditsPage() {
             </>
           )}
         </TabsContent>
-      </Tabs>
-
-      {/* 微信支付弹窗 */}
-      <Dialog open={payOpen} onOpenChange={setPayOpen}>
-        <DialogContent className="w-[90vw] max-w-[380px] max-h-[85vh] p-4 sm:p-6 overflow-y-auto rounded-2xl">
-          <DialogHeader className="pb-2">
-            <DialogTitle className="text-base sm:text-lg">微信支付</DialogTitle>
-            <DialogDescription className="text-xs">购买 {payingObj?.name}</DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col items-center py-2.5 sm:py-4 gap-2.5 sm:gap-3">
-            <div className="text-2xl sm:text-3xl font-bold text-primary mb-0.5">
-              <span className="text-base sm:text-lg">¥</span>{payingObj?.price}
-            </div>
-            
-            {payStatus === 'creating' ? (
-              <div className="flex flex-col items-center justify-center p-6 gap-2 bg-muted/30 rounded-xl w-36 h-36 sm:w-44 sm:h-44 border border-border">
-                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">正在生成支付码...</span>
-              </div>
-            ) : payStatus === 'polling' && payUrl ? (
-              <div className="flex flex-col items-center p-3 bg-white rounded-xl shadow-sm border border-border">
-                <QRCodeDataUrl value={payUrl} size={150} />
-                <p className="text-xs text-gray-800 mt-2.5 flex items-center gap-1.5">
-                  <Loader2 className="w-3 h-3 animate-spin" />请使用微信扫码支付
-                </p>
-              </div>
-            ) : payStatus === 'success' ? (
-              <div className="flex flex-col items-center justify-center p-6 gap-2 bg-success/10 rounded-xl w-36 h-36 sm:w-44 sm:h-44 border border-success/30 text-success">
-                <CheckCircle2 className="w-8 h-8 sm:w-10 sm:h-10" />
-                <span className="font-medium text-xs sm:text-sm">支付成功！</span>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center p-6 gap-2 bg-destructive/10 rounded-xl w-36 h-36 sm:w-44 sm:h-44 border border-destructive/30 text-destructive">
-                <AlertCircle className="w-6 h-6 sm:w-8 sm:h-8" />
-                <span className="text-xs">网络错误或支付失败</span>
-                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleSelectPlan(payingObj!)}>重试</Button>
-              </div>
-            )}
-            
-            <p className="text-[11px] text-muted-foreground mt-2 text-center">支付成功后将自动到账<br/>如遇问题请联系客服微信：wyx200265</p>
+        <TabsContent value="orders" className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">共 {ordersQuery.data?.total || 0} 条订单</p>
+            <Button variant="outline" onClick={() => void ordersQuery.refetch()}>刷新订单</Button>
           </div>
-        </DialogContent>
-      </Dialog>
-
-      <PaymentDialog
+          {ordersQuery.error ? <p role="alert" className="text-destructive text-sm">{ordersQuery.error.message}</p>
+            : ordersQuery.isPending ? <p className="text-sm">正在读取订单…</p>
+            : !ordersQuery.data?.orders.length ? <p className="py-12 text-center text-muted-foreground">暂无订单记录</p>
+            : ordersQuery.data.orders.map(order => <Card key={order.id}><CardContent className="p-4 space-y-2">
+              <p className="font-medium">{(order.plan_snapshot as { name?: string } | null)?.name || '历史订单'}</p>
+              <p className="text-xs break-all font-mono">{order.order_no}</p>
+              <p className="text-sm text-muted-foreground">{fmtDate(order.created_at)} · {order.pay_channel === 'alipay' ? '支付宝' : '微信'}
+                {' · '}¥{Number(order.total_amount).toFixed(2)} · {({ pending: '待支付', paid: '已支付', cancelled: '已取消',
+                  partial_refunded: '部分退款', refunded: '已退款' } as Record<string, string>)[order.status] || '状态待核对'}</p>
+              <Button variant="outline" size="sm" onClick={() => navigate(`/order/${order.id}`)}>查看订单</Button>
+            </CardContent></Card>)}
+          <div className="flex justify-between gap-3 items-center">
+            <span className="text-xs text-muted-foreground">第 {orderPage + 1} 页</span>
+            <div className="flex gap-2">
+              <Button variant="outline" disabled={orderPage === 0 || ordersQuery.isFetching} onClick={() => setOrderPage(p => p - 1)}>上一页</Button>
+              <Button variant="outline" disabled={ordersQuery.isFetching || (orderPage + 1) * PAGE_SIZE >= (ordersQuery.data?.total || 0)} onClick={() => setOrderPage(p => p + 1)}>下一页</Button>
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
+      {payModalOpen && <PaymentDialog
         open={payModalOpen}
         onOpenChange={setPayModalOpen}
-        pkgName={selectedPayPkg.name}
-        price={selectedPayPkg.price}
-        credits={selectedPayPkg.credits}
-      />
+        plan={selectedPlan}
+        onCreated={refreshBilling}
+      />}
     </div>
   );
 }

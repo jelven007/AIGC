@@ -268,6 +268,7 @@ export default function LoginPage() {
   const { user, loading: authLoading } = useAuth();
   const searchParams = new URLSearchParams(window.location.search);
   const inviteCodeParam = searchParams.get('invite');
+  const destination = searchParams.get('redirect') === '/credits?tab=plans' ? '/credits?tab=plans' : '/';
 
   // F-04: 默认直接进入“立即注册”界面
   const initialMode = (searchParams.get('mode') as Mode) || 'register';
@@ -285,8 +286,8 @@ export default function LoginPage() {
 
   // 已登录用户直接跳转工作台
   useEffect(() => {
-    if (!authLoading && user) navigate('/', { replace: true });
-  }, [user, authLoading, navigate]);
+    if (!authLoading && user) navigate(destination, { replace: true });
+  }, [user, authLoading, navigate, destination]);
 
   const set = (k: string, v: string) => {
     setForm(f => ({ ...f, [k]: v }));
@@ -333,7 +334,7 @@ export default function LoginPage() {
           const { error } = await supabase.auth.signInWithPassword({ email, password: form.password });
           if (error) throw error;
           toast.success('登录成功，欢迎回来！');
-          navigate('/');
+          navigate(destination);
         } else {
           const { data, error } = await supabase.auth.signUp({
             email,
@@ -363,7 +364,7 @@ export default function LoginPage() {
 
           if (data.session) {
             toast.success('注册成功，欢迎加入！');
-            navigate('/');
+            navigate(destination);
           } else {
             toast.info('注册成功，请查收验证邮件后登录');
             setMode('login');
