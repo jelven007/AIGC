@@ -1,5 +1,7 @@
 # 变更、需求与文档追踪矩阵
 
+迭代24 [微信交易链](ITERATION_24_WECHAT_TRANSACTIONS.md)对应REQ-WECHAT-TRANSACTION-01/WECHAT-CASH-REFUND-01：00052、签名查单/到期关单/迟到入账、原退款/通知/租约和共用权益事务、运营原渠道恢复。同步PRD/支付/API/架构/开发/测试/运营运维/发布；13项微信PG与原现金/收银回归、RSA/AES和页面验证，probe13/00052/render2。真实商户/异常退款/渠道对账/目标部署仍待验收或开发。
+
 迭代23 [数据生命周期](ITERATION_23_DATA_LIFECYCLE.md)对应REQ-MEDIA-LIFECYCLE-01/VOICE-REVOKE-01/KNOWLEDGE-ERASE-01：00051、引用索引/24小时TTL/租约/墓碑、声纹原供应商删除/单退款、知识副本/晚到结果和七天证据清理。同步PRD、架构/API、开发、PG/协议/MCP/页面、测试、运营/运维/调度及部署；17PG、56工具/18权限、probe12/00051/render2。真实目标删除/容量/备份恢复未以本地回归替代。
 
 迭代21 [图片选品/商品翻译/竞品引用/真实通知](ITERATION_21_TRANSLATION_NOTIFICATIONS.md)对应REQ-INTELLIGENCE-02/PRODUCT-TRANSLATE-01/NOTIFY-01：00049、私有图片指纹/eBay官方POST、原版本12语言/主图文字/原结果恢复、DB正式快照引用/使用权与任务终态通知/RLS/cutoff/偏好。同步需求、架构/API、开发、PG/协议/页面/MCP、测试、运维/调度/部署与当前状态；MCP54/18权限，probe v10/00049/render2。目标供应商和全栈发布不以本地回归替代。

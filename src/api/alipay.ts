@@ -28,12 +28,14 @@ async function extractInvokeError(error: any): Promise<Error> {
 
 export interface CashRefundReceipt {
   id: string; order_id: string; out_request_no: string; request_key: string | null;
-  refund_amount: string; refund_status: 'init' | 'requested' | 'success' | 'unknown';
+  refund_amount: string; refund_status: 'init' | 'requested' | 'success' | 'unknown' | 'closed';
+  pay_channel: 'alipay' | 'wechat';
   applied_at: string | null; revoked_credits: number; needs_attention: boolean; next_query_at: string | null;
 }
-export class AlipayOperationError extends Error {
+export class CashOperationError extends Error {
   constructor(message: string, readonly status: number, readonly outcome: string) { super(message); }
 }
+export { CashOperationError as AlipayOperationError };
 
 /**
  * 渲染 pageExec 生成的表单并自动提交（页面跳转类 API 唯一正确调起方式）。
@@ -89,7 +91,7 @@ export async function alipayTradeOps(params: {
   if (error) {
     const response = error.context instanceof Response ? error.context : null;
     const details = await response?.json().catch(() => null);
-    throw new AlipayOperationError(details?.message || error.message, response?.status || 0, details?.outcome || 'unknown');
+    throw new CashOperationError(details?.message || error.message, response?.status || 0, details?.outcome || 'unknown');
   }
   if (data?.code !== 0) throw new Error(data?.message || '交易操作失败');
   return (data.data ?? {}) as Record<string, unknown>;

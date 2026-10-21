@@ -1,12 +1,13 @@
 import { supabase } from '@/db/supabase';
 import { alipayTradeOps } from './alipay';
+import { wechatTradeOps } from './wechat';
 export type OperatorDomain = 'orders' | 'refunds' | 'customers' | 'jobs' | 'risk' | 'audit' | 'operators';
 export interface OperatorAccess { root: boolean; permissions: string[]; grants: { id: string; role: string; scope_user_id: string | null }[] }
 export interface OperatorPage { items: Record<string, unknown>[]; total: number; page: number; page_size: number; observed_at: string }
 export type OperatorRequest = { action: 'mutate'; operation: 'budget' | 'grant' | 'revoke'; request_key: string; payload: Record<string, unknown> };
 export type PendingOperatorRequest = { kind: 'operator'; body: OperatorRequest } | { kind: 'refund'; body: {
   action: 'refund'; order_no: string; refund_amount: string; refund_reason: string; request_key: string;
-} };
+}; channel?: 'alipay' | 'wechat' };
 export class OperatorRequestError extends Error {
   constructor(message: string, readonly outcome: string) { super(message); }
 }
@@ -31,11 +32,14 @@ export function storeOperatorRequest(uid: string, request: PendingOperatorReques
 export function loadOperatorRequest(uid: string): PendingOperatorRequest | null {
   const raw = localStorage.getItem(operatorPendingKey(uid)); if (!raw) return null;
   const request = JSON.parse(raw);
-  if (!['operator', 'refund'].includes(request.kind) || !request.body || typeof request.body.request_key !== 'string') {
+  if (!['operator', 'refund'].includes(request.kind) || !request.body || typeof request.body.request_key !== 'string'
+    || request.channel !== undefined && !['alipay', 'wechat'].includes(request.channel)) {
     throw new Error('本地原申请格式异常，请联系运营核对后恢复');
   }
   return request;
 }
 export async function executeOperatorRequest(request: PendingOperatorRequest) {
-  return request.kind === 'refund' ? alipayTradeOps(request.body) : operationsRequest(request.body);
+  return request.kind === 'refund' ? refundTradeOps(request.channel || 'alipay', request.body) : operationsRequest(request.body);
 }
+export const refundTradeOps = (channel: string, body: Parameters<typeof alipayTradeOps>[0]) =>
+  channel === 'wechat' ? wechatTradeOps(body) : alipayTradeOps(body);

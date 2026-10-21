@@ -8,6 +8,12 @@ verify_jwt = false
 [functions.wechat-payment-webhook]
 verify_jwt = false
 
+[functions.wechat-refund-webhook]
+verify_jwt = false
+
+[functions.wechat-trade-ops]
+verify_jwt = true
+
 # 由后台调度器使用专用 VIDEO_WORKER_SECRET 鉴权。
 [functions.video-job-worker]
 verify_jwt = false

@@ -37,6 +37,8 @@
     { "name": "measurement-ingest", "verify_jwt": false },
     { "name": "create-payment-order", "verify_jwt": true },
     { "name": "wechat-payment-webhook", "verify_jwt": false },
+    { "name": "wechat-refund-webhook", "verify_jwt": false },
+    { "name": "wechat-trade-ops", "verify_jwt": true },
     { "name": "alipay-payment-order", "verify_jwt": true },
     { "name": "alipay-payment-notify", "verify_jwt": false },
     { "name": "alipay-trade-query", "verify_jwt": true },

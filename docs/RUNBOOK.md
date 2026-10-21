@@ -1,5 +1,7 @@
 # 运维运行手册
 
+最新 [迭代24](ITERATION_24_WECHAT_TRANSACTIONS.md)：probe13/00052/render2与微信创建/支付通知/新增交易和退款通知、支付宝交易/operations/production-worker/调度及前端同窗。监控微信订单/退款needs_attention、next_query_at、原商户失配、ABNORMAL及长期pending；后台只查询原退款，禁止删回执或盲目重发。恢复保留原商户/期限/关闭记录、请求/供应商退款ID及现金/权益台账，先停资金受理核对渠道；真实账单、告警与备份恢复仍待交付验收。
+
 最新 [迭代23](ITERATION_23_DATA_LIFECYCLE.md)：00051与production/knowledge API、Worker/调度/MCP56/前端同窗，probe12/00051/render2。监控媒体/声纹outbox积压、租约/退避、unknown引用及旧声纹凭据；只清理超过24小时无引用对象和七天终态证据，未知任务不丢证据或盲退。恢复需保留引用/删除墓碑/撤销时间和原配置版本，不能通过删回执重新启用对象或声纹；真实删除、容量与备份恢复仍待目标验收。
 
 最新 [迭代22](ITERATION_22_CHECKOUT_LOADING.md)：两支付创建/checkout/00050与前端同窗，调度probe11/00050/render2；前端POST缺原UUID/确认金额会拒绝。unknown先核对原订单，不删除本地原请求新建收款；监控十待支付配额与签名入账失败，备份checkout_request_key/原快照。微信官方查单/过期/关闭与原路退款仍待接入。多本地Vite服务缓存隔离；空白页先核对脚本HTTP/MIME与目标缓存，不更换用户会话绕过。

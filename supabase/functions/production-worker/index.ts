@@ -12,6 +12,8 @@ import { processIntelligenceJob } from '../_shared/intelligence-jobs.ts';
 import { processProductImport } from '../_shared/product-import.ts';
 import { processCashRefund } from '../_shared/cash-refunds.ts';
 import { processProductTranslation } from '../_shared/product-translation.ts';
+import { processWechatOrder } from '../_shared/wechat-transactions.ts';
+import { processWechatRefund } from '../_shared/wechat-refunds.ts';
 
 export async function handleProductionWorker(req: Request): Promise<Response> {
   if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
@@ -39,6 +41,9 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
       const products = await db.from('products').select('id,currency,source,import_job_id').limit(0);
       const receipts = await db.from('product_mutation_receipts').select('request_key,request_hash').limit(0);
       const cash = await db.from('alipay_refunds').select('request_key,lease_token,applied_at,next_query_at').limit(0);
+      const wechat = await db.from('wechat_transactions').select('order_id,mchid,lease_token,next_query_at').limit(0);
+      const wechatOrders = await db.from('orders').select('wechat_expires_at,wechat_close_requested_at').limit(0);
+      const wechatRefunds = await db.from('alipay_refunds').select('pay_channel,provider_refund_id,submitted_at').limit(0);
       const operators = await db.from('operator_mutations').select('request_key,actor_id').limit(0);
       const notifications = await db.from('notifications').select('event_key,read_at,deleted_at').limit(0);
       const references = await db.from('analysis_intelligence_references').select('job_id,context').limit(0);
@@ -56,8 +61,9 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
         && !intelligence.error && !intelligenceCosts.error && intelligenceCosts.data?.length === 2
         && !publishGroups.error && !publishTasks.error && !products.error && !receipts.error && !cash.error && !operators.error
         && !checkout.error && !notifications.error && !references.error && !translations.error && Number.isInteger(translations.data?.cost) && translations.data!.cost >= 0
-        && !retention.error && !mediaReferences.error && !revocations.error && !revocationReceipts.error && !voiceState.error && !erased.error;
-      return Response.json({ ready, version: 12, render_version: 2, required_migration: '00051' }, { status: ready ? 200 : 503 });
+        && !retention.error && !mediaReferences.error && !revocations.error && !revocationReceipts.error && !voiceState.error && !erased.error
+        && !wechat.error && !wechatOrders.error && !wechatRefunds.error;
+      return Response.json({ ready, version: 13, render_version: 2, required_migration: '00052' }, { status: ready ? 200 : 503 });
     }
     if (general && body.action === 'run') {
       const scheduled = await db.rpc('enqueue_intelligence_schedule');
@@ -78,6 +84,7 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
         () => processProductImport(db),
         () => processProductTranslation(db),
         () => processCashRefund(db),
+        () => processWechatOrder(db), () => processWechatRefund(db),
         async () => { voicesDeleted = await processVoiceDeletions(db); return voicesDeleted > 0; },
         ...KNOWLEDGE_KINDS.map(kind => () => processKnowledgeJob(db, kind)),
         ...INTELLIGENCE_KINDS.map(kind => () => processIntelligenceJob(db, kind)),

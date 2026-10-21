@@ -1,5 +1,7 @@
 # aigcp 环境部署记录
 
+最新待发布范围00032–00052，见 [迭代24](ITERATION_24_WECHAT_TRANSACTIONS.md)：新增wechat-trade-ops/wechat-refund-webhook与匹配微信创建/支付通知、支付宝交易/operations/production-worker及共享模块、调度/前端。probe13/00052/render2；回调使用微信原文签名鉴权，不带Supabase JWT。最近官方00031/三旧函数证据未变，真实商户/回调/退款/历史绑定和全栈仍需验收，本段不是上线回执。
+
 最新待发布范围00032–00051，见 [迭代23](ITERATION_23_DATA_LIFECYCLE.md)：引用索引/清理租约/声纹撤销/知识副本，匹配production-jobs/production-worker/knowledge-base及共享模块、调度/MCP56/前端同步。probe12/00051/render2；旧Storage与知识DELETE策略撤销，页面必须同窗。真实供应商删除、积压/容量与备份恢复需验收，最近官方00031/三旧函数证据未变化；此段不是部署成功记录。
 
 最新待发布范围00032–00050，见 [迭代22](ITERATION_22_CHECKOUT_LOADING.md)：两支付创建/checkout、production-worker/调度及前端同步，probe v11/00050/render2；客户端缺原UUID/确认金额/积分会拒绝。MCP54工具/18权限，资金不对Key开放。官方最近00031/三个旧函数回执未变化，此段只记录发布条件。

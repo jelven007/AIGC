@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const backend = 'https://ui-fixture.example', base = process.env.UI_TEST_URL || 'http://127.0.0.1:5197';
+const channel = process.env.CASH_TEST_CHANNEL || 'alipay';
 const uid = '11111111-1111-4111-8111-111111111111', customer = '22222222-2222-4222-8222-222222222222';
 const session = { access_token: `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify({ sub: uid, exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url')}.fixture`,
   refresh_token: 'fixture', token_type: 'bearer', expires_at: Math.floor(Date.now() / 1000) + 3600, expires_in: 3600,
@@ -23,7 +24,7 @@ try {
       if (body.action === 'access') data = { root: true, grants: [], permissions: allowed
         ? ['orders:read', 'refunds:write', 'customers:read', 'budgets:write', 'jobs:read', 'audit:read', 'operators:write'] : [] };
       if (body.action === 'list') data = { items: body.domain === 'orders'
-        ? [{ id: customer, order_no: 'order-1', total_amount: 10, refunded_amount: 0, plan_name: '专业版', status: 'paid', pay_channel: 'alipay' }]
+        ? [{ id: customer, order_no: 'order-1', total_amount: 10, refunded_amount: 0, plan_name: '专业版', status: 'paid', pay_channel: channel }]
         : body.domain === 'customers' ? [{ id: customer, username: '真实客户', email: 'customer@example.com', credit_balance: -5, daily_credit_budget: budget, plan_status: 'active' }] : [],
         total: ['orders', 'customers'].includes(body.domain) ? 1 : 0, page: body.page, observed_at: new Date().toISOString() };
       if (body.action === 'mutate') {
@@ -32,7 +33,8 @@ try {
         else { budget = body.payload.amount;
           status = failBudget ? 503 : 200; data = failBudget ? { error: '操作受理待确认', outcome: 'unknown' } : { daily_credit_budget: budget }; }
       }
-    } else if (path.endsWith('/alipay-trade-ops')) {
+    } else if (path.endsWith('/alipay-trade-ops') || path.endsWith('/wechat-trade-ops')) {
+      assert.ok(path.endsWith(`/${channel}-trade-ops`));
       refunds.push(body);
       if (body.action === 'refund' && failRefund) { status = 503; data = { code: 1, message: '退款受理待确认', outcome: 'unknown' }; }
       else data = { code: 0, data: { refund_status: refundSuccess ? 'success' : 'unknown', request_key: body.request_key } };
@@ -49,6 +51,7 @@ try {
   await page.getByRole('button', { name: '确认并提交', exact: true }).click();
   await page.getByText('退款受理待确认', { exact: true }).waitFor();
   assert.equal(refunds.length, 1); assert.equal(refunds[0].refund_amount, '3.33');
+  assert.equal(await page.evaluate(uid => JSON.parse(localStorage.getItem(`shopro-operator-request-${uid}`)).channel, uid), channel);
   assert.equal(await page.getByRole('button', { name: '确认并提交', exact: true }).isEnabled(), false);
   await page.reload(); failRefund = false;
   await page.getByRole('button', { name: '按原参数恢复', exact: true }).click();
