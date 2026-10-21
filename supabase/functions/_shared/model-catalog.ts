@@ -3,6 +3,9 @@ export const MODEL_SLOTS = [
   { id: 'text.primary', name: '主文本模型', category: 'text', protocols: ['openai-chat'], model: '', endpoint: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions' },
   { id: 'text.fallback', name: '备用文本模型', category: 'text', protocols: ['openai-chat'], model: 'deepseek-chat', endpoint: 'https://api.deepseek.com/v1/chat/completions' },
   { id: 'embedding.primary', name: '知识库 Embedding', category: 'embedding', protocols: ['openai-embeddings'], model: '', endpoint: '' },
+  { id: 'intelligence.youtube', name: 'YouTube公开频道统计', category: 'intelligence', protocols: ['youtube-data-v3'], model: '', endpoint: 'https://www.googleapis.com/youtube/v3' },
+  { id: 'intelligence.ebay', name: 'eBay多市场商品搜索', category: 'intelligence', protocols: ['ebay-browse'], model: '', endpoint: 'https://api.ebay.com/buy/browse/v1' },
+  { id: 'intelligence.licensed', name: '授权市场情报数据商', category: 'intelligence', protocols: ['intelligence-v1'], model: '', endpoint: '' },
   { id: 'image.primary', name: '图片与封面', category: 'image', protocols: ['openai-images', 'chat-image'], model: '', endpoint: '' },
   { id: 'audio.tts', name: '语音合成', category: 'audio', protocols: ['openai-tts', 'step-tts'], model: '', endpoint: '' },
   { id: 'audio.asr', name: '语音识别', category: 'audio', protocols: ['openai-asr', 'step-asr'], model: '', endpoint: '' },
@@ -32,7 +35,7 @@ export interface ModelSettings {
   endpoint: string;
   query_endpoint: string;
   model: string;
-  auth_header: 'Authorization' | 'X-Gateway-Authorization' | 'api-key' | 'x-api-key' | 'xi-api-key';
+  auth_header: 'Authorization' | 'X-Gateway-Authorization' | 'api-key' | 'x-api-key' | 'xi-api-key' | 'x-goog-api-key';
   auth_scheme: 'Bearer' | 'raw' | 'Basic';
   timeout_ms: number;
   voice: string;
@@ -52,8 +55,8 @@ export function defaultSettings(slot: string): ModelSettings {
   return {
     name: definition.name, protocol: definition.protocols[0], endpoint: definition.endpoint,
     query_endpoint: ['video', 'avatar'].includes(definition.category) ? definition.endpoint : '',
-    model: definition.model, auth_header: slot === 'avatar.lipsync' ? 'x-api-key' : slot === 'audio.voice_clone' ? 'xi-api-key' : 'Authorization',
-    auth_scheme: slot === 'avatar.photo' ? 'Basic' : ['avatar.lipsync', 'audio.voice_clone'].includes(slot) ? 'raw' : 'Bearer',
-    timeout_ms: ['video', 'avatar'].includes(definition.category) ? 30_000 : 90_000, voice: '', test_endpoint: '',
+    model: definition.model, auth_header: slot === 'intelligence.youtube' ? 'x-goog-api-key' : slot === 'avatar.lipsync' ? 'x-api-key' : slot === 'audio.voice_clone' ? 'xi-api-key' : 'Authorization',
+    auth_scheme: ['avatar.photo', 'intelligence.ebay'].includes(slot) ? 'Basic' : ['avatar.lipsync', 'audio.voice_clone', 'intelligence.youtube'].includes(slot) ? 'raw' : 'Bearer',
+    timeout_ms: ['video', 'avatar', 'intelligence'].includes(definition.category) ? 30_000 : 90_000, voice: '', test_endpoint: '',
   };
 }

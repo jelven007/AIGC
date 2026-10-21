@@ -51,18 +51,26 @@ export async function validateSettings(slot: string, raw: unknown, enabled: bool
   if (!(definition.protocols as readonly string[]).includes(result.protocol) || !result.name) {
     throw new ConfigError('模型名称或协议不正确');
   }
-  if (!['Authorization', 'X-Gateway-Authorization', 'api-key', 'x-api-key', 'xi-api-key'].includes(String(input.auth_header))
+  if (!['Authorization', 'X-Gateway-Authorization', 'api-key', 'x-api-key', 'xi-api-key', 'x-goog-api-key'].includes(String(input.auth_header))
     || !['Bearer', 'raw', 'Basic'].includes(String(input.auth_scheme))) throw new ConfigError('认证方式不正确');
   result.auth_header = input.auth_header as ModelSettings['auth_header'];
   result.auth_scheme = input.auth_scheme as ModelSettings['auth_scheme'];
   result.timeout_ms = Number(input.timeout_ms);
   if (!Number.isInteger(result.timeout_ms) || result.timeout_ms < 1000 || result.timeout_ms > 120000
-    || (['video', 'avatar'].includes(definition.category) && result.timeout_ms > 30000)) throw new ConfigError('超时应为 1–120 秒，视频提交最多 30 秒');
+    || (['video', 'avatar', 'intelligence'].includes(definition.category) && result.timeout_ms > 30000)) throw new ConfigError('超时应为 1–120 秒，视频及情报请求最多 30 秒');
   for (const key of ['endpoint', 'query_endpoint', 'test_endpoint'] as const) {
     if (result[key]) result[key] = await validateEndpoint(result[key]);
   }
+  if (slot === 'intelligence.youtube' && (result.endpoint !== 'https://www.googleapis.com/youtube/v3'
+    || result.auth_header !== 'x-goog-api-key' || result.auth_scheme !== 'raw')) {
+    throw new ConfigError('YouTube须使用官方Data API地址及x-goog-api-key原始密钥');
+  }
+  if (slot === 'intelligence.ebay' && (result.endpoint !== 'https://api.ebay.com/buy/browse/v1'
+    || result.auth_header !== 'Authorization' || result.auth_scheme !== 'Basic')) {
+    throw new ConfigError('eBay须使用正式Browse地址及Basic编码应用凭据');
+  }
   if (enabled && (!result.endpoint || (['video', 'avatar'].includes(definition.category) && !result.query_endpoint)
-    || (!['reader.primary', 'video.Kling', 'avatar.photo'].includes(definition.id) && !result.model))) {
+    || (definition.category !== 'intelligence' && !['reader.primary', 'video.Kling', 'avatar.photo'].includes(definition.id) && !result.model))) {
     throw new ConfigError('启用前请填写接口、模型及视频查询地址');
   }
   return result;

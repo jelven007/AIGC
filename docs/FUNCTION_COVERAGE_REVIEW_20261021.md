@@ -1,5 +1,7 @@
 # 原版功能覆盖校验与当前产品全景
 
+00044新增 [正式竞品/选品链](ITERATION_15_MARKET_INTELLIGENCE.md)：20槽、YouTube/eBay官方协议及授权数据商、每日预算监控/原请求/退款、来源入库/CSV与30天清理，两页移除预置数据。覆盖新增采集协议，仍需供应商授权/云端验收；全网销量、图片搜索、自动翻译与视频视觉策略不在本轮交付。当前发布范围00032–00044/探针v6，下文未更新行按原核验时点阅读。
+
 00043新增 [私有知识索引与脚本引用](ITERATION_14_KNOWLEDGE_RETRIEVAL.md)：17槽Embedding、统一knowledge_entries、后台分块/查询、版本与正文失效、服务端真实脚本引用及原积分事务；清除假整合/训练/默认脚本生成。本地PG/协议/移动页面通过，真实供应商/容量与云端待验收。部署范围扩展00032–00043，旧RAG未接入结论由本段及下表更新。
 
 00042新增 [统一观测及实验](ITERATION_13_MEASUREMENTS_EXPERIMENTS.md)：三看板删除随机/旧预测并统一官方快照；授权签名日观测、分源币种CTR/CVR/CPA/ROAS、预注册匿名随机分组/去重/窗口与双尾/Holm/Wilson、Excel和原请求恢复已实现并本地验证。广告/电商实际采集权限、原生平台实验、利润成本、自动优化/训练/发布仍待接入验收。本次更新以下指标/实验行；最新部署范围00032–00042及新函数，云端事实仍00031。
@@ -36,9 +38,9 @@
 | 套餐/积分/订单 | 已实现并强化 | 注册默认20；视频默认10，图片/封面默认各10；订单权益原子入账、任务逐笔释放，价格不等于供应商成本 | 00028–00036、CreditsPage、支付函数 |
 | 支付宝/微信收款 | 已实现，待商户验收 | 验签、金额渠道核对、重复通知一次入账；现金退款与权益回收尚非完整事务闭环 | payments/wechat/alipay、alipay-trade-ops |
 | 商品管理/URL导入/卖点 | 部分覆盖 | 用户商品CRUD；LLM提炼/网页Reader入口；部分URL/口令直接交给文本模型、预置商品与封面仍存在，不能保证准确抓取平台商品详情 | ProductsPage、UrlProductImportDialog、ai-assistant |
-| 多国选品/热卖排行榜 | 页面保留，正式数据未接入 | 页面含大量预置市场与商品数据，无已验证真实数据商采集链 | ProductSelectionPage |
+| 多国选品/热卖排行榜 | 官方搜索与授权数据商链已新增 | eBay八市场Best Match搜索、来源入库/CSV；数据商窗口销量须授权，非全网榜，图片搜索/自动翻译与真实供应商验收仍待完成 | MarketIntelligenceWorkspace、intelligence-provider/jobs、00044 |
 | 四层脚本/Prompt/翻译 | 已实现核心，部分演示保留 | 文本主备、SSE、结构化脚本、翻译/个性偏好；旧generate_storyboard等仍返回固定模板，部分失败降级内容未消除 | ScriptPage、text-provider、ai-assistant、PersonalizePage |
-| 统一模型设置 | 新增 | 16槽含语音克隆/照片口播/口型、管理员、密钥加密、不可变版本、只读连接检查 | ModelSettingsPage、model-catalog/registry、00034/00040 |
+| 统一模型设置 | 新增 | 20槽含Embedding/情报/语音/数字人、管理员、密钥加密、不可变版本、只读连接检查 | ModelSettingsPage、model-catalog/registry、00034/00040/00043/00044 |
 | 视频模型矩阵 | 七协议，Sora已退役 | ArkSeedance、MiniMax、SeedanceMini、Wan3、HappyHorse、Kling、Seedance；官方Sora API于2026-09-24关闭，设置页标注退役，旧旁路410 | model-catalog、video-providers、ITERATION_10 |
 | 首尾帧/多模态参考 | 已实现，因模型受限 | 不同模型素材组合有校验；生成2–15秒，MiniMax等规格会归一化；非任意时长/任意输入通用 | video-providers、HomePage |
 | 服务端视频任务/恢复/归档 | 已实现并强化 | 幂等预占、租约查询、成片固定路径、页面恢复、确定失败退款、受理未知核对 | video-jobs、useVideoGeneration、00030/00034 |
@@ -52,7 +54,7 @@
 | TTS/ASR | 后台任务已新增，待供应商验收 | OpenAI/Step、幂等/版本/计费/归档恢复，真实正文与可用分段，旧同步入口410 | media-jobs/audio-provider、services/audio、00040 |
 | 数字人选择/克隆/口型 | 即时克隆/照片口播/视频口型已新增 | ElevenLabs IVC及原版本配音、D-ID照片口播、Sync口型、私有归档与积分；专业声纹/全身训练/动作控制未实现 | MediaJobsPanel、media-jobs、00040、ITERATION_11 |
 | 情绪/风格DNA/直播高光 | 部分分析/演示 | 文本解读、关键词分段；随机分数、预设高光仍存在，无全链路视频视觉/ASR分析；高光页导出TXT清单，不是切片视频 | EmotionAnalysisPage、StyleCopyPage、LiveHighlightPage、phase3-assistant |
-| 竞品监控 | 演示为主 | 可建账号记录，crawl_competitor明确simulated=true；LLM/随机数不是平台抓取，24小时持续采集未实现 | CompetitorPage、phase3-assistant |
+| 竞品监控 | 正式来源与预算监控已新增 | YouTube官方近期20条统计、授权平台网关、每日确认次数/预算、历史/来源/退款/恢复；缺失指标空值，非实时全量抓取或固定最佳策略，真实权限待验收 | MarketIntelligenceWorkspace、market-intelligence、00044 |
 | 跨平台发布 | 部分覆盖，新增正式适配 | 抖音/TikTok OAuth、排期、上传、状态与审核查询；小红书/快手/B站等未接入，UI每次一个账号，无多账号一次派发 | PublishPage、platform-jobs/platforms、00036 |
 | 数据回流 | 官方视频及授权接收已新增 | 官方快照去重/缺失覆盖；HMAC授权日快照与版本、分源币种CTR/CVR/CPA/扣退款ROAS。真实广告/电商采集服务与权限待验收，利润ROI缺成本 | MeasurementDashboard、measurements/measurement-ingest、00036/00042 |
 | A/B测试/自学习 | 真实随机实验基础已新增 | 2–8变体、预注册样本/指标/窗口、来源绑定、匿名固定分组/事件去重/结案、双尾/Holm/Wilson；需要采集服务实际展示分组内容，未交付原生平台实验/自动训练发布 | ABTestPage、measurement-statistics、00042 |
@@ -101,6 +103,6 @@
 - 多平台多账号派发、广告/电商授权与归因、实验分流/自动优化策略。
 - 完整运营后台及成本、预算、告警、备份恢复和上线验收。
 
-最近云端证据仍是官方Supabase旧部署（数据库到00031、3个旧函数）；本次没有刷新云端状态。火山BaaS/Pages/ECS仍是可选迁移方案。应用当前源码需要增量迁移00032–00041、匹配函数、production调度和FFmpeg容器、真实模型与平台应用配置。
+最近云端证据仍是官方Supabase旧部署（数据库到00031、3个旧函数）；本次没有刷新云端状态。火山BaaS/Pages/ECS仍是可选迁移方案。应用当前源码需要增量迁移00032–00044、匹配函数、production调度和FFmpeg容器、真实模型与平台/数据源应用配置。
 
 优先顺序：先修新旧契约/页面兼容和事实口径，再部署验收核心链路；随后补批量/数字人/团队/OpenAPI等覆盖，最后接真实情报、广告归因与自动优化。原版“低于1元、3–5分钟、50+语言、显著转化提升”应由模型规格和真实运营实验验证，不作为本次核验结论。

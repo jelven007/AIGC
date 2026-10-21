@@ -1,5 +1,7 @@
 # 接口与数据契约
 
+00044新增 [market-intelligence契约](ITERATION_15_MARKET_INTELLIGENCE.md)：JWT POST、16KB/60次每分钟、catalog/save_target/collect/schedule/import_product/delete。collect固定request_key/target_id/confirmed_credit_cost，schedule另有request_key/runs/budget；数据库事务隔离、相同UUID重放不重复扣费/重启计划。只读供应商GET及eBay应用OAuth，结果有来源版本、观测时间/定义和空指标，不回传凭据；原phase3竞品入口410。
+
 00043新增 [knowledge-base与索引契约](ITERATION_14_KNOWLEDGE_RETRIEVAL.md)：JWT POST，catalog/query关键词、jobs、context(job_id)、create(kind=knowledge_index/search,request_key,input)。索引input={entry_id,content_hash,confirmed_credit_cost}；查询input={query,limit,confirmed_credit_cost}。正文上限64KB，90次/分钟，限流故障拒绝；400参数/402积分/409版本价格幂等/424配置/429队列/503依赖。Embedding数据仅服务端；生产任务公开结果不包含向量/凭据。旧knowledge_rag_search无任务标识410；text-generation/四层脚本可传knowledge_job_id，服务端核验引用。
 
 00042契约见 [观测与实验接口](ITERATION_13_MEASUREMENTS_EXPERIMENTS.md)：measurements的report/experiments/sources/projects/advice-price可用metrics:read，实验写/来源管理只接受JWT且来源需管理员。measurement-ingest独立验证source/timestamp/HMAC原始正文；assign/events/daily固定request_key，128KB、500请求/分钟及整批回执。数据快照需revision与明确null，8种两位小数币种，CVR为转化/点击，ROAS扣退款。analyze_traffic需project_id/creative_brief/confirmed_credit_cost，服务端加入观测。旧ab变体写权限撤销。发布函数与00042一起启用。
