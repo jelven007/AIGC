@@ -1124,6 +1124,163 @@
       }
     },
     {
+      "name": "submit_publish_group",
+      "description": "发布同一成片到1至10个账号。逐账号get_publish_options并取得用户确认；source_url用预览成片的稳定私有地址，duration为真实秒数。整组事务创建，失败/未知复用原UUID核对，平台进度各自更新。",
+      "inputSchema": {
+        "$defs": {
+          "PublishOptions": {
+            "additionalProperties": false,
+            "properties": {
+              "consent": {
+                "const": true,
+                "title": "Consent",
+                "type": "boolean"
+              },
+              "privacy_level": {
+                "title": "Privacy Level",
+                "type": "string"
+              },
+              "disable_comment": {
+                "title": "Disable Comment",
+                "type": "boolean"
+              },
+              "disable_duet": {
+                "title": "Disable Duet",
+                "type": "boolean"
+              },
+              "disable_stitch": {
+                "title": "Disable Stitch",
+                "type": "boolean"
+              },
+              "brand_content_toggle": {
+                "title": "Brand Content Toggle",
+                "type": "boolean"
+              },
+              "brand_organic_toggle": {
+                "title": "Brand Organic Toggle",
+                "type": "boolean"
+              },
+              "is_aigc": {
+                "title": "Is Aigc",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "consent",
+              "privacy_level",
+              "disable_comment",
+              "disable_duet",
+              "disable_stitch",
+              "brand_content_toggle",
+              "brand_organic_toggle",
+              "is_aigc"
+            ],
+            "title": "PublishOptions",
+            "type": "object"
+          },
+          "PublishTarget": {
+            "additionalProperties": false,
+            "properties": {
+              "connection_id": {
+                "title": "Connection Id",
+                "type": "string"
+              },
+              "options": {
+                "$ref": "#/$defs/PublishOptions"
+              }
+            },
+            "required": [
+              "connection_id",
+              "options"
+            ],
+            "title": "PublishTarget",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "source_url": {
+            "title": "Source Url",
+            "type": "string"
+          },
+          "duration": {
+            "title": "Duration",
+            "type": "number"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "targets": {
+            "items": {
+              "$ref": "#/$defs/PublishTarget"
+            },
+            "title": "Targets",
+            "type": "array"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          },
+          "scheduled_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Scheduled At"
+          }
+        },
+        "required": [
+          "project_id",
+          "source_url",
+          "duration",
+          "title",
+          "description",
+          "tags",
+          "targets",
+          "request_key"
+        ],
+        "title": "submit_publish_groupArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "query_publish_group",
+      "description": "用原UUID恢复发布组及每个账号进度；成功项不再次创建或上传。",
+      "inputSchema": {
+        "properties": {
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_key"
+        ],
+        "title": "query_publish_groupArguments",
+        "type": "object"
+      }
+    },
+    {
       "name": "query_platform_publish",
       "description": "按原UUID查询平台发布，平台作品标识和终态是成功证据。",
       "inputSchema": {

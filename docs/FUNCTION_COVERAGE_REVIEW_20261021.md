@@ -1,5 +1,7 @@
 # 原版功能覆盖校验与当前产品全景
 
+迭代18 [多账号发布组](ITERATION_18_PUBLISH_GROUPS.md)已本地交付：1–10个抖音/TikTok账号逐项确认、源预览绑定、整组事务、同UUID恢复/独立取消与MCP47工具。多账号派发不再列为未实现；完整自动编排、更多原生平台、真实授权与云端验收仍待处理。下一发布00032–00045/probe v7，下面较早记录为各轮时点。
+
 新增 [MCP迭代17](ITERATION_17_MCP_PRODUCTION.md)：45工具覆盖文本/七视频/图片/渲染/导出/五媒体/分析/批次/发布/指标/知识/情报；16权限/账号隔离与原UUID/价格、SDK真实目录及旧配音修复已本地验证。仍需匹配云端/TLS/供应商验收；工具缺口已处理，多账号派发、全自动编排及运营后台继续开发。
 
 新增 [剪辑迭代16](ITERATION_16_RENDER_EFFECTS.md)：十二个真实转场、八种RGB混合及可调色键、效果保存恢复/短工程，移除部分编辑器样例写入与失败固定字幕。已通过真实FFmpeg/协议及页面；需要匹配API与重建Worker发布。人物语义/发丝抠像、真实鼓点检测、完整自动编排及商城/音效残余演示仍是缺口，原表“特殊转场/混合全部拒绝”由本段更新。
@@ -59,14 +61,14 @@
 | 数字人选择/克隆/口型 | 即时克隆/照片口播/视频口型已新增 | ElevenLabs IVC及原版本配音、D-ID照片口播、Sync口型、私有归档与积分；专业声纹/全身训练/动作控制未实现 | MediaJobsPanel、media-jobs、00040、ITERATION_11 |
 | 情绪/风格DNA/直播高光 | 部分分析/演示 | 文本解读、关键词分段；随机分数、预设高光仍存在，无全链路视频视觉/ASR分析；高光页导出TXT清单，不是切片视频 | EmotionAnalysisPage、StyleCopyPage、LiveHighlightPage、phase3-assistant |
 | 竞品监控 | 正式来源与预算监控已新增 | YouTube官方近期20条统计、授权平台网关、每日确认次数/预算、历史/来源/退款/恢复；缺失指标空值，非实时全量抓取或固定最佳策略，真实权限待验收 | MarketIntelligenceWorkspace、market-intelligence、00044 |
-| 跨平台发布 | 部分覆盖，新增正式适配 | 抖音/TikTok OAuth、排期、上传、状态与审核查询；小红书/快手/B站等未接入，UI每次一个账号，无多账号一次派发 | PublishPage、platform-jobs/platforms、00036 |
+| 跨平台发布 | 正式适配及多账号组已新增 | 抖音/TikTok OAuth、1–10账号逐项确认、源绑定、整组回滚/恢复、独立排期/上传/审核/取消；更多原生平台与真实验收未完成 | PublishPage、platform-jobs/platforms、00036/00045、ITERATION_18 |
 | 数据回流 | 官方视频及授权接收已新增 | 官方快照去重/缺失覆盖；HMAC授权日快照与版本、分源币种CTR/CVR/CPA/扣退款ROAS。真实广告/电商采集服务与权限待验收，利润ROI缺成本 | MeasurementDashboard、measurements/measurement-ingest、00036/00042 |
 | A/B测试/自学习 | 真实随机实验基础已新增 | 2–8变体、预注册样本/指标/窗口、来源绑定、匿名固定分组/事件去重/结案、双尾/Holm/Wilson；需要采集服务实际展示分组内容，未交付原生平台实验/自动训练发布 | ABTestPage、measurement-statistics、00042 |
 | 总览/报表 | 已统一观测，仍待云端验收 | 三看板同报告、真实创建/风格/时长、官方指标与分源授权观测、Excel；取消随机预测/均值/固定提升，服务端全量汇总/明细上限 | MeasurementDashboard、measurements、00042 |
 | Prompt知识库/RAG | 私有向量链已新增，待供应商与容量验收 | 真实保存/整理、17槽Embedding、后台分块/查询、精确余弦/用户与版本隔离/正文失效、真实脚本引用；200条/24块边界，不是自动训练 | KnowledgePage、knowledge-base/knowledge.ts、00043、text-handler/四层脚本、ITERATION_14 |
 | 团队空间/RBAC/共享 | 部分界面/业务记录 | 团队/邀请/成员处理存在且UI有本地降级；私有素材授权只认user，不认team，缺团队计费与共享闭环 | TeamSpacePage、phase3-assistant、00015/00035 |
 | OpenAPI Key/沙箱 | 页面保留，实际鉴权未覆盖 | Key记录/生成UI有本地模拟；业务函数用Auth.getUser校验JWT，不读取api_keys；页面示例generate_script也非现有Action | OpenAPIPage、auth.ts、phase3-assistant |
-| MCP | 45真实SDK工具已接业务链 | JWT/受限Key、16权限、图片/渲染/导出/五媒体/分析/批次/发布/指标/知识/情报；原UUID/价格与网页一致，真实云端/TLS/供应商仍待验收 | mcp/tools.json、mcp_shopro_server.py、ITERATION_17 |
+| MCP | 47真实SDK工具已接业务链 | JWT/受限Key、16权限、图片/渲染/导出/五媒体/分析/批次/发布组/指标/知识/情报；原UUID/价格与网页一致，真实云端/TLS/供应商仍待验收 | mcp/tools.json、mcp_shopro_server.py、ITERATION_17/18 |
 | 活动/邀请/通知/缓存 | 基础保留 | 活动原子奖励、邀请/通知/缓存页面与数据；不等于自动增长营销或完备消息交付 | ActivitiesPage、InvitePage、NotificationsPage、LLMCachePage |
 | 厂商运营后台 | 未覆盖 | 原backend/也缺核心src；规格描述不是运行系统，未有完整租户、成本、工单、风控和财务后台 | backend/、docs/后端.md |
 | 部署与后台运维 | 新增工程支持，待运行验收 | Docker调度/渲染、专用密钥、迁移回执、部署清单；全栈云端、告警、备份恢复、压测仍未验收 | deploy/、scripts/、docs/RUNBOOK.md |

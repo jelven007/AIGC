@@ -1,5 +1,7 @@
 # 接口与数据契约
 
+00045新增 [发布组契约](ITERATION_18_PUBLISH_GROUPS.md)：platform-publish/create_group接受原UUID、project_id、稳定source_url/真实duration、内容/时间与1–10个targets，各target完整options/consent。publish:create创建、publish:read/query_group核对；202返回组与独立任务，list新增20组/100任务。409明确区分publish_group_rejected与publish_group_conflict，超时503保留原键。组表/RPC仅服务身份可用，API绑定当前用户。
+
 新增 [MCP与Key契约](ITERATION_17_MCP_PRODUCTION.md)：45工具定义由真实SDK导出，媒体create强制工具层UUID/confirmed_credit_cost。16权限共用目录；knowledge-base读/写、market-intelligence读/写、platform-publish取消/指标同步和platform-accounts安全读取接入Key范围，账号授权/撤销/应用设置仍JWT。错误脱敏并保留原键，不自动重发POST。完整参数见[MCP指南](../mcp/mcp.md)。
 
 render v1增量见 [迭代16](ITERATION_16_RENDER_EFFECTS.md)：十二transition标识、可选transitionDuration(0.02–2s)，视觉轨blendMode八模式、chromaKey六位RGB/容差0.01–1/平滑0–1。前后交接按时长收缩，不延长工程；转场主轨不得重叠，画中画可叠加。API/Worker双校验，沿原production-jobs/request_key/私有引用提交；项目整数duration上取整，style_data保存精确时长。

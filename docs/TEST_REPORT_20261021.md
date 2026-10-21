@@ -1,5 +1,7 @@
 # 验证报告：2026-10-21
 
+2026-10-22追加迭代18：[发布组](ITERATION_18_PUBLISH_GROUPS.md)真实PG5项（15.493s）、Edge4组/网页4组、SDK12项（0.436s）及47工具目录通过；22操作权限拒绝与既有production6组通过。源码覆盖多账号事务/恢复/预览源/分项取消，供应商与云端未验收，本地夹具不代表真实发布成功。
+
 迭代17实测：11项真实MCP SDK（0.448s）、45工具目录、4组scope接口、6项真实PG访问权限（22.856s）/原访问3组、知识6组/情报7组及部署工具9项通过。六业务入口Deno、TypeScript/Biome/实际规则lint和生产构建（8.15s）通过，MCP镜像已重建；详见 [MCP生产链](ITERATION_17_MCP_PRODUCTION.md)。上游夹具与隔离PG验证不代表云端或真实模型/平台/TLS已上线。
 
 迭代16实测：12项真实FFmpeg通过（96.044s），3组效果/旧Worker领取协议通过，实际编辑器桌面/390px参数提交/稳定URL/2秒工程/保存刷新和重开参数通过；production既有6组、analysis4组通过。TypeScript、Biome、实际规则lint及Deno production-jobs/production-worker检查通过，Worker镜像已重建，396个本地文档链接通过，生产构建5.26秒通过。详见 [剪辑效果](ITERATION_16_RENDER_EFFECTS.md)，真实云端、多编码/4K容量和人物语义分割未验收，不能据此宣称完整生产上线。

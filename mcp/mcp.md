@@ -1,6 +1,6 @@
 # MCP 接入指南
 
-更新：2026-10-21，迭代17提供45个实际SDK工具，复用用户JWT或有范围/限额的业务API Key。统一任务、计费、私有素材、配置版本与网页相同，模型密钥不进入MCP。新函数/00032–00044尚未云端验收，接入前须部署匹配服务。状态见 [CURRENT_STATE](../docs/CURRENT_STATE.md)。
+更新：2026-10-22，迭代18提供47个实际SDK工具，复用用户JWT或有范围/限额的业务API Key。统一任务、计费、私有素材、配置版本与网页相同，模型密钥不进入MCP。新函数/00032–00045尚未云端验收，接入前须部署匹配服务。状态见 [CURRENT_STATE](../docs/CURRENT_STATE.md)。
 
 ## 1. 入口与连接配置
 
@@ -33,6 +33,7 @@ HTTP ContextVar 在每次请求后重置，无状态传输避免用户会话混�
 | query_video_batch/list_video_batches/control_video_batch | ID或UUID/无/batch_id及pause/resume/cancel | 读取批次，控制未提交项，已受理项继续核对 |
 | list_publish_accounts/get_publish_options | 无/connection_id | 账号安全摘要/实际可见范围；网页完成OAuth授权 |
 | submit_platform_publish/query_platform_publish/list_platform_publish_tasks/cancel_platform_publish | 作品/账号/title/description/tags/options/UUID/排期；原UUID/无/task_id | 发布需完整可见/商业/AIGC及consent选项；取消只影响未提交项，每账号独立UUID |
+| submit_publish_group/query_publish_group | project_id/source_url/duration/内容/targets/原UUID/可选排期；原UUID | 1–10个账号各自读取权限并取得同意，稳定私有源与真实时长绑定；整组事务保存、状态独立，未知按原组查询，不重发成功项 |
 | get_platform_metrics/sync_platform_metrics | 无 | 读自然视频官方指标/主动同步；同步单独metrics:sync权限，2次/用户/分钟 |
 | list_knowledge/submit_knowledge_index/search_knowledge/get_knowledge_context | 查询/条目hash+UUID+价格/查询+UUID+价格/检索job_id | 读取、索引、语义查询及有效引用；不是自动训练 |
 | list_market_intelligence/save_intelligence_target/collect_market_intelligence | 类型/对象及source_slot/params/UUID/target_id+UUID+价格 | 读取、保存和采集正式或授权来源，字段缺失保留空值 |

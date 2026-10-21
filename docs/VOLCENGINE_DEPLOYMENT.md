@@ -1,5 +1,7 @@
 # 火山引擎部署指南
 
+发布组新增 [00045](ITERATION_18_PUBLISH_GROUPS.md)，迁移清单自动纳入；目标需完整00032–00045、匹配platform-publish/production-worker/probe v7和47工具MCP镜像，再发布前端。没有新增平台秘密或网关宽泛权限，API内部维持当前用户与16范围。真实火山资源/平台授权/审核/定时验收尚未执行，不能把本地验证记为部署完成。
+
 新增 [MCP迭代17](ITERATION_17_MCP_PRODUCTION.md)发布要求：45工具镜像、16权限与匹配六业务函数；manifest/config关闭platform-accounts网关JWT，函数内仅list/creator接受受限Key，OAuth/应用管理仍用户JWT。schema仍00044，先后端/Worker再MCP与前端；公网TLS/Host和真实模型/平台验收尚未执行。
 
 当前清单新增market-intelligence，需00032–00044和匹配production-worker探针v6/20槽设置页；官方协议、授权数据商、预算监控和留存验收见 [迭代15](ITERATION_15_MARKET_INTELLIGENCE.md)。仍只有适配代码与本地验证，火山资源/真实供应商未运行验收；先发布后端/Worker并验证，再发布前端。

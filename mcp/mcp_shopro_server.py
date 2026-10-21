@@ -31,6 +31,12 @@ class PublishOptions(BaseModel):
     is_aigc: bool
 
 
+class PublishTarget(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    connection_id: str
+    options: PublishOptions
+
+
 def identifier(value: str) -> str:
     return str(uuid.UUID(value))
 
@@ -305,6 +311,29 @@ async def submit_platform_publish(project_id: str, connection_id: str, title: st
             "project_id": identifier(project_id), "connection_id": identifier(connection_id),
             "title": title, "description": description, "tags": tags, "options": options.model_dump(),
             "request_key": identifier(request_key), "scheduled_at": scheduled_at}))["task"]
+
+
+@mcp.tool()
+async def submit_publish_group(project_id: str, source_url: str, duration: float, title: str,
+                               description: str, tags: list[str], targets: list[PublishTarget],
+                               request_key: str, scheduled_at: Optional[str] = None):
+    """发布同一成片到1至10个账号。逐账号get_publish_options并取得用户确认；source_url用预览成片的稳定私有地址，duration为真实秒数。整组事务创建，失败/未知复用原UUID核对，平台进度各自更新。"""
+    if not 1 <= len(targets) <= 10:
+        raise ValueError("一次选择1至10个账号")
+    normalized = [{"connection_id": identifier(target.connection_id), "options": target.options.model_dump()}
+                  for target in targets]
+    if len({target["connection_id"] for target in normalized}) != len(normalized):
+        raise ValueError("不能重复选择同一账号")
+    return (await call_backend("platform-publish", {"action": "create_group",
+            "project_id": identifier(project_id), "source_url": source_url, "duration": duration,
+            "title": title, "description": description, "tags": tags, "targets": normalized,
+            "request_key": identifier(request_key), "scheduled_at": scheduled_at}))["group"]
+
+
+@mcp.tool()
+async def query_publish_group(request_key: str):
+    """用原UUID恢复发布组及每个账号进度；成功项不再次创建或上传。"""
+    return await call_backend("platform-publish", {"action": "query_group", "request_key": identifier(request_key)})
 
 
 @mcp.tool()

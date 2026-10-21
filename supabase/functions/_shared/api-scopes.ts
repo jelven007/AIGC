@@ -20,8 +20,8 @@ export function intelligenceScope(action: string): string | undefined {
     : ['save_target', 'collect', 'schedule', 'delete', 'import_product'].includes(action) ? 'intelligence:write' : undefined;
 }
 export function publishScope(action: string): string | undefined {
-  return ['create', 'cancel'].includes(action) ? 'publish:create'
-    : ['query', 'list'].includes(action) ? 'publish:read'
+  return ['create', 'create_group', 'cancel'].includes(action) ? 'publish:create'
+    : ['query', 'query_group', 'list'].includes(action) ? 'publish:read'
       : action === 'metrics' ? 'metrics:read' : action === 'sync' ? 'metrics:sync' : undefined;
 }
 export function accountScope(action: string): string | undefined {
