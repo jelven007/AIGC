@@ -21,8 +21,11 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
       const voices = await db.from('voice_clones').select('id,model_config_version_id').limit(0);
       const costs = await db.from('credit_costs').select('action,cost').in('action', Object.keys(MEDIA_JOB_SLOTS).map(kind => `generate_${kind}`));
       const analysis = await db.from('credit_costs').select('cost').eq('action', 'generate_analysis').maybeSingle();
-      const ready = !error && !voices.error && !costs.error && costs.data?.length === Object.keys(MEDIA_JOB_SLOTS).length && !analysis.error && !!analysis.data;
-      return Response.json({ ready, version: 3, required_migration: '00041' }, { status: ready ? 200 : 503 });
+      const measurements = await db.from('measurement_sources').select('id,key_digest').limit(0);
+      const experiments = await db.from('content_experiments').select('id,planned_sample').limit(0);
+      const ready = !error && !voices.error && !costs.error && costs.data?.length === Object.keys(MEDIA_JOB_SLOTS).length
+        && !analysis.error && !!analysis.data && !measurements.error && !experiments.error;
+      return Response.json({ ready, version: 4, required_migration: '00042' }, { status: ready ? 200 : 503 });
     }
     if (general && body.action === 'run') {
       // 以轮转顺序避免长视频队列使图片或发布饿死。

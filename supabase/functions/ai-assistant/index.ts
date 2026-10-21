@@ -143,17 +143,20 @@ async function deductCredits(
   supabase: ReturnType<typeof businessClient>,
   userId: string,
   action: string,
+  confirmedCost?: number,
 ): Promise<{ allowed: boolean; cost: number; remaining: number; chargeId?: string; error?: string }> {
   if (!userId) return { allowed: false, cost: 0, remaining: 0, error: '缺少认证用户上下文' };
 
   try {
     // 1. 查询该 action 的基准积分成本
-    const { data: costRow } = await supabase
+    const { data: costRow, error: costError } = await supabase
       .from('credit_costs')
       .select('cost')
       .eq('action', action)
       .maybeSingle();
-    const cost = costRow?.cost ?? 0;
+    if (costError || !costRow) return { allowed: false, cost: 0, remaining: 0, error: '计费配置暂不可用' };
+    const cost = costRow.cost;
+    if (confirmedCost !== undefined && confirmedCost !== cost) return { allowed: false, cost, remaining: 0, error: '价格已变化，请刷新后确认' };
     if (cost === 0) return { allowed: true, cost: 0, remaining: 0 };
 
     // 2. 查询用户套餐与积分状态
@@ -354,6 +357,16 @@ Deno.serve(async (req) => {
     if (['analyze_style', 'extract_highlights'].includes(action)) {
       return err('视频分析已迁移至production-jobs analysis，请上传视频创建后台任务', 4100, 410);
     }
+    if (action === 'analyze_traffic') {
+      if (!body.project_id || typeof body.creative_brief !== 'string' || !body.creative_brief.trim() || body.creative_brief.length > 3000
+        || !Number.isSafeInteger(body.confirmed_credit_cost) || body.confirmed_credit_cost < 0) return err('请填写创意背景并确认当前积分价格', 4000, 400);
+      // 提示词只接收已确认的背景和服务端观测，忽略客户端提交的经营指标。
+      const measured = await supabase.rpc('read_measurement_report', { p_user: userId,
+        p_since: new Date(Date.now() - 30 * 86400000).toISOString(), p_project: body.project_id });
+      if (measured.error) return err('观测服务不可用，暂未发起模型调用', 5030, 503);
+      body.observed_metrics = { natural: measured.data.natural_totals, video_count: measured.data.natural_count,
+        delivery: measured.data.delivery.slice(0, 20), note: '累计自然视频指标与分源投放分别观察，不能直接推导因果' };
+    }
     if (action === 'generate_video' || action === 'retry_video_job') {
       // 旧处理器按客户端 project_id 操作 service_role，且无持久化任务补偿。
       return err('旧视频入口已停用，请使用 video-jobs；确定失败任务由服务端自动退积分', 5031, 503);
@@ -409,7 +422,7 @@ Deno.serve(async (req) => {
         await recordModelCall(supabase, { userId, action, status: 'blocked', latencyMs: Date.now() - start, creditsCost: 0 });
         return err(`今日 AI 算力预算已达上限（${budget.budget} 积分），请明日再试或联系管理员调整额度`, 4002, 429);
       }
-      const charge = await deductCredits(supabase, userId, action);
+      const charge = await deductCredits(supabase, userId, action, action === 'analyze_traffic' ? body.confirmed_credit_cost : undefined);
       if (!charge.allowed) {
         return err(charge.error || `积分不足（需 ${charge.cost} 积分，当前剩余 ${charge.remaining} 积分）`, 4001, 402);
       }
@@ -588,8 +601,10 @@ async function generateStoryboard(body: Record<string, unknown>) {
 
 // ─── 流量分析预测 ─────────────────────────────────────────────────────────────
 async function analyzeTraffic(body: Record<string, unknown>) {
-  const parsed = await structuredText('依据视频参数提供1–8条内容优化建议，不输出未经实测的点击或完播概率。返回'
-    + '{"suggestions":[{"type":"duration|subtitle|pacing|bgm|cta","title":"建议","description":"依据参数说明原因","priority":"high|medium|low"}]}', body);
+  const parsed = await structuredText('依据创意背景和服务端观测提供1–8条内容优化建议，缺少媒体证据不能断言镜头节奏或字幕已被检测。'
+    + '不输出未经实测的点击或完播概率，不保证因果或优化提升。返回'
+    + '{"suggestions":[{"type":"duration|subtitle|pacing|bgm|cta","title":"建议","description":"依据参数说明原因","priority":"high|medium|low"}]}',
+    { creative_brief: body.creative_brief, observed_metrics: body.observed_metrics });
   if (!Array.isArray(parsed.suggestions) || !parsed.suggestions.length || parsed.suggestions.length > 8) throw new Error('模型未返回优化建议');
   const suggestions = parsed.suggestions.map((item: any) => {
     if (!['duration', 'subtitle', 'pacing', 'bgm', 'cta'].includes(item.type) || !['high', 'medium', 'low'].includes(item.priority)) throw new Error('优化建议类型不正确');

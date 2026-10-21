@@ -1,5 +1,7 @@
 # aigcp 环境部署记录
 
+本地增量00042及 [观测实验](ITERATION_13_MEASUREMENTS_EXPERIMENTS.md)不改变真实部署回执。下次需核对00032–00042、measurements/measurement-ingest、匹配AI/Worker probe v4和前端，再实际登记授权采集来源/验收分流与指标；现有云端00031及旧3函数不能运行新报告。
+
 新增本地00041与 [真实素材分析](ITERATION_12_GROUNDED_ANALYSIS.md)，官方云端实际回执仍00031。本段不更新部署记录；下一次发布应核对00032–00041、共享函数、production调度、FFmpeg镜像与真实模型能力，再发布前端。
 
 记录性质：此前部署与运行验收证据，2026-10-21 本轮只读复核。当前源码基线 `ce90bfe`，云端停在 00031 与旧三函数；不是最新全栈发布回执。以 [当前状态](CURRENT_STATE.md) 判断版本差距。

@@ -1,5 +1,7 @@
 # 视频任务后台调度
 
+00042 [观测及实验](ITERATION_13_MEASUREMENTS_EXPERIMENTS.md)把production-worker探针升级v4，核对measurement_sources/key_digest及content_experiments结构。自然视频仍由原15分钟指标调度采集，签名日观测/实验事件由授权采集服务主动送达；不能靠视频Cron推断广告/电商/实验流量已接入。最新部署须覆盖00032–00042及新增函数，旧探针说明仅为历史版本。
+
 00041新增 [两段素材分析](ITERATION_12_GROUNDED_ANALYSIS.md)：通用production轮转增加analysis；FFmpeg轮转render与analysis_prepare，prepared后释放租约进入模型阶段。probe升级version=3/required_migration=00041，部署仍需匹配函数与镜像，现有旧视频Cron不会自行支持新分析。
 
 更新：2026-10-21，源码基线 `ce90bfe`。当前实际使用官方 Supabase 云端 Cron；火山方案默认常驻 ECS Docker，尚未部署验收。火山 Cron 扩展需在目标环境确认后才能使用，见 [火山部署指南](VOLCENGINE_DEPLOYMENT.md)。

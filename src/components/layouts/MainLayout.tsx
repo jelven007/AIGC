@@ -47,7 +47,7 @@ const AI_TOOLBOX_ITEMS = [
   { label: '直播高光切片', path: '/live-highlight', badge: 'NEW', badgeColor: '#ef4444', desc: 'AI自动识别直播精华' },
   { label: '口播台词优化', path: '/emotion-analysis', badge: '口播', badgeColor: '#6366f1', desc: '深度优化台词表达与情感重音' },
   { label: '竞品爆款分析', path: '/competitor', badge: '24h', badgeColor: '#3b82f6', desc: '抓取竞品爆款视频策略' },
-  { label: '作品流量预测', path: '/analytics', badge: '预测', badgeColor: '#22c55e', desc: '实时追踪完播率与流量预测' },
+  { label: '作品表现与优化', path: '/analytics', badge: '观测', badgeColor: '#22c55e', desc: '官方视频数据、授权投放与创意改进建议' },
 ];
 
 const navGroups = [
