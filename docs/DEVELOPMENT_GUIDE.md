@@ -1,5 +1,7 @@
 # 开发指南
 
+商品模块最新入口见 [迭代19](ITERATION_19_PRODUCT_MANAGEMENT.md)：共享product-contract/product-import、product-management、ProductFields/UrlProductImportDialog、productCsv和00046；修改字段须同步前后端规范化及RPC回执。使用test:products与浏览器专项验证，禁止恢复默认商品/库存/图片或本地隐藏删除。MCP目录由真实SDK导出，重建镜像并检查52工具；常驻调度要求probe v8/00046。
+
 发布组入口见 [迭代18](ITERATION_18_PUBLISH_GROUPS.md)：00045、publish-contract.ts、platform-publish、PublishPage及MCP两个工具。`npm run test:publish`执行真实PG和Edge，browser_publish_groups.mjs验证页面恢复；修改options须同步三端。不得为每账号另建供应商直连或重试整组旁路，保存预览源/原UUID，SQL原子回滚并共用24队列配额。MCP当前47工具需重新导出与镜像重建。
 
 MCP修改见 [迭代17](ITERATION_17_MCP_PRODUCTION.md)：45工具仅调用业务API，先构建shoproai-mcp:local后运行`npm run test:mcp`；`python mcp/export_tools.py`生成目录，`--check`检查漂移。权限统一api-scopes.ts，不能新建供应商/资金旁路，写入必须保留原UUID且不自动重发；新增scope同时验证拒绝、所属用户和网关配置。

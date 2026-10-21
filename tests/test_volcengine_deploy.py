@@ -23,7 +23,7 @@ class DeployTest(unittest.TestCase):
         self.assertEqual(source.count("\nBEGIN;"), 1)
         self.assertEqual(source.count("\nCOMMIT;"), 1)
         self.assertNotIn("00018_insert_demo", source)
-        self.assertNotIn("allow_read_demo_products", source)
+        self.assertNotRegex(source, r"(?i)CREATE\s+POLICY\s+allow_read_demo_products")
         self.assertIn("ArkSeedance", source)
         self.assertIn("pg_advisory_xact_lock", source)
 
@@ -71,7 +71,7 @@ class DeployTest(unittest.TestCase):
                                   "wechat-payment-webhook", "alipay-payment-notify", "text-generation",
                                   "video-jobs", "batch-video-jobs", "production-jobs", "platform-publish",
                                   "platform-accounts", "measurements", "knowledge-base",
-                                  "market-intelligence", "measurement-ingest"})
+                                  "market-intelligence", "product-management", "measurement-ingest"})
 
     def test_service_role_cannot_be_packaged_as_anon_key(self):
         with tempfile.TemporaryDirectory() as directory:

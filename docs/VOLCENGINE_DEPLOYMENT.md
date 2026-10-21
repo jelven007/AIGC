@@ -1,5 +1,7 @@
 # 火山引擎部署指南
 
+最新 [商品管理迭代19](ITERATION_19_PRODUCT_MANAGEMENT.md)发布00032–00046，manifest增加product-management并在函数内验证JWT/API Key；同步production-worker、常驻调度和MCP52/18权限。verify同时要求迁移回执及probe v8/00046/render2。00046浏览器商品写入撤销，必须匹配API/前端；仍需目标BaaS/图片签名/真实商品来源、Pages/TLS及持续调度验收。
+
 发布组新增 [00045](ITERATION_18_PUBLISH_GROUPS.md)，迁移清单自动纳入；目标需完整00032–00045、匹配platform-publish/production-worker/probe v7和47工具MCP镜像，再发布前端。没有新增平台秘密或网关宽泛权限，API内部维持当前用户与16范围。真实火山资源/平台授权/审核/定时验收尚未执行，不能把本地验证记为部署完成。
 
 新增 [MCP迭代17](ITERATION_17_MCP_PRODUCTION.md)发布要求：45工具镜像、16权限与匹配六业务函数；manifest/config关闭platform-accounts网关JWT，函数内仅list/creator接受受限Key，OAuth/应用管理仍用户JWT。schema仍00044，先后端/Worker再MCP与前端；公网TLS/Host和真实模型/平台验收尚未执行。

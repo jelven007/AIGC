@@ -438,6 +438,39 @@ async def delete_intelligence_target(target_id: str):
     """删除当前用户情报对象及其快照；活跃采集需先完成，停止监控不等于删除。"""
     return await call_backend("market-intelligence", {"action": "delete", "target_id": identifier(target_id)})
 
+@mcp.tool()
+async def list_products(search: str = "", offset: int = 0, limit: int = 50):
+    """分页读取当前用户真实商品、原币种、图片及导入来源；每页最多100个。"""
+    return await call_backend("product-management", {"action": "list", "search": search, "offset": offset, "limit": limit})
+
+
+@mcp.tool()
+async def list_product_imports():
+    """读取最近20个商品提取任务，未导入结果保留30天；可用query_production_status核对任务。"""
+    return await call_backend("product-management", {"action": "imports"})
+
+
+@mcp.tool()
+async def extract_product_source(mode: Literal["url", "text"], content: str, request_key: str):
+    """免费创建后台商品来源提取任务；url须为JSON-LD商品页，text需商品名称，不编造价格、库存或视频。"""
+    return (await call_backend("product-management", {"action": "extract", "request_key": identifier(request_key),
+                               "input": {"mode": mode, "content": content}}))["job"]
+
+
+@mcp.tool()
+async def save_products(items: list[dict[str, Any]], request_key: str):
+    """整批保存1–100个已核对商品。每项draft，编辑还须id/expected_updated_at，来源导入须import_job_id。
+    draft包含name/category/status/currency/价格/库存/卖点/specs/images/cover_image；未知数值留null。
+    受理未知请原UUID和原内容恢复；当前用户之外的商品不可保存。
+    """
+    return await call_backend("product-management", {"action": "save", "request_key": identifier(request_key), "items": items})
+
+
+@mcp.tool()
+async def delete_products(items: list[dict[str, str]], request_key: str):
+    """原子删除已由用户明确要求删除的1–100个商品，每项须id和expected_updated_at；保留原UUID恢复回执。"""
+    return await call_backend("product-management", {"action": "delete", "request_key": identifier(request_key), "items": items})
+
 
 if __name__ == "__main__":
     token = os.environ.get("SUPABASE_USER_JWT")

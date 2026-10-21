@@ -159,6 +159,9 @@ class MCPTest(unittest.TestCase):
                                            "source_slot": "intelligence.youtube", "params": {"account_id": "@channel"}}, "market-intelligence", "save_target"),
             ("collect_market_intelligence", {"target_id": self.other_key, "confirmed_credit_cost": 1}, "market-intelligence", "collect"),
             ("schedule_market_intelligence", {"target_id": self.other_key, "runs": 2, "budget": 2, "confirmed_credit_cost": 1}, "market-intelligence", "schedule"),
+            ("extract_product_source", {"mode": "text", "content": "商品名称：真实杯子"}, "product-management", "extract"),
+            ("save_products", {"items": [{"draft": {"name": "杯子", "category": "其他", "status": "draft"}}]}, "product-management", "save"),
+            ("delete_products", {"items": [{"id": self.other_key, "expected_updated_at": "2026-10-22T00:00:00Z"}]}, "product-management", "delete"),
         ]
         with patch.object(server, "call_backend", backend):
             for name, args, endpoint, action in cases:
@@ -206,6 +209,8 @@ class MCPTest(unittest.TestCase):
             ("list_market_intelligence", {"kind": "intelligence_competitor"}, "market-intelligence", "catalog"),
             ("import_intelligence_product", {"sample_id": self.key, "item_id": "item"}, "market-intelligence", "import_product"),
             ("delete_intelligence_target", {"target_id": self.key}, "market-intelligence", "delete"),
+            ("list_products", {"offset": 0, "limit": 50}, "product-management", "list"),
+            ("list_product_imports", {}, "product-management", "imports"),
         ]
         with patch.object(server, "call_backend", backend):
             for name, args, endpoint, action in cases:
@@ -273,6 +278,26 @@ class MCPTest(unittest.TestCase):
 
 
 class BackendTransportTest(unittest.IsolatedAsyncioTestCase):
+    async def test_product_route_is_allowed_and_preserves_identity_and_receipt(self):
+        real_client = httpx.AsyncClient
+        calls = []
+        async def handler(request):
+            calls.append(request)
+            return httpx.Response(200, json={"outcome": "accepted"})
+        with patch.dict("os.environ", {"SUPABASE_URL": "https://db.example", "SUPABASE_ANON_KEY": "public-anon"}):
+            credential = request_token.set("user-products")
+            try:
+                with patch.object(backend_client.httpx, "AsyncClient", lambda **kwargs: real_client(transport=httpx.MockTransport(handler), **kwargs)):
+                    for action in ("list", "imports", "extract", "save", "delete"):
+                        await backend_client.call_backend("product-management", {"action": action, "request_key": MCPTest.key})
+                self.assertEqual(len(calls), 5)
+                for request in calls:
+                    self.assertEqual(request.url.path, "/functions/v1/product-management")
+                    self.assertEqual(request.headers["Authorization"], "Bearer user-products")
+                    self.assertEqual(json.loads(request.content)["request_key"], MCPTest.key)
+            finally:
+                request_token.reset(credential)
+
     async def test_errors_are_redacted_and_mutations_are_never_retried(self):
         real_client = httpx.AsyncClient
         calls = []

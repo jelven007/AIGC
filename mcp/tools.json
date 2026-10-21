@@ -1619,6 +1619,125 @@
         "title": "delete_intelligence_targetArguments",
         "type": "object"
       }
+    },
+    {
+      "name": "list_products",
+      "description": "分页读取当前用户真实商品、原币种、图片及导入来源；每页最多100个。",
+      "inputSchema": {
+        "properties": {
+          "search": {
+            "default": "",
+            "title": "Search",
+            "type": "string"
+          },
+          "offset": {
+            "default": 0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "limit": {
+            "default": 50,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "title": "list_productsArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_product_imports",
+      "description": "读取最近20个商品提取任务，未导入结果保留30天；可用query_production_status核对任务。",
+      "inputSchema": {
+        "properties": {},
+        "title": "list_product_importsArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "extract_product_source",
+      "description": "免费创建后台商品来源提取任务；url须为JSON-LD商品页，text需商品名称，不编造价格、库存或视频。",
+      "inputSchema": {
+        "properties": {
+          "mode": {
+            "enum": [
+              "url",
+              "text"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode",
+          "content",
+          "request_key"
+        ],
+        "title": "extract_product_sourceArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "save_products",
+      "description": "整批保存1–100个已核对商品。每项draft，编辑还须id/expected_updated_at，来源导入须import_job_id。\n    draft包含name/category/status/currency/价格/库存/卖点/specs/images/cover_image；未知数值留null。\n    受理未知请原UUID和原内容恢复；当前用户之外的商品不可保存。\n    ",
+      "inputSchema": {
+        "properties": {
+          "items": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "request_key"
+        ],
+        "title": "save_productsArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "delete_products",
+      "description": "原子删除已由用户明确要求删除的1–100个商品，每项须id和expected_updated_at；保留原UUID恢复回执。",
+      "inputSchema": {
+        "properties": {
+          "items": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "request_key"
+        ],
+        "title": "delete_productsArguments",
+        "type": "object"
+      }
     }
   ]
 }

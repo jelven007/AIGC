@@ -24,7 +24,9 @@ import { mediaPreview, storedMedia } from '@/api/media';
 import { useProductionJob } from '@/hooks/useProductionJob';
 import { audioRecorder } from '@/lib/audioRecorder';
 import { Product } from '@/types/types';
-import { getCategoryFallbackImage } from './ProductsPage';
+import { ProductImage } from '@/components/ProductFields';
+import { productPrice } from '@/lib/productDisplay';
+import { listProducts } from '@/api/products';
 
 
 
@@ -311,120 +313,6 @@ const INITIAL_CATEGORY_VIDEOS: CategoryVideoItem[] = [
   }
 ];
 
-// 预设高品质演示备选商品列表
-const MOCK_SELECTOR_PRODUCTS: Product[] = [
-  {
-    id: 'prod-001',
-    user_id: 'demo',
-    name: '极简美学 冰感丝滑防晒外套',
-    category: '服装配饰',
-    sub_category: '女装',
-    description: '采用UPF50+高倍防晒微孔原纱面料，轻盈透气，体感瞬降5℃，告别闷热闷汗，修身立体剪裁，户外出行与日常通勤百搭必备。',
-    selling_points: ['UPF50+高倍防晒', '冰感凉爽降温5℃', '微孔透气不闷汗'],
-    ai_selling_points: ['修身显瘦版型', '加长遮掌设计'],
-    original_price: 299,
-    sale_price: 129,
-    stock: 850,
-    specs: [{ name: '颜色', value: '冰川白/烟波粉/曜石黑' }],
-    images: ['https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=500&auto=format&fit=crop&q=80'],
-    cover_image: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=500&auto=format&fit=crop&q=80',
-    status: 'active',
-    sales_count: 3420,
-    target_language: 'zh',
-    target_platform: 'douyin',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'prod-002',
-    user_id: 'demo',
-    name: '光采焕亮 玻色因紧致精华眼霜',
-    category: '美妆护肤',
-    sub_category: '眼部护理',
-    description: '蕴含30%高浓度玻色因与九肽复合物，协同冰感锌合金按摩头，精准抚平眼周细纹干纹，淡化黑眼圈，提拉紧致眼部轮廓。',
-    selling_points: ['30%高浓度玻色因', '冰感锌合金按摩头', '7天实测淡化细纹'],
-    ai_selling_points: ['改善熬夜黑眼圈', '温和敏感肌可用'],
-    original_price: 499,
-    sale_price: 239,
-    stock: 520,
-    specs: [{ name: '净含量', value: '20g/支' }],
-    images: ['https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=500&auto=format&fit=crop&q=80'],
-    cover_image: 'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=500&auto=format&fit=crop&q=80',
-    status: 'active',
-    sales_count: 5890,
-    target_language: 'zh',
-    target_platform: 'douyin',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'prod-003',
-    user_id: 'demo',
-    name: '空间声学 空间音频主动降噪耳机 Pro',
-    category: '数码电器',
-    sub_category: '音频设备',
-    description: '搭载48dB深度混合主动降噪算法与钛合金振膜动圈单元，支持LDAC高解析音频传输，40小时全天候超长续航，双麦克风AI通话降噪。',
-    selling_points: ['48dB深度智能降噪', 'LDAC无损高解析音质', '40小时长效续航'],
-    ai_selling_points: ['人体工学零压佩戴', '双设备无缝连接'],
-    original_price: 899,
-    sale_price: 399,
-    stock: 310,
-    specs: [{ name: '版本', value: '主动降噪旗舰版' }],
-    images: ['https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=500&auto=format&fit=crop&q=80'],
-    cover_image: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=500&auto=format&fit=crop&q=80',
-    status: 'active',
-    sales_count: 2150,
-    target_language: 'zh',
-    target_platform: 'douyin',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'prod-004',
-    user_id: 'demo',
-    name: '高山原叶 手作冷萃白桃乌龙茶包',
-    category: '食品饮料',
-    sub_category: '冲饮茶包',
-    description: '甄选高山一级乌龙茶原叶配伍真白桃果粒，采用冷热双萃工艺，0糖0脂0卡，水润清甜，回甘持久，随时随地享受精致冷萃茶道。',
-    selling_points: ['高山原叶+真白桃果粒', '0糖0脂0卡无负担', '冷热双萃3秒出味'],
-    ai_selling_points: ['玉米纤维三角立体茶包', '独立防潮包装'],
-    original_price: 99,
-    sale_price: 49.9,
-    stock: 1200,
-    specs: [{ name: '规格', value: '30包/盒' }],
-    images: ['https://images.unsplash.com/photo-1612927601601-6638404737ce?w=500&auto=format&fit=crop&q=80'],
-    cover_image: 'https://images.unsplash.com/photo-1612927601601-6638404737ce?w=500&auto=format&fit=crop&q=80',
-    status: 'active',
-    sales_count: 9800,
-    target_language: 'zh',
-    target_platform: 'douyin',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'prod-005',
-    user_id: 'demo',
-    name: '自然沉香 悬浮感天然慢回弹枕',
-    category: '家居用品',
-    sub_category: '家纺寝具',
-    description: '采用非温感慢回弹记忆棉核心，开创双向弧形颈椎托举结构，透气天丝提花枕套，有效释放肩颈压力，深度改善睡眠质量。',
-    selling_points: ['人体工学颈椎双向托举', '非温感慢回弹记忆棉', '天丝抑菌亲肤枕套'],
-    ai_selling_points: ['分散头颈85%压力', '支持全枕无残留冲洗'],
-    original_price: 359,
-    sale_price: 168,
-    stock: 450,
-    specs: [{ name: '高度', value: '10/12cm曲面双高' }],
-    images: ['https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=500&auto=format&fit=crop&q=80'],
-    cover_image: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=500&auto=format&fit=crop&q=80',
-    status: 'active',
-    sales_count: 4120,
-    target_language: 'zh',
-    target_platform: 'douyin',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  }
-];
-
 // ── 主页组件 ───────────────────────────────────────────────────────────
 export default function HomePage() {
   const { projectId } = useParams();
@@ -486,91 +374,27 @@ export default function HomePage() {
   const [categoryVideos, setCategoryVideos] = useState<CategoryVideoItem[]>(INITIAL_CATEGORY_VIDEOS);
   const [inspireVideos, setInspireVideos] = useState(INSPIRE_VIDEOS);
 
-  // 解析并导入商品成功后的联合分发：同步注入商品列表与视频列表
+  // 接收真实商品回执，视频通过创作流程生成。
   const handleImportProductSuccess = (newProd: Product) => {
     // 1. 存入商品列表顶部
     setProductsList(prev => [newProd, ...prev.filter(p => p.id !== newProd.id)]);
 
-    // 2. 生成对应带货视频卡片数据并存入视频列表顶部
-    const matchedVideoUrl =
-      newProd.category === '服装配饰' ? '/Video/CreatOK_2.mp4' :
-      newProd.category === '美妆护肤' ? '/Video/CreatOK_4.mp4' :
-      newProd.category === '数码电器' ? '/Video/CreatOK_5.mp4' :
-      newProd.category === '食品饮料' ? '/Video/CreatOK_6.mp4' :
-      newProd.category === '家居用品' ? '/Video/CreatOK_7.mp4' :
-      '/Video/CreatOK_2.mp4';
-
-    const matchedCover =
-      newProd.category === '服装配饰' ? '/Video/covers/CreatOK_2.webp' :
-      newProd.category === '美妆护肤' ? '/Video/covers/CreatOK_4.webp' :
-      newProd.category === '数码电器' ? '/Video/covers/CreatOK_5.webp' :
-      newProd.category === '食品饮料' ? '/Video/covers/CreatOK_6.webp' :
-      newProd.category === '家居用品' ? '/Video/covers/CreatOK_7.webp' :
-      '/Video/covers/CreatOK_2.webp';
-
-    const newVideoItem: CategoryVideoItem = {
-      id: 'vid-new-' + Date.now(),
-      name: newProd.name,
-      category: newProd.category || '服装配饰',
-      url: matchedVideoUrl,
-      cover: newProd.cover_image || matchedCover,
-      prompt: `【${newProd.category || '爆款商品'}】${newProd.name}，${newProd.selling_points?.[0] || newProd.description?.slice(0, 35) || '全网热销爆品'}，高清特写展示商品质感与核心卖点，镜头自然流转转场，高能引导下单。`,
-      model: 'MiniMax H3',
-      ratio: '9:16',
-      duration: '5s',
-    };
-
-    setCategoryVideos(prev => [newVideoItem, ...prev]);
-
-    // 3. 映射并注入主页灵感广场视频列表
-    const inspireCat =
-      newProd.category === '服装配饰' ? '服装' :
-      newProd.category === '美妆护肤' ? '美妆' :
-      newProd.category === '数码电器' ? '数码' :
-      newProd.category === '食品饮料' ? '食品' :
-      newProd.category === '家居用品' ? '家居' : '服装';
-
-    const newInspireItem = {
-      url: matchedVideoUrl,
-      cover: newProd.cover_image || matchedCover,
-      prompt: newVideoItem.prompt,
-      model: 'MiniMax H3',
-      ratio: '9:16',
-      refImage: '有参考图',
-      firstLast: '无首尾帧',
-      category: inspireCat,
-      language: '中文'
-    };
-    setInspireVideos(prev => [newInspireItem, ...prev]);
-
-    // 4. 自动激活该商品对应的分类
+    // 自动激活该商品对应的分类
     if (['服装配饰', '美妆护肤', '数码电器', '食品饮料', '家居用品'].includes(newProd.category)) {
       setSelectedCategoryFilter(newProd.category);
     }
 
-    toast.success(`🎉 商品 “${newProd.name.slice(0, 10)}...” 及视频已成功同步加载到商品列表与视频列表！`, {
-      duration: 4500,
-    });
+    setSelectedProduct(newProd);
   };
 
   const loadProductsForSelector = useCallback(async () => {
     setLoadingProducts(true);
     try {
-      const DEMO_UID = '7d58d08f-8aa3-43f5-a30f-b7495d59d147';
-      let query = supabase.from('products').select('*');
-      if (user?.id) {
-        query = query.or(`user_id.eq.${user.id},user_id.eq.${DEMO_UID}`);
-      }
-      const { data } = await query.order('created_at', { ascending: false });
-
-      if (data && data.length > 0) {
-        setProductsList(data as Product[]);
-      } else {
-        setProductsList(MOCK_SELECTOR_PRODUCTS);
-      }
+      if (!user) { setProductsList([]); return; }
+      const { products } = await listProducts({ limit: 100 });
+      setProductsList(products);
     } catch (err) {
-      console.error('Failed to fetch products for selector:', err);
-      setProductsList(MOCK_SELECTOR_PRODUCTS);
+      toast.error(err instanceof Error ? err.message : '商品库读取失败，请重试');
     } finally {
       setLoadingProducts(false);
     }
@@ -583,11 +407,11 @@ export default function HomePage() {
     const points = (prod.selling_points || []).filter(Boolean);
     const aiPoints = (prod.ai_selling_points || []).filter(Boolean);
     const allPoints = Array.from(new Set([...points, ...aiPoints]));
-    const priceText = prod.sale_price != null ? `¥${prod.sale_price}` : prod.original_price != null ? `¥${prod.original_price}` : '';
+    const priceText = prod.sale_price != null || prod.original_price != null ? productPrice(prod) : '';
 
     let generatedPrompt = `【爆款电商带货视频】${prod.name}`;
     if (prod.category) generatedPrompt += `（${prod.category}）`;
-    if (priceText) generatedPrompt += ` | 特惠活动价：${priceText}`;
+    if (priceText) generatedPrompt += ` | 商品标价：${priceText}`;
 
     if (allPoints.length > 0) {
       generatedPrompt += `\n✨ 核心卖点：${allPoints.join('；')}`;
@@ -628,30 +452,6 @@ export default function HomePage() {
       const existing = productsList.find(p => p.name === location.state.prefillProductName);
       if (existing) {
         handleSelectProduct(existing);
-      } else {
-        const tempProd: Product = {
-          id: 'temp-' + Date.now(),
-          user_id: user?.id || 'demo',
-          name: location.state.prefillProductName,
-          category: '爆款选品',
-          sub_category: null,
-          description: `智能选品推荐爆品：${location.state.prefillProductName}`,
-          selling_points: ['跨境高转化爆品', '达人首推好物'],
-          ai_selling_points: ['高转化率', '品质保障'],
-          original_price: 199,
-          sale_price: 99,
-          stock: 999,
-          specs: [],
-          images: [],
-          cover_image: null,
-          status: 'active',
-          sales_count: 500,
-          target_language: 'zh',
-          target_platform: 'douyin',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-        handleSelectProduct(tempProd);
       }
     } else if (location.state?.inputTab === '商品') {
       setMainTab('视频生成');
@@ -1374,22 +1174,16 @@ export default function HomePage() {
                       <div className="flex items-center gap-1.5 shrink-0 mr-1 select-none">
                         {selectedProduct ? (
                           <div className="flex items-center gap-2 bg-violet-950/60 border border-violet-500/40 rounded-xl px-2.5 py-1.5 text-xs text-white relative shadow-md">
-                            <img
-                              src={selectedProduct.cover_image || getCategoryFallbackImage(selectedProduct.category)}
-                              alt={selectedProduct.name}
-                              className="w-10 h-10 rounded-lg object-cover border border-violet-400/40 shrink-0"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).src = getCategoryFallbackImage(selectedProduct.category);
-                              }}
-                            />
+                            <ProductImage src={selectedProduct.cover_image} name={selectedProduct.name}
+                              className="w-10 h-10 rounded-lg border border-violet-400/40 shrink-0" />
                             <div className="flex flex-col min-w-0 max-w-[160px]">
                               <span className="font-bold text-white text-xs truncate" title={selectedProduct.name}>
                                 {selectedProduct.name}
                               </span>
                               <div className="flex items-center gap-1.5 text-[10px] text-zinc-300">
                                 <span className="bg-violet-500/20 text-violet-300 px-1 rounded">{selectedProduct.category}</span>
-                                {(selectedProduct.sale_price ?? selectedProduct.original_price) && (
-                                  <span className="font-bold text-rose-400">¥{selectedProduct.sale_price ?? selectedProduct.original_price}</span>
+                                {(selectedProduct.sale_price ?? selectedProduct.original_price) != null && (
+                                  <span className="font-bold text-rose-400">{productPrice(selectedProduct)}</span>
                                 )}
                               </div>
                             </div>
@@ -2660,14 +2454,7 @@ export default function HomePage() {
                         >
                           {/* 封面图 */}
                           <div className="w-20 h-20 rounded-lg overflow-hidden bg-black/60 shrink-0 border border-white/10 relative">
-                            <img
-                              src={prod.cover_image || getCategoryFallbackImage(prod.category)}
-                              alt={prod.name}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).src = getCategoryFallbackImage(prod.category);
-                              }}
-                            />
+                            <ProductImage src={prod.cover_image} name={prod.name} className="w-full h-full" />
                             <span className="absolute bottom-1 left-1 text-[9px] px-1.5 py-0.5 rounded bg-black/80 backdrop-blur-sm text-zinc-300 border border-white/15 font-medium">
                               {prod.category}
                             </span>
@@ -2679,11 +2466,11 @@ export default function HomePage() {
                               <h4 className="text-sm font-bold text-zinc-100 group-hover:text-white transition-colors line-clamp-1">
                                 {prod.name}
                               </h4>
-                              {price && (
+                              {price != null && (
                                 <div className="flex items-baseline gap-1.5 mt-0.5">
-                                  <span className="text-base font-extrabold text-rose-400">¥{price}</span>
+                                  <span className="text-base font-extrabold text-rose-400">{productPrice(prod)}</span>
                                   {prod.original_price && prod.sale_price && prod.original_price > prod.sale_price && (
-                                    <span className="text-xs text-zinc-500 line-through">¥{prod.original_price}</span>
+                                    <span className="text-xs text-zinc-500 line-through">{prod.currency || '币种未提供'} {prod.original_price}</span>
                                   )}
                                 </div>
                               )}
@@ -2703,7 +2490,7 @@ export default function HomePage() {
 
                             <div className="flex items-center justify-between mt-2 pt-1 border-t border-white/5">
                               <span className="text-[11px] text-zinc-400">
-                                月销: {prod.sales_count || 0}
+                                累计销量: {prod.sales_count ?? '未提供'}
                               </span>
                               <button
                                 type="button"
