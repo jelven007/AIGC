@@ -38,6 +38,8 @@ JSON 请求使用 `Content-Type: application/json`，允许的预检由各函数
 
 创建 503 或响应丢失：复用相同 UUID 与参数查询/创建找回。相同 UUID 不同参数 409；禁用模型不影响找回已有任务。确定失败后再次生成是新任务。
 
+任务中心 `/task-queue` 使用上述list/query与production-jobs、platform-publish组合读取；不再查询历史job_type/input_data字段或直接删除video_jobs。平台发布按job_id去重，以publish_tasks审核状态为准，待提交取消调用既有platform-publish cancel。错误保留上次记录，未知受理不重发。契约与验证见 [任务中心迭代](ITERATION_07_TASK_CENTER.md)。
+
 ## 3. 状态与执行器
 
 三个状态维度分开解释：

@@ -10,6 +10,7 @@
 | 技术方案 | [技术架构](TECHNICAL_ARCHITECTURE.md) | 平台边界、配置版本、资金事务、队列和协议 |
 | 功能覆盖 | [原版覆盖核验](FUNCTION_COVERAGE_REVIEW_20261021.md) | 原版与当前逐项对照、兼容缺口、整体功能和补齐顺序 |
 | 生产链路 | [最新迭代](ITERATION_06_PRODUCTION_PIPELINE.md) | 私有素材、图片恢复、FFmpeg、两平台发布及官方指标，部署与测试边界 |
+| 任务中心 | [协议修复](ITERATION_07_TASK_CENTER.md) | 视频/生产/发布合并、审核与未知、错误保留、取消及真实UI验证 |
 | 开发 | [开发指南](DEVELOPMENT_GUIDE.md)、[接口与数据](API_AND_DATA.md) | 本地配置、目录、协议、状态、变更与发布顺序 |
 | 测试 | [测试计划](TEST_PLAN.md)、[验证报告](TEST_REPORT_20261021.md) | 用例、覆盖边界、真实验收、当前执行结果 |
 | 运营 | [运营手册](OPERATIONS_GUIDE.md)、[商业化方案](plan/商业化.md) | 准入、成本、指标、客服退款、试点与推广口径 |

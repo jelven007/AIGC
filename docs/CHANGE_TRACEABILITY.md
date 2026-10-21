@@ -14,6 +14,7 @@
 | 5ba7466 | 火山 BaaS/Pages/ECS 工具、方舟、MCP JWT、前端密钥清理 | TEXT-01、MCP-01、OPS-01 | 00032/00033、deploy/volcengine、text-generation、MCP | Volcengine/MCP | 火山资源未验收；ACL/协议迁移须先发布 |
 | ce90bfe | 13 槽、管理员设置、AES-GCM 版本、视频绑定、真实图片/音频 | MODEL-01–03、VIDEO-05、IMAGE-01、AUDIO-01 | 00034、model-settings、model-registry/catalog、image/audio handlers | Finance/Models/Audio/Video | 主密钥备份、管理员授权、旧任务绑定；当前云端缺部署 |
 | 53be501 | 私有媒体、图片恢复、FFmpeg、抖音/TikTok发布与官方指标 | ASSET-01、IMAGE-01、RENDER-01、PUBLISH-01、METRIC-01 | 00035/00036、production-jobs/worker、platform-*、worker/ | 33数据库/6FFmpeg测试、API夹具、UI恢复、类型/Deno/lint/build，见ITERATION_06 | 新函数、production调度、FFmpeg容器、私有迁移一起启用；云端/平台真实验收待执行 |
+| 本轮任务中心修复 | 新协议合并、审核/未知/计费、取消与错误保留，移除旧重试/删除 | TASK-01 | TaskQueuePage、taskCenter、平台API类型，见ITERATION_07 | 8专项测试、真实UI夹具、视频/生产回归与lint/build | 无新迁移/后端接口；需既有production-jobs/platform-publish匹配部署 |
 
 提交名与更详细时点见 [历史迭代](ITERATION_03_VIDEO_JOBS.md) 与 [架构对比](ARCHITECTURE_REVIEW_20261021.md)。旧审计的行号和未修复清单需结合此矩阵，不直接当作当前缺陷。
 
@@ -40,7 +41,7 @@
 | 现金退款 | 遗留 alipay-trade-ops 非原子资金/权益闭环，权限口径不同 | 开发/财务单独统一授权、退款额度/幂等/回收及专项回归，未纳入已交付 |
 | 火山迁移 | 仅代码/工具适配 | 单独建资源和回执，迁 Auth/DB/Storage，验收后切连接 |
 | 生产基础 | 私有素材、告警、备份恢复、正式域名未验收 | 按实际用户要求实施并演练；不从文档推断已具备 |
-| 扩展业务 | FFmpeg/两平台/自然指标已有本地实现；批量/旧五步停用，其余尚有缺口 | 先修任务中心/图库/删除/OpenAPI兼容，再补Sora/批量/数字人/团队/真实情报/广告及后台，见覆盖核验 |
+| 扩展业务 | FFmpeg/两平台/自然指标及新任务中心已有本地实现；批量/旧五步停用，其余尚有缺口 | 继续图库/素材删除/OpenAPI兼容，再补Sora/批量/数字人/团队/真实情报/广告及后台，见覆盖核验 |
 
 ## 4. 后续变更记录要求
 
