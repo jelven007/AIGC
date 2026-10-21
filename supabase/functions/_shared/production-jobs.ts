@@ -13,6 +13,7 @@ export interface ProductionJob {
 }
 export async function publicProductionJob(db: SupabaseClient, job: ProductionJob) {
   return signMediaTree(db, { id: job.id, request_key: job.request_key, kind: job.kind, project_id: job.project_id,
+    ...(job.kind === 'analysis' ? { mode: job.payload.mode } : {}),
     status: job.status, phase: job.phase, progress: job.progress, result: job.result,
     error_message: job.error_message, credit_cost: job.credit_cost, created_at: job.created_at }, job.user_id);
 }

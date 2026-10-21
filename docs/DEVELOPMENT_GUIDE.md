@@ -1,5 +1,7 @@
 # 开发指南
 
+增量00041开发入口见 [真实素材分析](ITERATION_12_GROUNDED_ANALYSIS.md)：VideoAnalysisPanel、_shared/video-analysis、structured-analysis、worker/analyze.py。使用`npm run test:analysis`验证真实迁移/协议/FFmpeg，浏览器脚本browser_video_analysis.mjs验证失联恢复与MP4请求。输入视频≤100MB/10分钟，抽样帧不代表完整镜头或BPM测量。
+
 更新：2026-10-21，源码基线 `ce90bfe`。先读 [当前状态](CURRENT_STATE.md) 与 [PRD](prd/PRD.md)。本地源码比当前官方 Supabase 云端新，启动前端成功不代表新版接口已部署。
 
 ## 1. 环境与首次启动

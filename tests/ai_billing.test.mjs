@@ -1,8 +1,6 @@
 import assert from 'node:assert/strict';
-import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { webcrypto } from 'node:crypto';
-import { pathToFileURL } from 'node:url';
-import ts from 'typescript';
+import { loadEdge } from './edge-loader.mjs';
 
 globalThis.crypto ??= webcrypto;
 let handler;
@@ -37,19 +35,7 @@ const admin = {
 };
 globalThis.__createClient = () => admin;
 globalThis.Deno = { env: { get: () => 'test' }, serve: callback => { handler = callback; } };
-const directory = '/tmp/shoproai-ai-billing-test';
-mkdirSync(directory, { recursive: true });
-const source = readFileSync('supabase/functions/ai-assistant/index.ts', 'utf8')
-  .replace("import { createClient } from 'npm:@supabase/supabase-js@2';", 'const createClient = globalThis.__createClient;')
-  .replace("import { generateText } from '../_shared/text-provider.ts';", 'const generateText = async () => { throw new Error("upstream unavailable"); };')
-  .replace("import { resolveModel, validateEndpoint } from '../_shared/model-registry.ts';", 'const resolveModel = async () => { throw new Error("service unconfigured"); }; const validateEndpoint = async () => {};')
-  .replace("import { generateImage } from '../_shared/image-provider.ts';", 'const generateImage = async () => { throw new Error("image unconfigured"); };');
-const queuedSource = source.replace("import { createImageJob } from '../_shared/production-jobs.ts';",
-  'const createImageJob = async () => { throw new Error("image queue unconfigured"); };');
-writeFileSync(`${directory}/handler.mjs`, ts.transpileModule(queuedSource, {
-  compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
-}).outputText);
-await import(pathToFileURL(`${directory}/handler.mjs`).href);
+await loadEdge('supabase/functions/ai-assistant/index.ts', 'ai-billing');
 
 async function request(action, overrides = {}) {
   const { body = {}, ...options } = overrides;

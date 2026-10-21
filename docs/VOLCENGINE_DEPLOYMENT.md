@@ -1,5 +1,7 @@
 # 火山引擎部署指南
 
+当前源码发布范围00032–00041，匹配production-jobs/production-worker/ai-assistant/phase3-assistant及共享依赖，重建FFmpeg镜像，前端最后发布。[素材分析迭代12](ITERATION_12_GROUNDED_ANALYSIS.md)要求真实视觉/ASR配置、两段Worker与私有输出。火山资源与实际供应商仍无新验收证据，部署工具自动发现00041不等于已应用。
+
 目标方案：火山 AI 原生 BaaS Supabase 版 + 火山 Pages + ECS Docker 调度器，模型可用火山方舟。该方案使用火山独立管理面，前端无需 Vercel；**当前实际仍连接官方 Supabase，未切换火山**。源码基线 `ce90bfe`，尚无火山资源创建/部署验收证据；授权准备不等于资源上线。见 [当前状态](CURRENT_STATE.md)。
 
 源码增量包含00035–00039，最新多规格导出须部署匹配production-jobs、重建FFmpeg镜像与既有production调度，前端最后发布。00039的导出事务/共用渲染队列配额/4:5/旧回执与实际验收见 [迭代10](ITERATION_10_RENDER_EXPORTS.md)；本段不更新真实云端回执，不重放已应用旧迁移。

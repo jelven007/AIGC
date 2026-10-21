@@ -5,6 +5,8 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { generateText } from '../_shared/text-provider.ts';
 import { resolveModel, validateEndpoint } from '../_shared/model-registry.ts';
 import { createImageJob } from '../_shared/production-jobs.ts';
+import { boundedText, emotionSegments, structuredText, textList } from '../_shared/structured-analysis.ts';
+import { responseBytes } from '../_shared/audio-provider.ts';
 
 // 避免 createClient 的泛型 ReturnType 推导为空 schema。
 function businessClient(url: string, key: string): SupabaseClient {
@@ -214,7 +216,7 @@ const PLATFORM_SYSTEM_PROMPT = `你是「AIGC带货视频平台」的专属AI助
 2. 熟悉平台算法规则（完播率、互动率、转化率三角模型）
 3. 文案简洁有力，字幕友好，适合竖屏移动端观看
 4. 优先返回结构化数据（JSON格式），便于前端解析
-5. 在无法分析真实视频内容时，基于行业最佳实践给出专业建议`;
+5. 仅依据资料分析；未读取素材时说明证据缺失，禁止编造指标或产品功效`;
 
 // ─── EF-06: 错误日志写入 ─────────────────────────────────────────────────────
 async function logError(
@@ -325,6 +327,7 @@ Deno.serve(async (req) => {
       }
     }
 
+    if (req.method !== 'POST') return err('仅支持POST', 4050, 405);
     const body = await req.json();
     action = body.action ?? '';
     const claimedUserId = body.user_id ?? '';
@@ -341,6 +344,16 @@ Deno.serve(async (req) => {
     }
 
     if (!action) return err('缺少 action 参数', 1001);
+    if (!userId) return err('该 AI 能力需要登录授权', 4010, 401);
+    body.user_id = userId;
+    for (const [field, table] of [['project_id', 'video_projects'], ['product_id', 'products']] as const) {
+      if (!body[field]) continue;
+      const owned = await supabase.from(table).select('id').eq('id', body[field]).eq('user_id', userId).maybeSingle();
+      if (owned.error || !owned.data) return err('关联对象不存在或无权访问', 4031, 403);
+    }
+    if (['analyze_style', 'extract_highlights'].includes(action)) {
+      return err('视频分析已迁移至production-jobs analysis，请上传视频创建后台任务', 4100, 410);
+    }
     if (action === 'generate_video' || action === 'retry_video_job') {
       // 旧处理器按客户端 project_id 操作 service_role，且无持久化任务补偿。
       return err('旧视频入口已停用，请使用 video-jobs；确定失败任务由服务端自动退积分', 5031, 503);
@@ -379,7 +392,7 @@ Deno.serve(async (req) => {
     // P2-N06: 缓存命中检查（异步高强度 SHA-256）
     let cacheKey = '';
     if (CACHEABLE_ACTIONS.has(action) && userId) {
-      const cacheParams = { ...body, user_id: userId };
+      const cacheParams = { ...body, user_id: userId, pipeline_version: 2 };
       cacheKey = await makeCacheKey(action, cacheParams);
       const cached = await getCachedResponse(supabase, cacheKey);
       if (cached) {
@@ -415,14 +428,10 @@ Deno.serve(async (req) => {
         result = await generateStoryboard(body); break;
       case 'analyze_traffic':
         result = await analyzeTraffic(body); break;
-      case 'analyze_style':
-        result = await analyzeStyle(body); break;
       case 'generate_ab_variants':
         result = await generateABVariants(body); break;
       case 'generate_script_four_layer':
         result = await generateScriptFourLayer(body, supabase, userId); break;
-      case 'extract_highlights':
-        result = await extractHighlights(body, supabase); break;
       case 'knowledge_rag_search':
         result = await knowledgeRagSearch(body, supabase); break;
       case 'analyze_style_deep':
@@ -503,8 +512,9 @@ async function extractUrlSellingPoints(body: Record<string, string>) {
   if (!readerRes.ok) {
     throw new Error(`Failed to read URL: ${readerRes.status}`);
   }
-  const content = await readerRes.text();
-  const truncatedContent = content.slice(0, 15000); // LLM 长度限制
+  const content = new TextDecoder().decode(await responseBytes(readerRes, 2 * 1024 * 1024));
+  const truncatedContent = content.slice(0, 15000);
+  if (truncatedContent.trim().length < 40) throw new Error('网页正文为空或被限制，请手动提供商品资料');
 
   // 2. 提取卖点
   const userPrompt = `以下是从商品网页中提取的内容，请你分析并生成3条核心商品卖点：
@@ -518,16 +528,8 @@ ${truncatedContent}
 
 直接输出JSON，格式：{"selling_points": ["卖点1", "卖点2", "卖点3"]}`;
 
-  try {
-    const llmContent = await callLLM([{ role: 'user', content: userPrompt }], PLATFORM_SYSTEM_PROMPT);
-    const match = llmContent.match(/\{[\s\S]*\}/);
-    if (match) {
-      const parsed = JSON.parse(match[0]);
-      if (Array.isArray(parsed.selling_points)) return { selling_points: parsed.selling_points.slice(0, 3) };
-    }
-  } catch (e) { console.error('url selling_points LLM failed:', e); }
-
-  return { selling_points: ['卖点提取失败，请重试', '网页内容可能受限', '请手动输入商品信息'] };
+  const parsed = await structuredText(userPrompt, { content: truncatedContent });
+  return { selling_points: textList(parsed.selling_points, 3), source_url: url, read_at: new Date().toISOString() };
 }
 
 // ─── 卖点生成 ────────────────────────────────────────────────────────────────
@@ -545,27 +547,8 @@ async function generateSellingPoints(body: Record<string, string>) {
 
 直接输出JSON，格式：{"selling_points": ["卖点1", "卖点2", "卖点3"]}`;
 
-  try {
-    const content = await callLLM([{ role: 'user', content: userPrompt }], PLATFORM_SYSTEM_PROMPT);
-    const match = content.match(/\{[\s\S]*\}/);
-    if (match) {
-      const parsed = JSON.parse(match[0]);
-      if (Array.isArray(parsed.selling_points)) return { selling_points: parsed.selling_points.slice(0, 3) };
-    }
-  } catch (e) { console.error('selling_points LLM failed:', e); }
-
-  const templates: Record<string, string[]> = {
-    '美妆护肤': [`${product_name}，成分温和零刺激`, '国际认证，安全可靠', '持久保湿，全天水润'],
-    '服装配饰': [`${product_name}，高品质面料亲肤`, '时尚百搭，多场景适用', '精工细作，品位彰显'],
-    '家居用品': [`${product_name}，优质材料耐用`, '极简设计，完美融合家居', '功能强大，提升生活品质'],
-    '数码电器': [`${product_name}，高性能流畅运行`, '超长续航全天无忧', '智能互联，轻松掌控'],
-    '食品饮料': [`${product_name}，天然原料零添加`, '营养丰富，健康美味', '严格品控，安全放心'],
-  };
-  return { 
-    selling_points: (templates[category] ?? [`${product_name}，品质卓越`, '专为需求设计', '超高性价比']).slice(0, 3),
-    degraded: true,
-    degraded_reason: '演示模式：LLM调用异常，降级为品类预置卖点'
-  };
+  const parsed = await structuredText(userPrompt, { product_name, category, description });
+  return { selling_points: textList(parsed.selling_points, 3) };
 }
 
 // ─── Prompt 优化 ─────────────────────────────────────────────────────────────
@@ -581,91 +564,38 @@ async function optimizePrompt(body: Record<string, string>) {
 增强：光线/色彩/构图/镜头运动的具体描述；加入平台节奏、字幕样式、转场建议；输出英文Prompt（适合AI视频模型）。
 直接输出优化后的英文Prompt：`;
 
-  try {
-    const optimized = await callLLM([{ role: 'user', content: userPrompt }], PLATFORM_SYSTEM_PROMPT);
-    return { optimized_prompt: optimized.trim() };
-  } catch (e) {
-    console.error('optimize_prompt LLM failed:', e);
-    return { optimized_prompt: `[${product_name}] ${prompt}\nEnhanced: vertical 9:16, vibrant lighting, fast cuts, product callouts, bold CTA overlay.` };
-  }
+  const optimized = await callLLM([{ role: 'user', content: userPrompt }], PLATFORM_SYSTEM_PROMPT);
+  return { optimized_prompt: boundedText(optimized, 12000) };
 }
 
 // ─── 分镜生成 ────────────────────────────────────────────────────────────────
 async function generateStoryboard(body: Record<string, unknown>) {
   const { product_name, selling_points } = body as Record<string, string | string[]>;
   const pts = Array.isArray(selling_points) ? selling_points : [];
-  return {
-    degraded: true,
-    degraded_reason: '演示模式：未配置外部故事板生成模型，返回预设模板分镜',
-    shots: [
-      { id: crypto.randomUUID(), order: 1, type: '开场钩子', description: `快速展示${product_name}最亮眼特点，立刻抓住眼球`, duration: 3, text_overlay: `${pts[0] ?? '超强性能'} →`, transition: 'zoom' },
-      { id: crypto.randomUUID(), order: 2, type: '痛点呈现', description: '展示用户日常使用痛点，引发共鸣', duration: 4, text_overlay: '你是否有这样的烦恼？', transition: 'fade' },
-      { id: crypto.randomUUID(), order: 3, type: '产品解决方案', description: `特写${product_name}，展示如何解决痛点`, duration: 5, text_overlay: pts[1] ?? '完美解决方案', transition: 'slide' },
-      { id: crypto.randomUUID(), order: 4, type: '功能演示', description: '真实使用场景展示，增强说服力', duration: 6, text_overlay: pts[2] ?? '实际效果一试便知', transition: 'fade' },
-      { id: crypto.randomUUID(), order: 5, type: '行动号召', description: '展示优惠信息，引导购买', duration: 4, text_overlay: '⚡ 限时优惠，点击购买！', transition: 'fade' },
-    ],
-  };
+  boundedText(product_name, 200);
+  const parsed = await structuredText('依据商品资料创作2–12镜带货分镜，仅使用已有卖点，不编造优惠和功效。返回'
+    + '{"shots":[{"type":"镜头用途","description":"画面描述","duration":3,"text_overlay":"字幕","transition":"none|fade"}]}',
+    { product_name, selling_points: pts, script: body.script, duration: body.duration });
+  if (!Array.isArray(parsed.shots) || parsed.shots.length < 2 || parsed.shots.length > 12) throw new Error('模型未返回有效分镜');
+  return { shots: parsed.shots.map((shot: any, index: number) => {
+    if (!Number.isFinite(shot.duration) || shot.duration < 1 || shot.duration > 60 || !['none', 'fade'].includes(shot.transition)) throw new Error('分镜时长或转场不正确');
+    return { id: crypto.randomUUID(), order: index + 1, type: boundedText(shot.type, 80), description: boundedText(shot.description),
+      duration: shot.duration, text_overlay: boundedText(shot.text_overlay, 500), transition: shot.transition };
+  }) };
 }
 
 
 
 // ─── 流量分析预测 ─────────────────────────────────────────────────────────────
 async function analyzeTraffic(body: Record<string, unknown>) {
-  const { duration, has_subtitle, pacing, bgm_tempo, product_category } = body as Record<string, string | number | boolean>;
-  let cr = 58, ctr = 4.2;
-  if (Number(duration) >= 15 && Number(duration) <= 30) cr += 8;
-  else if (Number(duration) > 45) cr -= 6;
-  if (has_subtitle) cr += 5;
-  if (pacing === 'fast') { cr += 6; ctr += 1.5; } else if (pacing === 'slow') { cr -= 4; ctr -= 0.8; }
-  if (bgm_tempo === 'high') { cr += 4; ctr += 0.8; }
-  const boost: Record<string, number> = { '美妆护肤': 7, '食品饮料': 5, '数码电器': 3 };
-  cr += boost[String(product_category)] ?? 0;
-  cr = Math.min(95, Math.max(20, Math.round(cr + (Math.random() - 0.5) * 8)));
-  ctr = Math.min(15, Math.max(1, Math.round((ctr + (Math.random() - 0.5) * 1.5) * 10) / 10));
-
-  const suggestions = [];
-  if (Number(duration) > 40) suggestions.push({ type: 'duration', title: '缩短视频时长', description: `当前${duration}s偏长，建议≤30s，完播率可提升约15%`, priority: 'high' });
-  if (!has_subtitle) suggestions.push({ type: 'subtitle', title: '添加字幕覆盖', description: '字幕覆盖率>60%，完播率平均高22%', priority: 'high' });
-  if (pacing !== 'fast') suggestions.push({ type: 'pacing', title: '加快镜头节奏', description: '前5秒<2s/镜头，降低初始跳出率', priority: 'medium' });
-  if (bgm_tempo !== 'high') suggestions.push({ type: 'bgm', title: '提升BGM节奏感', description: '高BPM（120+）互动率提升18%', priority: 'medium' });
-  suggestions.push({ type: 'cta', title: '优化CTA位置', description: '在60%进度加购买引导，点击率提升2-4%', priority: 'low' });
-  return { 
-    completion_rate: cr, 
-    click_rate: ctr, 
-    suggestions,
-    degraded: true,
-    degraded_reason: '演示模式：未接入抖音/TikTok开放平台真实播放数据，返回启发式估算'
-  };
-}
-
-// ─── 风格分析 ────────────────────────────────────────────────────────────────
-async function analyzeStyle(body: Record<string, string>) {
-  const { source_url, source_type } = body;
-  const userPrompt = `分析${source_type === 'link' ? `视频链接：${source_url}` : '上传的视频'}的爆款风格要素。
-以JSON格式输出（仅JSON）：
-{"rhythm":"节奏类型","pacing":"快/中/慢节奏","transitions":["转场列表"],"subtitle_style":"字幕样式","bgm_type":"音乐风格","bgm_mood":"音乐情绪","color_tone":"色调","rhythm_score":75,"virality_score":80,"completion_score":72,"transitions_summary":"说明","subtitle_summary":"说明","bgm_summary":"说明","tags":["标签"],"strengths":["优势"],"improvements":["建议"]}`;
-
-  try {
-    const content = await callLLM([{ role: 'user', content: userPrompt }], PLATFORM_SYSTEM_PROMPT);
-    const match = content.match(/\{[\s\S]*\}/);
-    if (match) return JSON.parse(match[0]);
-  } catch (e) { console.error('analyze_style LLM failed:', e); }
-
-  const score = 68 + Math.floor(Math.random() * 26);
-  return {
-    degraded: true,
-    degraded_reason: '演示模式：视觉大模型分析降级，返回预设爆款风格特征',
-    rhythm: '强拍节奏', pacing: '快节奏', transitions: ['急速切换', '闪白转场', 'J切'],
-    subtitle_style: '粗体白字+黑描边', bgm_type: '流行电子', bgm_mood: '活力激昂',
-    color_tone: '暖橙调', rhythm_score: score, virality_score: Math.min(100, score + 8),
-    completion_score: Math.max(50, score - 5),
-    transitions_summary: '主要采用急速切换配合闪白转场，平均2-3秒切换镜头',
-    subtitle_summary: `粗体字幕覆盖率约${60 + Math.floor(Math.random() * 25)}%，关键信息加粗变色`,
-    bgm_summary: '流行电子风格，BPM约128，活力激昂，与快节奏高度匹配',
-    tags: ['爆款结构', '强钩子', '高完播', '快节奏'],
-    strengths: ['前3秒钩子设计出色，初始留存率高', '字幕可读性强，移动端体验佳', 'CTA时机准确，转化引导有力'],
-    improvements: ['镜头多样性可提升，增加特写与远景对比', '产品展示时长可延长5-8%', '结尾互动引导可更直接'],
-  };
+  const parsed = await structuredText('依据视频参数提供1–8条内容优化建议，不输出未经实测的点击或完播概率。返回'
+    + '{"suggestions":[{"type":"duration|subtitle|pacing|bgm|cta","title":"建议","description":"依据参数说明原因","priority":"high|medium|low"}]}', body);
+  if (!Array.isArray(parsed.suggestions) || !parsed.suggestions.length || parsed.suggestions.length > 8) throw new Error('模型未返回优化建议');
+  const suggestions = parsed.suggestions.map((item: any) => {
+    if (!['duration', 'subtitle', 'pacing', 'bgm', 'cta'].includes(item.type) || !['high', 'medium', 'low'].includes(item.priority)) throw new Error('优化建议类型不正确');
+    return { type: item.type, title: boundedText(item.title, 100), description: boundedText(item.description, 1000), priority: item.priority };
+  });
+  return { completion_rate: null, click_rate: null, suggestions, source: 'content_advice', metrics_available: false };
 }
 
 // ─── 风格深度分析（LLM 文字解读，配合 StyleCopyPage）────────────────────────
@@ -681,36 +611,22 @@ BGM：${bgm_type}（${bgm_mood}）
 色调：${color_tone}
 爆款指数：${virality_score}分`;
 
-  try {
-    const analysis = await callLLM([{ role: 'user', content: userPrompt }], PLATFORM_SYSTEM_PROMPT);
-    return { analysis: analysis.trim() };
-  } catch (e) {
-    console.error('analyze_style_deep failed:', e);
-    return { analysis: `DNA指纹「${dna_fingerprint}」显示：该视频采用${rhythm}+${pacing}结构，${bgm_type}配乐与${bgm_mood}情绪高度契合，爆款指数${virality_score}分（行业平均68分）。建议重点复刻开场3秒钩子设计与产品展示节奏，预计复刻后传播力提升25%以上。` };
-  }
+  const analysis = await callLLM([{ role: 'user', content: userPrompt }], PLATFORM_SYSTEM_PROMPT);
+  return { analysis: boundedText(analysis, 5000), source: 'provided_report' };
 }
 
 // ─── A/B 变体生成 ────────────────────────────────────────────────────────────
 async function generateABVariants(body: Record<string, unknown>) {
   const { product_name, variant_count } = body as Record<string, string | number>;
   const count = Math.min(4, Math.max(2, Number(variant_count) || 2));
-  const names = ['版本A（钩子优先）', '版本B（产品优先）', '版本C（情感共鸣）', '版本D（社会证明）'];
-  const descs = [
-    '前3秒强力钩子吸引眼球，延迟展示产品，高悬念引导完播',
-    '开门见山展示产品全貌，快速介绍核心卖点，适合品牌认知强的商品',
-    '以用户痛点和情感故事切入，产品作为解决方案出现，引发共鸣',
-    '开场展示真实用户评价/销量数据，建立信任感，再引入产品介绍',
-  ];
-  return {
-    degraded: true,
-    degraded_reason: '演示模式：未配置变体微调模型，返回预置营销结构变体',
-    variants: Array.from({ length: count }, (_, i) => ({
-      id: crypto.randomUUID(), name: names[i], description: descs[i],
-      predicted_cr: 55 + Math.floor(Math.random() * 30),
-      predicted_ctr: Math.round((3 + Math.random() * 7) * 10) / 10,
-      product_name, status: 'pending',
-    })),
-  };
+  boundedText(product_name, 200);
+  const raw = await structuredText(`创作${count}个只改变一个实验变量的电商视频脚本变体，禁止编造产品事实或预测转化数据。返回`
+    + '{"variants":[{"name":"版本名称","description":"实验假设","changed_variable":"改变的因素","script":"完整口播脚本","prompt":"英文视频画面提示"}]}', body);
+  if (!Array.isArray(raw.variants) || raw.variants.length !== count) throw new Error('模型返回的变体数量不正确');
+  return { variants: raw.variants.map((item: any) => ({ id: crypto.randomUUID(), name: boundedText(item.name, 100),
+    description: boundedText(item.description, 1000), changed_variable: boundedText(item.changed_variable, 200),
+    script: boundedText(item.script, 8000), prompt: boundedText(item.prompt, 8000),
+    predicted_cr: null, predicted_ctr: null, product_name, status: 'pending' })) };
 }
 
 // ─── EF-04: 四层脚本生成（ScriptPage 后端版本，写入 DB）─────────────────────
@@ -827,73 +743,6 @@ async function generateScriptFourLayer(
     console.error('generate_script_four_layer failed:', e);
     throw e;
   }
-}
-
-// ─── EF-05: 高光切片提取（LiveHighlightPage）────────────────────────────────
-async function extractHighlights(
-  body: Record<string, unknown>,
-  supabase: ReturnType<typeof businessClient>,
-) {
-  const { user_id, video_url, video_title, highlight_count } = body as Record<string, string | number>;
-  const count = Math.min(8, Math.max(2, Number(highlight_count) || 4));
-
-  const userPrompt = `作为直播/视频高光剪辑专家，请为以下视频提取${count}个最具传播价值的高光时刻：
-
-视频标题：${video_title || '未命名'}
-视频链接：${video_url || '（已上传）'}
-
-请输出高光片段JSON数组（仅JSON）：
-[{
-  "order": 1,
-  "title": "高光标题（10字以内）",
-  "start_time": "00:02:15",
-  "end_time": "00:02:45",
-  "duration": 30,
-  "highlight_type": "peak_moment|product_demo|audience_reaction|selling_point|cta",
-  "score": 88,
-  "reason": "推荐理由（20字以内）",
-  "caption": "推荐字幕文案（20字，适合二次传播）"
-}]`;
-
-  try {
-    const content = await callLLM([{ role: 'user', content: userPrompt }], PLATFORM_SYSTEM_PROMPT);
-    const match = content.match(/\[[\s\S]*\]/);
-    if (match) {
-      const highlights = JSON.parse(match[0]);
-      // 写入 video_jobs
-      if (user_id) {
-        await supabase.from('video_jobs').insert({
-          user_id,
-          action: 'highlight_extract',
-          status: 'completed',
-          payload: { video_url, video_title, count },
-          result: { highlights },
-        });
-      }
-      return { highlights };
-    }
-  } catch (e) { console.error('extract_highlights LLM failed:', e); }
-
-  // 降级生成
-  const types = ['peak_moment', 'product_demo', 'selling_point', 'cta', 'audience_reaction'];
-  const highlights = Array.from({ length: count }, (_, i) => {
-    const startMin = Math.floor(i * 8 + Math.random() * 5);
-    const startSec = Math.floor(Math.random() * 60);
-    const dur = 20 + Math.floor(Math.random() * 30);
-    const endSec = startSec + dur;
-    return {
-      order: i + 1,
-      title: ['爆款开场', '产品实测', '卖点展示', '强力CTA', '互动高峰', '价格公布', '对比测评', '粉丝福利'][i] || `高光${i + 1}`,
-      start_time: `00:${String(startMin).padStart(2, '0')}:${String(startSec).padStart(2, '0')}`,
-      end_time: `00:${String(startMin).padStart(2, '0')}:${String(Math.min(59, endSec)).padStart(2, '0')}`,
-      duration: dur,
-      highlight_type: types[i % types.length],
-      score: 70 + Math.floor(Math.random() * 28),
-      reason: ['节奏感强适合二次传播', '产品卖点展示清晰', '情绪感染力高', 'CTA转化率高', '互动数据峰值'][i % 5],
-      caption: [`${video_title || '爆款'}来了，冲！`, '真实效果不踩雷', '这个功能绝了！', '限时抢购别错过', '网友反应太真实'][i % 5],
-    };
-  });
-  return { highlights, degraded: true, degraded_reason: '演示模式：未配置外部视频分析模型，返回预置高光分段' };
 }
 
 // ─── EF-07: 知识库 RAG 全文检索 ──────────────────────────────────────────────
@@ -1033,8 +882,11 @@ async function emotionAnalysis(
   userId: string,
 ) {
   const { text, sentences, project_id } = body as { text?: string; sentences?: string[]; project_id?: string };
-  const inputSentences: string[] = sentences ?? (text ? text.split(/[。！？.!?]/).filter(Boolean) : []);
-  if (inputSentences.length === 0) return { segments: [] };
+  if (text !== undefined) boundedText(text, 12000);
+  const inputSentences: string[] = sentences ?? (text ? text.split(/[\n。！？.!?]/).map(line => line.trim()).filter(Boolean) : []);
+  if (!inputSentences.length || inputSentences.length > 200 || inputSentences.some(line => typeof line !== 'string' || !line.trim() || line.length > 2000)) {
+    throw new Error('请输入最多12000字、200句的口播文本');
+  }
 
   // Row 4: 结果落库供后续复用（按输入指纹缓存），失败不影响返回
   const persist = async (segments: unknown) => {
@@ -1057,30 +909,10 @@ ${inputSentences.map((s, i) => `${i + 1}. ${s}`).join('\n')}
 直接输出JSON数组（仅JSON）：
 [{"index":0,"text":"原文","emotion":"hook","intensity":85,"color":"#f59e0b","suggestion":"优化建议"}]`;
 
-  try {
-    const content = await callLLM([{ role: 'user', content: emotionPrompt }], PLATFORM_SYSTEM_PROMPT);
-    const match = content.match(/\[[\s\S]*\]/);
-    if (match) {
-      const segments = JSON.parse(match[0]);
-      await persist(segments);
-      return { segments };
-    }
-  } catch (e) { console.error('emotion_analysis failed:', e); }
-
-  const RULES = [
-    { kw: ['你有没有','你是否','还在为','烦恼','困扰'], emotion: 'pain_point', color: '#ef4444', intensity: 80 },
-    { kw: ['限时','秒杀','最后','只剩','现在'], emotion: 'promotion', color: '#f59e0b', intensity: 90 },
-    { kw: ['点击','立即购买','下单','加购'], emotion: 'cta', color: '#10b981', intensity: 95 },
-    { kw: ['万人好评','销量','口碑','推荐'], emotion: 'social_proof', color: '#6366f1', intensity: 75 },
-    { kw: ['功能','效果','成分','材质'], emotion: 'product_intro', color: '#3b82f6', intensity: 70 },
-    { kw: ['想知道','秘密','告诉你','绝了'], emotion: 'hook', color: '#f59e0b', intensity: 85 },
-  ];
-  const segments = inputSentences.map((s, i) => {
-    const matched = RULES.find(r => r.kw.some(k => s.includes(k)));
-    return { index: i, text: s, emotion: matched?.emotion ?? 'neutral', intensity: matched?.intensity ?? 50, color: matched?.color ?? '#94a3b8', suggestion: '' };
-  });
+  const raw = await structuredText(emotionPrompt + '\nindex必须从0顺序递增，每句给出建议。', inputSentences);
+  const segments = emotionSegments(raw, inputSentences);
   await persist(segments);
-  return { segments, degraded: true, degraded_reason: '演示模式：LLM情感分析失败，降级为规则关键词匹配' };
+  return { segments, source: 'model_analysis', score_basis: '模型编辑建议评分' };
 }
 
 // ─── P2-N04: 多语言脚本翻译 ───────────────────────────────────────────────────

@@ -1,5 +1,7 @@
 # 视频任务后台调度
 
+00041新增 [两段素材分析](ITERATION_12_GROUNDED_ANALYSIS.md)：通用production轮转增加analysis；FFmpeg轮转render与analysis_prepare，prepared后释放租约进入模型阶段。probe升级version=3/required_migration=00041，部署仍需匹配函数与镜像，现有旧视频Cron不会自行支持新分析。
+
 更新：2026-10-21，源码基线 `ce90bfe`。当前实际使用官方 Supabase 云端 Cron；火山方案默认常驻 ECS Docker，尚未部署验收。火山 Cron 扩展需在目标环境确认后才能使用，见 [火山部署指南](VOLCENGINE_DEPLOYMENT.md)。
 
 独立 Docker 调度器和 Supabase Cron 配置均已就绪，部署时选择其中一种。调度完全不依赖网页；主机或云端服务必须保持运行。2026-10-21 已创建并接入用户的官方 Supabase `aigcp` 项目，云端 Cron 已启用且完成后台退款验收，见 [部署记录](DEPLOYMENT_AIGCP.md)。当前使用云端 Cron，独立 Docker 调度器未同时启动。

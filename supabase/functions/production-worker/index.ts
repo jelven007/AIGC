@@ -5,6 +5,7 @@ import { processPublishJob, collectPlatformMetrics } from '../_shared/platform-j
 import { processVideoJob } from '../_shared/video-jobs.ts';
 import { processMediaDeletions } from '../_shared/media-cleanup.ts';
 import { processMediaJob, MEDIA_JOB_SLOTS } from '../_shared/media-jobs.ts';
+import { processAnalysisJob } from '../_shared/video-analysis.ts';
 
 export async function handleProductionWorker(req: Request): Promise<Response> {
   if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
@@ -19,12 +20,13 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
       const { error } = await db.from('production_jobs').select('id,kind,lease_token,evidence').limit(0);
       const voices = await db.from('voice_clones').select('id,model_config_version_id').limit(0);
       const costs = await db.from('credit_costs').select('action,cost').in('action', Object.keys(MEDIA_JOB_SLOTS).map(kind => `generate_${kind}`));
-      const ready = !error && !voices.error && !costs.error && costs.data?.length === Object.keys(MEDIA_JOB_SLOTS).length;
-      return Response.json({ ready, version: 2, required_migration: '00040' }, { status: ready ? 200 : 503 });
+      const analysis = await db.from('credit_costs').select('cost').eq('action', 'generate_analysis').maybeSingle();
+      const ready = !error && !voices.error && !costs.error && costs.data?.length === Object.keys(MEDIA_JOB_SLOTS).length && !analysis.error && !!analysis.data;
+      return Response.json({ ready, version: 3, required_migration: '00041' }, { status: ready ? 200 : 503 });
     }
     if (general && body.action === 'run') {
       // 以轮转顺序避免长视频队列使图片或发布饿死。
-      const runners = [() => processVideoJob(db), () => processImageJob(db), () => processPublishJob(db),
+      const runners = [() => processVideoJob(db), () => processImageJob(db), () => processPublishJob(db), () => processAnalysisJob(db),
         ...Object.keys(MEDIA_JOB_SLOTS).map(kind => () => processMediaJob(db, kind))];
       const offset = Math.floor(Date.now() / 1000) % runners.length;
       let processed = false;
@@ -34,7 +36,9 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
     }
     if (general && body.action === 'metrics') return Response.json({ collected: await collectPlatformMetrics(db) });
     if (render && body.action === 'claim') {
-      const { data, error } = await db.rpc('claim_production_job', { p_kind: 'render', p_job_id: null });
+      const preparing = body.kind === 'analysis_prepare';
+      if (body.kind && !preparing) return Response.json({ error: '领取类型不支持' }, { status: 400 });
+      const { data, error } = await db.rpc('claim_production_job', { p_kind: preparing ? 'analysis_prepare' : 'render', p_job_id: null });
       if (error) throw new Error('领取失败');
       if (!data) return Response.json({ job: null });
       const job = data as ProductionJob;
@@ -42,19 +46,24 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
         await jobEvent(db, job, job.resolution.event, job.resolution.data);
         return Response.json({ job: null, recovered: true });
       }
-      const basePath = `${job.user_id}/renders/${job.id}/${job.lease_token}`;
+      const basePath = `${job.user_id}/${preparing ? 'analysis' : 'renders'}/${job.id}/${job.lease_token}`;
       const outputs = [];
-      for (const [name, type] of [['output.mp4', 'video/mp4'], ['thumbnail.jpg', 'image/jpeg']]) {
+      const outputFiles = preparing ? [['audio.wav', 'audio/wav'], ...Array.from({ length: 8 }, (_, index) => [`frame-${index}.jpg`, 'image/jpeg'])]
+        : [['output.mp4', 'video/mp4'], ['thumbnail.jpg', 'image/jpeg']];
+      for (const [name, type] of outputFiles) {
         const path = `${basePath}/${name}`;
         const upload = await db.storage.from('materials').createSignedUploadUrl(path);
         if (upload.error || !upload.data) throw new Error('生成上传凭据失败');
-        outputs.push({ path, url: upload.data.signedUrl, type });
+        outputs.push({ name, path, url: upload.data.signedUrl, type });
       }
-      return Response.json({ job: { id: job.id, lease_token: job.lease_token,
+      return Response.json({ job: { id: job.id, kind: job.kind, lease_token: job.lease_token,
         payload: await signMediaTree(db, job.payload, job.user_id, 3600) }, outputs });
     }
-    if (render && ['heartbeat', 'completed', 'failed', 'retry'].includes(body.action)) {
-      const { data, error } = await db.from('production_jobs').select('*').eq('id', body.job_id).eq('kind', 'render').single();
+    if (render && ['heartbeat', 'completed', 'prepared', 'failed', 'retry'].includes(body.action)) {
+      const { data, error } = await db.from('production_jobs').select('*').eq('id', body.job_id).in('kind', ['render', 'analysis']).single();
+      if (!error && data?.kind === 'analysis' && data.evidence?.prepare_lease === body.lease_token && body.action === 'prepared') {
+        return Response.json({ ok: true });
+      }
       if (!error && data?.final_lease_token === body.lease_token && ['completed', 'failed'].includes(data.status)) {
         return Response.json({ ok: true, status: data.status });
       }
@@ -62,6 +71,27 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
       const job = data as ProductionJob;
       const path = `${job.user_id}/renders/${job.id}/${job.lease_token}`;
       let details = body.data || {};
+      if (job.kind === 'analysis') {
+        if (body.action === 'completed' || job.evidence) return Response.json({ error: '分析阶段由模型Worker维护' }, { status: 409 });
+        if (body.action === 'prepared') {
+          const base = `${job.user_id}/analysis/${job.id}/${job.lease_token}`;
+          const files = await db.storage.from('materials').list(base);
+          if (files.error || !Array.isArray(details.frame_times) || details.frame_times.length !== 8
+            || typeof details.has_audio !== 'boolean' || !Number.isFinite(details.duration) || details.duration < 0.1 || details.duration > 600
+            || !/^[a-f0-9]{64}$/.test(details.source_hash)) throw new Error('预处理证据不正确');
+          const frames = details.frame_times.map((time: number, index: number) => {
+            const file = files.data?.find(item => item.name === `frame-${index}.jpg`);
+            if (!Number.isFinite(time) || time < 0 || time >= details.duration || index && time < details.frame_times[index - 1]
+              || !file || !file.metadata?.size || file.metadata.size > 1024 * 1024) throw new Error('抽帧尚未上传完成');
+            return { time, url: mediaReference(Deno.env.get('SUPABASE_URL')!, 'materials', `${base}/frame-${index}.jpg`) };
+          });
+          const audio = files.data?.find(item => item.name === 'audio.wav');
+          if (details.has_audio && (!audio?.metadata?.size || audio.metadata.size > 20 * 1024 * 1024)) throw new Error('音轨尚未上传完成');
+          details = { duration: details.duration, source_hash: details.source_hash, has_audio: details.has_audio,
+            prepare_lease: job.lease_token, frames, ...(details.has_audio
+              ? { audio_url: mediaReference(Deno.env.get('SUPABASE_URL')!, 'materials', `${base}/audio.wav`) } : {}) };
+        }
+      } else if (body.action === 'prepared') return Response.json({ error: '渲染任务不支持预处理结案' }, { status: 400 });
       if (body.action === 'completed') {
         const files = await db.storage.from('materials').list(path);
         const output = files.data?.find(file => file.name === 'output.mp4');
