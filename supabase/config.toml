@@ -38,6 +38,9 @@ verify_jwt = false
 [functions.measurements]
 verify_jwt = false
 
+[functions.knowledge-base]
+verify_jwt = false
+
 # 授权采集服务使用HMAC原始正文签名，不使用用户JWT。
 [functions.measurement-ingest]
 verify_jwt = false

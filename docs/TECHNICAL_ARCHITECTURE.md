@@ -1,5 +1,7 @@
 # Shopro AI 技术架构
 
+00043 [知识检索](ITERATION_14_KNOWLEDGE_RETRIEVAL.md)沿现有统一API/生产队列新增knowledge_index/search，独立Embedding配置与不可变版本、原账户积分、checkpoint、私有knowledge_chunks及余弦检索。正文SHA-256失效、用户与版本隔离、服务端验证引用；配置槽由数据库目录统一校验，减少复制名单。当前200条/24块有界精确扫描，pgvector/大规模吞吐另需容量评估；不是模型训练。探针v5，待部署范围00032–00043。
+
 00042新增 [观测及实验边界](ITERATION_13_MEASUREMENTS_EXPERIMENTS.md)：独立签名采集入口→来源行锁/正文回执→日数据版本替换或持久分组/去重事件→统一报告及统计；自然视频累计指标不进入广告漏斗或随机样本。来源管理员登记/AES-GCM/停用，报告JWT/metrics:read，所有新表仅业务RPC访问。服务端全量汇总、明细上限和索引，预注册主指标/样本/固定窗口后双尾及Holm/Wilson，利润ROI及未经观测指标缺失。需00032–00042和匹配函数，探针v4；供应商与云端未验收。
 
 00041新增 [两段素材分析](ITERATION_12_GROUNDED_ANALYSIS.md)：FFmpeg租约读取私有视频→真实元数据/8帧/16kHz音轨/源指纹→prepared事务释放→生产Worker按旧ASR与文本版本分析→检查字幕引用→结果/风格历史原子结案。视频高光交给既有render任务输出MP4；模型编辑评分与经营实测分开。

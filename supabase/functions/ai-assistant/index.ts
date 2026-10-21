@@ -7,6 +7,7 @@ import { resolveModel, validateEndpoint } from '../_shared/model-registry.ts';
 import { createImageJob } from '../_shared/production-jobs.ts';
 import { boundedText, emotionSegments, structuredText, textList } from '../_shared/structured-analysis.ts';
 import { responseBytes } from '../_shared/audio-provider.ts';
+import { knowledgeContext, knowledgeMessages } from '../_shared/knowledge.ts';
 
 // 避免 createClient 的泛型 ReturnType 推导为空 schema。
 function businessClient(url: string, key: string): SupabaseClient {
@@ -357,6 +358,9 @@ Deno.serve(async (req) => {
     if (['analyze_style', 'extract_highlights'].includes(action)) {
       return err('视频分析已迁移至production-jobs analysis，请上传视频创建后台任务', 4100, 410);
     }
+    if (action === 'knowledge_rag_search' && !body.knowledge_job_id) {
+      return err('语义检索已迁移至knowledge-base后台任务，请提供完成的knowledge_job_id', 4100, 410);
+    }
     if (action === 'analyze_traffic') {
       if (!body.project_id || typeof body.creative_brief !== 'string' || !body.creative_brief.trim() || body.creative_brief.length > 3000
         || !Number.isSafeInteger(body.confirmed_credit_cost) || body.confirmed_credit_cost < 0) return err('请填写创意背景并确认当前积分价格', 4000, 400);
@@ -658,6 +662,7 @@ async function generateScriptFourLayer(
 
   const pts = Array.isArray(selling_points) ? selling_points : [String(selling_points)];
   const pains = Array.isArray(pain_points) ? pain_points : [];
+  const references = body.knowledge_job_id ? await knowledgeContext(supabase, userId, body.knowledge_job_id) : null;
 
   // Row 2: 读取启用版本 Prompt 模板，按 userId 稳定哈希分流做 A/B（无模板则降级内置四层 Prompt）
   let templateUsed: { id: string; version: number; variant: string } | null = null;
@@ -715,7 +720,7 @@ async function generateScriptFourLayer(
 
   try {
     const content = await callLLM(
-      [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+      [...(references ? knowledgeMessages(references) : []), { role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
     );
 
     const jsonMatch = content.match(/```json\s*([\s\S]*?)```/);
@@ -753,43 +758,20 @@ async function generateScriptFourLayer(
       });
     }
 
-    return { scenes, prompt_text: promptText, full_content: content, prompt_template: templateUsed };
+    return { scenes, prompt_text: promptText, full_content: content, prompt_template: templateUsed, knowledge_references: references };
   } catch (e) {
     console.error('generate_script_four_layer failed:', e);
     throw e;
   }
 }
 
-// ─── EF-07: 知识库 RAG 全文检索 ──────────────────────────────────────────────
+// 旧入口只读取已完成任务；Embedding调用和计费均在后台任务中执行。
 async function knowledgeRagSearch(
   body: Record<string, unknown>,
   supabase: ReturnType<typeof businessClient>,
 ) {
-  const { user_id, query, limit = 5 } = body as { user_id: string; query: string; limit: number };
-  if (!query) return { results: [] };
-
-  // 全文检索（基于 tsvector 索引）
-  const { data } = await supabase
-    .from('knowledge_entries')
-    .select('id, title, content, quality_score, tags, category, created_at')
-    .eq('user_id', user_id)
-    .textSearch('fts', query.split(' ').join(' & '), { type: 'plain' })
-    .order('quality_score', { ascending: false })
-    .limit(Number(limit));
-
-  // 降级：关键词模糊匹配
-  if (!data || data.length === 0) {
-    const { data: fallback } = await supabase
-      .from('knowledge_entries')
-      .select('id, title, content, quality_score, tags, category, created_at')
-      .eq('user_id', user_id)
-      .ilike('title', `%${query}%`)
-      .order('quality_score', { ascending: false })
-      .limit(Number(limit));
-    return { results: Array.isArray(fallback) ? fallback : [] };
-  }
-
-  return { results: Array.isArray(data) ? data : [] };
+  const context = await knowledgeContext(supabase, String(body.user_id), body.knowledge_job_id);
+  return { results: context.sources, context };
 }
 
 

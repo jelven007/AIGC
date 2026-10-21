@@ -1,5 +1,7 @@
 # 开发指南
 
+知识开发入口见 [迭代14](ITERATION_14_KNOWLEDGE_RETRIEVAL.md)：统一knowledge_entries，不再创建prompt_knowledge旁路；正文摘要/全文由受限触发器计算，向量只能Worker写。独立Embedding默认17槽，knowledge-base、knowledge.ts、00043和ScriptPage/sse/text-handler共同交付；测试`pnpm test:knowledge`，真实PG及协议无需供应商费用。修改配置目录同步数据库model_slot_catalog；扩大语料先评估精确扫描容量，不直接增加配额。
+
 00042入口见 [统一观测及实验](ITERATION_13_MEASUREMENTS_EXPERIMENTS.md)：MeasurementDashboard、ABTestPage、measurements/measurement-ingest及measurement-input/statistics，真实迁移/权限/事务通过`npm run test:measurements`；browser_measurements.mjs验证三看板、Excel与原请求恢复。禁用旧ab变体直写，来源密钥不持久化浏览器，累计自然数据不转换为广告/实验样本。所有观测表通过服务端API，不新增前端service_role。
 
 增量00041开发入口见 [真实素材分析](ITERATION_12_GROUNDED_ANALYSIS.md)：VideoAnalysisPanel、_shared/video-analysis、structured-analysis、worker/analyze.py。使用`npm run test:analysis`验证真实迁移/协议/FFmpeg，浏览器脚本browser_video_analysis.mjs验证失联恢复与MP4请求。输入视频≤100MB/10分钟，抽样帧不代表完整镜头或BPM测量。

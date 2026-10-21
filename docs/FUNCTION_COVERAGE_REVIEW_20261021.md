@@ -1,5 +1,7 @@
 # 原版功能覆盖校验与当前产品全景
 
+00043新增 [私有知识索引与脚本引用](ITERATION_14_KNOWLEDGE_RETRIEVAL.md)：17槽Embedding、统一knowledge_entries、后台分块/查询、版本与正文失效、服务端真实脚本引用及原积分事务；清除假整合/训练/默认脚本生成。本地PG/协议/移动页面通过，真实供应商/容量与云端待验收。部署范围扩展00032–00043，旧RAG未接入结论由本段及下表更新。
+
 00042新增 [统一观测及实验](ITERATION_13_MEASUREMENTS_EXPERIMENTS.md)：三看板删除随机/旧预测并统一官方快照；授权签名日观测、分源币种CTR/CVR/CPA/ROAS、预注册匿名随机分组/去重/窗口与双尾/Holm/Wilson、Excel和原请求恢复已实现并本地验证。广告/电商实际采集权限、原生平台实验、利润成本、自动优化/训练/发布仍待接入验收。本次更新以下指标/实验行；最新部署范围00032–00042及新函数，云端事实仍00031。
 
 00041新增 [真实分析与高光MP4](ITERATION_12_GROUNDED_ANALYSIS.md)，原视频分析/口播预置结果已替换。FFmpeg抽帧/音轨、模型可追溯分析和真实字幕段裁剪已有本地验证；完整镜头/BPM检测、真实竞品/选品采集与Embedding仍继续开发。
@@ -55,7 +57,7 @@
 | 数据回流 | 官方视频及授权接收已新增 | 官方快照去重/缺失覆盖；HMAC授权日快照与版本、分源币种CTR/CVR/CPA/扣退款ROAS。真实广告/电商采集服务与权限待验收，利润ROI缺成本 | MeasurementDashboard、measurements/measurement-ingest、00036/00042 |
 | A/B测试/自学习 | 真实随机实验基础已新增 | 2–8变体、预注册样本/指标/窗口、来源绑定、匿名固定分组/事件去重/结案、双尾/Holm/Wilson；需要采集服务实际展示分组内容，未交付原生平台实验/自动训练发布 | ABTestPage、measurement-statistics、00042 |
 | 总览/报表 | 已统一观测，仍待云端验收 | 三看板同报告、真实创建/风格/时长、官方指标与分源授权观测、Excel；取消随机预测/均值/固定提升，服务端全量汇总/明细上限 | MeasurementDashboard、measurements、00042 |
-| Prompt知识库/RAG | 部分覆盖 | 模板/用户条目、复制整合、全文/关键词检索；无Embedding配置槽、向量写入/检索到脚本的完整调用 | KnowledgePage、knowledgeRagSearch、generateScriptFourLayer |
+| Prompt知识库/RAG | 私有向量链已新增，待供应商与容量验收 | 真实保存/整理、17槽Embedding、后台分块/查询、精确余弦/用户与版本隔离/正文失效、真实脚本引用；200条/24块边界，不是自动训练 | KnowledgePage、knowledge-base/knowledge.ts、00043、text-handler/四层脚本、ITERATION_14 |
 | 团队空间/RBAC/共享 | 部分界面/业务记录 | 团队/邀请/成员处理存在且UI有本地降级；私有素材授权只认user，不认team，缺团队计费与共享闭环 | TeamSpacePage、phase3-assistant、00015/00035 |
 | OpenAPI Key/沙箱 | 页面保留，实际鉴权未覆盖 | Key记录/生成UI有本地模拟；业务函数用Auth.getUser校验JWT，不读取api_keys；页面示例generate_script也非现有Action | OpenAPIPage、auth.ts、phase3-assistant |
 | MCP | 原7工具保留并强化 | 用户JWT、同业务API、视频幂等；图片/渲染/发布/指标尚无MCP工具，工具描述有旧模型名 | mcp/tools.json、mcp_shopro_server.py |
@@ -95,7 +97,7 @@
 - 统一任务中心已修复；批量父子任务与预占预算、完整项目编排仍需实现。
 - 数字人/口型/即时语音克隆已新增正式协议和后台链，需真实账号、签名素材和质量验收；专业训练与动作控制仍待开发，Sora官方已退役。
 - 视频分析/ASR抽帧与MP4高光已新增00041；完整媒体特征与真实竞品/选品采集继续开发。
-- 团队资源ACL、API Key鉴权网关、Embedding/RAG服务。
+- 团队资源ACL与Key鉴权已有00037，Embedding/RAG有00043；剩余团队共同计费、知识Key权限/大规模索引及真实环境验收。
 - 多平台多账号派发、广告/电商授权与归因、实验分流/自动优化策略。
 - 完整运营后台及成本、预算、告警、备份恢复和上线验收。
 

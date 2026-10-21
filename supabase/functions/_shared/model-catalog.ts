@@ -2,6 +2,7 @@
 export const MODEL_SLOTS = [
   { id: 'text.primary', name: '主文本模型', category: 'text', protocols: ['openai-chat'], model: '', endpoint: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions' },
   { id: 'text.fallback', name: '备用文本模型', category: 'text', protocols: ['openai-chat'], model: 'deepseek-chat', endpoint: 'https://api.deepseek.com/v1/chat/completions' },
+  { id: 'embedding.primary', name: '知识库 Embedding', category: 'embedding', protocols: ['openai-embeddings'], model: '', endpoint: '' },
   { id: 'image.primary', name: '图片与封面', category: 'image', protocols: ['openai-images', 'chat-image'], model: '', endpoint: '' },
   { id: 'audio.tts', name: '语音合成', category: 'audio', protocols: ['openai-tts', 'step-tts'], model: '', endpoint: '' },
   { id: 'audio.asr', name: '语音识别', category: 'audio', protocols: ['openai-asr', 'step-asr'], model: '', endpoint: '' },

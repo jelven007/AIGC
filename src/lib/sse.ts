@@ -6,6 +6,7 @@ export interface DeepSeekStreamOptions {
   messages: Array<{ role: string; content: string }>;
   max_tokens?: number;
   temperature?: number;
+  knowledge_job_id?: string;
   onData: (data: string) => void;
   onComplete: () => void;
   onError: (error: Error) => void;
@@ -20,7 +21,7 @@ export async function sendDeepSeekStreamRequest(options: DeepSeekStreamOptions):
     const response = await authenticatedEdgeRequest('text-generation', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages, max_tokens, temperature, stream: true }),
+      body: JSON.stringify({ messages, max_tokens, temperature, stream: true, knowledge_job_id: options.knowledge_job_id }),
       signal,
     });
     if (!response.body) throw new Error('AI 服务未返回响应');
