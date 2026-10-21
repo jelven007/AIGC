@@ -11,6 +11,14 @@ mcp = FastMCP("Shopro AI", stateless_http=True)
 Cost = Annotated[int, Field(strict=True, ge=0, le=100000)]
 VideoProvider = Literal["ArkSeedance", "MiniMax", "SeedanceMini", "Wan3", "HappyHorse", "Kling", "Seedance"]
 IntelligenceKind = Literal["intelligence_competitor", "intelligence_products"]
+ProductLanguage = Literal["zh-CN", "en", "ja", "ko", "fr", "de", "es", "pt", "ar", "th", "vi", "id"]
+
+
+class CompetitorReference(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    sample_id: str
+    item_id: Annotated[str, Field(min_length=1, max_length=100)]
+    rights_confirmed: Literal[True]
 
 
 class ExportFormat(BaseModel):
@@ -244,10 +252,18 @@ async def get_analysis_price():
 
 @mcp.tool()
 async def submit_video_analysis(source_url: str, title: str, mode: Literal["live", "style"],
-                                request_key: str, confirmed_credit_cost: Cost):
-    """分析私有视频的高光或风格，经过真实抽帧/转录；平台播放页不能作为素材。"""
-    return await production("analysis", request_key, {"source_url": source_url, "title": title,
-                            "mode": mode, "confirmed_credit_cost": confirmed_credit_cost})
+                                request_key: str, confirmed_credit_cost: Cost,
+                                competitor_reference: Optional[CompetitorReference] = None):
+    """分析私有视频的高光或风格，经过真实抽帧/转录；平台播放页不能作为素材。
+    风格分析可关联本人竞品快照，用户须确认上传素材使用权；服务端核对统计来源。
+    """
+    payload = {"source_url": source_url, "title": title, "mode": mode, "confirmed_credit_cost": confirmed_credit_cost}
+    if competitor_reference:
+        if mode != "style":
+            raise ValueError("竞品参考仅适用于风格分析")
+        payload["competitor_reference"] = {**competitor_reference.model_dump(),
+                                            "sample_id": identifier(competitor_reference.sample_id)}
+    return await production("analysis", request_key, payload)
 
 
 @mcp.tool()
@@ -448,6 +464,25 @@ async def list_products(search: str = "", offset: int = 0, limit: int = 50):
 async def list_product_imports():
     """读取最近20个商品提取任务，未导入结果保留30天；可用query_production_status核对任务。"""
     return await call_backend("product-management", {"action": "imports"})
+
+
+@mcp.tool()
+async def list_product_translations():
+    """读取最近20个商品翻译任务及当前积分价格，结果保留30天。"""
+    return await call_backend("product-management", {"action": "translations"})
+
+
+@mcp.tool()
+async def translate_product(product_id: str, expected_updated_at: str, target_language: ProductLanguage,
+                            include_image: Annotated[bool, Field(strict=True)], confirmed_credit_cost: Cost,
+                            request_key: str):
+    """翻译原商品文字与可选主图文字；先读取当前价格并取得用户确认。复用原UUID/版本/参数恢复未知回执。
+    结果不自动修改商品或图片；保存译文须另行确认并使用source_updated_at检查原商品版本。
+    """
+    return (await call_backend("product-management", {"action": "translate", "request_key": identifier(request_key),
+            "input": {"product_id": identifier(product_id), "expected_updated_at": expected_updated_at,
+                      "target_language": target_language, "include_image": include_image,
+                      "confirmed_credit_cost": confirmed_credit_cost}}))["job"]
 
 
 @mcp.tool()

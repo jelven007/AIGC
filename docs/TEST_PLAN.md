@@ -1,5 +1,7 @@
 # 测试与验收计划
 
+新增 [迭代21专项](ITERATION_21_TRANSLATION_NOTIFICATIONS.md)：test:translation执行PG原商品版本/价格/共享并发/指纹/原结果核对/退款和通知隔离/终态/去重/cutoff/偏好/TTL，协议验证私有图片/流量上限与翻译未知不重发。browser_translation_notifications验证同UUID关页恢复、JSON/编辑版本、图片地址指纹、竞品使用权、真实通知分页/铃铛同步/偏好失败和390px；MCP/任务中心/调度/部署/工程同步。目标补eBay图片权限、视觉模型质量/费用、真实触发/清理及吞吐。
+
 新增REQ-CASH-01–02/OPS-01/BUDGET-01对应 [迭代20](ITERATION_20_CASH_OPERATIONS.md)：真实PG16验证现金预占/并发/原参数/查询节流/崩溃租约、签名到账绑定/权益/欠额/旧周期/加油包与事务回滚，可信角色/客户范围/安全分页/角色撤销、日预算并发和版本回执；8组Edge/调度协议，4组390px退款/预算503原UUID刷新、确定拒绝与权限UI。`npm run test:cash`、browser_operations与资金/支付/调度/部署/工程检查；目标补真实支付宝签名/退款字段/到账、历史账与权益规则，微信退款仍待实现。
 
 新增 [迭代19专项](ITERATION_19_PRODUCT_MANAGEMENT.md)及test:products/browser_products：PG身份/回执并发/整批回滚/版本冲突/删除重放/来源墓碑/队列/留存，真实HTTP解析/内网重定向拒绝/空值/币种/CSV多行引号、后台证据恢复、页面503刷新恢复和390px布局。同步finance/intelligence/production/MCP/scopes与调度/部署；目标补真实商家页、图片签名/存储留存/备份/吞吐。仅本地通过不证明云端生产可用。

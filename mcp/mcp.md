@@ -1,6 +1,6 @@
 # MCP 接入指南
 
-更新：2026-10-22，迭代19提供52个实际SDK工具和18业务权限，新增商品列表/提取任务/来源提取/事务保存删除。商品免费真实提取、原币种/空值/来源、原UUID/版本与网页共用；新函数/00032–00046和probe v8尚未云端验收。状态见 [CURRENT_STATE](../docs/CURRENT_STATE.md) 与 [商品管理](../docs/ITERATION_19_PRODUCT_MANAGEMENT.md)。
+更新：2026-10-22，迭代21提供54个实际SDK工具和18业务权限，新增商品翻译/翻译记录及竞品素材分析引用。translate_product先读取价格并取得确认，原商品updated_at/12语言/可选主图/原UUID与网页共用；不自动保存译文。竞品引用要求本人快照及素材使用权，后端取证。00032–00049与probe v10/render2尚未云端验收。状态见 [CURRENT_STATE](../docs/CURRENT_STATE.md) 与 [本轮契约](../docs/ITERATION_21_TRANSLATION_NOTIFICATIONS.md)。
 
 ## 1. 入口与连接配置
 
@@ -28,7 +28,8 @@ HTTP ContextVar 在每次请求后重置，无状态传输避免用户会话混�
 | submit_render | render_spec、project_id、UUID | 工程v1交给现有双校验和FFmpeg队列，完整协议见[API](../docs/API_AND_DATA.md) |
 | submit_render_export/query_render_export | 源作品、formats、UUID/导出ID或UUID | 多规格事务导出组，包含各子任务状态和成片 |
 | query_production_status/list_production_jobs | 本地job_id或原UUID/无 | 当前用户任务，结果URL短效签名，过期重新查询 |
-| get_analysis_price/submit_video_analysis | 无/私有视频、title、live或style、UUID、价格 | 真实抽帧/ASR任务，平台播放页不是源素材 |
+| get_analysis_price/submit_video_analysis | 无/私有视频、title、live或style、UUID、价格，可选competitor_reference | 真实抽帧/ASR任务；竞品参考仅style且须本人sample_id/item_id/rights_confirmed:true，平台播放页不是源素材 |
+| list_product_translations/translate_product | 无/商品ID、expected_updated_at、12语言、include_image布尔、确认价格、UUID | 最近20任务和价格/原版本后台翻译，原UUID恢复；明确失败退款，未知先核对；保存需source_updated_at和用户确认 |
 | get_batch_video_quote/submit_batch_videos | 无/商品IDs、provider、风格语言规格、单价、总预算、UUID | 1–50个自有商品，事务固定快照/版本与整批预占 |
 | query_video_batch/list_video_batches/control_video_batch | ID或UUID/无/batch_id及pause/resume/cancel | 读取批次，控制未提交项，已受理项继续核对 |
 | list_publish_accounts/get_publish_options | 无/connection_id | 账号安全摘要/实际可见范围；网页完成OAuth授权 |

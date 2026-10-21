@@ -9,6 +9,15 @@ export type ProductItem = Product;
 export type ProductDraft = ReturnType<typeof import('../../supabase/functions/_shared/product-contract').productDraft>;
 export type ProductImportResult = { draft: ProductDraft; warnings: string[]; source: NonNullable<Product['source']> };
 export type ProductImportJob = Omit<ProductionJob, 'result'> & { result: ProductImportResult & { expired?: boolean } | null };
+export const PRODUCT_LANGUAGES: Record<string, string> = { 'zh-CN': '简体中文', en: '英语', ja: '日语', ko: '韩语', fr: '法语',
+  de: '德语', es: '西班牙语', pt: '葡萄牙语', ar: '阿拉伯语', th: '泰语', vi: '越南语', id: '印度尼西亚语' };
+export type ProductTranslationInput = { product_id: string; expected_updated_at: string; target_language: string;
+  include_image: boolean; confirmed_credit_cost: number };
+export type ProductTranslationResult = { product_id: string; source_updated_at: string; source_hash: string; target_language: string;
+  version_id: string; image_hash: string | null; created_at: string; image_note: string;
+  translation: Pick<ProductDraft, 'name' | 'description' | 'selling_points' | 'specs'>;
+  image_text: { original: string; translated: string }[]; expired?: boolean };
+export type ProductTranslationJob = Omit<ProductionJob, 'result'> & { result: ProductTranslationResult | null };
 export type ProductMutation = { action: 'save' | 'delete'; request_key: string;
   items: { id?: string; expected_updated_at?: string; import_job_id?: string; draft?: ProductDraft }[] };
 export class ProductRequestError extends Error {

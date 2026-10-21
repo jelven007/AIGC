@@ -755,8 +755,37 @@
     },
     {
       "name": "submit_video_analysis",
-      "description": "分析私有视频的高光或风格，经过真实抽帧/转录；平台播放页不能作为素材。",
+      "description": "分析私有视频的高光或风格，经过真实抽帧/转录；平台播放页不能作为素材。\n    风格分析可关联本人竞品快照，用户须确认上传素材使用权；服务端核对统计来源。\n    ",
       "inputSchema": {
+        "$defs": {
+          "CompetitorReference": {
+            "additionalProperties": false,
+            "properties": {
+              "sample_id": {
+                "title": "Sample Id",
+                "type": "string"
+              },
+              "item_id": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Item Id",
+                "type": "string"
+              },
+              "rights_confirmed": {
+                "const": true,
+                "title": "Rights Confirmed",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "sample_id",
+              "item_id",
+              "rights_confirmed"
+            ],
+            "title": "CompetitorReference",
+            "type": "object"
+          }
+        },
         "properties": {
           "source_url": {
             "title": "Source Url",
@@ -783,6 +812,17 @@
             "minimum": 0,
             "title": "Confirmed Credit Cost",
             "type": "integer"
+          },
+          "competitor_reference": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CompetitorReference"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           }
         },
         "required": [
@@ -1651,6 +1691,73 @@
       "inputSchema": {
         "properties": {},
         "title": "list_product_importsArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_product_translations",
+      "description": "读取最近20个商品翻译任务及当前积分价格，结果保留30天。",
+      "inputSchema": {
+        "properties": {},
+        "title": "list_product_translationsArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "translate_product",
+      "description": "翻译原商品文字与可选主图文字；先读取当前价格并取得用户确认。复用原UUID/版本/参数恢复未知回执。\n    结果不自动修改商品或图片；保存译文须另行确认并使用source_updated_at检查原商品版本。\n    ",
+      "inputSchema": {
+        "properties": {
+          "product_id": {
+            "title": "Product Id",
+            "type": "string"
+          },
+          "expected_updated_at": {
+            "title": "Expected Updated At",
+            "type": "string"
+          },
+          "target_language": {
+            "enum": [
+              "zh-CN",
+              "en",
+              "ja",
+              "ko",
+              "fr",
+              "de",
+              "es",
+              "pt",
+              "ar",
+              "th",
+              "vi",
+              "id"
+            ],
+            "title": "Target Language",
+            "type": "string"
+          },
+          "include_image": {
+            "title": "Include Image",
+            "type": "boolean"
+          },
+          "confirmed_credit_cost": {
+            "maximum": 100000,
+            "minimum": 0,
+            "title": "Confirmed Credit Cost",
+            "type": "integer"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "product_id",
+          "expected_updated_at",
+          "target_language",
+          "include_image",
+          "confirmed_credit_cost",
+          "request_key"
+        ],
+        "title": "translate_productArguments",
         "type": "object"
       }
     },

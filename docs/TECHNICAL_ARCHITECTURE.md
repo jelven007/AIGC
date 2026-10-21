@@ -1,5 +1,7 @@
 # Shopro AI 技术架构
 
+最新 [迭代21](ITERATION_21_TRANSLATION_NOTIFICATIONS.md)复用production_jobs/账户锁/配置版本/原结果证据，将商品翻译加入共享4槽；商品快照/图片SHA-256与模型版本绑定，原结果核对共用SQL校验。竞品引用由事务读取正式快照并独立留存；通知在真实状态事务内触发且去重，RLS/RPC和用户维度React Query共享列表/铃铛，批量cutoff保护新消息。00049、MCP54/18权限、probe v10/render2；匹配全栈与供应商待验收。
+
 最新 [迭代20](ITERATION_20_CASH_OPERATIONS.md)在现有React/Supabase新增真实运营入口，避免复建Vue/Mock中台；可信权限/客户范围与资金/预算回执在DB执行。现金退款统一账户→订单→退款锁、金额预占/原UUID/签名证据、到账/权益/审计原子化；支付发放同锁顺序且保留欠额。UTC日预算统一在deduct_credits执行，队列复用只查询退款，probe v9/00048。完整租户/工单/风险处置/现金成本与实际部署仍待交付。
 
 最新 [商品管理迭代19](ITERATION_19_PRODUCT_MANAGEMENT.md)统一两处导入/表单/字段校验/API，撤销浏览器商品写权限。后台product_import复用租约队列，以真实来源/图片/证据归档；商品写入/版本/来源一次性/回执/审计同事务。CSV与页面不再重复解析/猜测结果。00046、MCP52/18权限，常驻调度严格匹配probe v8/00046；目标云端部署仍待验收。
@@ -35,7 +37,7 @@
 ```mermaid
 flowchart TB
     Browser["React 商家端<br/>商品 / 脚本 / 视频图片 / 剪辑 / 发布 / 数据"]
-    MCP["外部 Agent → MCP<br/>45工具 / 用户JWT或受限Key"]
+    MCP["外部 Agent → MCP<br/>54工具 / 用户JWT或受限Key"]
     Auth["Supabase Auth / JWT"]
     API["Deno 业务 API<br/>video-jobs / production-jobs / platform-publish"]
     Settings["管理员统一设置<br/>模型版本 / 平台应用 / 加密凭据"]
@@ -89,7 +91,7 @@ flowchart TB
 | 剪辑 Worker | Python 3.12 / FFmpeg / Docker | 独立 ECS 或容器宿主机，待部署 | 时间轴合成、签名素材/上传、H.264/AAC |
 | 平台与指标 | OAuth / 发布状态查询 / 数据快照 | TikTok、抖音正式 API，待账号联调 | 后台发布、审核、官方自然视频指标 |
 | 音频/数字人 | OpenAI/Step、ElevenLabs IVC、D-ID Talks、Sync | 本地实现，00040/API/生产调度待发布 | 配音/识别/声纹/口播/口型队列、私有归档及积分闭环 |
-| MCP | Python FastMCP、Starlette、HTTPX | 可选 ECS 或本地 stdio | 45工具复用JWT/受限Key及业务API |
+| MCP | Python FastMCP、Starlette、HTTPX | 可选 ECS 或本地 stdio | 54工具复用JWT/受限Key及业务API |
 | 运维发布 | `byted-supabase-cli`、Python 部署脚本 | 开发机/受控发布环境 | SQL、Secrets、函数、Pages 与发布前预检 |
 
 当前不需要 Redis：任务队列使用 PostgreSQL `FOR UPDATE SKIP LOCKED`。旧视频查询可触发一次受控处理，图片/发布依赖新生产调度，FFmpeg依赖独立容器；不能只升级旧视频Cron。上述为源码逻辑架构，实际吞吐/并发容量需部署后测量。

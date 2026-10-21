@@ -1,5 +1,7 @@
 # 开发指南
 
+最新 [迭代21入口](ITERATION_21_TRANSLATION_NOTIFICATIONS.md)：00049/product-translation/intelligence-image、两业务API/production-worker、ProductTranslationDialog、MarketIntelligenceWorkspace/VideoAnalysisPanel、notifications API与useNotifications。译文保存必须绑定source_updated_at，图片参数必须canonical引用/原指纹，竞品统计由DB取证；通知状态来源/偏好/批量cutoff不在浏览器模拟。执行test:translation、综合浏览器、MCP54目录/scopes、任务中心/调度/部署与工程检查；probe v10/00049/render2。
+
 新增 [现金退款与运营入口](ITERATION_20_CASH_OPERATIONS.md)：00047/00048、cash-refunds共享模块、operations/Alipay两函数、OperationsPage与用户订单回执。不得恢复profile角色/浮点累计/浏览器财务写、供应商原响应日志或无UUID重发；所有新扣费均经账户锁/UTC日预算。修改权益需验证欠额、旧周期/加油包和支付锁顺序，执行test:cash/finance/payments、browser_operations、Deno/调度/工程检查；发布probe v9/00048与匹配服务。
 
 商品模块最新入口见 [迭代19](ITERATION_19_PRODUCT_MANAGEMENT.md)：共享product-contract/product-import、product-management、ProductFields/UrlProductImportDialog、productCsv和00046；修改字段须同步前后端规范化及RPC回执。使用test:products与浏览器专项验证，禁止恢复默认商品/库存/图片或本地隐藏删除。MCP目录由真实SDK导出，重建镜像并检查52工具；常驻调度要求probe v8/00046。

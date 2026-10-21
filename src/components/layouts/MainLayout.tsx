@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCredits } from '@/hooks/useCredits';
+import { useNotifications } from '@/hooks/useNotifications';
+import { notificationPath } from '@/api/notifications';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -379,30 +381,20 @@ function TopBarQuickLink({ to, icon: Icon, label }: { to: string; icon: React.El
 }
 
 // ── 通知 Bell（顶栏）─────────────────────────────────────────────────────
-const NOTIF_INITIAL = [
-  { id: '1', title: '视频生成完成', body: '「烟酰胺精华28天变白挑战」已生成完毕', time: '2分钟前', unread: true },
-  { id: '2', title: '限时积分奖励', body: '5月大促期间生成视频可获双倍积分', time: '1小时前', unread: true },
-  { id: '3', title: '系统更新 v42', body: 'AI工具箱升级、数字人库融合视频模板', time: '5小时前', unread: false },
-];
-
 function TopBarNotificationBell({ isDarkHeader }: { isDarkHeader: boolean }) {
   const navigate = useNavigate();
-  const [notifs, setNotifs] = useState(NOTIF_INITIAL);
-  const unread = notifs.filter(n => n.unread).length;
+  const { feed, isLoading, error, mutate, mutating } = useNotifications();
+  const unread = feed?.unread_all || 0;
 
   const markAllRead = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setNotifs(prev => prev.map(n => ({ ...n, unread: false })));
-  };
-
-  const markOneRead = (id: string) => {
-    setNotifs(prev => prev.map(n => n.id === id ? { ...n, unread: false } : n));
+    if (feed && !mutating) void mutate({ action: 'read_all', cutoff: feed.cutoff }).catch(cause => toast.error(cause.message));
   };
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className={cn("relative shrink-0", isDarkHeader ? "text-white/60 hover:text-white hover:bg-white/10" : "text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100")}>
+        <Button variant="ghost" size="icon" aria-label={`消息通知，${unread}条未读`} className={cn("relative shrink-0", isDarkHeader ? "text-white/60 hover:text-white hover:bg-white/10" : "text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100")}>
           <Bell className="w-4 h-4" />
           {unread > 0 && (
             <span className={cn("absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-destructive border-2", isDarkHeader ? "border-[#0e0e12]" : "border-white")} />
@@ -422,6 +414,7 @@ function TopBarNotificationBell({ isDarkHeader }: { isDarkHeader: boolean }) {
             {unread > 0 && (
               <button
                 onClick={markAllRead}
+                disabled={mutating}
                 className="text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-0.5"
               >
                 <CheckCheck className="w-3 h-3" />一键已读
@@ -436,21 +429,27 @@ function TopBarNotificationBell({ isDarkHeader }: { isDarkHeader: boolean }) {
           </div>
         </div>
         <div className="divide-y divide-border/30">
-          {notifs.map(n => (
-            <div
+          {isLoading && <p className="p-4 text-xs text-muted-foreground" role="status">正在读取通知</p>}
+          {error && <p className="p-4 text-xs text-destructive" role="alert">{error.message}</p>}
+          {feed && !feed.items.length && <p className="p-4 text-xs text-muted-foreground">暂无通知</p>}
+          {feed?.items.slice(0, 5).map(n => (
+            <button
               key={n.id}
-              onClick={() => markOneRead(n.id)}
-              className={cn('px-4 py-3 hover:bg-muted/50 cursor-pointer transition-colors', n.unread && 'bg-primary/3')}
+              onClick={() => {
+                if (!n.read_at) void mutate({ action: 'read', ids: [n.id] }).catch(cause => toast.error(cause.message));
+                navigate(notificationPath(n), { state: { notification_source_id: n.source_id } });
+              }}
+              className={cn('w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors', !n.read_at && 'bg-primary/5')}
             >
               <div className="flex items-start gap-2">
-                {n.unread && <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0 mt-1.5" />}
-                <div className={cn('flex-1 min-w-0', !n.unread && 'pl-3.5')}>
-                  <p className={cn('text-sm leading-snug truncate', n.unread ? 'font-semibold text-foreground' : 'text-muted-foreground')}>{n.title}</p>
+                {!n.read_at && <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0 mt-1.5" />}
+                <div className={cn('flex-1 min-w-0', n.read_at && 'pl-3.5')}>
+                  <p className={cn('text-sm leading-snug truncate', !n.read_at ? 'font-semibold text-foreground' : 'text-muted-foreground')}>{n.title}</p>
                   <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{n.body}</p>
-                  <p className="text-[10px] text-muted-foreground/60 mt-1">{n.time}</p>
+                  <p className="text-[10px] text-muted-foreground/60 mt-1">{new Date(n.created_at).toLocaleString('zh-CN')}</p>
                 </div>
               </div>
-            </div>
+            </button>
           ))}
         </div>
         <div className="px-4 py-2.5 border-t border-border/30">

@@ -1,5 +1,7 @@
 # 接口与数据契约
 
+新增 [迭代21契约](ITERATION_21_TRANSLATION_NOTIFICATIONS.md)：product-management translations返回20条任务/cost，translate原UUID与商品ID/expected_updated_at/目标语言/主图布尔/确认价格，202及unknown恢复。eBay图片目标绑定稳定私有image_url/image_hash/market；analysis的competitor_reference包含本人sample_id/item_id/rights_confirmed:true，由DB读取真实统计。read_notifications/mutate_notifications为本人authenticated RPC，分类/25页/服务器cutoff/偏好/RLS；API Key不开放。probe v10/00049，MCP54工具/18权限。
+
 新增 [现金/运营契约](ITERATION_20_CASH_OPERATIONS.md)：operations POST access/list/mutate（个人JWT、可信角色/客户范围、25条分页、预算原版本/UUID、授权撤销审计）；alipay-trade-ops新refund必须原UUID/金额/原因、refundQuery/receipt支持原UUID或out_request_no、unknown保留预占/202/503恢复。00047/00048事务绑定到账签名/金额/原编号与权益；用户仅cash_refund_receipts只读。两入口8KB正文，运营60/资金30请求每分钟，浏览器25秒；后台只查询原退款。probe v9/00048，资金接口不接受MCP/API Key。
 
 新增 [商品管理契约](ITERATION_19_PRODUCT_MANAGEMENT.md)：product-management的list/imports/extract/save/delete；products:read/write权限、1MB正文、60请求/分钟、1–100条原子操作。00046新增来源、原币种、生成价格列、可空库存/销量、只读浏览器商品、版本检查与哈希回执；受理未知503保留原UUID。后台任务与MCP52工具共用，目标待部署。

@@ -1,6 +1,6 @@
 import type { ResolvedModel } from './model-registry.ts';
 import { validateEndpoint } from './model-registry.ts';
-import { responseBytes } from './audio-provider.ts';
+import { encodeAudio, responseBytes } from './audio-provider.ts';
 
 export const INTELLIGENCE_KINDS = ['intelligence_competitor', 'intelligence_products'];
 export const EBAY_MARKETS = ['US', 'GB', 'DE', 'FR', 'IT', 'ES', 'AU', 'CA'];
@@ -27,9 +27,18 @@ export function intelligenceParams(kind: string, slot: string, raw: unknown): Re
     return { platform, account_id: account };
   }
   if (slot === 'intelligence.youtube') throw new IntelligenceError('频道数据源不能搜索商品');
-  const query = text(input.query, 100), market = text(input.market, 2).toUpperCase();
-  if (query.includes('*') || !/^[A-Z]{2}$/.test(market)) throw new IntelligenceError('商品关键词或市场非法');
+  const market = text(input.market, 2).toUpperCase();
+  if (!/^[A-Z]{2}$/.test(market)) throw new IntelligenceError('商品市场非法');
   if (slot === 'intelligence.ebay' && !EBAY_MARKETS.includes(market)) throw new IntelligenceError('eBay市场不支持');
+  if (input.search_mode === 'image') {
+    if (slot !== 'intelligence.ebay') throw new IntelligenceError('当前数据源尚未支持图片搜索');
+    const image_url = text(input.image_url, 2048), image_hash = text(input.image_hash, 64);
+    if (!/^[a-f0-9]{64}$/.test(image_hash)) throw new IntelligenceError('图片内容标识非法');
+    return { search_mode: 'image', image_url, image_hash, market };
+  }
+  if (input.search_mode !== undefined && input.search_mode !== 'keyword') throw new IntelligenceError('搜索方式非法');
+  const query = text(input.query, 100);
+  if (query.includes('*')) throw new IntelligenceError('商品关键词非法');
   const platform = slot === 'intelligence.licensed' ? text(input.platform, 30) : '';
   if (platform && !['douyin','tiktok','xiaohongshu','kuaishou','shopee','lazada','amazon'].includes(platform)) throw new IntelligenceError('授权商品平台不支持');
   return { query, market, ...(platform ? { platform } : {}) };
@@ -62,12 +71,13 @@ function seconds(value: unknown): number | null {
   if (!match) return null;
   return Number(match[1] || 0) * 3600 + Number(match[2] || 0) * 60 + Number(match[3] || 0);
 }
-async function read(config: ResolvedModel, path: string, params: Record<string, string>, headers = config.headers) {
+async function read(config: ResolvedModel, path: string, params: Record<string, string>, headers = config.headers, body?: string) {
   await validateEndpoint(config.settings.endpoint);
   const url = new URL(`${config.settings.endpoint.replace(/\/$/, '')}/${path}`);
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
   let response: Response;
-  try { response = await fetch(url, { headers, redirect: 'error', signal: AbortSignal.timeout(config.settings.timeout_ms) }); }
+  try { response = await fetch(url, { headers, ...(body ? { method: 'POST', body } : {}),
+    redirect: 'error', signal: AbortSignal.timeout(config.settings.timeout_ms) }); }
   catch { throw new Error('数据源连接中断或超时'); }
   if (!response.ok) {
     if ([400,401,402,403,404,405,410,413,415,422].includes(response.status)) throw new IntelligenceError(`数据源返回 HTTP ${response.status}，请检查授权和参数`);
@@ -76,8 +86,9 @@ async function read(config: ResolvedModel, path: string, params: Record<string, 
   try { return JSON.parse(new TextDecoder().decode(await responseBytes(response, 2 * 1024 * 1024))); }
   catch { throw new IntelligenceError('数据源返回正文非法或超过2MB'); }
 }
-export async function collectIntelligence(config: ResolvedModel, kind: string, raw: unknown) {
+export async function collectIntelligence(config: ResolvedModel, kind: string, raw: unknown, image?: Uint8Array) {
   const params = intelligenceParams(kind, config.slot, raw);
+  if (params.search_mode === 'image' && (!image?.length || image.length > 5 * 1024 * 1024)) throw new IntelligenceError('图片搜索内容缺失或过大');
   const source = { slot: config.slot, protocol: config.settings.protocol, version_id: config.version_id,
     name: config.settings.name, collected_at: new Date().toISOString(), observed_at: new Date().toISOString(), definition: '' };
   if (config.slot === 'intelligence.youtube') {
@@ -118,8 +129,12 @@ export async function collectIntelligence(config: ResolvedModel, kind: string, r
     catch { throw new IntelligenceError('eBay授权响应非法'); }
     if (oauth.token_type?.toLowerCase() !== 'bearer' || typeof oauth.access_token !== 'string'
       || !oauth.access_token || /[\r\n]/.test(oauth.access_token)) throw new IntelligenceError('eBay授权凭据非法');
-    const data = await read(config, 'item_summary/search', { q: params.query!, limit: '20', offset: '0' },
-      { Authorization: `Bearer ${oauth.access_token}`, 'X-EBAY-C-MARKETPLACE-ID': `EBAY_${params.market}` });
+    const byImage = params.search_mode === 'image';
+    const data = await read(config, byImage ? 'item_summary/search_by_image' : 'item_summary/search',
+      { ...(byImage ? {} : { q: params.query! }), limit: '20', offset: '0' },
+      { Authorization: `Bearer ${oauth.access_token}`, 'X-EBAY-C-MARKETPLACE-ID': `EBAY_${params.market}`,
+        ...(byImage ? { 'Content-Type': 'application/json' } : {}) },
+      byImage ? JSON.stringify({ image: encodeAudio(image!) }) : undefined);
     if (data.itemSummaries !== undefined && (!Array.isArray(data.itemSummaries) || data.itemSummaries.length > 20)) throw new IntelligenceError('eBay商品列表非法');
     if (data.itemSummaries === undefined && data.total !== 0) throw new IntelligenceError('eBay商品列表缺失');
     const items = (data.itemSummaries || []).map((item: any) => {
@@ -131,8 +146,9 @@ export async function collectIntelligence(config: ResolvedModel, kind: string, r
         sold_7d: null, revenue_7d: null, commission_rate: null, stock: null };
     });
     if (new Set(items.map((item: any) => item.id)).size !== items.length) throw new IntelligenceError('数据源返回重复商品');
-    source.definition = 'eBay Browse官方Best Match商品搜索，最多20条；含标价与原币种，不含销量排行、佣金、库存、运费税费或投放收益。';
-    return { source, params, items };
+    source.definition = `eBay Browse官方${byImage ? '图片相似商品' : 'Best Match商品'}搜索，最多20条；含标价与原币种，不含销量排行、佣金、库存、运费税费或投放收益。`;
+    const { image_url: _privateInput, ...searchParams } = params;
+    return { source, params: searchParams, items };
   }
   const data = await read(config, kind === 'intelligence_competitor' ? 'accounts/snapshot' : 'products/search',
     Object.fromEntries(Object.entries(params).map(([key, value]) => [key, String(value)])));

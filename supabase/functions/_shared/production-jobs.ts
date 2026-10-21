@@ -15,6 +15,7 @@ export async function publicProductionJob(db: SupabaseClient, job: ProductionJob
   return signMediaTree(db, { id: job.id, request_key: job.request_key, kind: job.kind, project_id: job.project_id,
     ...(job.kind === 'analysis' ? { mode: job.payload.mode } : {}),
     ...(job.kind.startsWith('intelligence_') ? { target_id: job.payload.request.target_id } : {}),
+    ...(job.kind === 'product_translate' ? { product_id: job.payload.request.product_id } : {}),
     status: job.status, phase: job.phase, progress: job.progress, result: job.result,
     error_message: job.error_message, credit_cost: job.credit_cost, created_at: job.created_at }, job.user_id);
 }

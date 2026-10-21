@@ -11,6 +11,7 @@ import { INTELLIGENCE_KINDS } from '../_shared/intelligence-provider.ts';
 import { processIntelligenceJob } from '../_shared/intelligence-jobs.ts';
 import { processProductImport } from '../_shared/product-import.ts';
 import { processCashRefund } from '../_shared/cash-refunds.ts';
+import { processProductTranslation } from '../_shared/product-translation.ts';
 
 export async function handleProductionWorker(req: Request): Promise<Response> {
   if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
@@ -39,12 +40,16 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
       const receipts = await db.from('product_mutation_receipts').select('request_key,request_hash').limit(0);
       const cash = await db.from('alipay_refunds').select('request_key,lease_token,applied_at,next_query_at').limit(0);
       const operators = await db.from('operator_mutations').select('request_key,actor_id').limit(0);
+      const notifications = await db.from('notifications').select('event_key,read_at,deleted_at').limit(0);
+      const references = await db.from('analysis_intelligence_references').select('job_id,context').limit(0);
+      const translations = await db.from('credit_costs').select('cost').eq('action', 'generate_product_translate').maybeSingle();
       const ready = !error && !voices.error && !costs.error && costs.data?.length === Object.keys(MEDIA_JOB_SLOTS).length
         && !analysis.error && !!analysis.data && !measurements.error && !experiments.error && !knowledge.error && !chunks.error
         && !knowledgeCosts.error && knowledgeCosts.data?.length === 2 && knowledgeCosts.data.every(row => Number.isInteger(row.cost) && row.cost >= 0)
         && !intelligence.error && !intelligenceCosts.error && intelligenceCosts.data?.length === 2
-        && !publishGroups.error && !publishTasks.error && !products.error && !receipts.error && !cash.error && !operators.error;
-      return Response.json({ ready, version: 9, render_version: 2, required_migration: '00048' }, { status: ready ? 200 : 503 });
+        && !publishGroups.error && !publishTasks.error && !products.error && !receipts.error && !cash.error && !operators.error
+        && !notifications.error && !references.error && !translations.error && Number.isInteger(translations.data?.cost) && translations.data!.cost >= 0;
+      return Response.json({ ready, version: 10, render_version: 2, required_migration: '00049' }, { status: ready ? 200 : 503 });
     }
     if (general && body.action === 'run') {
       const scheduled = await db.rpc('enqueue_intelligence_schedule');
@@ -53,9 +58,13 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
       if (pruned.error) throw new Error('情报留存处理失败');
       const productPruned = await db.rpc('prune_product_imports');
       if (productPruned.error) throw new Error('商品提取留存处理失败');
+      const translationPruned = await db.rpc('prune_product_translations');
+      const notificationPruned = await db.rpc('prune_notifications');
+      if (translationPruned.error || notificationPruned.error) throw new Error('翻译或通知留存处理失败');
       // 以轮转顺序避免长视频队列使图片或发布饿死。
       const runners = [() => processVideoJob(db), () => processImageJob(db), () => processPublishJob(db), () => processAnalysisJob(db),
         () => processProductImport(db),
+        () => processProductTranslation(db),
         () => processCashRefund(db),
         ...KNOWLEDGE_KINDS.map(kind => () => processKnowledgeJob(db, kind)),
         ...INTELLIGENCE_KINDS.map(kind => () => processIntelligenceJob(db, kind)),

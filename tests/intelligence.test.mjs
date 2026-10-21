@@ -68,6 +68,23 @@ assert.equal(ebay.items[0].sold_7d,null); assert.equal(ebay.items[0].price,'12.9
 assert.ok(!JSON.stringify(ebay).includes('server-only-access'));
 assert.equal(new URL(fetches[1].url).searchParams.get('limit'),'20');
 console.log('PASS eBay应用OAuth、市场请求头和Best Match价格，token不进入结果且不捏造销量');
+fetches = [];
+const imageParams = { search_mode: 'image', image_url: `https://db.example/storage/v1/object/authenticated/materials/${uid}/cup.png`,
+  image_hash: 'a'.repeat(64), market: 'US' };
+assert.throws(() => provider.intelligenceParams('intelligence_products', 'intelligence.licensed', imageParams));
+assert.throws(() => provider.intelligenceParams('intelligence_products', 'intelligence.ebay', { ...imageParams, image_hash: 'bad' }));
+await assert.rejects(() => provider.collectIntelligence(config('intelligence.ebay'), 'intelligence_products', imageParams));
+const imageSearch = await provider.collectIntelligence(config('intelligence.ebay'), 'intelligence_products', imageParams, new Uint8Array([1, 2, 3]));
+assert.equal(fetches.length, 2);
+assert.match(fetches[1].url, /\/item_summary\/search_by_image\?/);
+assert.equal(fetches[1].init.method, 'POST');
+assert.deepEqual(JSON.parse(fetches[1].init.body), { image: 'AQID' });
+assert.equal(fetches[1].init.headers.Authorization, 'Bearer server-only-access');
+assert.equal(new URL(fetches[1].url).searchParams.get('q'), null);
+assert.equal(imageSearch.params.image_hash, imageParams.image_hash);
+assert.equal(imageSearch.params.image_url, undefined);
+assert.match(imageSearch.source.definition, /图片相似商品/);
+console.log('PASS 图片搜索使用正式search_by_image、纯base64正文、原市场与Bearer凭据，拒绝不支持的数据源');
 const gatewayBody = { schema: 'intelligence-v1',environment: 'production',licensed: true,platform: 'tiktok',
   observed_at: new Date().toISOString(),metric_definition: '授权平台累计播放，采样非全量',
   account: { id: 'account-1',name: '真实账号',url: 'https://www.tiktok.com/@account1',followers: 1200 },

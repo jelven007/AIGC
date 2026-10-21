@@ -1,5 +1,7 @@
 # 视频任务后台调度
 
+最新 [迭代21](ITERATION_21_TRANSLATION_NOTIFICATIONS.md)加入product_translate轮转与30天译文/竞品引用、180天通知清理；使用原模型版本/证据归档，不重发executing未知请求。production模式严格匹配version10/required_migration=00049/render_version=2，旧video-job-worker仍version1。迁移/函数/常驻调度与MCP/前端须同步发布，当前云端旧Cron不是新能力的运行验收。
+
 当前 [迭代20](ITERATION_20_CASH_OPERATIONS.md)新增现金退款核对轮转：专用Worker仅查询已发出原申请，10秒至10分钟退避/租约、最多100次后保留人工核对。production模式严格匹配version9、00048、render2，video-job-worker仍version1；调度器与production-worker/迁移须一起升级。没有支付配置时退款runner不影响其他队列；云端仍旧基线，源码增加调度不代表已运行验收。
 
 当前 [迭代19](ITERATION_19_PRODUCT_MANAGEMENT.md)production-worker新增product_import轮转和30天原文/结果清理。常驻调度修复旧version1预检：生产模式严格要求version8、00046、render2，旧video-job-worker模式仍version1。数据库、函数和调度器须一起升级；探针只读通过不证明真实商家/模型任务和生产持续运行已验收。

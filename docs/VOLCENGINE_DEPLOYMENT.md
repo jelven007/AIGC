@@ -1,5 +1,7 @@
 # 火山引擎部署指南
 
+最新 [迭代21](ITERATION_21_TRANSLATION_NOTIFICATIONS.md)需发布00032–00049与匹配product-management/market-intelligence/production-jobs/production-worker、常驻调度/MCP54/前端；verify要求probe v10/00049/render2与迁移回执。通知不新增Edge入口，authenticated RPC/RLS与页面同窗口。eBay图片搜索权限、视觉文本模型、私有素材与真实通知/关页/版本/清理需目标验收；火山仍无新增部署证据。
+
 最新 [现金与运营迭代20](ITERATION_20_CASH_OPERATIONS.md)要求发布00032–00048、operations/资金函数/匹配production-worker/调度与前端。verify要求probe v9/00048/render2及迁移回执，manifest增加operations（函数内个人JWT鉴权、拒绝service/API Key）。按实际Auth服务端元数据或operator_grants授予运营角色，profile.role无效；真实支付宝和历史权益/预算/授权范围必须验收。火山资源仍无新增部署回执。
 
 最新 [商品管理迭代19](ITERATION_19_PRODUCT_MANAGEMENT.md)发布00032–00046，manifest增加product-management并在函数内验证JWT/API Key；同步production-worker、常驻调度和MCP52/18权限。verify同时要求迁移回执及probe v8/00046/render2。00046浏览器商品写入撤销，必须匹配API/前端；仍需目标BaaS/图片签名/真实商品来源、Pages/TLS及持续调度验收。
