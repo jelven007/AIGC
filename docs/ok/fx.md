@@ -1,5 +1,8 @@
 # Shopro AI 项目全景分析与功能完善建议
 
+> 历史记录：本文保存对应迭代/审计时点的事实与建议，旧行号、Mock、密钥来源、收费、部署状态和未完成清单不作为当前操作依据。2026-10-21 最新基线 ce90bfe，环境见 [当前状态](../CURRENT_STATE.md)，闭环关系见 [追踪矩阵](../CHANGE_TRACEABILITY.md)，本轮实测见 [验证报告](../TEST_REPORT_20261021.md)。
+> 后续工作区变更另见 [待验收开发](../PENDING_CHANGES.md)，不能追记为历史迭代已完成。
+
 > **分析对象**：E:\Code\AI\Start\Web\Shopro
 > **分析范围**：商家创作端 `src/`、厂商运营中台 `backend/`、AI 服务与数据层 `supabase/` + `mcp/` + `api/`
 > **分析方式**：全量静态代码走查（含 Git 追踪状态、密钥扫描、RLS/SQL 审计），未修改任何业务代码

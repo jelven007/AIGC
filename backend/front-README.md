@@ -1,3 +1,5 @@
+> 规格/历史设计，非当前可运行后台：2026-10-21 仓库 backend/ 缺少核心应用源码；下文接口、角色、seed/mock、运行指令和功能描述不能作为已实现/已部署证据。业务后端仍为 Supabase，最新后台开发范围见 [后端方案](../docs/后端.md)，实际环境见 [当前状态](../docs/CURRENT_STATE.md)，接受条件见 [测试计划](../docs/TEST_PLAN.md)。
+
 # 🛒 Shopro AI - 抖音/TikTok 电商 AIGC 带货视频系统
 
 <p align="center">
@@ -419,4 +421,3 @@ Shopro AI 是一套面向 **带货短视频量产** 领域的一站式 SaaS 系�
 <p align="center">
   <sub>Built with ❤️ Shopro AI 研发团队 -AIGC带货视频
 </p>
-

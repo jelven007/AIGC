@@ -1,83 +1,56 @@
-# 📋 Shopro AI - 系统实测现状基准报告 (Current State Baseline)
+# 当前版本与运行状态
 
-> 本文为历史基线，模块规模及函数说明已过时。2026-10-21 的代码架构与部署目标以 [技术架构](TECHNICAL_ARCHITECTURE.md) 和 [火山部署指南](VOLCENGINE_DEPLOYMENT.md) 为准。
+核验日期：2026-10-21。代码基线 `ce90bfe`；文档更新不部署业务代码。状态以源码、只读云端检查和测试证据为准。
 
----
+## 代码、环境与部署差距
 
-## 1. 系统模块规模实测
+| 项目 | 当前事实 | 证据 |
+| --- | --- | --- |
+| 实际后端 | 官方 Supabase，`https://bbqqhkukgbgpebqpesub.supabase.co` | `.env.local`、调度配置和管理 API |
+| 当前前端 | 本地 Vite，入口 `http://localhost:5173`；需要合法 Auth 会话 | `src/App.tsx`、部署记录 |
+| 云端数据库 | 迁移回执到 `00031`；00018/00019 记录为跳过演示数据 | 2026-10-21 管理 API 只读检查 |
+| 云端函数 | `video-job-worker`、`video-jobs`、`ai-assistant`，均 ACTIVE、version 1 | 同日函数列表；不据此推断源码等于最新提交 |
+| 云端调度 | `shopro-video-workers`，每 10 秒，active=true | 同日 `cron.job` 检查 |
+| 模型配置新版本 | 本地已实现；云端 `model_configs` 不存在 | `00034_model_registry.sql` 与云端表存在性检查 |
+| 火山 BaaS / Pages / ECS | 代码和发布工具已适配，尚未创建或运行验收 | `deploy/volcengine/manifest.json`、部署指南 |
+| 代码规模 | 44 个页面文件、27 个函数入口、34 个迁移文件 | 本地文件统计；文件数不代表可交付功能数 |
+| 运营后台 | `backend/` 核心源码缺失，不是可运行的生产中台 | 仓库检查 |
+| 仓库 | 用户远端 `aigcp`；原作者远端 `origin` | Git 配置；本地提交不等于已推送 |
 
-| 模块 | 文件数 / 规模 | 运行环境 / 框架 | 端口 / 协议 | 说明 |
-|---|---|---|---|---|
-| **商家端创作前端 (`src/`)** | 42 个页面，56 个组件 | React 18 + Vite + Tailwind CSS | `http://localhost:5173` | 电商 AIGC 脚本与视频创作工作台 |
-| **厂商中台运营管理 (`backend/`)** | 14 个业务页 + 1 个 403 页 | Vue 3 + Vite + Element Plus + Pinia | `http://localhost:5175` | 48 个标准 REST 端点，MSW 2.x 浏览器仿真 |
-| **Edge Functions (`supabase/functions/`)** | 17 个微服务函数 | Deno TypeScript | Supabase Edge Runtime | 统一 `_shared` 鉴权与 CORS 中间件 |
-| **数据库层 (`supabase/migrations/`)** | 24 个 SQL 迁移文件 | PostgreSQL 15 + Supabase | pg_graphql / PostgREST | RLS 行级权限 + 原子扣费 RPC + 权限收敛 |
-| **MCP 工具服务 (`mcp/` + `api/`)** | 7 大核心多模态工具 | Python 3.10+ FastMCP / Starlette | Streamable HTTP (`127.0.0.1:8080`) | 强制 API Key 鉴权 + 启用 DNS 重绑定防护 |
+最新前端已经依赖 `model-settings` 等新服务，而云端仍停在旧基线。未升级数据库和函数前，不能宣称统一设置页、方舟模型、图片/音频服务已在当前云端可用。不得只发布新版前端。
 
----
+本轮文档编写期间，工作区另出现未提交的 00035/00036、私有媒体、生产任务、渲染 Worker 与平台授权/发布相关开发。以下能力/文件数量与测试结论均以已提交 `ce90bfe` 为准；进行中变更单独见 [待验收变更](PENDING_CHANGES.md)，不计为已部署、已回归或生产能力。
 
-## 2. 17 个 Edge Functions 现状矩阵
+## 能力状态
 
-| # | 边缘函数名称 | 鉴权方式 | 状态 / 上游调用 | 降级处理 |
-|---|---|---|---|---|
-| 1 | `ai-assistant` | 强制 JWT (`auth.uid()`) | 真实调用大模型 / 向量检索 | 8 个预设模板分支显式返回 `degraded: true` |
-| 2 | `deepseek-v4-pro` | 强制 JWT | 真实代理 DeepSeek-V4 | 备选供应商切换日志与延迟审计 |
-| 3 | `stepaudio` | 强制 JWT | 真实代理 StepAudio 2.5 ASR/TTS | 环境变量缺失即快速失败（禁止读取本地密钥） |
-| 4 | `siliconflow-audio` | 强制 JWT | 真实代理硅基流动 CosyVoice2 | 情感与角色音色生成 |
-| 5 | `seedance` | 强制 JWT | 真实代理 Seedance 2.0 视频生成 | 异步轮询任务状态 |
-| 6 | `phase3-assistant` | 强制 JWT | 14 个复合业务 Action（竞品/高光/团队/发布） | 模拟数据显式标记 `simulated: true` |
-| 7 | `create-payment-order` | 强制 JWT | 官方微信支付 SDK 真实统一下单 | 生成微信 Native 支付二维码 |
-| 8 | `wechat-payment-webhook` | 微信支付签名 + 5分钟时间戳防重放 | 真实 AES-GCM 解密与订单/积分开通 | 内部异常返回 500 触发微信自动重试 |
-| 9 | `kling-video-create` | 强制 JWT | 真实代理快手可灵视频任务创建 | — |
-| 10 | `kling-video-query` | 强制 JWT | 真实代理快手可灵视频任务查询 | — |
-| 11 | `minimax-chat` | 强制 JWT | 真实代理 MiniMax 对话模型 | — |
-| 12 | `sora-video-create` | 强制 JWT | 真实代理 Sora 视频任务创建 | — |
-| 13 | `sora-video-query` | 强制 JWT | 真实代理 Sora 视频任务查询 | — |
-| 14 | `send-sms-code` | 手机号格式校验 + 频控（60s冷却/单日10次） | 聚合网关短信验证码发送 | 频控拦截返回 429 防短信轰炸 |
-| 15 | `verify-sms-code` | 手机号与验证码校验 | 聚合网关验证码核销 | 统一 CORS 与错误响应结构 |
-| 16 | `wenxin-text-generation` | 强制 JWT | 真实代理百度文心大模型 | 备选文本生成链路 |
-| 17 | `setup-demo` | 仅限 `service_role` 或 `ENABLE_SETUP_DEMO=true` | 演示账号自动生成脚本 | 非受权调用直接 403 拦截 |
+| 能力 | 代码状态 | 当前环境状态 / 交付限制 |
+| --- | --- | --- |
+| 邮箱注册登录 | Auth SDK；免费套餐种子和原子赠分 | 旧环境已验证注册登录；不是正式公网身份运营验收 |
+| 商品、素材、作品 CRUD | Data API、RLS、Storage | 部分基础链路已接入；全部页面仍需用户隔离与流程验收 |
+| 视频任务 | 服务端创建、租约、查询、成片转存、逐笔退款 | 旧环境验收过无模型密钥失败退款；新配置版本绑定尚未上线 |
+| 模型设置 | 13 个槽；管理员双重校验、AES-GCM、不可变版本 | 本地回归通过，云端缺 00034 与新函数，未配置真实供应商 |
+| 文本 | 主备配置、真实 SSE/JSON | 辅助端点暂不收应用积分；真实权限与输出待供应商验收 |
+| 图片/封面 | 两种同步协议、真实图片校验与转存 | 同步请求没有视频式关页恢复保证；扩图/掩码未接入 |
+| TTS/ASR | OpenAI/Step 协议、服务端代理 | 供应商、音色、语言与大文件仍需实测 |
+| 支付 | 微信/支付宝验签、订单权益原子入账 | 本地测试通过；商户、沙箱、正式回调未配置验收 |
+| MCP | 7 个工具、用户 JWT、视频显式幂等 UUID | 业务协议已收敛；生产 TLS、域名、跨用户隔离需运行验收 |
+| 批量/旧五步生成 | 停用生成入口 | 不创建无执行器任务，不预扣积分 |
+| 竞品、选品分析、发布、剪辑 | 部分页面与模拟实现保留 | 不能作为真实数据源、自动投放或完整渲染交付 |
+| 私有素材 | 未实现 | 现有桶公开，不满足私有视频权限要求 |
 
----
+## 当前关键决策
 
-## 3. 安全基线与加固措施（P0 落地验收）
+1. 仍依赖 Supabase 协议及 Auth、PostgreSQL、Storage、Edge Functions；并未改为独立后端或完全离线产品。官方托管与火山托管是两套不同管理环境。
+2. 视频价格从 `credit_costs.generate_video` 读取，默认 10 积分；预占用 `credits_used` 与扣费流水实现，成功结算、明确失败退款。不是独立冻结账户，也不是支付现金退款。
+3. 配置在创建事务内绑定版本。启停、换密钥只影响新任务；旧任务继续读取原版本。不能原地删除密文版本或直接覆盖加密主密钥。
+4. POST 受理结果未知时保留核对，不盲目重提或按超时退款；查询与存储暂时错误重试。健康检查通过不等于真实模型成功。
+5. 当前官方 Cron 已运行；火山默认采用常驻 ECS Docker，扩展 Cron 是经过目标环境检查后的可选方案。
 
-1. **密钥隔离与追踪治理 (R1)**：
-   - 彻底从 Git 索引移除 5 个历史 `key.txt` 文件，并将其加入 `.gitignore`。
-   - 移除 `ai-assistant` 与 `stepaudio` 源码中 `Deno.readTextFile('./key.txt')` 的本地兜底逻辑，强制所有 API Key 从环境变量读取，缺失即快速失败。
-2. **支付链路验签闭环 (R2)**：
-   - `wechat-payment-webhook` 校验 `Wechatpay-Timestamp`、`Wechatpay-Nonce` 与 `Wechatpay-Signature` 头部。
-   - 限制时间戳在 5 分钟（300s）防重放攻击窗口内。
-   - 异常时向微信返回 HTTP 500 (`{ "code": "FAIL", "message": "..." }`)，以便微信支付通知重试机制生效。
-3. **统一中间件与身份防伪造 (R3 / R7)**：
-   - 抽取 `supabase/functions/_shared/` 统一维护 `cors.ts`、`auth.ts`、`errors.ts`。
-   - `ai-assistant` 中严禁无合法 JWT 时信任客户端 Request Body 中传入的 `user_id`，防止越权伪造他人身份扣费。
-   - `setup-demo` 端点增加 `service_role` 鉴权与环境变量开关拦截。
-4. **MCP 协议与 API 代理加固 (R4)**：
-   - `mcp_shopro_server.py` 恢复 Bearer Token / API Key 校验逻辑；默认绑定地址收紧为 `127.0.0.1`。
-   - `api/mcp.py` 开启 DNS Rebinding 防护 (`enable_dns_rebinding_protection = True`) 并增加调用方 Token 校验。
-   - `api/dxkp.py` 增加调用方鉴权校验，禁止公开被刷取第三方 API 配额。
-5. **AI 真实度与降级标记透明化 (R5)**：
-   - 为 `ai-assistant` 预设分支（分镜生成、流量估算、视觉风格分析、A/B测试变体、高光分段、情绪起伏、品类卖点模板）增加 `"degraded": true` 及 `"degraded_reason"` 响应标识。
-   - 为 `phase3-assistant` 中的 `crawl_competitor`、`analyze_live_highlight`、`publish_video` 增加 `"simulated": true` 标识，严禁以随机数冒充真实爬取数据。
+## 下一次发布的必需工作
 
----
+- 在当前官方环境逐项核对并应用未发布的 00032–00034，部署相匹配的函数、共享模块与 Cron 条件；不能用火山脚本重放无其回执的官方旧库。
+- 配置并备份 `MODEL_CONFIG_ENCRYPTION_KEY`，通过 Auth 管理面授权真实管理员，再配置供应商模型。移交时记录配置版本与测试证据，不记录密钥。
+- 执行 [测试计划](TEST_PLAN.md) 中的云端验收，特别是更新配置后旧任务、页面关闭处理、真实视频播放和退款。
+- 若选择火山迁移，独立建立资源与发布回执，迁移 Auth、业务数据、Storage，完成验收后切换 URL；当前官方记录不自动成为火山验收证据。
 
-## 4. `phase3-assistant` 14 个 Action 真实清单
-
-| Action | 业务分类 | 功能描述 | 真实度 |
-|---|---|---|---|
-| `add_competitor` | 竞品监控 | 添加竞品账号至监控列表 | 真实入库 |
-| `crawl_competitor` | 竞品监控 | 抓取竞品最新视频数据 | 未配置外部爬虫时返回模拟数据并带 `simulated: true` |
-| `analyze_live_highlight` | 直播切片 | 直播回放高光分段与 ASR 识别 | 未接入大模型时返回模拟分段并带 `simulated: true` |
-| `generate_api_key` | 开放能力 | 生成 OpenAPI 调用密钥（`ak_...`） | 真实 SHA-256 哈希入库 |
-| `revoke_api_key` | 开放能力 | 撤销指定 API 密钥 | 真实状态更新 |
-| `create_team` | 团队协作 | 创建组织/团队空间 | 真实多表事务性写入 |
-| `get_team` | 团队协作 | 获取当前所属团队与全部成员 | 真实关联查询 |
-| `create_invitation` | 团队协作 | 生成成员邀请链接与 Token | 真实入库 |
-| `remove_member` | 团队协作 | 移除团队成员（仅限 Owner） | 真实权限判断与状态变更 |
-| `change_member_role` | 团队协作 | 修改成员角色权限 | 真实权限判断与更新 |
-| `create_publish_task` | 分发矩阵 | 创建定时发布任务 | 真实入库 |
-| `publish_video` | 分发矩阵 | 模拟视频发布到平台 | 显式标记 `simulated: true` |
-| `update_style_preference` | 风格定制 | 保存创作者个性化风格配置 | 真实 upsert |
-| `generate_personalized_script` | 风格定制 | 结合历史脚本与偏好生成新脚本 | 真实 Few-shot Prompt 大模型生成 |
+需求、收费、开发与日常运行规范见 [文档中心](README.md)。历史迭代报告仅证明各自时点的工作。
