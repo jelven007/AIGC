@@ -1,5 +1,7 @@
 # 开发指南
 
+最新 [迭代23](ITERATION_23_DATA_LIFECYCLE.md)：00051统一引用索引/对象锁、清理租约、声纹撤销/原版本DELETE、知识副本和七天证据清理；对应media-cleanup/media-jobs、production/knowledge API、MediaJobsPanel/KnowledgePage及MCP56。禁止直接Storage删除、撤销后重启声纹或重发未知请求。执行test:lifecycle及媒体/知识/访问/MCP、browser_data_lifecycle、Deno/调度/部署/构建；probe12/00051/render2，真实删除与容量仍需目标验收。
+
 最新 [迭代22](ITERATION_22_CHECKOUT_LOADING.md)：00050/checkout共享事务、两支付创建函数、checkout API/PaymentDialog和CreditsPage原请求；禁止回退静态二维码/按截图成功或删除unknown请求重提。执行test:checkout、browser_checkout、现金/支付、probe11调度/部署及工程检查。Vite缓存按后端主机隔离，构建验证产物不触发热更新；measure_frontend_bundle计算静态依赖总量，不能只报告entry大小。
 
 最新 [迭代21入口](ITERATION_21_TRANSLATION_NOTIFICATIONS.md)：00049/product-translation/intelligence-image、两业务API/production-worker、ProductTranslationDialog、MarketIntelligenceWorkspace/VideoAnalysisPanel、notifications API与useNotifications。译文保存必须绑定source_updated_at，图片参数必须canonical引用/原指纹，竞品统计由DB取证；通知状态来源/偏好/批量cutoff不在浏览器模拟。执行test:translation、综合浏览器、MCP54目录/scopes、任务中心/调度/部署与工程检查；probe v10/00049/render2。

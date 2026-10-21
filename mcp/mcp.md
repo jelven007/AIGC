@@ -1,6 +1,6 @@
 # MCP 接入指南
 
-更新：2026-10-22，迭代21提供54个实际SDK工具和18业务权限，新增商品翻译/翻译记录及竞品素材分析引用。translate_product先读取价格并取得确认，原商品updated_at/12语言/可选主图/原UUID与网页共用；不自动保存译文。竞品引用要求本人快照及素材使用权，后端取证。00032–00049与probe v10/render2尚未云端验收。状态见 [CURRENT_STATE](../docs/CURRENT_STATE.md) 与 [本轮契约](../docs/ITERATION_21_TRANSLATION_NOTIFICATIONS.md)。
+更新：2026-10-22，迭代23提供56个实际SDK工具/18业务权限，新增revoke_voice_clone与delete_knowledge_entry，沿网页原UUID/用户身份/撤销与知识副本清理事务。撤销需audio:create，知识删除需knowledge:write；未知受理不盲目退款/重发。00032–00051与probe12/render2待匹配全栈发布及真实删除验收。见 [当前状态](../docs/CURRENT_STATE.md) 与 [生命周期契约](../docs/ITERATION_23_DATA_LIFECYCLE.md)。
 
 ## 1. 入口与连接配置
 
@@ -22,6 +22,7 @@ HTTP ContextVar 在每次请求后重置，无状态传输避免用户会话混�
 | submit_video_generation | prompt、request_key、provider、规格、首尾帧/参考图视频、watermark=false | 七种协议按管理员配置启用；素材组合及规格由业务服务校验，返回公开job |
 | query_video_status/list_video_jobs | 本地request_id或原request_key之一/无 | 查询可推进原视频任务；不使用供应商任务ID |
 | get_media_prices/list_voice_clones | 无 | 读取五媒体类型积分价格/自有声纹和供应商验证状态 |
+| revoke_voice_clone | voice_clone_id、request_key | 立即撤销声纹，未提交配音取消退积分；异步删除原供应商声纹，失联沿原UUID恢复 |
 | submit_audio_transcription/submit_voice_clone | 私有audio_url、filename、UUID、价格；克隆另有name/consent | asr/voice_clone后台任务，声纹授权必须显式确认 |
 | submit_avatar_video/submit_lipsync | 私有照片或视频/音频、title、consent、UUID、价格 | avatar/lipsync后台任务，必须授权人物与声音 |
 | submit_image_generation | prompt、UUID、size/quality、reference_image、project_id | 图片或封面任务，服务端按generate_image/generate_cover预占 |
@@ -37,6 +38,7 @@ HTTP ContextVar 在每次请求后重置，无状态传输避免用户会话混�
 | submit_publish_group/query_publish_group | project_id/source_url/duration/内容/targets/原UUID/可选排期；原UUID | 1–10个账号各自读取权限并取得同意，稳定私有源与真实时长绑定；整组事务保存、状态独立，未知按原组查询，不重发成功项 |
 | get_platform_metrics/sync_platform_metrics | 无 | 读自然视频官方指标/主动同步；同步单独metrics:sync权限，2次/用户/分钟 |
 | list_knowledge/submit_knowledge_index/search_knowledge/get_knowledge_context | 查询/条目hash+UUID+价格/查询+UUID+价格/检索job_id | 读取、索引、语义查询及有效引用；不是自动训练 |
+| delete_knowledge_entry | entry_id | 事务删除当前用户条目/索引/任务知识副本，未提交索引取消退款，提交未知保留原用量核对 |
 | list_market_intelligence/save_intelligence_target/collect_market_intelligence | 类型/对象及source_slot/params/UUID/target_id+UUID+价格 | 读取、保存和采集正式或授权来源，字段缺失保留空值 |
 | schedule_market_intelligence/import_intelligence_product/delete_intelligence_target | target_id+次数预算价格UUID/sample_id+item_id/target_id | 有界监控、真实来源商品入库、删除对象；活跃任务不能直接删 |
 

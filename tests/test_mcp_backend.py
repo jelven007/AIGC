@@ -96,6 +96,22 @@ class MCPTest(unittest.TestCase):
     key = "11111111-1111-4111-8111-111111111111"
     other_key = "22222222-2222-4222-8222-222222222222"
 
+    def test_sdk_voice_revoke_and_knowledge_delete_preserve_identity_and_identifiers(self):
+        captured = []
+
+        async def backend(function, body):
+            captured.append((function, body, request_token.get()))
+            return {"accepted": True}
+
+        with patch.object(server, "call_backend", backend):
+            self.assertFalse(self.call("revoke_voice_clone", {
+                "voice_clone_id": self.key, "request_key": self.other_key}, token="user-b").get("isError", False))
+            self.assertFalse(self.call("delete_knowledge_entry", {"entry_id": self.key}, token="user-a").get("isError", False))
+        self.assertEqual(captured, [
+            ("production-jobs", {"action": "revoke-voice", "voice_clone_id": self.key, "request_key": self.other_key}, "user-b"),
+            ("knowledge-base", {"action": "delete", "entry_id": self.key}, "user-a"),
+        ])
+
     def test_real_sdk_all_production_modalities_use_business_queue(self):
         captured = []
 

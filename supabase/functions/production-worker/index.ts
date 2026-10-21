@@ -3,7 +3,7 @@ import { processImageJob, jobEvent, type ProductionJob } from '../_shared/produc
 import { mediaReference, signMediaTree } from '../_shared/private-media.ts';
 import { processPublishJob, collectPlatformMetrics } from '../_shared/platform-jobs.ts';
 import { processVideoJob } from '../_shared/video-jobs.ts';
-import { processMediaDeletions } from '../_shared/media-cleanup.ts';
+import { processMediaDeletions, processVoiceDeletions } from '../_shared/media-cleanup.ts';
 import { processMediaJob, MEDIA_JOB_SLOTS } from '../_shared/media-jobs.ts';
 import { processAnalysisJob } from '../_shared/video-analysis.ts';
 import { KNOWLEDGE_KINDS, processKnowledgeJob } from '../_shared/knowledge.ts';
@@ -44,13 +44,20 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
       const references = await db.from('analysis_intelligence_references').select('job_id,context').limit(0);
       const translations = await db.from('credit_costs').select('cost').eq('action', 'generate_product_translate').maybeSingle();
       const checkout = await db.from('orders').select('id,checkout_request_key').limit(0);
+      const retention = await db.from('media_deletions').select('id,lease_token,lease_until').limit(0);
+      const mediaReferences = await db.from('media_references').select('bucket,path,source_table').limit(0);
+      const revocations = await db.from('voice_deletions').select('id,lease_token').limit(0);
+      const revocationReceipts = await db.from('voice_revocation_receipts').select('request_key,clone_id').limit(0);
+      const voiceState = await db.from('voice_clones').select('revoked_at,provider_deleted_at').limit(0);
+      const erased = await db.from('production_jobs').select('source_erased_at').limit(0);
       const ready = !error && !voices.error && !costs.error && costs.data?.length === Object.keys(MEDIA_JOB_SLOTS).length
         && !analysis.error && !!analysis.data && !measurements.error && !experiments.error && !knowledge.error && !chunks.error
         && !knowledgeCosts.error && knowledgeCosts.data?.length === 2 && knowledgeCosts.data.every(row => Number.isInteger(row.cost) && row.cost >= 0)
         && !intelligence.error && !intelligenceCosts.error && intelligenceCosts.data?.length === 2
         && !publishGroups.error && !publishTasks.error && !products.error && !receipts.error && !cash.error && !operators.error
-        && !checkout.error && !notifications.error && !references.error && !translations.error && Number.isInteger(translations.data?.cost) && translations.data!.cost >= 0;
-      return Response.json({ ready, version: 11, render_version: 2, required_migration: '00050' }, { status: ready ? 200 : 503 });
+        && !checkout.error && !notifications.error && !references.error && !translations.error && Number.isInteger(translations.data?.cost) && translations.data!.cost >= 0
+        && !retention.error && !mediaReferences.error && !revocations.error && !revocationReceipts.error && !voiceState.error && !erased.error;
+      return Response.json({ ready, version: 12, render_version: 2, required_migration: '00051' }, { status: ready ? 200 : 503 });
     }
     if (general && body.action === 'run') {
       const scheduled = await db.rpc('enqueue_intelligence_schedule');
@@ -62,11 +69,16 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
       const translationPruned = await db.rpc('prune_product_translations');
       const notificationPruned = await db.rpc('prune_notifications');
       if (translationPruned.error || notificationPruned.error) throw new Error('翻译或通知留存处理失败');
+      const evidencePruned = await db.rpc('prune_job_evidence');
+      const expiredMedia = await db.rpc('enqueue_expired_media');
+      if (evidencePruned.error || expiredMedia.error) throw new Error('媒体及任务留存处理失败');
+      let voicesDeleted = 0;
       // 以轮转顺序避免长视频队列使图片或发布饿死。
       const runners = [() => processVideoJob(db), () => processImageJob(db), () => processPublishJob(db), () => processAnalysisJob(db),
         () => processProductImport(db),
         () => processProductTranslation(db),
         () => processCashRefund(db),
+        async () => { voicesDeleted = await processVoiceDeletions(db); return voicesDeleted > 0; },
         ...KNOWLEDGE_KINDS.map(kind => () => processKnowledgeJob(db, kind)),
         ...INTELLIGENCE_KINDS.map(kind => () => processIntelligenceJob(db, kind)),
         ...Object.keys(MEDIA_JOB_SLOTS).map(kind => () => processMediaJob(db, kind))];
@@ -74,7 +86,7 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
       let processed = false;
       for (let index = 0; index < runners.length && !processed; index++) processed = await runners[(index + offset) % runners.length]();
       const cleaned = await processMediaDeletions(db);
-      return Response.json({ processed: processed ? 1 : 0, cleaned, scheduled: scheduled.data });
+      return Response.json({ processed: processed ? 1 : 0, cleaned, voices_deleted: voicesDeleted, expired_media: expiredMedia.data, scheduled: scheduled.data });
     }
     if (general && body.action === 'metrics') return Response.json({ collected: await collectPlatformMetrics(db) });
     if (render && body.action === 'claim') {

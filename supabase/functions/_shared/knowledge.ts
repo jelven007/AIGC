@@ -62,6 +62,9 @@ export async function processKnowledgeJob(db: SupabaseClient, kind: string): Pro
   let executed = false, saved = !!job.evidence, lost = false;
   const timer = setInterval(() => { void jobEvent(db, job, 'heartbeat').catch(() => { lost = true; }); }, 30000);
   try {
+    if (job.source_erased_at) {
+      await jobEvent(db, job, 'failed', { error: '知识已删除，原请求核对结束，不再建立索引' }); return true;
+    }
     if (job.resolution) {
       await jobEvent(db, job, job.resolution.event, job.resolution.data);
       return true;

@@ -37,6 +37,14 @@ export async function handleKnowledge(req: Request): Promise<Response> {
       catch (cause) { return reply({ error: cause instanceof Error ? cause.message : '知识任务参数非法' }, 400); }
       return reply({ job: await createKnowledgeJob(db, uid, body.kind, body.request_key, body.input) }, 202);
     }
+    if (body.action === 'delete') {
+      if (typeof body.entry_id !== 'string' || !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(body.entry_id)) {
+        return reply({ error: '知识条目标识非法' }, 400);
+      }
+      const result = await db.rpc('delete_knowledge_entry', { p_user: uid, p_entry: body.entry_id });
+      if (result.error) throw new Error('删除响应待确认，请重试原条目');
+      return reply(result.data);
+    }
     if (body.action === 'jobs') {
       const list = await db.from('production_jobs').select('*').eq('user_id', uid).in('kind', KNOWLEDGE_KINDS)
         .order('created_at', { ascending: false }).limit(30);

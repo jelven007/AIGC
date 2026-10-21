@@ -1,5 +1,7 @@
 # 测试与验收计划
 
+新增 [迭代23专项](ITERATION_23_DATA_LIFECYCLE.md)：test:lifecycle验证17项真实PG媒体引用/TTL竞争/墓碑/清理租约、声纹撤销与单退款/未知受理保护、知识正文/向量/检索副本和晚到回执、终态证据/正式文件；清理协议4组、媒体/知识/权限/MCP及既有访问回归。browser_data_lifecycle在390px开发与minified服务验证503同UUID撤销恢复、供应商状态及知识删除结果/引用按钮；目标补真实Storage/供应商删除、容量和备份恢复。
+
 新增 [迭代22收银/加载专项](ITERATION_22_CHECKOUT_LOADING.md)：test:checkout验证真实PG同UUID并发、改价原快照、终态、账号/RLS/封禁和十待支付配额；协议验证两渠道精确金额/签名表单/原订单/未知回执/未开通，browser_checkout覆盖空账单/读取失败/总额使用率/订单分页、503刷新原请求、金额冲突重选、微信QR与支付宝NOT_EXIST/退款终态、积分不足事件和390px。构建按静态依赖闭包与旧提交同环境对比；目标补真实商户、CDN/Web Vitals、微信查单/过期和退款。
 
 新增 [迭代21专项](ITERATION_21_TRANSLATION_NOTIFICATIONS.md)：test:translation执行PG原商品版本/价格/共享并发/指纹/原结果核对/退款和通知隔离/终态/去重/cutoff/偏好/TTL，协议验证私有图片/流量上限与翻译未知不重发。browser_translation_notifications验证同UUID关页恢复、JSON/编辑版本、图片地址指纹、竞品使用权、真实通知分页/铃铛同步/偏好失败和390px；MCP/任务中心/调度/部署/工程同步。目标补eBay图片权限、视觉模型质量/费用、真实触发/清理及吞吐。

@@ -91,11 +91,12 @@ export default function KnowledgePage() {
     finally { setBusy(''); }
   };
   const remove = async (entry: KnowledgeEntry) => {
-    if (!window.confirm(`删除「${entry.title}」及其索引？`)) return;
+    if (!window.confirm(`删除「${entry.title}」、索引和任务中的知识副本？未提交索引会取消并返还积分。`)) return;
     setBusy('delete'); setError('');
     try {
-      const result = await supabase.from('knowledge_entries').delete().eq('id', entry.id).eq('user_id', user!.id);
-      if (result.error) throw new Error(result.error.message);
+      await knowledgeRequest({ action: 'delete', entry_id: entry.id });
+      if (pending?.input.entry_id === entry.id) { localStorage.removeItem(key); setPending(null); }
+      toast.success('知识条目、索引和任务副本已删除');
       await load();
     } catch (cause) { setError(cause instanceof Error ? cause.message : '删除失败'); }
     finally { setBusy(''); }

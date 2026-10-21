@@ -9,6 +9,7 @@ export interface ProductionJob {
   model_config_version_id: string | null; payload: Record<string, any>; phase: string; status: string;
   lease_token: string; evidence: any; result: any; progress: number; error_message: string | null;
   resolution?: { event: 'completed' | 'failed'; data: any };
+  source_erased_at?: string | null;
   credit_cost: number; created_at: string;
 }
 export async function publicProductionJob(db: SupabaseClient, job: ProductionJob) {
