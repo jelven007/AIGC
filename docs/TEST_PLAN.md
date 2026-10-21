@@ -26,6 +26,7 @@
 | SCH-01 | `npm run test:scheduler` | VIDEO-02、OPS-01 |
 | MCP-01 | `python3 tests/test_mcp_backend.py` | MCP-01 |
 | ACCESS-01 | `npm run test:access`；`node tests/browser_access_control.mjs`（本地UI夹具） | OPENAPI-01、TEAM-01、ASSET-02 |
+| BATCH-01 | `npm run test:batch`；`node tests/browser_batch_video.mjs`（本地UI夹具） | BATCH-01/02；整批回滚/预算/套餐/并发恢复/暂停/取消退款与领取竞态 |
 | ENG-01 | `npm run typecheck`、关键函数 `deno check`、`npm run build` | 编译与打包，不替代业务验收 |
 
 MCP 需安装 `mcp/requirements_mcp.txt`。按实际修改选择回归：计费/RPC 跑真实 DB；提交/查询跑 VID；配置跑 DB+MOD；调度跑 SCH；发布脚本跑 DEP。文档更新做链接、事实和差异检查，无需反复全量测试。
@@ -54,6 +55,8 @@ MCP 需安装 `mcp/requirements_mcp.txt`。按实际修改选择回归：计费/
 | AT-18 | MCP SDK 两用户并发；视频重复 UUID/查询 | JWT 不串用；任务与页面一致；无 Key 旁路 | MCP-01 |
 | AT-19 | Pages/正式托管深链接刷新、Auth 回调、失效 JWT | 正确 SPA fallback；过期会话提示重登 | OPS-01 |
 | AT-20 | 备份恢复到隔离环境，并核对队列/密文/Storage | 可解密旧版本、资金一致；恢复阶段不自动重提上游 | OPS-01 |
+| AT-21 | 有效/到期套餐、两用户、重复批次、配置改动、价格与预算不足 | 1–50商品整批事务，失败零预占/零孤立作品；同键找回/参数冲突 | BATCH-01 |
+| AT-22 | 批次关页、暂停/恢复、领取与取消并发、退款写入故障、未知核对 | 已受理继续；仅queued原流水返还一次；进度/终态/账单汇总一致 | BATCH-02 |
 
 AT-11/12 等故障注入优先隔离环境，不通过反复请求真实收费服务制造失败。正式上线保存每个必需用例的环境、执行时间、操作者、输入标识、预期/实际与证据路径。
 

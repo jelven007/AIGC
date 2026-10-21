@@ -1,5 +1,6 @@
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useRef } from 'react';
 import { useCredits } from '@/hooks/useCredits';
+import { useAuth } from '@/contexts/AuthContext';
 import { ForbiddenPage } from './ForbiddenPage';
 
 interface PlanGateProps {
@@ -16,8 +17,13 @@ export function PlanGate({
   fallback,
 }: PlanGateProps) {
   const { planName, loading } = useCredits();
+  const { user } = useAuth();
+  const resolved = useRef<{ userId: string; planName: string } | null>(null);
+  if (resolved.current?.userId !== user?.id) resolved.current = null;
+  if (!loading && user) resolved.current = { userId: user.id, planName };
+  const currentPlan = loading ? resolved.current?.planName || '' : planName;
 
-  if (loading) {
+  if (loading && !resolved.current) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
         <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -26,15 +32,15 @@ export function PlanGate({
   }
 
   const isProOrAbove =
-    planName.includes('专业') ||
-    planName.includes('企业') ||
-    planName.includes('旗舰') ||
-    planName.toLowerCase().includes('pro');
+    currentPlan.includes('专业') ||
+    currentPlan.includes('企业') ||
+    currentPlan.includes('旗舰') ||
+    currentPlan.toLowerCase().includes('pro');
 
   const isEnterprise =
-    planName.includes('企业') ||
-    planName.includes('旗舰') ||
-    planName.toLowerCase().includes('enterprise');
+    currentPlan.includes('企业') ||
+    currentPlan.includes('旗舰') ||
+    currentPlan.toLowerCase().includes('enterprise');
 
   let hasAccess = true;
   let requiredLabel = '专业版';

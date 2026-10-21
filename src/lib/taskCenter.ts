@@ -49,7 +49,7 @@ export function taskDestination(task: CenterTask): { href: string; label: string
 }
 
 export function videoCenterTask(job: ServerVideoJob): CenterTask {
-  const terminal = ['completed', 'failed'].includes(job.status);
+  const terminal = ['completed', 'failed', 'cancelled'].includes(job.status);
   const attention = !terminal && (job.submission_state === 'unknown' || job.needs_attention);
   const status: TaskStatus = attention ? 'unknown' : job.status === 'processing' ? 'running'
     : job.status === 'pending' || terminal ? job.status as TaskStatus : 'unknown';
@@ -62,7 +62,7 @@ export function videoCenterTask(job: ServerVideoJob): CenterTask {
   return {
     key: `video:${job.id}`, id: job.id, source: 'video', kind: 'video', status, statusLabel: TASK_STATUSES[status],
     detail: `${job.provider} · ${detail}`, projectId: job.project_id, createdAt: job.created_at,
-    error: job.error_message, progress: status === 'unknown' ? null : status === 'completed' ? 100 : percent(job.progress),
+    error: job.error_message, progress: ['unknown', 'cancelled'].includes(status) ? null : status === 'completed' ? 100 : percent(job.progress),
     billing, outputUrl: status === 'completed' ? job.video_url : null, canCancel: false,
   };
 }

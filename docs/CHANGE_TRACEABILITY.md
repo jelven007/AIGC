@@ -16,6 +16,7 @@
 | 53be501 | 私有媒体、图片恢复、FFmpeg、抖音/TikTok发布与官方指标 | ASSET-01、IMAGE-01、RENDER-01、PUBLISH-01、METRIC-01 | 00035/00036、production-jobs/worker、platform-*、worker/ | 33数据库/6FFmpeg测试、API夹具、UI恢复、类型/Deno/lint/build，见ITERATION_06 | 新函数、production调度、FFmpeg容器、私有迁移一起启用；云端/平台真实验收待执行 |
 | 本轮任务中心修复 | 新协议合并、审核/未知/计费、取消与错误保留，移除旧重试/删除 | TASK-01 | TaskQueuePage、taskCenter、平台API类型，见ITERATION_07 | 8专项测试、真实UI夹具、视频/生产回归与lint/build | 无新迁移/后端接口；需既有production-jobs/platform-publish匹配部署 |
 | 访问控制迭代 | Key签发/鉴权、团队事务/共享、私有形象、素材清理outbox | OPENAPI-01、TEAM-01、ASSET-02 | 00037、api-keys/team-space/material-assets、auth/private-media、production-worker，见ITERATION_08 | 5项PG、3组API、2组页面及既有回归/编译检查 | 旧Key停用；4业务入口函数内JWT/Key鉴权；production调度执行清理；云端待部署 |
+| 批量视频迭代 | 整批预算/套餐/版本、商品快照、父子任务、暂停取消/退款、同键恢复、积分刷新保留页面 | BATCH-01/02、TASK-01 | 00038、batch-video-jobs、batch-video、BatchCreatePage/PlanGate、videoWorker，见ITERATION_09 | 8项PG、5组API、2组浏览器、既有33资金/16视频/8任务中心及编译检查 | 复用视频调度；仅queued取消退款；00038/API/Worker待发布 |
 
 提交名与更详细时点见 [历史迭代](ITERATION_03_VIDEO_JOBS.md) 与 [架构对比](ARCHITECTURE_REVIEW_20261021.md)。旧审计的行号和未修复清单需结合此矩阵，不直接当作当前缺陷。
 

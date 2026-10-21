@@ -26,6 +26,9 @@ verify_jwt = false
 [functions.video-jobs]
 verify_jwt = false
 
+[functions.batch-video-jobs]
+verify_jwt = false
+
 [functions.production-jobs]
 verify_jwt = false
 

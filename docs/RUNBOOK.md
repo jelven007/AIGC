@@ -4,6 +4,8 @@
 
 源码增量已到00037，实际云端记录未刷新。除 [生产链路](ITERATION_06_PRODUCTION_PIPELINE.md) 外，本次发布须包含 [访问控制](ITERATION_08_ACCESS_CONTROL.md)：旧Key迁移停用，四业务入口函数内验证JWT/Key；团队只从事务API写入；素材删除清理由production调度执行。查看未清理对象只查询 `media_deletions` 的 id/bucket/path/attempts/next_run_at/last_error，不输出认证请求；持续失败应修复Storage并重试原清理项。
 
+最新00038增量见 [批量迭代](ITERATION_09_BATCH_VIDEO.md)。batch-video-jobs与共享videoWorker一起发布，既有调度执行子任务，无需第二套批量模型调度。父表状态仅是控制意图，监控批次须用batch_video_snapshot汇总子任务/预占/结算/退款/unknown；不能直接将父批次标completed。暂停阻止新提交、已受理继续；取消只释放queued，退款故障重试原事务，unknown沿原核对流程处理。
+
 ## 1. 环境与访问责任
 
 生产记录至少包含平台、项目/workspace/branch、URL、前端构建 Git/校验值、迁移回执、函数版本与对应源码、调度方式、配置版本、负责人和验收链接。URL 是公开信息，密钥不写运行记录。

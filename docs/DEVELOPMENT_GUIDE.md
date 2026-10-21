@@ -42,6 +42,8 @@ docker run --rm -it -p 127.0.0.1:5173:5173 \
 
 访问控制增量要求00037及 `api-keys/team-space/material-assets`，业务Key入口与production Worker同步更新。团队成员/Key不能再从Data API直接写入；素材删除使用持久化outbox，客户端统一 `src/api/accessControl.ts`。专项入口 `npm run test:access`，页面夹具 `tests/browser_access_control.mjs`；兼容与网关要求见 [访问控制迭代](ITERATION_08_ACCESS_CONTROL.md)。
 
+批量增量要求00038、batch-video-jobs和匹配共享视频Worker，客户端 `src/api/batchVideoJobs.ts`。父子创建/套餐/价格/预算统一事务；暂停与取消用父锁，已提交不停止查询。调用端不得直接写批次表；专项 `npm run test:batch`，页面夹具 `tests/browser_batch_video.mjs`，见 [批量迭代](ITERATION_09_BATCH_VIDEO.md)。
+
 ## 3. 目录与修改位置
 
 | 目录 | 职责 |

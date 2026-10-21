@@ -22,6 +22,10 @@ test('视频unknown与needs_attention优先于运行状态，终态不被旧标�
     assert.equal(task.billing, '预占 10 积分'); assert.equal(task.canCancel, false);
   }
   assert.equal(videoCenterTask({ ...video, status: 'completed', needs_attention: true }).status, 'completed');
+  const cancelled = videoCenterTask({ ...video, status: 'cancelled', billing_state: 'refunded' });
+  assert.equal(cancelled.status, 'cancelled');
+  assert.equal(cancelled.billing, '已返还 10 积分');
+  assert.equal(cancelled.progress, null);
 });
 test('使用服务端真实进度与计费状态，不生成固定65%进度', () => {
   assert.equal(videoCenterTask(video).progress, 23);

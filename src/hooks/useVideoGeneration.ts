@@ -47,10 +47,10 @@ export function useVideoGeneration(userId?: string) {
       window.dispatchEvent(new CustomEvent('shopro:works-updated'));
       window.dispatchEvent(new CustomEvent('credits_changed'));
       toast.success('视频生成完成，已保存至作品库');
-    } else if (current.status === 'failed') {
+    } else if (current.status === 'failed' || current.status === 'cancelled') {
       saveReceipt(null);
       window.dispatchEvent(new CustomEvent('credits_changed'));
-      toast.error(`${current.error_message || '视频生成失败'}${current.billing_state === 'refunded'
+      toast.error(`${current.error_message || (current.status === 'cancelled' ? '任务已取消' : '视频生成失败')}${current.billing_state === 'refunded'
         ? `，已退还 ${current.credit_cost} 积分` : '，积分处理中'}`, { duration: 6000 });
     }
   }, [saveReceipt]);
