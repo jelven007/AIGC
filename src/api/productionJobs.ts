@@ -13,6 +13,7 @@ export interface VideoStyleReport {
 export interface ProductionJob {
   id: string; request_key: string; kind: string; project_id: string | null;
   mode?: 'live' | 'style';
+  target_id?: string;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'unknown' | 'cancelled';
   progress: number; phase: string; result: { url?: string; thumbnail_url?: string; size?: number; duration?: number; resolution?: string;
     text?: string; segments?: { start: number; end: number; text: string }[]; voice_clone_id?: string; requires_verification?: boolean;

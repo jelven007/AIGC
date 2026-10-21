@@ -1,5 +1,7 @@
 # 统一模型接口设置
 
+00044 [情报设置](ITERATION_15_MARKET_INTELLIGENCE.md)新增intelligence.youtube/ebay/licensed，当前20槽。YouTube固定正式地址及x-goog-api-key raw；eBay固定Browse地址和Basic编码应用凭据，token仅在服务端；licensed需真实授权网关。情报不填模型ID、单次HTTP最多30秒，所有凭据继续服务端加密。以下17/16槽表述是先前迭代记录，当前目录以model-catalog及数据库目录为准。
+
 00043 [知识索引](ITERATION_14_KNOWLEDGE_RETRIEVAL.md)新增embedding.primary，当前总计17槽。填完整OpenAI兼容Embeddings地址及已开通模型/Key，必须返回float格式2–1536维非零同维向量；不是Chat接口。启用后用户主动确认积分提交索引/查询，新版本需重建索引；原任务始终读取旧版本，已有检索引用按正文再次核验。数据库目录model_slot_catalog统一白名单，00043/API/Worker须一起部署；旧16槽表述为前轮基线。
 
 00042 [观测及实验](ITERATION_13_MEASUREMENTS_EXPERIMENTS.md)不增加模型槽。创意建议沿text.primary，先确认实际积分价，只引用背景和服务端观测，不让模型创造流量概率。广告/交易签名数据源独立登记于AB页，仅管理员，密钥同主加密体系保护但不作为LLM API Key；需实际取得来源授权和采集服务，不能用文本模型替代真实交易。

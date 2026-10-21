@@ -1,5 +1,7 @@
 # 变更、需求与文档追踪矩阵
 
+新增REQ-INTELLIGENCE-01/AT-INTELLIGENCE-01–04：[迭代15](ITERATION_15_MARKET_INTELLIGENCE.md)对应00044、20槽、官方/授权协议、计划预算/原请求/退款、两页来源入库与30天清理。专项覆盖数据库、协议、390px页面及既有财务/配置/任务回归；同步需求至运维文档。下一发布00032–00044和market-intelligence/匹配函数，实际云端仍旧基线。
+
 新增REQ-KNOWLEDGE-02/AT-KNOWLEDGE-01–04：[迭代14](ITERATION_14_KNOWLEDGE_RETRIEVAL.md)交付00043/knowledge-base、私有条目与向量、17槽、队列财务/版本、真实脚本引用及默认假结果清理。7项PG/6组协议/390px页面、33项资金回归与编译检查通过；同步全生命周期文档。最新部署范围00032–00043，云端未变；本地提交与受阻远端同步以Git单独回报为准。
 
 新增00042 [观测与实验迭代13](ITERATION_13_MEASUREMENTS_EXPERIMENTS.md)，对应REQ-METRIC-02/ATTR-01/EXPERIMENT-01：measurements/measurement-ingest、来源与日观测/回执/实验表、统一三看板及AB页面。专项真实PG/协议/移动页面及Excel覆盖幂等/版本/缺失/隔离/签名/统计/刷新；真实平台权限、采集分流和云端待验收。同步需求、方案、API、开发、测试、运营/财务、运维/发布及覆盖文档；当前本地提交及远端状态以Git回报为准，旧已推送基线不代表本轮已同步。

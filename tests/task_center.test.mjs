@@ -75,4 +75,12 @@ test('失败任务去当前创作/工程入口，发布去授权管理，未创�
     '/video/edit?importId=original-project');
   assert.equal(taskDestination(publishCenterTask(publish)).href, '/publish?projectId=project');
 });
+test('竞品和选品归属正式页面，失败保留退款说明及采集来源', () => {
+  for (const [kind, href] of [['intelligence_competitor','/competitor'],['intelligence_products','/product-selection']]) {
+    const task=productionCenterTask({ ...production,kind,status:'failed',credit_cost:2 });
+    assert.equal(task.kind,kind); assert.equal(task.billing,'已返还 2 积分');
+    assert.equal(taskDestination(task).href,href);
+    assert.ok(productionCenterTask({ ...production,kind,status:'completed' }).detail.includes('快照保留30天'));
+  }
+});
 console.log(`${passed} tests passed`);

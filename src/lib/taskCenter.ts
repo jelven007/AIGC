@@ -4,7 +4,7 @@ import type { PlatformPublishTask } from '@/api/platforms';
 
 export type TaskSource = 'video' | 'production' | 'publish';
 export type TaskStatus = 'pending' | 'running' | 'review' | 'completed' | 'failed' | 'unknown' | 'cancelled';
-export type TaskKind = 'video' | 'image' | 'cover' | 'render' | 'publish' | 'metrics' | 'tts' | 'asr' | 'voice_clone' | 'avatar' | 'lipsync' | 'analysis' | 'knowledge_index' | 'knowledge_search';
+export type TaskKind = 'video' | 'image' | 'cover' | 'render' | 'publish' | 'metrics' | 'tts' | 'asr' | 'voice_clone' | 'avatar' | 'lipsync' | 'analysis' | 'knowledge_index' | 'knowledge_search' | 'intelligence_competitor' | 'intelligence_products';
 export interface CenterTask {
   key: string;
   id: string;
@@ -33,6 +33,7 @@ export const TASK_KINDS: Record<TaskKind, string> = {
   tts: '语音合成', asr: '语音识别', voice_clone: '声纹克隆', avatar: '照片口播', lipsync: '口型同步',
   analysis: '素材分析',
   knowledge_index: '知识索引', knowledge_search: '语义检索',
+  intelligence_competitor: '竞品采集', intelligence_products: '商品搜索',
 };
 export const TASK_STATUSES: Record<TaskStatus, string> = {
   pending: '等待中', running: '处理中', review: '平台处理中', completed: '已完成',
@@ -42,6 +43,8 @@ const percent = (value: number): number | null => Number.isFinite(value) ? Math.
 const projectQuery = (id: string | null) => id ? `?projectId=${encodeURIComponent(id)}` : '';
 
 export function taskDestination(task: CenterTask): { href: string; label: string } {
+  if (task.kind === 'intelligence_competitor') return { href: '/competitor', label: '查看竞品快照' };
+  if (task.kind === 'intelligence_products') return { href: '/product-selection', label: '查看选品结果' };
   if (['knowledge_index', 'knowledge_search'].includes(task.kind)) return { href: '/knowledge', label: '管理知识与检索' };
   if (task.kind === 'analysis') return { href: task.mode === 'style' ? '/style-copy' : '/live-highlight', label: '查看分析与切片' };
   if (['tts', 'asr', 'voice_clone', 'avatar', 'lipsync'].includes(task.kind)) return { href: '/avatars#media-jobs', label: '管理媒体任务' };
@@ -76,7 +79,7 @@ export function videoCenterTask(job: ServerVideoJob): CenterTask {
 
 export function productionCenterTask(job: ProductionJob): CenterTask {
   const kind: TaskKind = job.kind === 'image' ? job.project_id ? 'cover' : 'image'
-    : ['render', 'publish', 'metrics', 'tts', 'asr', 'voice_clone', 'avatar', 'lipsync', 'analysis', 'knowledge_index', 'knowledge_search'].includes(job.kind) ? job.kind as TaskKind : 'metrics';
+    : ['render', 'publish', 'metrics', 'tts', 'asr', 'voice_clone', 'avatar', 'lipsync', 'analysis', 'knowledge_index', 'knowledge_search', 'intelligence_competitor', 'intelligence_products'].includes(job.kind) ? job.kind as TaskKind : 'metrics';
   const status: TaskStatus = ['pending', 'running', 'completed', 'failed', 'unknown', 'cancelled'].includes(job.status)
     ? job.status : 'unknown';
   const phases: Record<string, string> = { ready: '等待后台领取', claimed: '后台已领取',
@@ -88,7 +91,7 @@ export function productionCenterTask(job: ProductionJob): CenterTask {
     key: `production:${job.id}`, id: job.id, source: 'production', kind, mode: job.mode, status: displayedStatus,
     statusLabel: publishFallback && status === 'completed' ? '发布结果待同步' : TASK_STATUSES[displayedStatus],
     detail: publishFallback ? '发布详情暂未返回，请在发布管理核对'
-      : status === 'completed' ? kind === 'render' ? '成片已归档' : '生成结果已归档'
+      : status === 'completed' ? kind.startsWith('intelligence_') ? '采集完成，统计快照保留30天' : kind === 'render' ? '成片已归档' : '生成结果已归档'
         : status === 'failed' ? '任务未能完成，请查看失败原因'
           : status === 'cancelled' ? '后台任务已停止'
             : status === 'unknown' ? '等待确认原任务结果' : phases[job.phase] || '后台处理中',

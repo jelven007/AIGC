@@ -6,6 +6,7 @@ const retired: Record<string, string> = {
   generate_api_key: 'api-keys', revoke_api_key: 'api-keys', create_team: 'team-space', get_team: 'team-space',
   create_invitation: 'team-space', remove_member: 'team-space', change_member_role: 'team-space',
   create_publish_task: 'platform-publish', publish_video: 'platform-publish', analyze_live_highlight: 'production-jobs analysis',
+  add_competitor: 'market-intelligence', crawl_competitor: 'market-intelligence',
 };
 export async function handlePhase3(req: Request) {
   const preflight = handleCorsPreflight(req); if (preflight) return preflight;
@@ -18,17 +19,6 @@ export async function handlePhase3(req: Request) {
     if (auth.error || !auth.user || auth.isServiceRole) return reject(auth.error || '请先登录', auth.status || 401);
     const uid = auth.user.id, db = createServiceClient(), body = await req.json();
     if (retired[body.action]) return reject(`该入口已迁移至 ${retired[body.action]}，请更新客户端`, 410);
-    if (body.action === 'add_competitor') {
-      if (!['douyin', 'tiktok', 'kuaishou'].includes(body.platform)) return reject('监控平台不支持');
-      const account = boundedText(body.account_id, 200), name = boundedText(body.account_name, 200);
-      const result = await db.from('competitor_accounts').insert({ user_id: uid, platform: body.platform,
-        account_id: account, account_name: name, category: body.category || '', last_crawled_at: null }).select('id').single();
-      if (result.error) throw new Error('监控账号保存失败');
-      return reply({ id: result.data.id, message: '账号已保存，采集需授权数据供应商' });
-    }
-    if (body.action === 'crawl_competitor') {
-      return reject('尚未配置授权竞品数据供应商，无法采集账号指标', 424);
-    }
     if (body.action === 'update_style_preference') {
       const preferences: Record<string, string[]> = {};
       for (const key of ['preferred_styles', 'preferred_tones', 'preferred_hooks', 'cta_patterns']) {

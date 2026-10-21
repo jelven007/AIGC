@@ -1,5 +1,7 @@
 # Shopro AI
 
+新增 [可追溯竞品统计与多市场选品](docs/ITERATION_15_MARKET_INTELLIGENCE.md)：20槽、YouTube官方公开统计、eBay官方商品搜索、授权数据商契约、每日预算监控、来源商品入库/CSV和30天清理。移除两页预置数据；已通过本地数据库、协议和移动端验证，真实供应商待验收。当前发布范围00032–00044及market-intelligence/匹配函数，探针v6；下文较早范围按各轮记录阅读。
+
 新增 [私有知识索引与脚本引用](docs/ITERATION_14_KNOWLEDGE_RETRIEVAL.md)：17槽含独立Embedding，知识库统一真实存储，后台分块/语义查询/版本与正文失效/积分，流式及四层脚本服务端加载引用；移除假整合、假训练和默认脚本结果。最新源码部署范围00032–00043及knowledge-base/匹配Worker与文本函数，尚未部署云端。
 
 新增 [统一观测与对照实验](docs/ITERATION_13_MEASUREMENTS_EXPERIMENTS.md)：三个看板统一官方数据，支持签名授权观测、分源币种CTR/CVR/ROAS、固定匿名分组与真实统计，移除随机预测/固定提升。最新源码要求00032–00042及匹配函数，尚未部署；下文较早部署范围由此更新。
@@ -56,6 +58,7 @@ pnpm test:video
 pnpm test:models
 pnpm test:media
 pnpm test:knowledge
+pnpm test:intelligence
 pnpm test:payments
 pnpm test:volcengine
 pnpm test:finance

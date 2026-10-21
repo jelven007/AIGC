@@ -1,5 +1,7 @@
 # 火山引擎部署指南
 
+当前清单新增market-intelligence，需00032–00044和匹配production-worker探针v6/20槽设置页；官方协议、授权数据商、预算监控和留存验收见 [迭代15](ITERATION_15_MARKET_INTELLIGENCE.md)。仍只有适配代码与本地验证，火山资源/真实供应商未运行验收；先发布后端/Worker并验证，再发布前端。
+
 本轮清单新增knowledge-base，最新版增量00032–00043与production探针v5，当前17槽含独立Embedding。需在目标环境核实新知识RPC、加密历史版本、真实模型权限与有界向量性能，按 [知识迭代14](ITERATION_14_KNOWLEDGE_RETRIEVAL.md)验收后最后发布前端。本轮只有本地代码/清单更新，火山资源与真实供应商尚未运行验收。
 
 最新发布范围扩展00032–00042，新增 [统一观测及实验](ITERATION_13_MEASUREMENTS_EXPERIMENTS.md)。manifest自动包含measurements和measurement-ingest，两者网关JWT关闭后分别由业务鉴权/HMAC验证；须匹配ai-assistant及production-worker v4，数据库在前、前端在后。登记已授权采集来源并验收签名/日版本/随机分流，不能从部署函数成功推断真实广告、电商数据或ROI已接入。火山资源和供应商仍待验收。

@@ -1,5 +1,7 @@
 # aigcp 环境部署记录
 
+下一官方升级范围为00032–00044及market-intelligence/匹配API与Worker，probe v6、20槽；正式供应商配置、日预算调度和30天清理验收见 [迭代15](ITERATION_15_MARKET_INTELLIGENCE.md)。这只是源码发布要求，未修改云端；最近核实到00031的事实不变。历史部署范围不等于当前整包依赖。
+
 下一次官方环境升级范围扩展00032–00043、knowledge-base及匹配文本/API/production-worker，探针v5；新增17槽Embedding须真实配置与验收。正文索引/引用、恢复/退款、供应商用量检查见 [迭代14](ITERATION_14_KNOWLEDGE_RETRIEVAL.md)。本段为部署要求，不是部署回执；最近云端仍到00031，本轮未改远端环境。
 
 本地增量00042及 [观测实验](ITERATION_13_MEASUREMENTS_EXPERIMENTS.md)不改变真实部署回执。下次需核对00032–00042、measurements/measurement-ingest、匹配AI/Worker probe v4和前端，再实际登记授权采集来源/验收分流与指标；现有云端00031及旧3函数不能运行新报告。
