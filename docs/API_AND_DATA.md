@@ -10,6 +10,8 @@ JSON 请求使用 `Content-Type: application/json`，允许的预检由各函数
 
 访问控制增量 `00037`：四个业务入口支持 `Authorization: Bearer ak_live_...`，按 Action 的 scope 验证；管理端 `api-keys/team-space/material-assets` 仅用户 JWT。完整 Action/权限与 Key 有效期、每分钟限额、团队邀请/共享、删除 outbox 见 [访问控制接口](ITERATION_08_ACCESS_CONTROL.md)。旧 phase3 团队和密钥 Actions 返回410；前端不再直接写相关管理表。网关设置与函数内鉴权须一起发布。
 
+批量增量00038：`batch-video-jobs`支持quote/list/query（video:read）与create/pause/resume/cancel（video:create），JWT/Key共用身份。create传request_key、商品ID、统一规格/独立要求、确认单价和总预算；整批原子预占并复用video_jobs。query/list纯读取，终态与资金汇总子任务；取消仅释放未提交项。完整字段、错误状态和兼容见 [批量接口](ITERATION_09_BATCH_VIDEO.md)。
+
 ## 2. 视频任务
 
 入口 [video-jobs](../supabase/functions/video-jobs/index.ts)，仅 POST：
@@ -48,7 +50,7 @@ JSON 请求使用 `Content-Type: application/json`，允许的预检由各函数
 
 | 维度 | 值与含义 |
 | --- | --- |
-| `status` | 服务端主链路使用 `pending/processing/completed/failed`；历史队列表也保留其他值，不能据此推断已支持取消 |
+| `status` | 服务端主链路使用 `pending/processing/completed/failed`；00038增加批次内queued子任务的服务端cancelled，不支持取消已受理任务 |
 | `submission_state` | `queued` 待领、`submitting` 提交在途、`submitted` 有上游 ID、`unknown` 受理待核对 |
 | `billing_state` | `reserved` 已预占、`settled` 成功结算、`refunded` 原流水积分返还 |
 

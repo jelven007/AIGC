@@ -6,7 +6,7 @@ export interface ServerVideoJob {
   id: string;
   project_id: string;
   provider: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
   submission_state: 'queued' | 'submitting' | 'submitted' | 'unknown';
   billing_state: 'reserved' | 'settled' | 'refunded';
   credit_cost: number;
