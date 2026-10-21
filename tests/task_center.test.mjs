@@ -88,4 +88,10 @@ test('商品提取完成后要求核对，归属商品库并且不冒报视频�
   assert.equal(task.kind, 'product_import'); assert.equal(task.billing, null); assert.equal(task.outputUrl, null);
   assert.match(task.detail, /核对后导入/); assert.equal(taskDestination(task).href, '/products');
 });
+test('商品翻译保留原任务入口和计费，译文不作为视频下载地址', () => {
+  const task = productionCenterTask({ ...production, id: 'original', kind: 'product_translate', status: 'completed', credit_cost: 2 });
+  assert.equal(task.kind, 'product_translate'); assert.equal(task.billing, '已结算 2 积分'); assert.equal(task.outputUrl, null);
+  assert.match(task.detail, /核对后保存/); assert.equal(taskDestination(task).href, '/products?translationJob=original');
+  assert.equal(productionCenterTask({ ...production, kind: 'product_translate', status: 'unknown', credit_cost: 2 }).billing, '预占 2 积分');
+});
 console.log(`${passed} tests passed`);

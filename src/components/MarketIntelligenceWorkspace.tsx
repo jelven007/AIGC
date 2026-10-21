@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { intelligenceRequest, type IntelligenceCatalog, type IntelligenceItem } from '@/api/intelligence';
+import { uploadProductImage } from '@/api/products';
+import { canonicalMediaTree } from '@/lib/privateMedia';
 import { EdgeRequestError } from '@/lib/edgeRequest';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,6 +22,8 @@ export default function MarketIntelligenceWorkspace({ mode, request = intelligen
   const [catalog, setCatalog] = useState<IntelligenceCatalog>(empty), [selected, setSelected] = useState('');
   const [source, setSource] = useState(mode === 'competitor' ? 'intelligence.youtube' : 'intelligence.ebay');
   const [subject, setSubject] = useState(''), [name, setName] = useState(''), [platform, setPlatform] = useState('tiktok'), [market, setMarket] = useState('US');
+  const [searchMode, setSearchMode] = useState('keyword');
+  const [image, setImage] = useState<{ url: string; hash: string; preview: string; name: string } | null>(null);
   const [query, setQuery] = useState(''), [runs, setRuns] = useState(7), [checked, setChecked] = useState<string[]>([]);
   const [pending, setPending] = useState<Receipt | null>(null), [busy, setBusy] = useState('');
   const [error, setError] = useState(''), [loading, setLoading] = useState(true);
@@ -37,6 +41,7 @@ export default function MarketIntelligenceWorkspace({ mode, request = intelligen
     finally { if (generation === sequence.current) setLoading(false); }
   }, [user, kind, request]);
   useEffect(() => { void load(); return () => { sequence.current++; }; }, [load]);
+  useEffect(() => () => { if (image) URL.revokeObjectURL(image.preview); }, [image]);
   useEffect(() => {
     try {
       const receipt = JSON.parse(localStorage.getItem(storageKey) || 'null');
@@ -54,7 +59,7 @@ export default function MarketIntelligenceWorkspace({ mode, request = intelligen
   const available = (slot: string) => loaded.current && catalog.sources.some(item => item.slot === slot && item.enabled);
   const commit = async (receipt?: Receipt) => {
     if (!storageKey || locked.current || !loaded.current) return;
-    const body = pending || receipt;
+    const body = canonicalMediaTree(pending || receipt) as Receipt | null | undefined;
     if (!body) return;
     locked.current = true; setBusy(body.action); setError('');
     try {
@@ -62,7 +67,7 @@ export default function MarketIntelligenceWorkspace({ mode, request = intelligen
       const result = await request<{ target?: { id: string } }>(body);
       localStorage.removeItem(storageKey); setPending(null);
       if (result.target?.id) setSelected(result.target.id);
-      if (body.action === 'save_target') { setName(''); setSubject(''); }
+      if (body.action === 'save_target') { setName(''); setSubject(''); setImage(null); }
       toast.success(body.action === 'collect' ? '采集任务已提交，后台继续处理' : body.action === 'schedule' ? '监控计划已保存' : '对象已保存，可确认积分后采集');
       await load();
     } catch (cause) {
@@ -74,8 +79,23 @@ export default function MarketIntelligenceWorkspace({ mode, request = intelligen
   };
   const save = (event: React.FormEvent) => {
     event.preventDefault();
-    void commit({ action: 'save_target', request_key: crypto.randomUUID(), kind, source_slot: source, name: name.trim() || subject.trim(),
-      params: mode === 'competitor' ? { account_id: subject.trim(), platform } : { query: subject.trim(), market, platform } });
+    if (mode === 'products' && searchMode === 'image' && (!image || source !== 'intelligence.ebay')) return;
+    void commit({ action: 'save_target', request_key: crypto.randomUUID(), kind, source_slot: source,
+      name: name.trim() || (mode === 'products' && searchMode === 'image' ? `图片选品 · ${markets[market]}` : subject.trim()),
+      params: mode === 'competitor' ? { account_id: subject.trim(), platform } : searchMode === 'image'
+        ? { search_mode: 'image', image_url: image!.url, image_hash: image!.hash, market }
+        : { query: subject.trim(), market, platform } });
+  };
+  const upload = async (file?: File) => {
+    if (!file || !user || busy || pending) return;
+    setBusy('upload'); setError('');
+    try {
+      const url = await uploadProductImage(file, user.id);
+      const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', await file.arrayBuffer()))]
+        .map(value => value.toString(16).padStart(2, '0')).join('');
+      setImage({ url: canonicalMediaTree(url), hash, preview: URL.createObjectURL(file), name: file.name });
+    } catch (cause) { setError(cause instanceof Error ? cause.message : '图片上传失败'); }
+    finally { setBusy(''); }
   };
   const schedule = (count: number) => {
     if (!target || price === undefined) return;
@@ -124,17 +144,29 @@ export default function MarketIntelligenceWorkspace({ mode, request = intelligen
       <div className="grid sm:grid-cols-2 gap-4">
         <label className="space-y-2 text-sm">数据源<select aria-label="数据源" value={source} onChange={event => {
           setSource(event.target.value);
+          if (event.target.value !== 'intelligence.ebay') setSearchMode('keyword');
           if (event.target.value==='intelligence.ebay' && !['US','GB','DE','FR','IT','ES','AU','CA'].includes(market)) setMarket('US');
         }} className="w-full h-10 rounded-md border bg-background px-3">
           {[mode === 'competitor' ? 'intelligence.youtube' : 'intelligence.ebay','intelligence.licensed'].map(slot => <option key={slot} value={slot}>{sourceNames[slot]} · {available(slot) ? '已启用' : '未配置'}</option>)}</select></label>
         <label className="space-y-2 text-sm">显示名称（选填）<Input value={name} maxLength={200} onChange={event => setName(event.target.value)} /></label>
-        <label className="space-y-2 text-sm">{mode === 'competitor' ? '账号ID / @handle' : '商品关键词'}<Input required value={subject} maxLength={100} onChange={event => setSubject(event.target.value)} placeholder={mode === 'competitor' ? source === 'intelligence.youtube' ? 'UC频道ID或@handle' : '授权数据商支持的账号ID' : '搜索实际商品名称'} /></label>
+        {mode === 'products' && source === 'intelligence.ebay' && <label className="space-y-2 text-sm">选品方式<select aria-label="选品方式" value={searchMode}
+          disabled={!!busy || !!pending} onChange={event => setSearchMode(event.target.value)} className="w-full h-10 rounded-md border bg-background px-3">
+          <option value="keyword">关键词搜索</option><option value="image">上传图片搜索</option></select></label>}
+        {(mode === 'competitor' || searchMode === 'keyword') && <label className="space-y-2 text-sm">{mode === 'competitor' ? '账号ID / @handle' : '商品关键词'}<Input required value={subject} maxLength={100} onChange={event => setSubject(event.target.value)} placeholder={mode === 'competitor' ? source === 'intelligence.youtube' ? 'UC频道ID或@handle' : '授权数据商支持的账号ID' : '搜索实际商品名称'} /></label>}
+        {mode === 'products' && searchMode === 'image' && <div className="space-y-2">
+          <label className="block text-sm space-y-2">选品参考图<Input aria-label="上传选品参考图" type="file" accept="image/jpeg,image/png,image/webp"
+            disabled={!!busy || !!pending} onChange={event => { void upload(event.target.files?.[0]); event.target.value = ''; }} /></label>
+          <p className="text-xs text-muted-foreground">支持5MB以内的JPG、PNG或WebP。图片保存在本人私有素材中，由eBay官方接口搜索相似商品；采集仍需确认积分。</p>
+          {image && <div className="flex items-center gap-3"><img src={image.preview} alt="已上传的选品参考图" className="w-20 h-20 rounded-md object-contain border" />
+            <p className="text-xs text-muted-foreground break-all">{image.name} · 上传完成</p></div>}
+        </div>}
         {source === 'intelligence.licensed' && <label className="space-y-2 text-sm">授权平台<select aria-label="授权平台" value={platform} onChange={event => setPlatform(event.target.value)} className="w-full h-10 rounded-md border bg-background px-3">
           {Object.entries(platforms).filter(([id]) => mode === 'products' || ['douyin','tiktok','xiaohongshu','kuaishou'].includes(id)).map(([id,label]) => <option key={id} value={id}>{label}</option>)}</select></label>}
         {mode === 'products' && <label className="space-y-2 text-sm">目标市场<select aria-label="目标市场" value={market} onChange={event => setMarket(event.target.value)} className="w-full h-10 rounded-md border bg-background px-3">
           {Object.entries(markets).filter(([id]) => source === 'intelligence.licensed' || ['US','GB','DE','FR','IT','ES','AU','CA'].includes(id)).map(([id,label]) => <option key={id} value={id}>{label}（{id}）</option>)}</select></label>}
       </div>
-      <div className="flex flex-wrap gap-3 items-center"><Button type="submit" disabled={!!busy || !!pending || loading || !subject.trim()}>保存情报对象</Button>
+      <div className="flex flex-wrap gap-3 items-center"><Button type="submit" disabled={!!busy || !!pending || loading
+        || (mode === 'products' && searchMode === 'image' ? !image : !subject.trim())}>保存情报对象</Button>
         {!available(source) && <p className="text-sm text-muted-foreground">此数据源未启用，请由管理员在模型接口设置中配置。</p>}</div>
     </form>
     {loading ? <p role="status" className="flex gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />正在读取情报记录</p>
@@ -144,7 +176,9 @@ export default function MarketIntelligenceWorkspace({ mode, request = intelligen
             {catalog.targets.map(item => <option key={item.id} value={item.id}>{item.name} · {sourceNames[item.source_slot]}</option>)}</select></label>
           {target && <div className="rounded-xl border p-4 space-y-4">
             <div className="flex flex-wrap gap-3 justify-between"><div><h2 className="font-semibold break-words">{sample?.data.account?.name || target.name}</h2>
-              <p className="text-xs text-muted-foreground mt-1">{sourceNames[target.source_slot]} · {mode === 'products' ? `${target.params.market} / ${target.params.query}` : target.params.account_id}</p></div>
+              <p className="text-xs text-muted-foreground mt-1">{sourceNames[target.source_slot]} · {mode === 'products'
+                ? `${target.params.market} / ${target.params.search_mode === 'image' ? '图片相似搜索' : target.params.query}` : target.params.account_id}</p>
+              {target.params.image_hash && <p className="text-xs text-muted-foreground mt-2 break-all">原图SHA-256：{target.params.image_hash}</p>}</div>
               <Button variant="ghost" size="sm" disabled={!!busy || !!pending} onClick={() => void remove()}>删除对象</Button></div>
             <div className="flex flex-wrap gap-3 items-center">
               <Button disabled={!!busy || !!pending || active || price === undefined || !available(target.source_slot)}
@@ -181,6 +215,8 @@ export default function MarketIntelligenceWorkspace({ mode, request = intelligen
                   <div className="flex flex-wrap gap-2 items-center">
                     <a href={item.url} target="_blank" rel="noreferrer" className="inline-flex gap-1 items-center text-sm underline">原网页<ExternalLink className="h-3 w-3" /></a>
                     <Button variant="outline" size="sm" onClick={() => reference(item)}>参考标题创作</Button>
+                    {mode === 'competitor' && <Button variant="outline" size="sm" onClick={() => navigate('/style-copy', { state: {
+                      competitor_reference: { sample_id: sample.job_id, item_id: item.id }, title: item.title } })}>上传素材分析风格</Button>}
                     {mode === 'products' && <Button size="sm" disabled={!!busy} onClick={() => void importItems([item.id])}>加入商品库</Button>}
                   </div>
                 </article>)}

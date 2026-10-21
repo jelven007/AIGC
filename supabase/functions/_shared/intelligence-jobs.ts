@@ -2,6 +2,7 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { resolveModel } from './model-registry.ts';
 import { collectIntelligence, IntelligenceError } from './intelligence-provider.ts';
 import { jobEvent, publicProductionJob, type ProductionJob } from './production-jobs.ts';
+import { readIntelligenceImage } from './intelligence-image.ts';
 export const intelligenceUuid = (value: unknown) => typeof value === 'string' && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value);
 export async function createIntelligenceJob(db: SupabaseClient, uid: string, key: unknown, target: unknown, cost: unknown) {
   if (!intelligenceUuid(key) || !intelligenceUuid(target) || !Number.isInteger(cost) || Number(cost)<0) throw new IntelligenceError('采集标识与价格参数非法');
@@ -33,8 +34,10 @@ export async function processIntelligenceJob(db: SupabaseClient, kind: string): 
     if (!saved) {
       const config = await resolveModel(job.payload.source_slot, db, job.model_config_version_id!);
       if (lost) throw new Error('采集租约已失效');
-      // 所有采集均为只读GET；eBay POST只签发应用token，不创建商品、支付或投放。
-      const data = await collectIntelligence(config, job.kind, job.payload.params);
+      const image = job.payload.params.search_mode === 'image' ? await readIntelligenceImage(db,
+        job.payload.params.image_url, job.user_id, job.payload.params.image_hash) : null;
+      // 图片搜索POST同样只读取商品；有限重试不会创建订单或发布作品。
+      const data = await collectIntelligence(config, job.kind, job.payload.params, image?.bytes);
       if (lost) throw new Error('采集租约已失效');
       await jobEvent(db, job, 'checkpoint', data); saved = true; job.evidence = data;
     }

@@ -160,6 +160,8 @@ class MCPTest(unittest.TestCase):
             ("collect_market_intelligence", {"target_id": self.other_key, "confirmed_credit_cost": 1}, "market-intelligence", "collect"),
             ("schedule_market_intelligence", {"target_id": self.other_key, "runs": 2, "budget": 2, "confirmed_credit_cost": 1}, "market-intelligence", "schedule"),
             ("extract_product_source", {"mode": "text", "content": "商品名称：真实杯子"}, "product-management", "extract"),
+            ("translate_product", {"product_id": self.other_key, "expected_updated_at": "2026-10-22T00:00:00Z",
+                                     "target_language": "ja", "include_image": True, "confirmed_credit_cost": 2}, "product-management", "translate"),
             ("save_products", {"items": [{"draft": {"name": "杯子", "category": "其他", "status": "draft"}}]}, "product-management", "save"),
             ("delete_products", {"items": [{"id": self.other_key, "expected_updated_at": "2026-10-22T00:00:00Z"}]}, "product-management", "delete"),
         ]
@@ -211,6 +213,7 @@ class MCPTest(unittest.TestCase):
             ("delete_intelligence_target", {"target_id": self.key}, "market-intelligence", "delete"),
             ("list_products", {"offset": 0, "limit": 50}, "product-management", "list"),
             ("list_product_imports", {}, "product-management", "imports"),
+            ("list_product_translations", {}, "product-management", "translations"),
         ]
         with patch.object(server, "call_backend", backend):
             for name, args, endpoint, action in cases:
@@ -224,6 +227,32 @@ class MCPTest(unittest.TestCase):
                 result = self.call(name, {})
                 self.assertTrue(result["isError"])
         self.assertIsNone(request_token.get())
+
+    def test_translation_and_competitor_contracts_reject_unconfirmed_calls(self):
+        calls = []
+
+        async def backend(function, body):
+            calls.append((function, body))
+            return {"job": {}}
+
+        with patch.object(server, "call_backend", backend):
+            translation = {"product_id": self.other_key, "expected_updated_at": "2026-10-22T00:00:00Z",
+                           "target_language": "ja", "include_image": True, "confirmed_credit_cost": 2,
+                           "request_key": self.key}
+            for change in [{"target_language": "xx"}, {"include_image": "true"}, {"confirmed_credit_cost": -1}]:
+                self.assertTrue(self.call("translate_product", {**translation, **change})["isError"])
+            self.assertEqual(calls, [])
+            self.assertFalse(self.call("translate_product", translation).get("isError", False))
+            self.assertEqual(calls[-1][1]["input"]["expected_updated_at"], translation["expected_updated_at"])
+            reference = {"sample_id": self.other_key, "item_id": "real-item", "rights_confirmed": True}
+            analysis = {"source_url": "https://db.example/private.mp4", "title": "参考", "mode": "style",
+                        "request_key": self.key, "confirmed_credit_cost": 2, "competitor_reference": reference}
+            self.assertFalse(self.call("submit_video_analysis", analysis).get("isError", False))
+            self.assertEqual(calls[-1][1]["input"]["competitor_reference"], reference)
+            before = len(calls)
+            for change in [{"mode": "live"}, {"competitor_reference": {**reference, "rights_confirmed": False}}]:
+                self.assertTrue(self.call("submit_video_analysis", {**analysis, **change})["isError"])
+            self.assertEqual(len(calls), before)
 
     def test_publish_group_rejects_duplicate_and_unconfirmed_accounts_before_backend(self):
         options = {"consent": True, "privacy_level": "SELF_ONLY", "disable_comment": True,

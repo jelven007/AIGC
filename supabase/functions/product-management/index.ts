@@ -5,6 +5,8 @@ import { productDraft, productImportInput, productText, productUuid, ProductErro
 import { signMediaTree, validateMediaTree, canonicalMediaTree } from '../_shared/private-media.ts';
 import { publicProductionJob, type ProductionJob } from '../_shared/production-jobs.ts';
 import { productScope } from '../_shared/api-scopes.ts';
+import { ConfigError } from '../_shared/model-registry.ts';
+import { createProductTranslation } from '../_shared/product-translation.ts';
 
 export async function handleProductManagement(req: Request): Promise<Response> {
   const preflight = handleCorsPreflight(req); if (preflight) return preflight;
@@ -45,11 +47,18 @@ export async function handleProductManagement(req: Request): Promise<Response> {
       if (listed.error) throw new Error('商品列表读取失败');
       return reply({ products: await signMediaTree(db, listed.data, uid), total: listed.count, offset });
     }
-    if (body.action === 'imports') {
-      const listed = await db.from('production_jobs').select('*').eq('user_id', uid).eq('kind', 'product_import')
+    if (body.action === 'imports' || body.action === 'translations') {
+      const listed = await db.from('production_jobs').select('*').eq('user_id', uid).eq('kind', body.action === 'imports' ? 'product_import' : 'product_translate')
         .order('created_at', { ascending: false }).limit(20);
       if (listed.error) throw new Error('商品提取任务读取失败');
-      return reply({ jobs: await Promise.all(listed.data.map((job: ProductionJob) => publicProductionJob(db, job))) });
+      const prices = body.action === 'translations' ? await db.from('credit_costs').select('cost').eq('action', 'generate_product_translate').maybeSingle() : null;
+      if (prices && (prices.error || !Number.isInteger(prices.data?.cost) || prices.data!.cost < 0)) throw new Error('翻译计费配置缺失');
+      return reply({ jobs: await Promise.all(listed.data.map((job: ProductionJob) => publicProductionJob(db, job))),
+        ...(prices ? { cost: prices.data!.cost } : {}) });
+    }
+    if (body.action === 'translate') {
+      mutation = true;
+      return reply({ job: await createProductTranslation(db, uid, body.request_key, body.input), outcome: 'accepted' }, 202);
     }
     if (body.action === 'extract') {
       if (!productUuid(body.request_key)) throw new ProductError('提取任务需要有效的请求标识');
@@ -86,11 +95,12 @@ export async function handleProductManagement(req: Request): Promise<Response> {
     throw new ProductError('商品操作不支持');
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : '商品服务不可用';
-    const conflict = /同一请求标识|已被更新|已导入|更换导入来源/.test(message);
-    const rejected = cause instanceof SyntaxError || cause instanceof ProductError || conflict
+    const conflict = /同一请求标识|已被更新|已导入|更换导入来源|价格已更新|配置已更新/.test(message);
+    const rejected = cause instanceof SyntaxError || cause instanceof ProductError || cause instanceof ConfigError || conflict || /积分不足/.test(message)
       || /不存在|无权访问|过期|内容非法|最多2000|队列已满/.test(message);
     return reply({ error: cause instanceof SyntaxError ? 'JSON请求非法' : message,
-      outcome: rejected || !mutation ? 'rejected' : 'unknown' }, conflict ? 409 : /队列已满|最多2000/.test(message) ? 429
+      outcome: rejected || !mutation ? 'rejected' : 'unknown' }, cause instanceof ConfigError ? 424 : /积分不足/.test(message) ? 402
+        : conflict ? 409 : /队列已满|最多2000/.test(message) ? 429
         : /不存在|无权访问/.test(message) ? 404 : rejected ? 400 : 503);
   }
 }

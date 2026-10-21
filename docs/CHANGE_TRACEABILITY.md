@@ -1,5 +1,7 @@
 # 变更、需求与文档追踪矩阵
 
+迭代21 [图片选品/商品翻译/竞品引用/真实通知](ITERATION_21_TRANSLATION_NOTIFICATIONS.md)对应REQ-INTELLIGENCE-02/PRODUCT-TRANSLATE-01/NOTIFY-01：00049、私有图片指纹/eBay官方POST、原版本12语言/主图文字/原结果恢复、DB正式快照引用/使用权与任务终态通知/RLS/cutoff/偏好。同步需求、架构/API、开发、PG/协议/页面/MCP、测试、运维/调度/部署与当前状态；MCP54/18权限，probe v10/00049/render2。目标供应商和全栈发布不以本地回归替代。
+
 迭代20 [现金退款/运营](ITERATION_20_CASH_OPERATIONS.md)关联REQ-CASH-01–02/OPS-01/BUDGET-01：00047/00048、原预占/租约/签名到账/权益、运营真实范围权限/日预算/分页、原UUID恢复/只查询调度及用户退款回执。同步PRD、API、开发、测试、后台、运营、发布/云端边界；16PG/8协议/4页面、既有资金与工程/部署回归。probe v9/00048，MCP仍52/18且不开放财务；实际云端/完整中台与其余功能待交付。
 
 迭代19 [商品管理需求闭环](ITERATION_19_PRODUCT_MANAGEMENT.md)：真实来源/空值/原币种/私有实拍图，product_import与product-management/00046原子商品写入、版本/一次性来源/哈希回执、CSV和两入口统一。同步需求、技术、API、开发、PG/HTTP/页面/MCP/资金回归、运营、运维和部署主文档。MCP52/18权限，probe v8/00046，目标部署和剩余全系统缺口不记为已交付。

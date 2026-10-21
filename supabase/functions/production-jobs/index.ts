@@ -161,7 +161,7 @@ export async function handleProductionJobs(req: Request): Promise<Response> {
       let query = db.from('production_jobs').select('*').eq('user_id', auth.user.id);
       if (body.kinds !== undefined) {
         if (!Array.isArray(body.kinds) || !body.kinds.length || body.kinds.some((kind: string) =>
-          !['image', 'render', 'publish', 'metrics', 'analysis', ...Object.keys(MEDIA_JOB_SLOTS), ...KNOWLEDGE_KINDS, ...INTELLIGENCE_KINDS].includes(kind))) return reply({ error: '任务类型筛选非法' }, 400);
+          !['image', 'render', 'publish', 'metrics', 'analysis', 'product_import', 'product_translate', ...Object.keys(MEDIA_JOB_SLOTS), ...KNOWLEDGE_KINDS, ...INTELLIGENCE_KINDS].includes(kind))) return reply({ error: '任务类型筛选非法' }, 400);
         query = query.in('kind', body.kinds);
       }
       const { data, error } = await query.order('created_at', { ascending: false }).limit(30);

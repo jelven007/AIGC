@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Package, Plus, Search, LayoutGrid, List, Edit2, Trash2, Download, FileSpreadsheet, Video, Link, Loader2 } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Package, Plus, Search, LayoutGrid, List, Edit2, Trash2, Download, FileSpreadsheet, Video, Link, Loader2, Languages } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Product } from '@/types/types';
 import { PRODUCT_CATEGORIES, listProducts, productDraft, productRequest, ProductRequestError,
-  readProductMutation, storeProductMutation, pendingProductKey, type ProductMutation } from '@/api/products';
+  readProductMutation, storeProductMutation, pendingProductKey, type ProductMutation, type ProductTranslationResult } from '@/api/products';
 import { productCsv, parseProductCsv } from '@/lib/productCsv';
 import { productPrice } from '@/lib/productDisplay';
 import { ProductFields, ProductImage, emptyProduct, type ProductEditor } from '@/components/ProductFields';
 import { UrlProductImportDialog } from '@/components/UrlProductImportDialog';
+import { ProductTranslationDialog } from '@/components/ProductTranslationDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -23,12 +24,15 @@ function download(text: string, filename: string) {
 }
 export default function ProductsPage() {
   const navigate = useNavigate(), { user } = useAuth();
+  const [params, setParams] = useSearchParams();
+  const translationJob = params.get('translationJob');
   const [products, setProducts] = useState<Product[]>([]), [total, setTotal] = useState(0), [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [uploading, setUploading] = useState(false);
   const [search, setSearch] = useState(''), [category, setCategory] = useState('all'), [status, setStatus] = useState('all'), [sort, setSort] = useState('created_at_desc');
   const [view, setView] = useState('grid'), [selected, setSelected] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState(false), [importOpen, setImportOpen] = useState(false), [csvOpen, setCsvOpen] = useState(false);
+  const [translationOpen, setTranslationOpen] = useState(false), [translationProduct, setTranslationProduct] = useState<Product | null>(null);
   const [editing, setEditing] = useState<Product | null>(null), [draft, setDraft] = useState<ProductEditor>(emptyProduct);
   const [deleting, setDeleting] = useState<Product[]>([]), [pending, setPending] = useState<ProductMutation | null>(null);
   const sequence = useRef(0);
@@ -48,7 +52,11 @@ export default function ProductsPage() {
   useEffect(() => { setPage(0); setSelected(new Set()); }, [search, category, status, sort, user?.id]);
   useEffect(() => {
     setProducts([]); setPending(user ? readProductMutation(user.id) : null); setOpen(false); setDeleting([]);
+    setTranslationOpen(false); setTranslationProduct(null);
   }, [user?.id]);
+  useEffect(() => {
+    if (translationJob && user) { setTranslationProduct(null); setTranslationOpen(true); }
+  }, [translationJob, user?.id]);
   const execute = async (request: ProductMutation) => {
     if (!user || busy) return;
     setBusy(true); setError('');
@@ -83,6 +91,16 @@ export default function ProductsPage() {
     setEditing(product || null); setDraft(product ? { ...emptyProduct(), ...product, currency: product.currency || 'CNY' } : emptyProduct());
     setError(''); setOpen(true);
   };
+  const applyTranslation = (result: ProductTranslationResult) => {
+    const original = products.find(product => product.id === result.product_id);
+    if (unavailable || !original) { toast.error('请先在商品库找到对应商品，再打开它的翻译记录'); return; }
+    if (original.updated_at !== result.source_updated_at) {
+      toast.error('商品已被更新，请核对原译文或重新翻译当前版本'); return;
+    }
+    setEditing(original);
+    setDraft({ ...emptyProduct(), ...original, ...result.translation, currency: original.currency || 'CNY' });
+    setTranslationOpen(false); setError(''); setOpen(true);
+  };
   const select = (id: string, checked: boolean) => setSelected(previous => {
     const next = new Set(previous); checked ? next.add(id) : next.delete(id); return next;
   });
@@ -91,6 +109,8 @@ export default function ProductsPage() {
     <Button size="sm" className="h-8 text-xs" onClick={() => navigate('/video/create', {
       state: { inputTab: '商品', selectedProduct: product, prefillProductName: product.name } })}><Video className="w-3 h-3 mr-1" />创建视频</Button>
     <Button size="sm" variant="outline" className="h-8 text-xs" disabled={unavailable} onClick={() => startEdit(product)}><Edit2 className="w-3 h-3 mr-1" />编辑</Button>
+    <Button size="sm" variant="outline" className="h-8 text-xs" disabled={unavailable} onClick={() => {
+      setTranslationProduct(product); setTranslationOpen(true); }}><Languages className="w-3 h-3 mr-1" />翻译</Button>
     <Button size="sm" variant="ghost" className="h-8 text-xs" disabled={unavailable} onClick={() => toggleStatus(product)}>{product.status === 'active' ? '下架' : '上架'}</Button>
     <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" aria-label={`删除${product.name}`} disabled={unavailable}
       onClick={() => setDeleting([product])}><Trash2 className="w-4 h-4" /></Button>
@@ -103,6 +123,7 @@ export default function ProductsPage() {
         <Button disabled={unavailable} onClick={() => { setImportOpen(true); }}><Link className="w-4 h-4 mr-1" />链接与资料导入</Button>
         <Button disabled={unavailable} onClick={() => startEdit()}><Plus className="w-4 h-4 mr-1" />添加商品</Button>
         <Button variant="outline" disabled={unavailable} onClick={() => setCsvOpen(true)}><FileSpreadsheet className="w-4 h-4 mr-1" />批量导入</Button>
+        <Button variant="outline" disabled={!user} onClick={() => { setTranslationProduct(null); setTranslationOpen(true); }}>翻译记录</Button>
         <Button variant="outline" disabled={loading || !products.length} onClick={() => download(productCsv(products), '商品列表_当前页.csv')}>
           <Download className="w-4 h-4 mr-1" />导出当前页</Button>
       </div>
@@ -191,5 +212,9 @@ export default function ProductsPage() {
       </DialogContent>
     </Dialog>
     <UrlProductImportDialog open={importOpen} onOpenChange={setImportOpen} onSuccess={() => { void load(); }} />
+    <ProductTranslationDialog open={translationOpen} onOpenChange={value => {
+      setTranslationOpen(value);
+      if (!value && translationJob) { const next = new URLSearchParams(params); next.delete('translationJob'); setParams(next, { replace: true }); }
+    }} product={translationProduct} onApply={applyTranslation} initialJobId={translationJob} />
   </div>;
 }

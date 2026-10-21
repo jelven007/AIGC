@@ -6,6 +6,7 @@ import { INTELLIGENCE_KINDS, INTELLIGENCE_SLOTS, intelligenceParams, Intelligenc
 import { createIntelligenceJob, intelligenceUuid } from '../_shared/intelligence-jobs.ts';
 import { publicProductionJob, type ProductionJob } from '../_shared/production-jobs.ts';
 import { intelligenceScope } from '../_shared/api-scopes.ts';
+import { privateImageReference, readIntelligenceImage } from '../_shared/intelligence-image.ts';
 export async function handleIntelligence(req: Request): Promise<Response> {
   const preflight = handleCorsPreflight(req); if (preflight) return preflight;
   const headers = getCorsHeaders(req), reply = (body: unknown, status = 200) => Response.json(body, { status, headers });
@@ -36,6 +37,12 @@ export async function handleIntelligence(req: Request): Promise<Response> {
     if (body.action === 'save_target') {
       if (!intelligenceUuid(body.request_key) || typeof body.name !== 'string' || !body.name.trim() || body.name.length>200) throw new IntelligenceError('对象名称与标识非法');
       const params = intelligenceParams(body.kind, body.source_slot, body.params);
+      if (params.search_mode === 'image') {
+        params.image_url = privateImageReference(params.image_url!, uid);
+        const prior = await db.from('intelligence_targets').select('id').eq('user_id', uid).eq('request_key', body.request_key).maybeSingle();
+        if (prior.error) throw new Error('图片搜索原请求核对失败');
+        if (!prior.data) await readIntelligenceImage(db, params.image_url, uid, params.image_hash!);
+      }
       const saved = await db.rpc('save_intelligence_target', { p_user: uid, p_key: body.request_key, p_name: body.name,
         p_kind: body.kind, p_slot: body.source_slot, p_params: params });
       if (saved.error) throw new Error(saved.error.message);

@@ -1,5 +1,7 @@
 # 运维运行手册
 
+最新 [迭代21运行条件](ITERATION_21_TRANSLATION_NOTIFICATIONS.md)：00032–00049、匹配商品/情报/production API与Worker、调度/MCP54/前端同窗口，probe v10/00049/render2。翻译unknown按原结果/原版本service-only核对，不重新调用模型；确认拒绝才沿原流水退款。监控共享4槽、私有原图失效/指纹不符、30天译文/竞品副本与180天通知清理；通知缺失先核对真实状态/偏好，通用publish completed不等于公开发布。备份新增通知/偏好/引用和任务原请求；目标云端尚未发布。
+
 新增 [现金/运营运维](ITERATION_20_CASH_OPERATIONS.md)：00047/00048与资金函数、operations/production-worker/常驻调度/前端同窗口，probe v9/00048/render2。监控unknown/租约超时/入账失败/待核对及100次自动查询上限；调度只查询原编号，不能删预占或新建编号绕过未知退款。核对历史累计/周期、原签名证据/账单、负余额欠额与授权撤销/UTC预算；证据白名单无原响应。真实支付宝与完整账套/备份仍待目标验收。
 
 新增 [商品导入运维](ITERATION_19_PRODUCT_MANAGEMENT.md)：00046与product-management/production-worker/常驻调度/MCP52一起发布，probe v8要求00046/render2，旧版探针不可通过。监控商品提取三次失败/共享4队列/503回执与签名上传、版本409和30天清理；原UUID回执保留，不能靠删客户端恢复记录替代核对。源图片私有归档后的孤立对象TTL/备份仍需后续目标验收。

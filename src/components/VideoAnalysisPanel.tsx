@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
 import { storedMedia } from '@/api/media';
@@ -19,7 +19,11 @@ const time = (value: number) => `${String(Math.floor(value / 60)).padStart(2, '0
 
 export default function VideoAnalysisPanel({ mode }: { mode: 'live' | 'style' }) {
   const { user } = useAuth();
-  const navigate = useNavigate();
+  const navigate = useNavigate(), location = useLocation();
+  const reference = mode === 'style' && location.state?.competitor_reference;
+  const linked = reference && typeof reference.sample_id === 'string' && typeof reference.item_id === 'string'
+    ? { sample_id: reference.sample_id, item_id: reference.item_id } : null;
+  const [rights, setRights] = useState(false);
   const [title, setTitle] = useState(''), [source, setSource] = useState(''), [filename, setFilename] = useState('');
   const [cost, setCost] = useState<number | null>(null), [jobs, setJobs] = useState<ProductionJob[]>([]);
   const [receipts, setReceipts] = useState<Receipt[]>([]), [busy, setBusy] = useState(false), [error, setError] = useState('');
@@ -49,6 +53,10 @@ export default function VideoAnalysisPanel({ mode }: { mode: 'live' | 'style' })
     void load(); const timer = setInterval(() => void load(), 5000);
     return () => { alive = false; clearInterval(timer); };
   }, [key]);
+  useEffect(() => {
+    setRights(false);
+    if (mode === 'style' && location.state?.competitor_reference) setTitle(String(location.state.title || '').slice(0, 80));
+  }, [location.key, key, mode]);
   const remember = (requests: Receipt[]) => {
     localStorage.setItem(key, JSON.stringify(requests)); setReceipts(requests);
   };
@@ -117,15 +125,23 @@ export default function VideoAnalysisPanel({ mode }: { mode: 'live' | 'style' })
     </div>}
     <form className="rounded-xl border bg-card p-4 md:p-5 space-y-4" onSubmit={event => {
       event.preventDefault();
-      void submit([{ kind: 'analysis', request_key: crypto.randomUUID(), input: { mode, title, source_url: source, confirmed_credit_cost: cost } }]);
+      if (linked && !rights) return;
+      void submit([{ kind: 'analysis', request_key: crypto.randomUUID(), input: { mode, title, source_url: source, confirmed_credit_cost: cost,
+        ...(linked ? { competitor_reference: { ...linked, rights_confirmed: rights } } : {}) } }]);
     }}>
       <fieldset disabled={busy || !!receipts.length || !user} className="space-y-4">
+        {linked && <div className="rounded-lg border p-3 space-y-3 text-sm">
+          <p className="break-words">已关联竞品统计参考：{String(location.state.title || linked.item_id)}</p>
+          <p className="text-xs text-muted-foreground">请上传你有使用权的视频。分析会附上已采集的原平台统计；上传素材与原作品的关系由你确认。</p>
+          <label className="flex gap-2 items-start"><input className="mt-1" type="checkbox" checked={rights}
+            onChange={event => setRights(event.target.checked)} />我确认拥有上传素材的使用权</label>
+        </div>}
         <label className="block text-sm space-y-2">素材标题<Input aria-label="素材标题" value={title} maxLength={80} required onChange={event => setTitle(event.target.value)} /></label>
         <label className="block text-sm space-y-2">上传视频<Input aria-label="上传分析视频" type="file" accept="video/mp4,video/quicktime,video/webm"
           onChange={event => void upload(event.target.files?.[0])} />{filename && <span className="block text-xs text-muted-foreground break-all">已上传：{filename}</span>}</label>
         <p className="text-xs text-muted-foreground">支持最大100MB、10分钟的视频，较长直播请分段上传。{mode === 'live'
           ? '高光位置依据实际字幕时间戳；每个片段最长120秒。' : '均匀抽取8帧并分析转录，评分用于编辑建议。'}</p>
-        <Button type="submit" disabled={busy || !!receipts.length || !source || !title.trim() || cost === null}>
+        <Button type="submit" disabled={busy || !!receipts.length || !source || !title.trim() || cost === null || !!linked && !rights}>
           {busy && <Loader2 className="w-4 h-4 animate-spin mr-2" />}提交{label}任务</Button>
         <p className="text-sm text-muted-foreground">{cost === null ? '正在读取积分价格' : `本次预占 ${cost} 积分，确定失败自动返还。`}</p>
       </fieldset>
@@ -137,6 +153,13 @@ export default function VideoAnalysisPanel({ mode }: { mode: 'live' | 'style' })
       {['pending', 'running'].includes(job.status) && <Progress value={job.progress} aria-label="后台任务进度" />}
       {job.error_message && <p className="text-sm text-destructive break-words">{job.error_message}</p>}
       {job.result && <><p className="text-xs text-muted-foreground">{job.result.score_basis}</p>
+        {job.result.competitor_reference && <div className="border rounded-lg p-3 space-y-2 text-sm">
+          <a href={job.result.competitor_reference.item.url} target="_blank" rel="noreferrer" className="text-primary underline break-words">
+            竞品来源：{job.result.competitor_reference.item.title}</a>
+          <p className="text-xs text-muted-foreground">{job.result.competitor_reference.source.name} · 观测 {
+            new Date(job.result.competitor_reference.source.observed_at).toLocaleString('zh-CN')}</p>
+          <p className="text-xs text-muted-foreground break-words">{job.result.competitor_reference.relationship}</p>
+        </div>}
         <p className="text-sm leading-relaxed break-words">{job.result.transcript_summary || job.result.report?.analysis}</p>
         {job.result.report && <><dl className="grid sm:grid-cols-2 gap-3 text-sm">
           {Object.entries({ 节奏: job.result.report.rhythm, 镜头: job.result.report.pacing, 字幕: job.result.report.subtitle_summary,

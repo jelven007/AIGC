@@ -4,13 +4,20 @@ import { asrModel, jsonModelResponse, safeMediaDownload } from './audio-provider
 import { canonicalMediaTree, mediaObject, signedMedia, validateMediaTree } from './private-media.ts';
 import { jobEvent, publicProductionJob, type ProductionJob } from './production-jobs.ts';
 import { boundedText, groundedHighlights, parseModelJSON, score, textList, timedTranscript } from './structured-analysis.ts';
+import { productUuid } from './product-contract.ts';
 
 export function analysisInput(raw: any) {
   if (!raw || !['live', 'style'].includes(raw.mode)) throw new Error('分析类型不正确');
   const title = boundedText(raw.title, 80), source = boundedText(raw.source_url, 4096);
   if (!mediaObject(source, Deno.env.get('SUPABASE_URL')!)) throw new Error('请上传视频或选择私有素材，平台播放页无法直接分析');
   if (!Number.isInteger(raw.confirmed_credit_cost) || raw.confirmed_credit_cost < 0 || raw.confirmed_credit_cost > 100000) throw new Error('请先读取分析积分价格');
-  return { mode: raw.mode, title, source_url: source, confirmed_credit_cost: raw.confirmed_credit_cost };
+  const ref = raw.competitor_reference;
+  if (ref !== undefined && (raw.mode !== 'style' || !ref || !productUuid(ref.sample_id)
+    || typeof ref.item_id !== 'string' || !ref.item_id || ref.item_id.length > 100 || ref.rights_confirmed !== true)) {
+    throw new Error('请确认竞品参考标识与上传素材使用权');
+  }
+  return { mode: raw.mode, title, source_url: source, confirmed_credit_cost: raw.confirmed_credit_cost,
+    ...(ref ? { competitor_reference: { sample_id: ref.sample_id, item_id: ref.item_id, rights_confirmed: true } } : {}) };
 }
 export async function createAnalysisJob(db: SupabaseClient, uid: string, key: string, raw: any) {
   const input = canonicalMediaTree(analysisInput(raw), uid);
@@ -18,7 +25,7 @@ export async function createAnalysisJob(db: SupabaseClient, uid: string, key: st
   if (prior.error) throw new Error('原分析任务查询失败');
   if (prior.data) {
     const previous = prior.data.payload;
-    if (prior.data.kind !== 'analysis' || Object.entries(input).some(([field, value]) => previous[field] !== value)) throw new Error('同一请求标识不能用于不同任务');
+    if (prior.data.kind !== 'analysis' || JSON.stringify(analysisInput(previous)) !== JSON.stringify(input)) throw new Error('同一请求标识不能用于不同任务');
     return publicProductionJob(db, prior.data);
   }
   await validateMediaTree(db, input, uid);
@@ -60,6 +67,13 @@ export async function processAnalysisJob(db: SupabaseClient): Promise<boolean> {
     if (job.resolution) { await jobEvent(db, job, job.resolution.event, job.resolution.data); return true; }
     const prepared = job.evidence;
     if (!prepared?.source_hash || !prepared.frames?.length) throw new Error('视频预处理证据缺失');
+    let competitorReference: any = null;
+    if (job.payload.competitor_reference) {
+      const ref = await db.from('analysis_intelligence_references').select('context').eq('job_id', job.id).eq('user_id', job.user_id).maybeSingle();
+      if (ref.error) throw new Error('竞品参考证据读取失败');
+      if (!ref.data?.context) throw new Error('竞品参考证据缺失');
+      competitorReference = ref.data.context;
+    }
     if (!prepared.transcript && prepared.has_audio) {
       const audio = await safeMediaDownload(await signedMedia(db, prepared.audio_url, job.user_id), 20 * 1024 * 1024);
       const config = await resolveModel('audio.asr', db, job.payload.asr_version);
@@ -74,13 +88,15 @@ export async function processAnalysisJob(db: SupabaseClient): Promise<boolean> {
         ? '根据有序字幕段（从0开始）选择1–8段高光，按时间顺序，范围不重叠，每段最多120秒。只引用真实段号，禁止生成时间戳或观众指标。输出'
           + '{"transcript_summary":"摘要","highlights":[{"first_segment":0,"last_segment":1,"type":"product_pitch|demo|qa|promo|reaction",'
           + '"title":"标题","score":80,"keyword":"关键词","suggested_title":"传播标题","reason":"引用台词的推荐理由"}]}'
-        : '根据提供的抽样画面与转录分析视频风格。抽帧未覆盖的转场、BPM、声画同步、字幕覆盖率标注“未测量”；禁止编造观看或转化概率。返回'
+        : '根据提供的抽样画面与转录分析视频风格。竞品统计仅为用户关联的参考，不证明上传素材属于该作品，也不证明风格导致高播放。'
+          + '抽帧未覆盖的转场、BPM、声画同步、字幕覆盖率标注“未测量”；禁止编造观看或转化概率。返回'
           + '{"rhythm":"节奏描述","pacing":"可见镜头变化","transitions":["观察或未测量"],"subtitle_style":"可见字幕",'
           + '"color_tone":"画面色调","transitions_summary":"说明","subtitle_summary":"说明","bgm_summary":"未测量",'
           + '"tags":["标签"],"strengths":["优势"],"improvements":["建议"],"analysis":"复刻建议",'
           + '"dna_scores":{"openingHook":70,"paceRhythm":70,"emotionCurve":70,"productShow":70,"ctaStrength":70}}';
       const content: any[] = [{ type: 'text', text: instructions + '\n资料：' + JSON.stringify({
         duration: prepared.duration, transcript: segments || transcript?.text || '源视频没有音轨', title: job.payload.title,
+        competitor_reference: competitorReference,
         frames: prepared.frames.map((frame: any) => ({ time: frame.time })),
       }).slice(0, 80000) }];
       for (const frame of prepared.frames) content.push({ type: 'image_url',
@@ -98,6 +114,7 @@ export async function processAnalysisJob(db: SupabaseClient): Promise<boolean> {
         model_versions: { text: job.model_config_version_id, asr: job.payload.asr_version },
         evidence: { frame_times: prepared.frames.map((frame: any) => frame.time), has_audio: prepared.has_audio },
         score_basis: '模型编辑建议评分；观看、互动与转化数据未接入',
+        ...(competitorReference ? { competitor_reference: competitorReference } : {}),
         ...(job.payload.mode === 'live' ? groundedHighlights(raw, segments!) : { report: styleReport(raw, prepared.source_hash.slice(0, 16)) }) };
       await checkpoint({ ...job.evidence, output });
     }
