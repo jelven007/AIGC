@@ -1,5 +1,7 @@
 # 统一模型接口设置
 
+新增 [素材分析任务](ITERATION_12_GROUNDED_ANALYSIS.md)复用text.primary与audio.asr，数量仍16槽；任务固定两个旧配置版本。文本模型需真实支持image_url画面，直播ASR须openai-asr/whisper-1及可靠分段；Step只有正文时不能生成高光时间。不要在未验收时宣称视觉模型或声音权限可用。
+
 更新：2026-10-21，源码基线 `ce90bfe`。当前官方 Supabase 仍到 00031，`model_configs` 不存在，以下为最新版启用步骤，尚未在该云端完成。不要仅发布设置页；环境差距见 [当前状态](CURRENT_STATE.md)。
 
 入口：侧边栏「模型接口设置」→ `/settings/models`。平台管理员可编辑，普通用户仅看到模型名称与启用状态。所有客户端和 MCP 共用服务端配置。

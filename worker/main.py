@@ -12,6 +12,7 @@ import urllib.request
 import ipaddress
 import requests
 from render import render, RenderError
+from analyze import prepare_video
 
 
 def safe_url(value):
@@ -24,7 +25,7 @@ def safe_url(value):
     return value
 
 
-def download(url, target):
+def download(url, target, max_bytes=500 * 1024 * 1024):
     safe_url(url)
     with requests.get(url, stream=True, timeout=(10, 120), allow_redirects=False) as response:
         if response.status_code != 200:
@@ -33,8 +34,8 @@ def download(url, target):
         with target.open("wb") as output:
             for chunk in response.iter_content(1024 * 1024):
                 total += len(chunk)
-                if total > 500 * 1024 * 1024:
-                    raise RenderError("单素材超过500MB")
+                if total > max_bytes:
+                    raise RenderError(f"单素材超过{max_bytes // (1024 * 1024)}MB")
                 output.write(chunk)
     return total
 
@@ -60,8 +61,13 @@ def main():
     while not stop.is_set():
         job = None
         try:
-            reply = api({"action": "claim"})
+            # 两种本地任务轮转，分析预处理不被渲染队列饿死。
+            prepare_first = int(time.time()) % 2 == 0
+            reply = api({"action": "claim", **({"kind": "analysis_prepare"} if prepare_first else {})})
             job = reply.get("job")
+            if not job:
+                reply = api({"action": "claim", **({} if prepare_first else {"kind": "analysis_prepare"})})
+                job = reply.get("job")
             if not job:
                 stop.wait(10)
                 continue
@@ -85,7 +91,15 @@ def main():
                     directory = Path(workspace)
                     files = {}
                     total_bytes = 0
-                    for index, track in enumerate(job["payload"]["tracks"]):
+                    preparing = job.get("kind") == "analysis"
+                    if preparing:
+                        source = directory / "source"
+                        download(job["payload"]["source_url"], source, 100 * 1024 * 1024)
+                        result = prepare_video(source, directory, cancelled=lambda: stop.is_set() or heartbeat_failure.is_set())
+                        files = {f"frame-{index}.jpg": frame["file"] for index, frame in enumerate(result["frames"])}
+                        if result["audio"]:
+                            files["audio.wav"] = result["audio"]
+                    for index, track in enumerate([] if preparing else job["payload"]["tracks"]):
                         if track["type"] == "text":
                             continue
                         path = directory / f"input-{index}"
@@ -93,13 +107,17 @@ def main():
                         if total_bytes > 2 * 1024 * 1024 * 1024:
                             raise RenderError("工程素材总量超过2GB")
                         files[track["id"]] = path
-                    result = render(job["payload"], files, directory, lambda value: progress.__setitem__(0, value),
-                                    cancelled=lambda: stop.is_set() or heartbeat_failure.is_set())
+                    if not preparing:
+                        result = render(job["payload"], files, directory, lambda value: progress.__setitem__(0, value),
+                                        cancelled=lambda: stop.is_set() or heartbeat_failure.is_set())
                     if heartbeat_failure.is_set():
                         raise RenderError("任务租约连接失效")
-                    for output, name in zip(reply["outputs"], ("file", "thumbnail")):
+                    for index, output in enumerate(reply["outputs"]):
+                        file = files.get(output["name"]) if preparing else result[("file", "thumbnail")[index]]
+                        if not file:
+                            continue
                         safe_url(output["url"])
-                        with result[name].open("rb") as media:
+                        with file.open("rb") as media:
                             response = requests.put(output["url"], data=media, headers={"Content-Type": output["type"]},
                                                     timeout=(10, 120), allow_redirects=False)
                         if response.status_code not in (200, 201):
@@ -107,13 +125,17 @@ def main():
                     # 网络丢失时重用同一租约结案，避免已上传成片被误标失败。
                     for attempt in range(3):
                         try:
-                            api({"action": "completed", **lease, "data": {key: result[key] for key in ("size", "duration", "resolution")}})
+                            details = {key: result[key] for key in (("duration", "source_hash", "has_audio") if preparing
+                                       else ("size", "duration", "resolution"))}
+                            if preparing:
+                                details["frame_times"] = [frame["time"] for frame in result["frames"]]
+                            api({"action": "prepared" if preparing else "completed", **lease, "data": details})
                             break
                         except RenderError:
                             if attempt == 2:
                                 raise
                             stop.wait(2)
-                    print(json.dumps({"job_id": job["id"], "status": "completed"}), flush=True)
+                    print(json.dumps({"job_id": job["id"], "status": "prepared" if preparing else "completed"}), flush=True)
             finally:
                 heart_stop.set()
                 heart_thread.join(timeout=2)

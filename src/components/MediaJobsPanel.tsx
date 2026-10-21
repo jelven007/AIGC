@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
 import { storedMedia } from '@/api/media';
@@ -18,6 +19,7 @@ const statusLabels: Record<string, string> = { pending: '等待后台处理', ru
   failed: '已失败', unknown: '原任务结果待核对', cancelled: '已取消' };
 export default function MediaJobsPanel({ imageUrl = '' }: { imageUrl?: string }) {
   const { user } = useAuth();
+  const location = useLocation();
   const [kind, setKind] = useState<MediaKind>('tts');
   const [text, setText] = useState(''), [voice, setVoice] = useState(''), [voiceClone, setVoiceClone] = useState('');
   const [name, setName] = useState(''), [consent, setConsent] = useState(false);
@@ -50,6 +52,10 @@ export default function MediaJobsPanel({ imageUrl = '' }: { imageUrl?: string })
     return () => { alive = false; clearInterval(timer); };
   }, [key]);
   useEffect(() => { if (imageUrl) { setMedia(prev => ({ ...prev, image_url: imageUrl })); setKind('avatar'); } }, [imageUrl]);
+  useEffect(() => {
+    const input = location.state?.text;
+    if (typeof input === 'string' && input.length <= 8000) { setText(input); setKind('tts'); }
+  }, [location.state]);
   const upload = async (field: string, file?: File) => {
     if (!user || !file) return;
     const max = field === 'image_url' ? 5 : field === 'video_url' ? 80 : 20;

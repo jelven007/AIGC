@@ -6,6 +6,7 @@ import { publicProductionJob, type ProductionJob } from '../_shared/production-j
 import { validateRender } from '../_shared/render-spec.ts';
 import { exportRequest, publicRenderExport } from '../_shared/render-exports.ts';
 import { createMediaJob, MEDIA_JOB_SLOTS, mediaJobInput } from '../_shared/media-jobs.ts';
+import { analysisInput, createAnalysisJob } from '../_shared/video-analysis.ts';
 
 const uuid = (value: unknown) => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 export async function handleProductionJobs(req: Request): Promise<Response> {
@@ -18,10 +19,16 @@ export async function handleProductionJobs(req: Request): Promise<Response> {
     if (!body) return reply({ error: '任务参数非法' }, 400);
     const auth = await authenticateRequest(req, body.action === 'export' ? 'render:create' : body.action === 'create'
       ? body.kind === 'image' ? 'image:create' : body.kind === 'render' ? 'render:create'
+        : body.kind === 'analysis' ? 'video:create'
         : MEDIA_JOB_SLOTS[body.kind] ? ['avatar', 'lipsync'].includes(body.kind) ? 'avatar:create' : 'audio:create' : undefined
-      : ['query', 'list', 'exports', 'query-export', 'voices', 'media-prices'].includes(body.action) ? 'jobs:read' : undefined);
+      : ['query', 'list', 'exports', 'query-export', 'voices', 'media-prices', 'analysis-price'].includes(body.action) ? 'jobs:read' : undefined);
     if (auth.error || !auth.user || auth.isServiceRole) return reply({ error: auth.error || '请先登录' }, auth.status || 401);
     const db = createServiceClient();
+    if (body.action === 'analysis-price') {
+      const result = await db.from('credit_costs').select('cost').eq('action', 'generate_analysis').maybeSingle();
+      if (result.error || !Number.isInteger(result.data?.cost)) throw new Error('分析计费配置缺失');
+      return reply({ cost: result.data!.cost });
+    }
     if (body.action === 'media-prices') {
       const result = await db.from('credit_costs').select('action,cost').in('action', Object.keys(MEDIA_JOB_SLOTS).map(kind => `generate_${kind}`));
       if (result.error || result.data?.length !== Object.keys(MEDIA_JOB_SLOTS).length) throw new Error('媒体计费配置缺失');
@@ -84,6 +91,18 @@ export async function handleProductionJobs(req: Request): Promise<Response> {
       return reply({ exports: await Promise.all(data.map(group => publicRenderExport(db, group))) });
     }
     if (body.action === 'create') {
+      if (body.kind === 'analysis') {
+        if (!uuid(body.request_key) || body.project_id) return reply({ error: '分析任务需要有效幂等标识' }, 400);
+        try { analysisInput(body.input); }
+        catch (cause) { return reply({ error: cause instanceof Error ? cause.message : '分析参数非法' }, 400); }
+        try { return reply({ job: await createAnalysisJob(db, auth.user.id, body.request_key, body.input) }, 202); }
+        catch (cause) {
+          const message = cause instanceof Error ? cause.message : '分析任务创建失败';
+          return reply({ error: message }, cause instanceof ConfigError || message.includes('Whisper') ? 424
+            : message.includes('积分不足') ? 402 : message.includes('队列') ? 429
+              : /价格已更新|配置已更新|同一请求标识/.test(message) ? 409 : /素材|无权/.test(message) ? 400 : 503);
+        }
+      }
       if (MEDIA_JOB_SLOTS[body.kind]) {
         try { mediaJobInput(body.kind, body.input); }
         catch (cause) { return reply({ error: cause instanceof Error ? cause.message : '媒体任务参数非法' }, 400); }
@@ -140,7 +159,7 @@ export async function handleProductionJobs(req: Request): Promise<Response> {
       let query = db.from('production_jobs').select('*').eq('user_id', auth.user.id);
       if (body.kinds !== undefined) {
         if (!Array.isArray(body.kinds) || !body.kinds.length || body.kinds.some((kind: string) =>
-          !['image', 'render', 'publish', 'metrics', ...Object.keys(MEDIA_JOB_SLOTS)].includes(kind))) return reply({ error: '任务类型筛选非法' }, 400);
+          !['image', 'render', 'publish', 'metrics', 'analysis', ...Object.keys(MEDIA_JOB_SLOTS)].includes(kind))) return reply({ error: '任务类型筛选非法' }, 400);
         query = query.in('kind', body.kinds);
       }
       const { data, error } = await query.order('created_at', { ascending: false }).limit(30);

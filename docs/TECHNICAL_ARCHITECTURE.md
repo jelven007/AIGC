@@ -1,5 +1,7 @@
 # Shopro AI 技术架构
 
+00041新增 [两段素材分析](ITERATION_12_GROUNDED_ANALYSIS.md)：FFmpeg租约读取私有视频→真实元数据/8帧/16kHz音轨/源指纹→prepared事务释放→生产Worker按旧ASR与文本版本分析→检查字幕引用→结果/风格历史原子结案。视频高光交给既有render任务输出MP4；模型编辑评分与经营实测分开。
+
 更新时间：2026-10-21，业务源码基线 `53be501`。最近核验的实际后端为官方 Supabase，最新全栈源码尚未全部部署；火山引擎 AI 原生 BaaS Supabase 版、Pages、ECS 是已适配的可选迁移方案。环境证据见 [当前状态](CURRENT_STATE.md)。
 
 本轮新增本地私有素材、图片持久化任务、FFmpeg 渲染及抖音/TikTok发布和指标适配；启用与验证边界见 [生产链路迭代](ITERATION_06_PRODUCTION_PIPELINE.md)。这些源码新增项不表示现有云端已部署。[原版功能覆盖校验](FUNCTION_COVERAGE_REVIEW_20261021.md)确认页面全部保留，但原版全部功能范围尚未覆盖。
