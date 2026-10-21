@@ -10,6 +10,7 @@ import { CheckCircle2, Clock, XCircle, QrCode, RefreshCw, ArrowLeft, Loader2 } f
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import QRCodeDataUrl from '@/components/ui/qrcodedataurl';
+import { queryAlipayOrder } from '@/api/alipay';
 
 interface Order {
   id: string;
@@ -39,6 +40,8 @@ export default function OrderDetailPage() {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [readError, setReadError] = useState('');
+  const [checking, setChecking] = useState(false);
+  const [pollEnded, setPollEnded] = useState(false);
   const [refunds, setRefunds] = useState<{ id: string; out_request_no: string; refund_amount: number;
     status: string; revoked_credits: number; applied_at: string | null }[]>([]);
   const pollRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
@@ -53,6 +56,7 @@ export default function OrderDetailPage() {
       .select('id, order_no, status, total_amount, refunded_amount, pay_channel, wechat_pay_url, created_at, paid_at, plan_id')
       .eq('id', orderId)
       .eq('user_id', user.id)
+      .abortSignal(AbortSignal.timeout(15000))
       .maybeSingle();
     if (ownerRef.current !== owner) return;
     if (error) { setReadError('订单读取失败，请刷新后重试'); setLoading(false); return; }
@@ -60,35 +64,57 @@ export default function OrderDetailPage() {
     if (data) {
       setOrder({ ...data, total_amount: Number(data.total_amount), refunded_amount: Number(data.refunded_amount) } as Order);
       const receipt = await supabase.from('cash_refund_receipts').select('id,out_request_no,refund_amount,status,revoked_credits,applied_at')
-        .eq('order_id', data.id).order('created_at', { ascending: false }).limit(50);
+        .eq('order_id', data.id).order('created_at', { ascending: false }).limit(50).abortSignal(AbortSignal.timeout(15000));
       if (ownerRef.current !== owner) return;
       if (receipt.error) setReadError('退款回执暂不可用，请刷新后核对');
       else setRefunds(receipt.data || []);
-    }
+    } else setOrder(null);
     setLoading(false);
     return data;
   };
 
   // 自动轮询：pending 状态每 2s 刷新
   useEffect(() => {
-    setOrder(null); setRefunds([]); setLoading(true);
-    void fetchOrder();
+    setOrder(null); setRefunds([]); setLoading(true); setReadError(''); setPollEnded(false);
+    let active = true, attempts = 0, previous = '';
     let polling = false;
-    pollRef.current = setInterval(async () => {
-      if (polling) return;
+    const poll = async () => {
+      if (polling || !active) return;
       polling = true;
-      const data = await fetchOrder();
-      polling = false;
+      let data;
+      try { data = await fetchOrder(); }
+      catch { if (active) { setReadError('订单读取失败，请稍后重试'); setLoading(false); } }
+      finally { polling = false; }
+      if (!active) return;
+      attempts++;
       if (data && data.status !== 'pending') {
         clearInterval(pollRef.current);
-        if (data.status === 'paid') {
+        if (previous === 'pending' && data.status === 'paid') {
+          window.dispatchEvent(new Event('credits_changed'));
           toast.success('支付成功！套餐已开通');
         }
+      } else if (attempts >= 24) {
+        clearInterval(pollRef.current); setPollEnded(true);
       }
-    }, 2000);
-    return () => clearInterval(pollRef.current);
+      previous = data?.status || previous;
+    };
+    pollRef.current = setInterval(() => void poll(), 5000);
+    void poll();
+    return () => { active = false; clearInterval(pollRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId, user]);
+  const check = async () => {
+    if (!order || checking) return;
+    const owner = ownerRef.current;
+    setChecking(true);
+    try {
+      if (order.status === 'pending' && order.pay_channel === 'alipay') await queryAlipayOrder(order.order_no);
+      if (ownerRef.current !== owner) return;
+      await fetchOrder();
+      window.dispatchEvent(new Event('credits_changed'));
+    } catch { if (ownerRef.current === owner) setReadError('支付结果暂不可用，请稍后核对原订单'); }
+    finally { if (ownerRef.current === owner) setChecking(false); }
+  };
 
   if (loading) {
     return (
@@ -122,6 +148,8 @@ export default function OrderDetailPage() {
         <h1 className="text-xl font-bold text-balance">订单详情</h1>
       </div>
       {readError && <p role="alert" className="text-destructive text-sm">{readError}</p>}
+      {pollEnded && <p className="text-sm text-muted-foreground">自动核对已暂停，可手动刷新此订单。支付通知仍会由服务端处理。</p>}
+      <Button variant="outline" disabled={checking} onClick={() => void check()}>{checking ? '正在核对' : '核对支付结果'}</Button>
 
       {/* 订单状态 */}
       <Card>
@@ -165,7 +193,7 @@ export default function OrderDetailPage() {
               <QRCodeDataUrl value={order.wechat_pay_url} size={200} />
             </div>
             <p className="text-xs text-muted-foreground text-center">
-              二维码有效期 2 小时 · 支付后页面自动刷新
+              仅用于当前订单 · 支付结果以服务端入账为准
             </p>
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground animate-pulse">
               <Loader2 className="w-3 h-3 animate-spin" />
@@ -190,14 +218,14 @@ export default function OrderDetailPage() {
           ))}
           <Separator />
           <div className="flex justify-between text-sm font-semibold">
-            <span>实付金额</span>
+            <span>{order.status === 'pending' ? '订单金额' : '支付金额'}</span>
             <span className="text-primary">¥{order.total_amount.toFixed(2)}</span>
           </div>
         </CardContent>
       </Card>
 
       {order.status === 'paid' && (
-        <Button className="w-full" onClick={() => navigate('/dashboard')}>
+        <Button className="w-full" onClick={() => navigate('/video/create')}>
           开始使用 →
         </Button>
       )}

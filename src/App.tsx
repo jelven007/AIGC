@@ -8,14 +8,19 @@ function RedirectWithState({ to }: { to: string }) {
   const location = useLocation();
   return <Navigate to={to} state={location.state} replace />;
 }
+function LoginRedirect() {
+  const location = useLocation();
+  const to = new URLSearchParams(location.search).get('redirect') === '/credits?tab=plans' ? '/credits?tab=plans' : '/';
+  return <Navigate to={to} replace />;
+}
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import MainLayout from "@/components/layouts/MainLayout";
 import { lazy, Suspense, Component, type ReactNode } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 // FP-01: 路由级懒加载
 const LoginPage       = lazy(() => import("@/pages/LoginPage"));
+const MainLayout = lazy(() => import("@/components/layouts/MainLayout"));
 const LandingPage     = lazy(() => import("@/pages/LandingPage"));
 const HomePage        = lazy(() => import("@/pages/HomePage"));
 const VideoCreatePage = lazy(() => import("@/pages/VideoCreatePage"));
@@ -268,7 +273,7 @@ function AppRoutes() {
                   <Route path="/publish"            element={<PublishPage />} />
                   <Route path="/data-dashboard"     element={<DataDashboardPage />} />
                   <Route path="/403"               element={<ForbiddenPage />} />
-                  <Route path="/login" element={<Navigate to="/" replace />} />
+                  <Route path="/login" element={<LoginRedirect />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </Suspense>

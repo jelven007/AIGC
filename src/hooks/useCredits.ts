@@ -17,13 +17,15 @@ export interface CreditsState {
   usagePercent: number;
   loading: boolean;
   planName: string;
+  error?: string;
 }
 
 // ── 模块级余额缓存：供 creditGuard 零网络请求前置校验使用 ────────────────────
 let _latestCreditsLeft: number | null = null;
+let _creditsOwner: string | null = null;
 /** 读取最近一次已知的积分余额；尚未获取过时返回 null（调用方自行回源） */
-export function peekCreditsLeft(): number | null {
-  return _latestCreditsLeft;
+export function peekCreditsLeft(userId: string): number | null {
+  return _creditsOwner === userId ? _latestCreditsLeft : null;
 }
 
 export function useCredits() {
@@ -33,21 +35,32 @@ export function useCredits() {
     usagePercent: 0, loading: true, planName: '免费版',
   });
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const ownerRef = useRef(user?.id);
+  ownerRef.current = user?.id;
+  const [stateOwner, setStateOwner] = useState(user?.id);
+  const fetchSequence = useRef(0);
 
   const fetch = useCallback(async () => {
+    const sequence = ++fetchSequence.current;
     if (!user) {
+      _creditsOwner = null;
       _latestCreditsLeft = null;
       setState({ creditsTotal: 0, creditsUsed: 0, creditsLeft: 0, usagePercent: 0, loading: false, planName: '免费版' });
       return;
     }
-    setState(s => ({ ...s, loading: true }));
+    const uid = user.id;
+    setState(s => ({ ...s, loading: true, error: undefined }));
     try {
       const { data, error } = await supabase
         .from('user_plans')
         .select('credits_total, credits_used, plans(name)')
         .eq('user_id', user.id)
+        .abortSignal(AbortSignal.timeout(15000))
         .maybeSingle();
       if (error) throw error;
+      if (ownerRef.current !== uid || sequence !== fetchSequence.current) return;
+      setStateOwner(uid);
+      _creditsOwner = uid;
       if (data) {
         const total = data.credits_total ?? 0;
         const used = data.credits_used ?? 0;
@@ -73,8 +86,12 @@ export function useCredits() {
         });
       }
     } catch {
+      if (ownerRef.current !== uid || sequence !== fetchSequence.current) return;
+      setStateOwner(uid);
+      _creditsOwner = uid;
       _latestCreditsLeft = null;
-      setState({ creditsTotal: 0, creditsUsed: 0, creditsLeft: 0, usagePercent: 0, loading: false, planName: '免费版' });
+      setState({ creditsTotal: 0, creditsUsed: 0, creditsLeft: 0, usagePercent: 0, loading: false, planName: '免费版',
+        error: '积分余额读取失败，请重试' });
     }
   }, [user]);
 
@@ -133,7 +150,9 @@ export function useCredits() {
     return () => window.removeEventListener('credits_changed', handleChanged);
   }, [fetch]);
 
-  return { ...state, refresh: fetch };
+  return { ...(stateOwner === user?.id ? state : {
+    creditsTotal: 0, creditsUsed: 0, creditsLeft: 0, usagePercent: 0, loading: !!user, planName: '',
+  }), refresh: fetch };
 }
 
 /**
@@ -166,7 +185,7 @@ export async function deductUserCredits(
       const isInsufficient = rpcError.message?.includes('积分不足') || rpcError.message?.includes('insufficient');
       if (isInsufficient) {
         // 余额不足：标准文案 + 自动弹出积分管理与充值弹窗
-        let left = _latestCreditsLeft ?? 0;
+        let left = peekCreditsLeft(userId) ?? 0;
         if (left <= 0) {
           const { data: plan } = await supabase
             .from('user_plans')
@@ -194,6 +213,7 @@ export async function deductUserCredits(
       return { success: false, creditsLeft: 0, message: '计费结果异常，请联系客服核对扣费流水' };
     }
     _latestCreditsLeft = left;
+    _creditsOwner = userId;
 
     // 广播本地事件 & 跨标签页
     window.dispatchEvent(new CustomEvent('credits_changed', { detail: { creditsLeft: left } }));
@@ -238,7 +258,7 @@ export async function refundGenerationCredits(
       return { success: false, balance: 0, message: data?.message || '退款未完成，请联系客服核对' };
     }
     const balance = Math.max(0, Number(data?.data?.balance ?? data?.balance ?? 0));
-    if (Number.isFinite(balance) && data) _latestCreditsLeft = balance;
+    if (Number.isFinite(balance) && data) { _latestCreditsLeft = balance; _creditsOwner = userId; }
     window.dispatchEvent(new CustomEvent('credits_changed', { detail: { creditsLeft: balance } }));
     return { success: true, balance };
   } catch (err: any) {

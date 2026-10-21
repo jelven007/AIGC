@@ -1,38 +1,14 @@
 // 创建微信支付订单 Edge Function
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { Wechatpay } from 'npm:wechatpay-axios-plugin';
-import ShortUniqueId from 'npm:short-unique-id';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
-
-function ok(data: unknown) {
-  return new Response(JSON.stringify({ code: 0, message: 'success', data }), {
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
-}
-function err(message: string, status = 400) {
-  return new Response(JSON.stringify({ code: 1, message, data: null }), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
-}
-
-function generateOrderNo(): string {
-  const uid = new ShortUniqueId({ length: 8 });
-  const yymmdd = new Date().toISOString().slice(2, 10).replace(/-/g, '');
-  return `ORD-${yymmdd}-${uid.rnd()}`;
-}
+import { getCorsHeaders, handleCorsPreflight } from '../_shared/cors.ts';
+import { beginCheckout, checkoutReceipt, CheckoutError, type CheckoutOrder } from '../_shared/checkout.ts';
 
 async function createWechatPayUrl(
   MERCHANT_ID: string, MERCHANT_APP_ID: string, MCH_CERT_SERIAL_NO: string,
   MCH_PRIVATE_KEY: string, WECHAT_PAY_PUBLIC_KEY_ID: string, WECHAT_PAY_PUBLIC_KEY: string,
   outTradeNo: string, amount: number, notifyUrl: string,
-): Promise<{ success: boolean; url?: string; error?: string }> {
-  try {
+): Promise<string> {
     const wxpay = new Wechatpay({
       mchid: MERCHANT_ID,
       serial: MCH_CERT_SERIAL_NO,
@@ -46,53 +22,43 @@ async function createWechatPayUrl(
       description: '电商AIGC带货视频平台 - 套餐升级',
       notify_url: notifyUrl,
       amount: { total: Math.round(amount * 100) },
-    }, { headers: { 'Wechatpay-Serial': WECHAT_PAY_PUBLIC_KEY_ID } });
+    }, { timeout: 15000, headers: { 'Wechatpay-Serial': WECHAT_PAY_PUBLIC_KEY_ID } });
     const payload: unknown = res.data;
     const result = payload !== null && typeof payload === 'object'
       ? payload as Record<string, unknown> : {};
-    if (typeof result.code_url === 'string' && result.code_url) {
-      console.log(`[WeChatPay SUCCESS] outTradeNo=${outTradeNo}`);
-      return { success: true, url: result.code_url };
-    }
-    return { success: false, error: typeof result.message === 'string' ? result.message : '微信支付未返回支付地址' };
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    console.error(`[WeChatPay ERROR] ${message}`);
-    return { success: false, error: message };
-  }
+    if (typeof result.code_url === 'string' && /^weixin:\/\/wxpay\/bizpayurl\?/.test(result.code_url)) return result.code_url;
+    throw new Error('支付地址待核对');
 }
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
-  if (req.method !== 'POST') return err('仅支持 POST', 405);
+export async function handleWechatPaymentOrder(req: Request) {
+  const preflight = handleCorsPreflight(req);
+  if (preflight) return preflight;
+  const corsHeaders = getCorsHeaders(req);
+  const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+    status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+  if (req.method !== 'POST') return json({ code: 1, message: '仅支持 POST', outcome: 'rejected' }, 405);
 
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
   );
 
+  let order: CheckoutOrder | undefined;
   try {
     // 验证用户 JWT
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) return err('未授权', 401);
+    const token = authHeader?.replace(/^Bearer\s+/i, '') || '';
+    if (!token || token === Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || token.startsWith('ak_')) {
+      return json({ code: 1, message: '请使用个人登录会话', outcome: 'rejected' }, 401);
+    }
     const { data: { user }, error: authErr } = await createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-    ).auth.getUser(authHeader.replace('Bearer ', ''));
-    if (authErr || !user) return err('认证失败', 401);
+    ).auth.getUser(token);
+    if (authErr || !user) return json({ code: 1, message: '认证失败', outcome: 'rejected' }, 401);
 
-    const body = await req.json();
-    const { plan_id } = body as { plan_id: string };
-    if (!plan_id) return err('缺少 plan_id');
-
-    // 查询套餐价格
-    const { data: plan } = await supabase
-      .from('plans')
-      .select('id, name, price, credits')
-      .eq('id', plan_id)
-      .maybeSingle();
-    if (!plan) return err('套餐不存在');
-    if (!Number.isFinite(Number(plan.price)) || Number(plan.price) <= 0) return err('套餐价格非法或无需支付');
+    const body = await req.json().catch(() => { throw new CheckoutError('支付参数非法', 400); });
 
     // 读取微信支付配置
     const MERCHANT_ID = Deno.env.get('MERCHANT_ID');
@@ -103,52 +69,34 @@ Deno.serve(async (req) => {
     const WECHAT_PAY_PUBLIC_KEY = Deno.env.get('WECHAT_PAY_PUBLIC_KEY');
 
     if (!MERCHANT_ID || !MERCHANT_APP_ID || !MCH_CERT_SERIAL_NO || !MCH_PRIVATE_KEY || !WECHAT_PAY_PUBLIC_KEY_ID || !WECHAT_PAY_PUBLIC_KEY) {
-      return err('微信支付配置未完成，请在插件中心配置密钥', 500);
+      throw new CheckoutError('微信支付暂未开通，请稍后重试或选择其他支付渠道', 503);
     }
 
-    const orderNo = generateOrderNo();
+    order = await beginCheckout(supabase, user.id, 'wechat', body);
+    const receipt = checkoutReceipt(order);
+    if (order.status !== 'pending' || order.wechat_pay_url) return json({ code: 0, data: {
+      ...receipt, wechat_pay_url: order.status === 'pending' ? order.wechat_pay_url : null,
+    } });
+    const orderNo = order.order_no;
     const notifyUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/wechat-payment-webhook`;
-
-    // 先持久化订单与套餐快照，避免上游收款成功却没有可入账的本地订单。
-    const { data: order, error: orderError } = await supabase.from('orders').insert({
-      order_no: orderNo,
-      user_id: user.id,
-      plan_id: plan.id,
-      status: 'pending',
-      total_amount: plan.price,
-      pay_channel: 'wechat',
-    }).select('id, order_no').maybeSingle();
-    if (orderError || !order) {
-      console.error('[create-payment-order] order insert failed:', orderError?.message);
-      return err('订单创建失败', 500);
-    }
 
     // 创建支付 URL
     const payResult = await createWechatPayUrl(
       MERCHANT_ID, MERCHANT_APP_ID, MCH_CERT_SERIAL_NO, MCH_PRIVATE_KEY,
       WECHAT_PAY_PUBLIC_KEY_ID, WECHAT_PAY_PUBLIC_KEY,
-      orderNo, plan.price, notifyUrl,
+      orderNo, Number(order.total_amount), notifyUrl,
     );
 
-    if (!payResult.success) {
-      return err(`微信支付创建失败：${payResult.error}`, 500);
-    }
-
     const { error: urlError } = await supabase.from('orders')
-      .update({ wechat_pay_url: payResult.url, updated_at: new Date().toISOString() })
+      .update({ wechat_pay_url: payResult, updated_at: new Date().toISOString() })
       .eq('id', order.id);
-    if (urlError) return err('订单支付地址保存失败，请重试', 500);
+    if (urlError) throw new Error('支付地址保存回执待确认');
 
-    return ok({
-      order_no: order.order_no,
-      order_id: order.id,
-      wechat_pay_url: payResult.url,
-      plan_name: plan.name,
-      amount: plan.price,
-    });
+    return json({ code: 0, data: { ...receipt, wechat_pay_url: payResult } });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : '服务内部错误';
-    console.error('[create-payment-order]', msg);
-    return err(msg, 500);
+    if (e instanceof CheckoutError) return json({ code: 1, message: e.message, outcome: e.outcome }, e.status);
+    return json({ code: 1, message: '微信订单受理结果待核对，请恢复原支付请求', outcome: 'unknown',
+      data: order ? checkoutReceipt(order) : null }, 503);
   }
-});
+}
+Deno.serve(handleWechatPaymentOrder);

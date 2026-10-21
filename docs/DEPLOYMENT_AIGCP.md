@@ -1,5 +1,7 @@
 # aigcp 环境部署记录
 
+最新待发布范围00032–00050，见 [迭代22](ITERATION_22_CHECKOUT_LOADING.md)：两支付创建/checkout、production-worker/调度及前端同步，probe v11/00050/render2；客户端缺原UUID/确认金额/积分会拒绝。MCP54工具/18权限，资金不对Key开放。官方最近00031/三个旧函数回执未变化，此段只记录发布条件。
+
 最新待发布范围00032–00048，见 [迭代20](ITERATION_20_CASH_OPERATIONS.md)：operations、alipay-trade-ops/alipay-trade-query及匹配production-worker/调度/前端，probe v9/00048/render2。先验收历史退款/权益周期绑定、真实支付宝签名与退款字段/到账、可信运营授权和日预算；MCP仍52工具且不开放运营资金。官方最近00031/三旧函数回执未改变，此段不构成部署成功记录。
 
 待发布范围最新扩展00032–00046与 [商品管理](ITERATION_19_PRODUCT_MANAGEMENT.md)：新product-management、匹配production-worker/调度器/MCP52/前端，probe v8要求00046/render2。00046撤销旧商品直写，必须配合新前端一次发布窗口切换并验证签名/CSV/关页恢复。官方最近00031回执未改变，本段为发布要求，非新增部署记录。
