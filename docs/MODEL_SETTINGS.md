@@ -1,5 +1,7 @@
 # 统一模型接口设置
 
+00042 [观测及实验](ITERATION_13_MEASUREMENTS_EXPERIMENTS.md)不增加模型槽。创意建议沿text.primary，先确认实际积分价，只引用背景和服务端观测，不让模型创造流量概率。广告/交易签名数据源独立登记于AB页，仅管理员，密钥同主加密体系保护但不作为LLM API Key；需实际取得来源授权和采集服务，不能用文本模型替代真实交易。
+
 新增 [素材分析任务](ITERATION_12_GROUNDED_ANALYSIS.md)复用text.primary与audio.asr，数量仍16槽；任务固定两个旧配置版本。文本模型需真实支持image_url画面，直播ASR须openai-asr/whisper-1及可靠分段；Step只有正文时不能生成高光时间。不要在未验收时宣称视觉模型或声音权限可用。
 
 更新：2026-10-21，源码基线 `ce90bfe`。当前官方 Supabase 仍到 00031，`model_configs` 不存在，以下为最新版启用步骤，尚未在该云端完成。不要仅发布设置页；环境差距见 [当前状态](CURRENT_STATE.md)。

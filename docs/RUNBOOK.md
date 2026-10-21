@@ -1,5 +1,7 @@
 # 运维运行手册
 
+最新发布范围00032–00042与 [观测实验](ITERATION_13_MEASUREMENTS_EXPERIMENTS.md)，新增measurements/measurement-ingest，匹配AI与production-worker probe v4。监控签名401/体积413/限流429/依赖503、来源最后接收时间、版本冲突、回执增长、实验分组/曝光缺失及样本比例；停用来源后拒绝新写但保留历史。HMAC需要采集端与服务器时钟一致，不记录密钥/原始身份；每分钟来源500、报告90，失败不可用随机数据填充。真实采集分流、留存压测、告警与备份仍需目标验收。
+
 当前新增源码需部署到00041，见 [素材分析运行契约](ITERATION_12_GROUNDED_ANALYSIS.md)。重建FFmpeg Worker以支持analysis_prepare，匹配production-worker两段处理和probe v3；关注准备阶段队列年龄、8帧/WAV私有对象、unknown、旧版本和退款。数据库最近真实回执仍00031；不得用探针或本地测试充当发布回执。输入/中间对象清理与备份演练继续待实施。
 
 更新：2026-10-21，源码基线 `ce90bfe`。当前实际为官方 Supabase，迁移到 00031、三个旧函数、10 秒 Cron；新版 00032–00034 尚未发布。火山 BaaS/Pages/ECS 是独立待验收方案。[当前状态](CURRENT_STATE.md) 是环境判断入口。

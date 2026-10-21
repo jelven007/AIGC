@@ -1,5 +1,7 @@
 # 火山引擎部署指南
 
+最新发布范围扩展00032–00042，新增 [统一观测及实验](ITERATION_13_MEASUREMENTS_EXPERIMENTS.md)。manifest自动包含measurements和measurement-ingest，两者网关JWT关闭后分别由业务鉴权/HMAC验证；须匹配ai-assistant及production-worker v4，数据库在前、前端在后。登记已授权采集来源并验收签名/日版本/随机分流，不能从部署函数成功推断真实广告、电商数据或ROI已接入。火山资源和供应商仍待验收。
+
 当前源码发布范围00032–00041，匹配production-jobs/production-worker/ai-assistant/phase3-assistant及共享依赖，重建FFmpeg镜像，前端最后发布。[素材分析迭代12](ITERATION_12_GROUNDED_ANALYSIS.md)要求真实视觉/ASR配置、两段Worker与私有输出。火山资源与实际供应商仍无新验收证据，部署工具自动发现00041不等于已应用。
 
 目标方案：火山 AI 原生 BaaS Supabase 版 + 火山 Pages + ECS Docker 调度器，模型可用火山方舟。该方案使用火山独立管理面，前端无需 Vercel；**当前实际仍连接官方 Supabase，未切换火山**。源码基线 `ce90bfe`，尚无火山资源创建/部署验收证据；授权准备不等于资源上线。见 [当前状态](CURRENT_STATE.md)。

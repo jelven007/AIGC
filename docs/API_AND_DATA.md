@@ -1,5 +1,7 @@
 # 接口与数据契约
 
+00042契约见 [观测与实验接口](ITERATION_13_MEASUREMENTS_EXPERIMENTS.md)：measurements的report/experiments/sources/projects/advice-price可用metrics:read，实验写/来源管理只接受JWT且来源需管理员。measurement-ingest独立验证source/timestamp/HMAC原始正文；assign/events/daily固定request_key，128KB、500请求/分钟及整批回执。数据快照需revision与明确null，8种两位小数币种，CVR为转化/点击，ROAS扣退款。analyze_traffic需project_id/creative_brief/confirmed_credit_cost，服务端加入观测。旧ab变体写权限撤销。发布函数与00042一起启用。
+
 增量00041：[素材分析契约](ITERATION_12_GROUNDED_ANALYSIS.md)。production-jobs新增analysis-price与create kind=analysis（video:create），input的mode/title/source_url/confirmed_credit_cost；查询含mode及源指纹/模型版本/可验证结果。专用Worker领取analysis_prepare并提交prepared，模型阶段权限隔离；旧风格/高光入口410。普通同步AI强制JWT身份及关联工程/商品归属校验。
 
 更新：2026-10-21，源码基线 `ce90bfe`。描述当前代码协议；当前官方云端仅有旧版本三个函数，见 [当前状态](CURRENT_STATE.md)。示例 UUID 为说明用途，接入时生成自己的 UUID。

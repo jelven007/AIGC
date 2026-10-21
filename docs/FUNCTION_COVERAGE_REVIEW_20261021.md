@@ -1,5 +1,7 @@
 # 原版功能覆盖校验与当前产品全景
 
+00042新增 [统一观测及实验](ITERATION_13_MEASUREMENTS_EXPERIMENTS.md)：三看板删除随机/旧预测并统一官方快照；授权签名日观测、分源币种CTR/CVR/CPA/ROAS、预注册匿名随机分组/去重/窗口与双尾/Holm/Wilson、Excel和原请求恢复已实现并本地验证。广告/电商实际采集权限、原生平台实验、利润成本、自动优化/训练/发布仍待接入验收。本次更新以下指标/实验行；最新部署范围00032–00042及新函数，云端事实仍00031。
+
 00041新增 [真实分析与高光MP4](ITERATION_12_GROUNDED_ANALYSIS.md)，原视频分析/口播预置结果已替换。FFmpeg抽帧/音轨、模型可追溯分析和真实字幕段裁剪已有本地验证；完整镜头/BPM检测、真实竞品/选品采集与Embedding仍继续开发。
 
 核验日期：2026-10-21。原版源码 `dd8fcab`，当前业务源码 `53be501`。本次对照原 README/PRD、Git 文件与路由差异、前端调用、服务端处理器、迁移与 Worker；未重新执行云端部署或真实平台发布。
@@ -50,9 +52,9 @@
 | 情绪/风格DNA/直播高光 | 部分分析/演示 | 文本解读、关键词分段；随机分数、预设高光仍存在，无全链路视频视觉/ASR分析；高光页导出TXT清单，不是切片视频 | EmotionAnalysisPage、StyleCopyPage、LiveHighlightPage、phase3-assistant |
 | 竞品监控 | 演示为主 | 可建账号记录，crawl_competitor明确simulated=true；LLM/随机数不是平台抓取，24小时持续采集未实现 | CompetitorPage、phase3-assistant |
 | 跨平台发布 | 部分覆盖，新增正式适配 | 抖音/TikTok OAuth、排期、上传、状态与审核查询；小红书/快手/B站等未接入，UI每次一个账号，无多账号一次派发 | PublishPage、platform-jobs/platforms、00036 |
-| 数据回流 | 部分覆盖，新增正式数据 | 两平台累计播放/点赞/评论/分享、缺失null、15分钟分批采集、历史快照；无广告曝光/点击/转化/GMV/消耗/ROI | DataFeedbackPage、platform-jobs、00036 |
-| A/B测试/自学习 | 部分记录/展示，闭环未覆盖 | 变体表、人工标获胜；无平台分流/曝光点击转化采集到变体、自动淘汰或反馈训练；ABTestPage仍有不可靠p值近似 | ABTestPage、ai-assistant、platform-jobs |
-| 总览/报表 | 部分覆盖 | 作品数量/状态/风格/时长、Excel导出；预测指标来自旧估计字段，未与新官方指标统一 | DataDashboardPage、AnalyticsPage |
+| 数据回流 | 官方视频及授权接收已新增 | 官方快照去重/缺失覆盖；HMAC授权日快照与版本、分源币种CTR/CVR/CPA/扣退款ROAS。真实广告/电商采集服务与权限待验收，利润ROI缺成本 | MeasurementDashboard、measurements/measurement-ingest、00036/00042 |
+| A/B测试/自学习 | 真实随机实验基础已新增 | 2–8变体、预注册样本/指标/窗口、来源绑定、匿名固定分组/事件去重/结案、双尾/Holm/Wilson；需要采集服务实际展示分组内容，未交付原生平台实验/自动训练发布 | ABTestPage、measurement-statistics、00042 |
+| 总览/报表 | 已统一观测，仍待云端验收 | 三看板同报告、真实创建/风格/时长、官方指标与分源授权观测、Excel；取消随机预测/均值/固定提升，服务端全量汇总/明细上限 | MeasurementDashboard、measurements、00042 |
 | Prompt知识库/RAG | 部分覆盖 | 模板/用户条目、复制整合、全文/关键词检索；无Embedding配置槽、向量写入/检索到脚本的完整调用 | KnowledgePage、knowledgeRagSearch、generateScriptFourLayer |
 | 团队空间/RBAC/共享 | 部分界面/业务记录 | 团队/邀请/成员处理存在且UI有本地降级；私有素材授权只认user，不认team，缺团队计费与共享闭环 | TeamSpacePage、phase3-assistant、00015/00035 |
 | OpenAPI Key/沙箱 | 页面保留，实际鉴权未覆盖 | Key记录/生成UI有本地模拟；业务函数用Auth.getUser校验JWT，不读取api_keys；页面示例generate_script也非现有Action | OpenAPIPage、auth.ts、phase3-assistant |
@@ -69,7 +71,7 @@
 4. **数字人/团队与私有存储尚未衔接。** AvatarsPage新增时未写user_id，图库现有政策为公共读、无普通用户插入；头像上传UI不等于成功创建可用个人形象。公共图库引用某用户私有对象时，其他用户不能签名；team成员也没有对应对象ACL。
 5. **签名URL删除兼容。** MaterialsPage:205–206及WorksPage类似逻辑从返回的签名URL直接拆path，没有去token或解码。对象删除可能失败而业务行被删除，需统一存储引用解析及失败处理。
 6. **OpenAPI与MCP能力不同。** `ak_`页面Key未被业务API鉴权消费；MCP使用用户JWT，目前7工具未暴露本轮新生产功能。不能从Key创建成功提示推断可程序化调用所有功能。
-7. **指标系统尚未统一。** 官方指标仅接DataFeedbackPage；AnalyticsPage仍规则/随机估计，DataDashboardPage仍展示predicted字段，ABTestPage仍使用旧样本/统计计算，没有新版平台指标→实验组映射。
+7. **指标系统已在00042统一。** 三看板读取同一报告，原随机/预测/固定提升移除；新实验用服务端随机分组与签名事件，旧计数不迁入样本。真实广告/电商采集及平台原生分流仍待验收，不能把自然播放当作实验曝光。
 8. **原营销文案与现状不一致。** AiToolboxPage仍宣传4平台同步分发、数字人克隆、24h抓取和固定提效/好评数据；旧PRD/运维/模型文档也有“图片不收费/不能恢复/渲染未实现”等过时说法。新方案与旧承诺不能同时作为事实。
 
 上述是静态代码与契约核验，除上轮已有测试记录外未做本次运行复现；不能外推为所有页面端到端验收。

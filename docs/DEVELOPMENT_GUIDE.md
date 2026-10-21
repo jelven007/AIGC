@@ -1,5 +1,7 @@
 # 开发指南
 
+00042入口见 [统一观测及实验](ITERATION_13_MEASUREMENTS_EXPERIMENTS.md)：MeasurementDashboard、ABTestPage、measurements/measurement-ingest及measurement-input/statistics，真实迁移/权限/事务通过`npm run test:measurements`；browser_measurements.mjs验证三看板、Excel与原请求恢复。禁用旧ab变体直写，来源密钥不持久化浏览器，累计自然数据不转换为广告/实验样本。所有观测表通过服务端API，不新增前端service_role。
+
 增量00041开发入口见 [真实素材分析](ITERATION_12_GROUNDED_ANALYSIS.md)：VideoAnalysisPanel、_shared/video-analysis、structured-analysis、worker/analyze.py。使用`npm run test:analysis`验证真实迁移/协议/FFmpeg，浏览器脚本browser_video_analysis.mjs验证失联恢复与MP4请求。输入视频≤100MB/10分钟，抽样帧不代表完整镜头或BPM测量。
 
 更新：2026-10-21，源码基线 `ce90bfe`。先读 [当前状态](CURRENT_STATE.md) 与 [PRD](prd/PRD.md)。本地源码比当前官方 Supabase 云端新，启动前端成功不代表新版接口已部署。
