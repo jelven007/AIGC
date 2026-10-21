@@ -5,7 +5,7 @@ CREATE ROLE authenticated NOLOGIN;
 CREATE ROLE service_role NOLOGIN BYPASSRLS;
 CREATE SCHEMA auth;
 CREATE SCHEMA storage;
-CREATE TABLE auth.users(id uuid PRIMARY KEY, email text);
+CREATE TABLE auth.users(id uuid PRIMARY KEY, email text, raw_app_meta_data jsonb DEFAULT '{}'::jsonb);
 CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$
   SELECT NULLIF(current_setting('request.jwt.claim.sub', true), '')::uuid;
 $$;

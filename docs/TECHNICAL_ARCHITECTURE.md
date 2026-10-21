@@ -12,6 +12,8 @@ flowchart TB
     MCP["可选 ECS · MCP HTTP / stdio"]
     Auth["火山 BaaS · Auth / JWT"]
     API["火山 BaaS · Deno Edge Functions"]
+    Settings["统一设置页 /settings/models<br/>管理员配置 · 普通用户目录"]
+    Registry["模型配置服务<br/>AES-GCM · 不可变版本"]
     DB[("火山 BaaS · PostgreSQL<br/>业务表 / RLS / RPC / 持久化队列")]
     Storage[("火山 BaaS · Storage<br/>素材 / 成片")]
     Scheduler["ECS Docker · 视频调度器"]
@@ -27,10 +29,15 @@ flowchart TB
     Agent -->|"用户 JWT"| MCP
     MCP -->|"同一业务 API"| API
     API --> DB
+    Browser --> Settings
+    Settings -->|"管理员 JWT"| API
+    API --> Registry
+    Registry --> DB
     API --> Ark
     API --> External
     Scheduler -->|"专用密钥"| Worker
     Worker --> DB
+    Worker -->|"任务绑定版本"| Registry
     Worker --> Ark
     Worker --> External
     Worker --> Storage
@@ -52,8 +59,9 @@ flowchart TB
 | 执行器 | `video-job-worker` | 火山 BaaS | 有限时长提交/查询，不在函数中持续轮询 |
 | 调度器 | Python 3.12 + Docker Compose | 常驻火山 ECS | 默认每 10 秒派发，最多 4 并发，退避和健康检查 |
 | 成片存储 | Supabase Storage | 火山 BaaS | 参考素材、MP4/WebM 成片固定路径 |
-| 模型 | Ark OpenAI 兼容文本、Seedance 视频异步 API | 火山方舟 | 服务端选择真实已开通 Model ID / Endpoint ID |
-| 音频 | 现有 SiliconFlow TTS / ASR 协议 | 火山 Edge Function 代理外部服务 | 浏览器不再持有模型密钥 |
+| 模型配置 | `model_configs`、`model_config_versions`、AES-GCM | 火山 BaaS | 全部模型接口统一管理、管理员授权、并发保护与任务版本绑定 |
+| 模型 | 文本主备、七种视频、同步图片 | 方舟或设置页配置的供应商 | 真实已开通 Model ID / Endpoint ID，服务端协议适配 |
+| 音频 | OpenAI/Step TTS、ASR 协议 | 火山 Edge Function 代理外部服务 | 配置页统一模型、接口与音色 |
 | MCP | Python FastMCP、Starlette、HTTPX | 可选 ECS 或本地 stdio | 7 个工具复用用户 JWT 与业务 API |
 | 运维发布 | `byted-supabase-cli`、Python 部署脚本 | 开发机/受控发布环境 | SQL、Secrets、函数、Pages 与发布前预检 |
 
@@ -62,9 +70,9 @@ flowchart TB
 ## 视频任务与积分
 
 1. 浏览器将参考素材上传 Storage，使用 `request_key` UUID 创建任务。
-2. 服务端校验用户 JWT、参数与模型配置；数据库同一事务创建作品、扣费流水和队列任务。重复 UUID + 相同参数返回原任务，不重复扣费。
+2. 服务端校验用户 JWT、参数与模型配置；数据库同一事务检查配置启用状态、绑定配置版本、创建作品、扣费流水和队列任务。重复 UUID + 相同参数返回原任务，不重复扣费。
 3. 调度器以 `VIDEO_WORKER_SECRET` 触发执行器；租约默认 180 秒，每次领取一个任务。
-4. `ArkSeedance` 直接请求 `POST /api/v3/contents/generations/tasks`，随后按任务 ID 查询。模型和密钥只从服务端 Secrets 读取。
+4. `ArkSeedance` 请求配置的方舟任务 API，随后按任务 ID 查询。提交与查询读取任务创建时的不可变配置版本，密钥只在服务端解密，更新账号不改变旧任务。
 5. 成功视频先转存至 `materials/generated-videos/{user_id}/{job_id}.mp4|webm`，再持久化终态证据并原子更新作品与积分结算。
 6. 确定拒绝或上游明确失败时，按原扣费流水退积分；暂时查询或存储错误继续重试。
 7. 受理结果未知不重新 POST，也不按超时退款；运维核对后绑定上游 ID 或释放原扣费。
@@ -73,7 +81,9 @@ flowchart TB
 
 ## 文本、音频与 MCP
 
-`text-generation` 使用平台认证、数据库每用户每分钟限流，返回真实 SSE/JSON。此提示词辅助端点目前不扣积分；原 `ai-assistant` 计费 Action 保留原逐笔扣费补偿逻辑。方舟是部署模板中的首选文本通道，也可显式配置 GLM / DeepSeek 兼容接口。
+`text-generation` 使用平台认证、数据库每用户每分钟限流，返回真实 SSE/JSON。此提示词辅助端点目前不扣积分；原 `ai-assistant` 计费 Action 保留原逐笔扣费补偿逻辑。文本主备统一从设置页读取，旧 GLM/DeepSeek/Wenxin/MiniMax 函数只作为兼容入口，不再独立使用 Secrets。
+
+`image-generation` 与封面共用真实同步图片服务并归档到 Storage，删除工作台浏览器密钥和随机现成图成功逻辑。封面统一 `gen_task_id`/`completed` 字段，不再伪造 CTR。音频合成、识别和商品 Reader 也读取同一配置服务。主加密密钥仅保存在 Edge Secrets，管理员凭据不回传；首次授权、旧配置导入与旧任务绑定见 [统一模型配置](MODEL_SETTINGS.md)。
 
 前端删除模型 `VITE_*` 密钥、硬编码兜底密钥、代理回退与虚假文本/ASR 成功输出。构建拒绝非公开 `VITE_*KEY/SECRET/TOKEN/PASSWORD`。音频使用登录用户 JWT 调用 Edge Function。
 
@@ -88,7 +98,7 @@ MCP HTTP 使用请求中的用户 JWT，并通过 ContextVar 隔离并发调用�
 - `config.toml` 不承担火山函数配置。生产函数清单在 `deploy/volcengine/manifest.json`，回调与 Worker 明确使用 `--no-verify-jwt`，函数内继续验签/验证专用密钥。
 - 迁移排除 00018/00019 演示数据和演示访问策略；部署使用私有 `shopro_deploy.schema_migrations` 记录 SHA-256 回执，发现历史文件修改或无回执的旧业务库则停止重放。
 - `backend/` 缺少运营后台核心源码，未纳入部署。批量生成、完整剪辑渲染、真实跨平台发布与数据回流仍需后续实现；现有模拟模块不因迁移而变成已交付能力。
-- 图片专属网关、网页 Reader、Kling 等必须配置自己的 HTTPS 地址；不存在源仓库网关地址默认回退。部分历史 AI 业务模拟逻辑保留且需要后续治理。
+- 图片、网页 Reader、Kling 等必须在统一设置页配置兼容协议的 HTTPS 地址；运行时不回退旧网关环境变量。部分历史 AI 业务模拟逻辑保留且需要后续治理。
 - 火山账号、BaaS 服务权限、方舟模型开通、SMTP/短信供应商、支付商户凭据和正式域名需目标环境配置。
 
 完整操作顺序见 [火山部署指南](VOLCENGINE_DEPLOYMENT.md)。

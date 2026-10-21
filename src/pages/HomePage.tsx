@@ -18,9 +18,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { UrlProductImportDialog } from '@/components/UrlProductImportDialog';
 import { sendDeepSeekStreamRequest, sendStepAudioASR, sendStepFlashStreamRequest } from '@/lib/sse';
 import { makeWorkTitle } from '@/lib/utils';
-import CustomModelDialog from '@/components/common/CustomModelDialog';
-import { loadCustomModels, findCustomModel, invokeCustomChatModel, extractImageUrl } from '@/lib/customModel';
-import type { CustomModelConfig, CustomModelKind } from '@/lib/customModel';
+import { modelSettingsRequest, type ModelCatalogEntry } from '@/api/modelSettings';
+import { authenticatedEdgeRequest } from '@/lib/edgeRequest';
 import { audioRecorder } from '@/lib/audioRecorder';
 import { Product } from '@/types/types';
 import { getCategoryFallbackImage } from './ProductsPage';
@@ -425,17 +424,6 @@ const MOCK_SELECTOR_PRODUCTS: Product[] = [
 ];
 
 // ── 图片生成模型与对应标识 ──────────────────────────────────────────────
-const IMG_MODELS = [
-  { label: 'Flux 1.1 Pro', id: 'Flux' },
-  { label: 'Midjourney v6', id: 'Midjourney' },
-  { label: 'SDXL 3.0', id: 'SDXL' }
-];
-const IMG_RESOLUTIONS = [
-  '1:1 · 方形 (1024×1024)',
-  '16:9 · 横屏 (1280×720)',
-  '9:16 · 竖屏 (720×1280)'
-];
-
 // 预设高频常用数字人快捷列表 (使用 public/person 目录资源)
 const QUICK_AVATARS = [
   { id: 'avatar-005', name: '萌萌·零食吃播', preview_image: '/person/girl3.png', gender: 'female', tags: ['零食', '甜美'] },
@@ -745,10 +733,18 @@ export default function HomePage() {
   const [model, setModel] = useState<{ label: string; id: string }>({ label: '火山方舟 Seedance', id: 'ArkSeedance' });
   const [resolution, setResolution] = useState('720P · 16:9 · 5s');
   const [modelOpen, setModelOpen] = useState(false);
-  // 自定义模型（兼容 OpenAI API 端点）列表与配置弹窗状态
-  const [customVideoModels, setCustomVideoModels] = useState<CustomModelConfig[]>(() => loadCustomModels('video'));
-  const [customImageModels, setCustomImageModels] = useState<CustomModelConfig[]>(() => loadCustomModels('image'));
-  const [customModelDialog, setCustomModelDialog] = useState<{ kind: CustomModelKind; editKey?: string | null } | null>(null);
+  const [modelCatalog, setModelCatalog] = useState<ModelCatalogEntry[]>([]);
+  const [modelCatalogError, setModelCatalogError] = useState('');
+  useEffect(() => {
+    modelSettingsRequest<{ configs: ModelCatalogEntry[] }>({ action: 'catalog' }).then(result => {
+      setModelCatalog(result.configs);
+      const video = result.configs.find(item => item.category === 'video' && item.enabled);
+      if (video) setModel({ label: video.name, id: video.provider! });
+    }).catch(e => setModelCatalogError(e.message));
+    // 清除旧版本遗留的浏览器模型密钥。
+    localStorage.removeItem('custom_models_video');
+    localStorage.removeItem('custom_models_image');
+  }, []);
   const [resOpen, setResOpen] = useState(false);
 
   // 灵感广场筛选状态
@@ -797,7 +793,6 @@ export default function HomePage() {
   const [enhanceProgress, setEnhanceProgress] = useState(0);
 
   // 图片生成相关新状态与 ref
-  const [imgSubTab, setImgSubTab] = useState('智能绘图');
   const [imgRefImage, setImgRefImage] = useState<string | null>(null);
   const [enhancingImg, setEnhancingImg] = useState(false);
   const [imgRecording, setImgRecording] = useState(false);
@@ -912,35 +907,21 @@ export default function HomePage() {
 
   // 图片生成状态
   const [imgPrompt, setImgPrompt] = useState('');
-  const [imgModel, setImgModel] = useState({ label: 'Flux 1.1 Pro', id: 'Flux' });
-  const [imgResolution, setImgResolution] = useState('2K · 低 · 1:1');
+  const imgModel = { label: modelCatalog.find(item => item.slot === 'image.primary')?.name || '图片模型', id: 'image.primary' };
+  const [imgResolution, setImgResolution] = useState('1024x1024 · 低');
   const [imgModelOpen, setImgModelOpen] = useState(false);
   const [imgResOpen, setImgResOpen] = useState(false);
 
-  // 自定义模型保存/启用后刷新列表并选中（视频与图片下拉共用）
-  const handleCustomModelSaved = (cfg: CustomModelConfig) => {
-    if (customModelDialog?.kind === 'image') {
-      setCustomImageModels(loadCustomModels('image'));
-      setImgModel({ label: cfg.displayName, id: cfg.key });
-    } else {
-      setCustomVideoModels(loadCustomModels('video'));
-      setModel({ label: cfg.displayName, id: cfg.key });
-    }
-    setCustomModelDialog(null);
-    toast.success(`自定义模型「${cfg.displayName}」已保存并启用`);
-  };
-
   // 图片生成高级配置状态
-  const [imgResolutionType, setImgResolutionType] = useState('2K');
+  const [imgResolutionType, setImgResolutionType] = useState('1024x1024');
   const [imgQuality, setImgQuality] = useState('低');
-  const [imgCustomSize, setImgCustomSize] = useState(false);
   const [imgAspect, setImgAspect] = useState('1:1');
 
   const updateImgResolution = (resType: string, qual: string, aspect: string) => {
     setImgResolutionType(resType);
     setImgQuality(qual);
     setImgAspect(aspect);
-    setImgResolution(`${resType} · ${qual} · ${aspect}`);
+    setImgResolution(`${resType} · ${qual}`);
   };
 
   const [generatedVideos, setGeneratedVideos] = useState<any[]>([]);
@@ -1072,93 +1053,49 @@ export default function HomePage() {
     }
   };
 
-  const handleImgRefImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImgRefImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        setImgRefImage(reader.result as string);
-        toast.success('图片导入成功');
-      };
-      reader.readAsDataURL(file);
-    }
+    if (!file || !user) return;
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 10 * 1024 * 1024) { toast.error('请上传不超过 10MB 的 PNG、JPG 或 WebP 图片'); return; }
+    try {
+      const path = `${user.id}/references/${crypto.randomUUID()}.${file.type.split('/')[1]}`;
+      const { error } = await supabase.storage.from('materials').upload(path, file, { contentType: file.type });
+      if (error) throw new Error('参考图上传失败');
+      setImgRefImage(supabase.storage.from('materials').getPublicUrl(path).data.publicUrl);
+      toast.success('参考图已上传');
+    } catch (e) { toast.error(e instanceof Error ? e.message : '上传失败'); }
   };
   const [imgGenerating, setImgGenerating] = useState(false);
   const [imgProgress, setImgProgress] = useState(0);
   const [resultImage, setResultImage] = useState<string | null>(null);
-  const imgTimeoutRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   // 提示词增强状态
   const [enhancing, setEnhancing] = useState(false);
 
-  // 停止轮询
-  const stopPoll = useCallback(() => {
-    if (imgTimeoutRef.current) { clearInterval(imgTimeoutRef.current); imgTimeoutRef.current = null; }
-  }, []);
-
-  // 本地模拟渲染管线（未配置/未选中自定义模型或调用失败时的降级演示）
-  const runImgMockPipeline = () => {
-    let currentProgress = 5;
-    imgTimeoutRef.current = setInterval(() => {
-      currentProgress += Math.floor(Math.random() * 15) + 5;
-      if (currentProgress >= 100) {
-        if (imgTimeoutRef.current) clearInterval(imgTimeoutRef.current);
-        setImgGenerating(false);
-        setImgProgress(100);
-        const mockImages = [
-          'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800',
-          'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800',
-          'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=800',
-          'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800',
-        ];
-        const randomImage = mockImages[Math.floor(Math.random() * mockImages.length)];
-        setResultImage(randomImage);
-        toast.success('图片生成完成！');
-      } else {
-        setImgProgress(currentProgress);
-      }
-    }, 400);
-  };
-
-  // 图片生成处理器：选中自定义模型时真实调用其 OpenAI 兼容端点，否则走本地模拟管线
   const handleImageGenerate = async () => {
     if (!imgPrompt.trim()) { toast.error('请输入图片描述'); return; }
-    const customCfg = findCustomModel('image', imgModel.id);
-    if (customCfg) {
-      setImgGenerating(true);
-      setResultImage(null);
-      setImgProgress(15);
-      try {
-        const content = await invokeCustomChatModel(
-          customCfg,
-          `请根据以下描述生成一张图片，并在回复中返回图片 URL：\n${imgPrompt}`,
-        );
-        const imgSrc = extractImageUrl(content);
-        setImgProgress(100);
-        setImgGenerating(false);
-        if (imgSrc) {
-          setResultImage(imgSrc);
-          toast.success(`自定义模型「${customCfg.displayName}」图片生成成功！`);
-          return;
-        }
-        toast.error('自定义模型未返回图片 URL，已切换本地渲染演示', { duration: 4500 });
-      } catch (e: any) {
-        setImgGenerating(false);
-        toast.error(`自定义模型调用失败：${e?.message || '网络错误'}，已切换本地渲染演示`, { duration: 5000 });
-      }
-      runImgMockPipeline();
-      return;
-    }
+    if (!modelCatalog.some(item => item.slot === 'image.primary' && item.enabled)) { toast.error(modelCatalogError || '请先在模型设置中启用图片接口'); return; }
     setImgGenerating(true);
     setResultImage(null);
-    setImgProgress(5);
-    runImgMockPipeline();
+    setImgProgress(0);
+    try {
+      const response = await authenticatedEdgeRequest('image-generation', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: imgPrompt, size: imgResolutionType,
+          quality: imgQuality === '低' ? 'low' : imgQuality === '高' ? 'high' : 'medium', reference_image: imgRefImage }),
+      });
+      const result = await response.json();
+      if (!result.image_url) throw new Error('图片服务未返回结果');
+      setResultImage(result.image_url); setImgProgress(100); toast.success('图片已生成并保存');
+    } catch (e) { toast.error(e instanceof Error ? e.message : '图片生成失败'); }
+    finally { setImgGenerating(false); }
   };
 
   // 视频生成统一使用持久化服务端任务。
   const handleGenerate = async () => {
     if (!prompt.trim()) { toast.error('请输入视频描述'); return; }
+    if (!modelCatalog.some(item => item.provider === model.id && item.enabled)) { toast.error(modelCatalogError || '请先在模型设置中启用视频接口'); return; }
     const finalPrompt = autoOptimize
       ? prompt.trim() + '\n【自动扩展】优化构图与运镜节奏，强化光影质感与商品细节表现，突出前3秒吸引力与下单引导，保持主体一致。'
       : prompt.trim();
@@ -1289,20 +1226,19 @@ export default function HomePage() {
         {mainTab === '视频生成' && (
           <div className={cn(
             "relative rounded-2xl p-[1.5px] group/input transition-all duration-300",
-            (modelOpen || resOpen || customModelDialog?.kind === 'video') ? "z-40" : "z-20",
+            (modelOpen || resOpen) ? "z-40" : "z-20",
             // 默认情况下的其它边框色：低调高级的微透科技边框；输入文字时增强光晕（紫粉主题）
             isTypingVideo
               ? "bg-[#8b5cf6]/40 shadow-[0_0_35px_rgba(139,92,246,0.28)]"
               : "bg-gradient-to-b from-white/15 via-white/[0.08] to-white/5 hover:from-white/20 hover:to-white/10 shadow-[0_16px_50px_rgba(0,0,0,0.6)]"
           )}>
             {/* 点击空白处自动关闭弹窗的透明遮罩 */}
-            {(modelOpen || resOpen || customModelDialog?.kind === 'video') && (
+            {(modelOpen || resOpen) && (
               <div
                 className="fixed inset-0 z-[5] bg-transparent"
                 onClick={() => {
                   setModelOpen(false);
                   setResOpen(false);
-                  setCustomModelDialog(null);
                 }}
               />
             )}
@@ -1742,7 +1678,7 @@ export default function HomePage() {
                     </button>
                     {modelOpen && (
                       <div className="absolute top-full mt-2 left-0 z-50 bg-[#161522] border border-white/15 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] py-1.5 min-w-[170px] backdrop-blur-2xl">
-                        {MODELS.map(m => (
+                        {MODELS.filter(m => modelCatalog.some(item => item.provider === m.id && item.enabled)).map(m => (
                           <button key={m.id} onClick={() => {
                             setModel({ label: m.label, id: m.id });
                             setModelOpen(false);
@@ -1754,24 +1690,10 @@ export default function HomePage() {
                             </div>
                           </button>
                         ))}
-                        {/* 已保存的自定义模型与新增入口 */}
-                        {customVideoModels.map(m => (
-                          <div key={m.key} className={cn('flex items-center justify-between gap-1 px-2', m.key === model.id ? 'bg-emerald-500/10' : '')}>
-                            <button onClick={() => { setModel({ label: m.displayName, id: m.key }); setModelOpen(false); }}
-                              className={cn('flex-1 text-left py-2 text-xs flex items-center gap-2 hover:bg-white/10 transition-colors rounded-lg min-w-0', m.key === model.id ? 'text-emerald-400 font-semibold' : 'text-white/80')}>
-                              <span className="text-sm leading-none shrink-0">🔗</span>
-                              <span className="font-semibold truncate">{m.displayName}</span>
-                              <span className="text-[9px] text-white/35 shrink-0">自定义</span>
-                            </button>
-                            <button onClick={(e) => { e.stopPropagation(); setModelOpen(false); setCustomModelDialog({ kind: 'video', editKey: m.key }); }}
-                              className="p-1.5 rounded-lg text-white/40 hover:text-white/90 hover:bg-white/10 shrink-0" title="编辑自定义模型">
-                              <Pencil className="w-3 h-3" />
-                            </button>
-                          </div>
-                        ))}
-                        <button onClick={() => { setModelOpen(false); setCustomModelDialog({ kind: 'video' }); }}
+                        {!modelCatalog.some(item => item.category === 'video' && item.enabled) && <p className="px-3 py-2 text-xs text-white/60">{modelCatalogError || '尚无已启用视频模型'}</p>}
+                        <button onClick={() => navigate('/settings/models')}
                           className="w-full text-left px-3.5 py-2 mt-1 pt-2 border-t border-white/10 text-xs flex items-center gap-2 text-white/55 hover:bg-white/10 hover:text-white/90 transition-colors">
-                          <Plus className="w-3 h-3" />自定义模型
+                          <Plus className="w-3 h-3" />模型接口设置
                         </button>
                       </div>
                     )}
@@ -1932,20 +1854,19 @@ export default function HomePage() {
         {mainTab === '图片生成' && (
           <div className={cn(
             "relative rounded-2xl p-[1.5px] group/input transition-all duration-300",
-            (imgModelOpen || imgResOpen || customModelDialog?.kind === 'image') ? "z-40" : "z-20",
+            (imgModelOpen || imgResOpen) ? "z-40" : "z-20",
             // 默认情况下的其它边框色：低调高级的微透科技边框；输入文字时增强光晕（橙绿主题）
             isTypingImg
               ? "bg-[#FF6B00]/40 shadow-[0_0_35px_rgba(255,107,0,0.28)]"
               : "bg-gradient-to-b from-white/15 via-white/[0.08] to-white/5 hover:from-white/20 hover:to-white/10 shadow-[0_16px_50px_rgba(0,0,0,0.6)]"
           )}>
             {/* 点击空白处自动关闭弹窗的透明遮罩 */}
-            {(imgModelOpen || imgResOpen || customModelDialog?.kind === 'image') && (
+            {(imgModelOpen || imgResOpen) && (
               <div
                 className="fixed inset-0 z-[5] bg-transparent"
                 onClick={() => {
                   setImgModelOpen(false);
                   setImgResOpen(false);
-                  setCustomModelDialog(null);
                 }}
               />
             )}
@@ -1975,21 +1896,7 @@ export default function HomePage() {
               {/* 顶部 Tab（移动端缩小字号与内边距） */}
               <div className="flex items-center justify-between px-2.5 md:px-4 pt-2.5 md:pt-3 pb-1">
                 <div className="flex items-center gap-0.5 overflow-x-auto no-scrollbar">
-                  {['智能绘图', '智能扩图', '风格融合'].map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => setImgSubTab(t)}
-                      className={cn(
-                        'flex items-center gap-1 px-2 md:px-3 py-1 md:py-1.5 rounded-lg text-xs md:text-sm transition-colors whitespace-nowrap shrink-0',
-                        imgSubTab === t ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/70'
-                      )}
-                    >
-                      {t === '智能绘图' && <ImageIcon className="w-3.5 h-3.5" />}
-                      {t === '智能扩图' && <Maximize2 className="w-3.5 h-3.5" />}
-                      {t === '风格融合' && <Layers className="w-3.5 h-3.5" />}
-                      {t}
-                    </button>
-                  ))}
+                  <span className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm bg-white/10 text-white"><ImageIcon className="w-3.5 h-3.5" />智能绘图</span>
                 </div>
               </div>
 
@@ -2022,13 +1929,7 @@ export default function HomePage() {
                   }}
                   onKeyDown={() => triggerImgTypingGlow()}
                   onCompositionUpdate={() => triggerImgTypingGlow()}
-                  placeholder={
-                    imgSubTab === '智能绘图'
-                      ? "描述图片画面内容、细节与构图，例如：‘一个复古风格的胶片相机放在木质桌面上，柔和的夕阳斜照，写实风格，8k分辨率’"
-                      : imgSubTab === '智能扩图'
-                        ? "上传要扩展的图片并描述扩图的延伸区域与比例，例如：‘扩展画面四周，延伸背景为茂密的森林，自然光线，无缝衔接’"
-                        : "上传参考风格图与主体图，描述融合后的画面，例如：‘将主体图的人物置入参考图的赛博朋克霓虹街区风格中，红蓝霓虹光影’"
-                  }
+                  placeholder="描述商品图片的主体、背景与构图。参考图需平台图片模型支持。"
                   className={cn(
                     "flex-1 min-w-0 bg-transparent resize-none text-sm text-white/80 placeholder:text-white/25 outline-none min-h-[56px] sm:min-h-[72px] leading-relaxed transition-all duration-300",
                     enhancingImg && "enhancing-text-wave"
@@ -2088,10 +1989,7 @@ export default function HomePage() {
                         <div>
                           <div className="flex items-center gap-2">
                             <span className="text-xs md:text-sm font-bold bg-gradient-to-r from-pink-300 via-purple-200 to-amber-200 bg-clip-text text-transparent">
-                              {imgProgress < 30 && "AI 正在分析画面主体与构图..."}
-                              {imgProgress >= 30 && imgProgress < 75 && "AI 正在细腻着色与细节雕刻..."}
-                              {imgProgress >= 75 && imgProgress < 100 && "AI 正在进行 2K/4K 画质终极超分..."}
-                              {imgProgress >= 100 && "🎉 绝美画面已绘制完成！"}
+                              正在生成并保存图片…
                             </span>
                             <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-pink-500/15 text-pink-300 border border-pink-500/30">
                               <span className="w-1.5 h-1.5 rounded-full bg-pink-400 mr-1 animate-pulse" />
@@ -2106,7 +2004,7 @@ export default function HomePage() {
 
                       <div className="flex flex-col items-end shrink-0">
                         <div className="px-2.5 py-1 rounded-full bg-gradient-to-r from-pink-500/20 via-purple-500/20 to-indigo-500/20 border border-pink-400/30 text-xs font-black tracking-wider text-pink-300 font-mono shadow-[0_0_10px_rgba(236,72,153,0.2)]">
-                          {imgProgress}%
+                          处理中
                         </div>
                       </div>
                     </div>
@@ -2150,30 +2048,10 @@ export default function HomePage() {
                     </button>
                     {imgModelOpen && (
                       <div className="absolute top-full mt-2 left-0 z-50 bg-[#161522] border border-white/15 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] py-1.5 min-w-[160px] backdrop-blur-2xl">
-                        {IMG_MODELS.map(m => (
-                          <button key={m.id} onClick={() => { setImgModel(m); setImgModelOpen(false); }}
-                            className={cn('w-full text-left px-3.5 py-2 text-xs hover:bg-white/10 transition-colors', m.id === imgModel.id ? 'text-pink-400 bg-pink-500/10 font-semibold' : 'text-white/80')}>
-                            {m.label}
-                          </button>
-                        ))}
-                        {/* 已保存的自定义模型与新增入口 */}
-                        {customImageModels.map(m => (
-                          <div key={m.key} className={cn('flex items-center justify-between gap-1 px-2', m.key === imgModel.id ? 'bg-pink-500/10' : '')}>
-                            <button onClick={() => { setImgModel({ label: m.displayName, id: m.key }); setImgModelOpen(false); }}
-                              className={cn('flex-1 text-left py-2 text-xs flex items-center gap-2 hover:bg-white/10 transition-colors rounded-lg min-w-0', m.key === imgModel.id ? 'text-pink-400 font-semibold' : 'text-white/80')}>
-                              <span className="text-sm leading-none shrink-0">🔗</span>
-                              <span className="font-semibold truncate">{m.displayName}</span>
-                              <span className="text-[9px] text-white/35 shrink-0">自定义</span>
-                            </button>
-                            <button onClick={(e) => { e.stopPropagation(); setImgModelOpen(false); setCustomModelDialog({ kind: 'image', editKey: m.key }); }}
-                              className="p-1.5 rounded-lg text-white/40 hover:text-white/90 hover:bg-white/10 shrink-0" title="编辑自定义模型">
-                              <Pencil className="w-3 h-3" />
-                            </button>
-                          </div>
-                        ))}
-                        <button onClick={() => { setImgModelOpen(false); setCustomModelDialog({ kind: 'image' }); }}
+                        <p className="px-3.5 py-2 text-xs text-white/80">{imgModel.label} · {modelCatalog.some(item => item.slot === 'image.primary' && item.enabled) ? '已启用' : '未启用'}</p>
+                        <button onClick={() => navigate('/settings/models')}
                           className="w-full text-left px-3.5 py-2 mt-1 pt-2 border-t border-white/10 text-xs flex items-center gap-2 text-white/55 hover:bg-white/10 hover:text-white/90 transition-colors">
-                          <Plus className="w-3 h-3" />自定义模型
+                          <Plus className="w-3 h-3" />模型接口设置
                         </button>
                       </div>
                     )}
@@ -2195,11 +2073,11 @@ export default function HomePage() {
                         <div className="space-y-2">
                           <label className="text-[11px] text-white/40 block font-medium">分辨率</label>
                           <div className="grid grid-cols-3 gap-2">
-                            {['1K', '2K', '4K'].map(r => (
+                            {['1024x1024', '1024x1536', '1536x1024'].map(r => (
                               <button
                                 key={r}
                                 type="button"
-                                onClick={() => updateImgResolution(r, imgQuality, imgAspect)}
+                                onClick={() => updateImgResolution(r, imgQuality, r === '1024x1024' ? '1:1' : r === '1024x1536' ? '2:3' : '3:2')}
                                 className={cn(
                                   "py-1.5 rounded-lg text-xs font-semibold transition-all duration-200",
                                   imgResolutionType === r
@@ -2207,7 +2085,7 @@ export default function HomePage() {
                                     : "bg-white/5 text-white/50 border border-transparent hover:bg-white/10 hover:text-white"
                                 )}
                               >
-                                {r}
+                                {r === '1024x1024' ? '方形 1:1' : r === '1024x1536' ? '竖图 2:3' : '横图 3:2'}
                               </button>
                             ))}
                           </div>
@@ -2235,51 +2113,20 @@ export default function HomePage() {
                           </div>
                         </div>
 
-                        {/* 自定义尺寸 */}
-                        <div className="flex items-center justify-between py-1 border-t border-b border-white/5">
-                          <span className="text-xs text-white/70 font-medium">自定义尺寸</span>
-                          <button
-                            type="button"
-                            onClick={() => setImgCustomSize(!imgCustomSize)}
-                            className={cn(
-                              "w-9 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none",
-                              imgCustomSize ? "bg-pink-500" : "bg-white/10"
-                            )}
-                          >
-                            <div
-                              className={cn(
-                                "w-4 h-4 rounded-full bg-white shadow-md transform transition-transform duration-200",
-                                imgCustomSize ? "translate-x-4" : "translate-x-0"
-                              )}
-                            />
-                          </button>
-                        </div>
-
                         {/* 比例 */}
                         <div className="space-y-2">
                           <label className="text-[11px] text-white/40 block font-medium">比例</label>
                           <div className="grid grid-cols-4 gap-2 max-h-[220px] overflow-y-auto pr-1">
                             {[
                               // 同上：图形宽高一律用任意像素值，保证与比例数值一致
-                              { label: 'Auto', style: 'Auto' },
                               { label: '1:1', style: 'w-[12px] h-[12px]' },
-                              { label: '16:9', style: 'w-[18px] h-[10px]' },
-                              { label: '9:16', style: 'w-[10px] h-[18px]' },
-                              { label: '4:3', style: 'w-[16px] h-[12px]' },
-                              { label: '3:4', style: 'w-[12px] h-[16px]' },
                               { label: '3:2', style: 'w-[18px] h-[12px]' },
                               { label: '2:3', style: 'w-[12px] h-[18px]' },
-                              { label: '5:4', style: 'w-[15px] h-[12px]' },
-                              { label: '4:5', style: 'w-[12px] h-[15px]' },
-                              { label: '2:1', style: 'w-[20px] h-[10px]' },
-                              { label: '1:2', style: 'w-[10px] h-[20px]' },
-                              { label: '21:9', style: 'w-[21px] h-[9px]' },
-                              { label: '9:21', style: 'w-[9px] h-[21px]' },
                             ].map(item => (
                               <button
                                 key={item.label}
                                 type="button"
-                                onClick={() => updateImgResolution(imgResolutionType, imgQuality, item.label)}
+                                onClick={() => updateImgResolution(item.label === '1:1' ? '1024x1024' : item.label === '2:3' ? '1024x1536' : '1536x1024', imgQuality, item.label)}
                                 className={cn(
                                   "flex flex-col items-center justify-center p-1.5 rounded-xl border transition-all duration-200 h-14",
                                   imgAspect === item.label
@@ -2977,14 +2824,6 @@ export default function HomePage() {
           zIndexClass="z-[70]"
         />
 
-        {/* 自定义模型配置弹窗：顶层 Portal 模态（视频/图片两处下拉共用单一挂载点） */}
-        <CustomModelDialog
-          open={customModelDialog !== null}
-          kind={customModelDialog?.kind ?? 'video'}
-          editKey={customModelDialog?.editKey ?? null}
-          onClose={() => setCustomModelDialog(null)}
-          onSaved={handleCustomModelSaved}
-        />
       </div>
     </div>
   );

@@ -3,12 +3,14 @@ import {
   providerConfig, queryVideo, submitVideo, SubmissionError,
   type VideoInput, type VideoProvider,
 } from './video-providers.ts';
+import { validateEndpoint } from './model-registry.ts';
 
 export interface VideoJob {
   id: string;
   user_id: string;
   project_id: string;
   provider: VideoProvider;
+  model_config_version_id: string;
   payload: VideoInput;
   status: string;
   submission_state: string;
@@ -34,6 +36,12 @@ export function publicVideoJob(job: VideoJob) {
 }
 
 async function persistVideo(db: SupabaseClient, job: VideoJob, source: string | Response): Promise<string> {
+  // 下载地址可带供应商签名，校验时仅去掉查询部分。
+  if (typeof source === 'string') {
+    const target = new URL(source);
+    target.search = '';
+    await validateEndpoint(target.href);
+  }
   const response = typeof source === 'string'
     ? await fetch(source, { signal: AbortSignal.timeout(35_000), redirect: 'error' }) : source;
   if (!response.ok || !response.body) throw new Error('成片下载暂时失败');
@@ -90,7 +98,10 @@ export async function processVideoJob(db: SupabaseClient, id?: string): Promise<
   }
   if (job.submission_state === 'submitting') {
     let config;
-    try { config = providerConfig(job.provider); } catch {
+    try {
+      if (!job.model_config_version_id) throw new Error('旧任务配置尚未核对');
+      config = await providerConfig(job.provider, db, job.model_config_version_id);
+    } catch {
       // 领取之后尚未发出 POST，配置错误可以确认未受理。
       await finish('submit_rejected', { p_error: '模型服务配置不可用，尚未向上游提交' });
       return true;
@@ -112,7 +123,8 @@ export async function processVideoJob(db: SupabaseClient, id?: string): Promise<
   let videoUrl: string | undefined;
   try {
     if (!job.provider_task_id) throw new Error('任务缺少上游标识');
-    outcome = await queryVideo(providerConfig(job.provider), job.provider_task_id);
+    if (!job.model_config_version_id) throw new Error('旧任务配置尚未核对');
+    outcome = await queryVideo(await providerConfig(job.provider, db, job.model_config_version_id), job.provider_task_id);
     if (outcome.state === 'completed') {
       videoUrl = await persistVideo(db, job, outcome.binary || outcome.url!);
     }

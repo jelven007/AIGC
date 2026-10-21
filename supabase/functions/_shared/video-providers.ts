@@ -1,4 +1,6 @@
 // 模型协议只在服务端执行；提交 POST 不自动重发。
+import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import { resolveModel, validateEndpoint } from './model-registry.ts';
 export type VideoProvider = 'ArkSeedance' | 'MiniMax' | 'SeedanceMini' | 'Wan3' | 'HappyHorse' | 'Kling' | 'Seedance';
 export interface VideoInput {
   prompt: string;
@@ -16,60 +18,22 @@ export interface ProviderConfig {
   createUrl: string;
   queryUrl: string;
   headers: Record<string, string>;
+  model: string;
+  timeoutMs: number;
+  versionId: string;
 }
 export class SubmissionError extends Error {
   constructor(message: string, readonly confirmedRejected: boolean) { super(message); }
 }
 const providers = new Set(['ArkSeedance', 'MiniMax', 'SeedanceMini', 'Wan3', 'HappyHorse', 'Kling', 'Seedance']);
-const env = (key: string) => Deno.env.get(key) || '';
-
-export function providerConfig(provider: string): ProviderConfig {
+export async function providerConfig(provider: string, db?: SupabaseClient, versionId?: string): Promise<ProviderConfig> {
   if (!providers.has(provider)) throw new Error('该视频模型尚未接入服务端');
-  if (provider === 'ArkSeedance') {
-    const apiKey = env('ARK_API_KEY');
-    if (!apiKey || !env('ARK_VIDEO_MODEL')) throw new Error('请在服务端配置 ARK_API_KEY 和 ARK_VIDEO_MODEL');
-    const base = (env('ARK_BASE_URL') || 'https://ark.cn-beijing.volces.com/api/v3').replace(/\/+$/, '');
-    const url = new URL(base);
-    if (url.protocol !== 'https:' || url.username || url.password) throw new Error('方舟地址必须使用 HTTPS');
-    const endpoint = `${base}/contents/generations/tasks`;
-    return { provider: 'ArkSeedance', createUrl: endpoint, queryUrl: endpoint,
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` } };
-  }
-  const prefixes: Record<string, string> = {
-    MiniMax: 'OPENAI_NEXT', SeedanceMini: 'SEEDANCE_MINI', Wan3: 'WAN3',
-    HappyHorse: 'HAPPYHORSE', Seedance: 'CDANCE', Kling: 'KLING',
-  };
-  const prefix = prefixes[provider];
-  const apiKey = env(`${prefix}_API_KEY`)
-    || (provider === 'Kling' ? env('INTEGRATIONS_API_KEY')
-      : provider === 'Seedance' ? env('VECTRUST_API_KEY')
-      : provider === 'MiniMax' ? env('MINIMAX_API_KEY') : env('TOKENDANCE_API_KEY'));
-  if (!apiKey) throw new Error(`${provider} 服务端密钥未配置`);
-  const base = (env(`${prefix}_BASE_URL`) || (provider === 'MiniMax'
-    ? 'https://api.openai-next.com' : provider === 'Seedance' ? 'https://ai.dxkp.com/v1'
-      : 'https://tokendance.space')).replace(/\/+$/, '');
-  if (!base.startsWith('https://')) throw new Error('模型服务地址必须使用 HTTPS');
-  const paths: Record<string, string> = {
-    MiniMax: '/v1/videos', SeedanceMini: '/gateway/ark/v3/generations/tasks',
-    Wan3: '/gateway/alibaba/wan3/v1/video-synthesis',
-    HappyHorse: '/gateway/alibaba/happyhorse/v1/video-synthesis', Seedance: '/video/generations',
-  };
-  const createUrl = provider === 'Kling'
-    ? env('KLING_CREATE_URL')
-    : base + paths[provider];
-  const queryUrl = provider === 'Kling'
-    ? env('KLING_QUERY_URL')
-    : provider === 'Wan3' ? `${base}/gateway/alibaba/wan3/v1/tasks`
-      : provider === 'HappyHorse' ? `${base}/gateway/alibaba/happyhorse/v1/tasks` : createUrl;
-  if (!createUrl?.startsWith('https://') || !queryUrl?.startsWith('https://')) {
-    throw new Error('请配置模型提交与查询 HTTPS 地址');
-  }
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    [provider === 'Kling' ? 'X-Gateway-Authorization' : 'Authorization']: `Bearer ${apiKey}`,
-  };
+  const config = await resolveModel(`video.${provider}`, db, versionId);
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...config.headers };
   if (provider === 'HappyHorse' || provider === 'Wan3') headers['X-DashScope-Async'] = 'enable';
-  return { provider: provider as VideoProvider, createUrl, queryUrl, headers };
+  return { provider: provider as VideoProvider, createUrl: config.settings.endpoint.replace(/\/+$/, ''),
+    queryUrl: config.settings.query_endpoint.replace(/\/+$/, ''), headers,
+    model: config.settings.model, timeoutMs: config.settings.timeout_ms, versionId: config.version_id };
 }
 
 function mediaUrl(value: unknown): string | undefined {
@@ -135,35 +99,34 @@ function content(input: VideoInput) {
   for (const url of input.reference_videos) add('video_url', url, 'reference_video');
   return items;
 }
-export function providerBody(provider: VideoProvider, input: VideoInput): Record<string, unknown> {
+export function providerBody(provider: VideoProvider, input: VideoInput, model: string): Record<string, unknown> {
   const items = content(input);
   if (provider === 'ArkSeedance') {
-    const model = env('ARK_VIDEO_MODEL');
-    if (!model) throw new Error('服务端未配置 ARK_VIDEO_MODEL');
     return { model, content: items, duration: input.duration,
       resolution: input.resolution.toLowerCase(), ratio: input.ratio, watermark: false, generate_audio: true };
   }
   if (provider === 'MiniMax') return {
-    model: 'MiniMax-H3', content: items, duration: input.duration, resolution: '768P',
+    model, content: items, duration: input.duration, resolution: '768P',
     ...(items.length === 1 ? { ratio: input.ratio === 'adaptive' ? '16:9' : input.ratio } : {}),
   };
   if (provider === 'SeedanceMini') return {
-    model: 'seedance-2.0-mini', content: items, duration: input.duration,
+    model, content: items, duration: input.duration,
     resolution: input.resolution.toLowerCase(), ratio: items.length > 1 && input.ratio === '16:9' ? 'adaptive'
       : input.ratio === 'adaptive' && items.length === 1 ? '16:9' : input.ratio,
   };
   if (provider === 'Seedance') return {
-    model: 'Cdance2.0-A', prompt: input.prompt, seconds: String(input.duration),
+    model, prompt: input.prompt, seconds: String(input.duration),
     metadata: { generate_audio: true, resolution: input.resolution.toLowerCase(), ratio: input.ratio,
       watermark: false, ...(items.length > 1 ? { content: items.slice(1) } : {}) },
   };
   if (provider === 'Kling') return {
+    ...(model ? { model_name: model } : {}),
     prompt: input.prompt, duration: String(input.duration), aspect_ratio: input.ratio,
     ...(input.first_frame || input.reference_images.length
       ? { image_list: [...(input.first_frame ? [input.first_frame] : []), ...input.reference_images] } : {}),
   };
   if (provider === 'Wan3') return {
-    model: 'wan3.0-video-prime', input: { prompt: input.prompt,
+    model, input: { prompt: input.prompt,
       ...(input.first_frame ? { media: [{ type: 'first_frame', url: input.first_frame }] } : {}) },
     parameters: { duration: input.duration, resolution: input.resolution, ratio: input.ratio, audio: false, watermark: false },
   };
@@ -171,7 +134,7 @@ export function providerBody(provider: VideoProvider, input: VideoInput): Record
     '1:1': [720, 720], '4:3': [960, 720], '3:4': [720, 960] };
   const factor = input.resolution === '1080P' ? 1.5 : 1;
   return {
-    model: 'happyhorse-1.1-t2v',
+    model,
     input: { prompt: input.prompt, ...(input.first_frame ? { img_url: input.first_frame } : {}),
       ...(input.reference_images.length ? { ref_images_url: input.reference_images } : {}) },
     parameters: { duration: input.duration, size: (sizes[input.ratio] || sizes['16:9']).map(n => n * factor).join('*') },
@@ -180,10 +143,12 @@ export function providerBody(provider: VideoProvider, input: VideoInput): Record
 
 export async function submitVideo(config: ProviderConfig, input: VideoInput): Promise<string> {
   let response: Response;
+  try { await validateEndpoint(config.createUrl); }
+  catch { throw new SubmissionError('模型提交地址不可用，尚未向上游提交', true); }
   try {
     response = await fetch(config.createUrl, {
-      method: 'POST', headers: config.headers, body: JSON.stringify(providerBody(config.provider, input)),
-      signal: AbortSignal.timeout(30_000), redirect: 'error',
+      method: 'POST', headers: config.headers, body: JSON.stringify(providerBody(config.provider, input, config.model)),
+      signal: AbortSignal.timeout(config.timeoutMs), redirect: 'error',
     });
   } catch {
     throw new SubmissionError('上游受理结果未知，需核对后处理', false);
@@ -227,8 +192,9 @@ export function parseVideoOutcome(provider: VideoProvider, data: Record<string, 
   return { state: 'pending', progress: Number.isFinite(progress) ? Math.max(0, Math.min(95, progress)) : undefined };
 }
 export async function queryVideo(config: ProviderConfig, taskId: string): Promise<VideoOutcome> {
+  await validateEndpoint(config.queryUrl);
   const response = await fetch(`${config.queryUrl}/${encodeURIComponent(taskId)}${config.provider === 'MiniMax' ? '/content' : ''}`, {
-    headers: config.headers, signal: AbortSignal.timeout(45_000), redirect: 'error',
+    headers: config.headers, signal: AbortSignal.timeout(config.timeoutMs), redirect: 'error',
   });
   if (config.provider === 'MiniMax' && response.status === 400) {
     // 网关 content 接口通过 400 JSON 返回未完成状态，只读取结构化任务态。
