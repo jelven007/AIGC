@@ -1,10 +1,10 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { Aes } from 'npm:wechatpay-axios-plugin';
 import { handleCorsPreflight, getCorsHeaders } from '../_shared/cors.ts';
-import { finalizePayment } from '../_shared/payments.ts';
-import { validateWechatTrade, verifyWechatNotification, type WechatTrade } from '../_shared/wechat.ts';
+import { decryptWechatResource, verifyWechatNotification, type WechatTrade } from '../_shared/wechat.ts';
+import { finalizeWechatTrade } from '../_shared/wechat-transactions.ts';
+import { responseBytes } from '../_shared/audio-provider.ts';
 
-Deno.serve(async (req) => {
+export async function handleWechatPaymentWebhook(req: Request) {
   const preflight = handleCorsPreflight(req);
   if (preflight) return preflight;
   const corsHeaders = getCorsHeaders(req);
@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const rawBody = await req.text();
+    const rawBody = new TextDecoder().decode(await responseBytes(new Response(req.body), 65536));
     if (!await verifyWechatNotification(req.headers, rawBody, publicKeyId, publicKey)) {
       return respond('FAIL', '微信支付签名或时间戳校验失败', 401);
     }
@@ -36,24 +36,16 @@ Deno.serve(async (req) => {
     }
     // 此入口只处理支付成功；其他已验签事件不触发权益发放。
     if (body.event_type !== 'TRANSACTION.SUCCESS') return respond('SUCCESS', '成功');
-    const resource = body.resource;
-    if (resource?.algorithm !== 'AEAD_AES_256_GCM' || !resource.ciphertext || !resource.nonce) {
-      return respond('FAIL', '通知加密资源非法', 400);
-    }
-    const plaintext = await Aes.AesGcm.decrypt(
-      resource.ciphertext, apiKey, resource.nonce, resource.associated_data ?? '',
-    );
-    const trade = JSON.parse(plaintext) as WechatTrade;
-    const amount = validateWechatTrade(trade, appId, merchantId);
+    const trade = await decryptWechatResource(body) as WechatTrade;
     const admin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     );
-    await finalizePayment(admin, trade.out_trade_no!, 'wechat', trade.transaction_id!, amount);
+    await finalizeWechatTrade(admin, trade);
     return respond('SUCCESS', '成功');
-  } catch (e) {
-    console.error('[wechat-payment-webhook]', e instanceof Error ? e.message : e);
+  } catch {
     // 入账失败返回非成功响应，允许微信重试同一交易。
     return respond('FAIL', '支付入账失败，请重试', 500);
   }
-});
+}
+Deno.serve(handleWechatPaymentWebhook);

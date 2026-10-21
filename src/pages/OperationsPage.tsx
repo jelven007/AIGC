@@ -7,13 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { alipayTradeOps, AlipayOperationError } from '@/api/alipay';
+import { CashOperationError } from '@/api/alipay';
 import { executeOperatorRequest, loadOperatorRequest, operatorAccess, operatorPage, operatorPendingKey,
-  storeOperatorRequest, OperatorRequestError, type OperatorDomain, type PendingOperatorRequest } from '@/api/operations';
+  storeOperatorRequest, refundTradeOps, OperatorRequestError, type OperatorDomain, type PendingOperatorRequest } from '@/api/operations';
 
 const DOMAINS: { id: OperatorDomain; name: string; permission: string; columns: [string, string][] }[] = [
   { id: 'orders', name: '订单', permission: 'orders:read', columns: [['order_no', '订单编号'], ['plan_name', '套餐'], ['total_amount', '实付 ¥'], ['refunded_amount', '已退 ¥'], ['status', '状态'], ['pay_channel', '渠道']] },
-  { id: 'refunds', name: '退款核对', permission: 'orders:read', columns: [['order_no', '订单编号'], ['out_request_no', '原退款编号'], ['refund_amount', '退款 ¥'], ['status', '状态'], ['revoked_credits', '回收积分'], ['needs_attention', '待核对']] },
+  { id: 'refunds', name: '退款核对', permission: 'orders:read', columns: [['order_no', '订单编号'], ['pay_channel', '渠道'], ['out_request_no', '原退款编号'], ['refund_amount', '退款 ¥'], ['status', '状态'], ['revoked_credits', '回收积分'], ['needs_attention', '待核对']] },
   { id: 'customers', name: '客户与预算', permission: 'customers:read', columns: [['username', '客户'], ['email', '邮箱'], ['credit_balance', '积分余额'], ['daily_credit_budget', '日预算'], ['plan_status', '套餐状态']] },
   { id: 'jobs', name: '生产队列', permission: 'jobs:read', columns: [['kind', '类型'], ['status', '状态'], ['billing_state', '计费状态'], ['needs_attention', '待核对'], ['created_at', '创建时间']] },
   { id: 'risk', name: '风险事件', permission: 'risk:read', columns: [['action', '操作'], ['decision', '判定'], ['category', '类别'], ['confidence', '置信度'], ['created_at', '发生时间']] },
@@ -21,7 +21,8 @@ const DOMAINS: { id: OperatorDomain; name: string; permission: string; columns: 
   { id: 'operators', name: '运营权限', permission: 'operators:write', columns: [['operator_id', '运营账号'], ['role', '角色'], ['scope_user_id', '客户范围'], ['created_at', '授权时间']] },
 ];
 const STATUS: Record<string, string> = { paid: '已支付', pending: '待支付', partial_refunded: '部分退款', refunded: '已退款',
-  cancelled: '已取消', init: '已登记', requested: '请求中', unknown: '结果待核对', success: '已到账',
+  cancelled: '已取消', init: '已登记', requested: '请求中', unknown: '结果待核对', success: '已到账', closed: '已关闭，未到账',
+  alipay: '支付宝', wechat: '微信',
   active: '生效', failed: '失败', completed: '完成', processing: '执行中', queued: '排队中', reserved: '预占', settled: '已结算' };
 function cell(value: unknown, key: string) {
   if (value === null || value === undefined) return key === 'scope_user_id' ? '全部客户' : '—';
@@ -74,17 +75,19 @@ export default function OperationsPage() {
     setBusy(true);
     try {
       const result = query && request.kind === 'refund'
-        ? await alipayTradeOps({ action: 'refundQuery', order_no: request.body.order_no, request_key: request.body.request_key })
+        ? await refundTradeOps(request.channel || 'alipay', { action: 'refundQuery', order_no: request.body.order_no, request_key: request.body.request_key })
         : await executeOperatorRequest(request);
       if (currentUid.current !== owner) return;
-      if (request.kind === 'operator' || result.refund_status === 'success') {
-        clear(owner); toast.success(request.kind === 'operator' ? '运营操作已生效' : '退款已到账，权益回收已入账');
+      if (request.kind === 'operator' || ['success', 'closed'].includes(String(result.refund_status))) {
+        clear(owner);
+        if (result.refund_status === 'closed') toast.info('原退款已关闭，未到账；可重新确认退款申请');
+        else toast.success(request.kind === 'operator' ? '运营操作已生效' : '退款已到账，权益回收已入账');
       } else toast.info('原退款已登记，资金结果待确认；请稍后核对原申请');
       setEditing(null);
       await listed.refetch(); await access.refetch();
     } catch (cause) {
       if (currentUid.current === owner) {
-        if ((cause instanceof OperatorRequestError || cause instanceof AlipayOperationError) && cause.outcome === 'rejected') {
+        if ((cause instanceof OperatorRequestError || cause instanceof CashOperationError) && cause.outcome === 'rejected') {
           clear(owner); setEditing(null); void listed.refetch();
         }
         toast.error(cause instanceof Error ? cause.message : '操作失败，请保留原申请核对');
@@ -97,7 +100,7 @@ export default function OperationsPage() {
     const requestKey = crypto.randomUUID();
     if (editing.type === 'refund') {
       if (!/^\d+(\.\d{1,2})?$/.test(amount) || Number(amount) <= 0 || !reason.trim()) return toast.error('请输入正数退款金额和原因');
-      request = { kind: 'refund', body: { action: 'refund', order_no: String(editing.row.order_no),
+      request = { kind: 'refund', channel: editing.row.pay_channel === 'wechat' ? 'wechat' : 'alipay', body: { action: 'refund', order_no: String(editing.row.order_no),
         refund_amount: amount, refund_reason: reason.trim(), request_key: requestKey } };
     } else {
       const payload = editing.type === 'budget' ? { user_id: editing.row.id, amount: Number(amount), expected: editing.row.daily_credit_budget }
@@ -146,12 +149,12 @@ export default function OperationsPage() {
           <tbody>{listed.data.items.map(row => <tr key={String(row.id)} className="border-t align-top">
             {selected.columns.map(([key]) => <td key={key} className="p-3 max-w-64 break-all">{cell(row[key], key)}</td>)}
             <td className="p-3 whitespace-nowrap">
-              {selected.id === 'orders' && canRefund && row.pay_channel === 'alipay' && ['paid', 'partial_refunded'].includes(String(row.status)) &&
+              {selected.id === 'orders' && canRefund && ['alipay', 'wechat'].includes(String(row.pay_channel)) && ['paid', 'partial_refunded'].includes(String(row.status)) &&
                 <Button size="sm" variant="outline" disabled={!!pending || busy || !!localError} onClick={() => { setEditing({ type: 'refund', row }); setAmount(''); setReason(''); }}>申请退款</Button>}
-              {selected.id === 'refunds' && canRefund && (!row.applied_at || row.status !== 'success') &&
+              {selected.id === 'refunds' && canRefund && row.status !== 'closed' && (!row.applied_at || row.status !== 'success') &&
                 <Button size="sm" variant="outline" disabled={busy} onClick={async () => {
                   setBusy(true);
-                  try { const result = await alipayTradeOps({ action: 'refundQuery', order_no: String(row.order_no), out_request_no: String(row.out_request_no) });
+                  try { const result = await refundTradeOps(String(row.pay_channel), { action: 'refundQuery', order_no: String(row.order_no), out_request_no: String(row.out_request_no) });
                     toast.info(result.refund_status === 'success' ? '退款已到账' : '资金结果待确认'); await listed.refetch(); }
                   catch (cause) { toast.error(cause instanceof Error ? cause.message : '退款核对失败'); }
                   finally { setBusy(false); }

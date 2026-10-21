@@ -6,6 +6,7 @@ export interface CashRefund {
   refund_amount: string | number; refund_reason: string; status: string; lease_token: string;
   applied_at: string | null; revoked_credits: number; needs_attention: boolean; next_query_at: string | null;
   created_at: string; updated_at: string;
+  pay_channel: 'alipay' | 'wechat'; provider_refund_id: string | null;
 }
 export function refundReceipt(row: CashRefund) {
   return {
@@ -13,6 +14,7 @@ export function refundReceipt(row: CashRefund) {
     refund_amount: normalizeAmountText(row.refund_amount), refund_status: row.status,
     applied_at: row.applied_at, revoked_credits: row.revoked_credits, needs_attention: row.needs_attention,
     next_query_at: row.next_query_at, created_at: row.created_at, updated_at: row.updated_at,
+    pay_channel: row.pay_channel,
   };
 }
 
@@ -23,6 +25,7 @@ export async function executeCashRefund(db: SupabaseClient, actor: string | null
   const { mode, refund: row, trade_no: tradeNo } = claimed.data as {
     mode: string; refund: CashRefund; trade_no: string;
   };
+  if (row.pay_channel && row.pay_channel !== 'alipay') throw new Error('退款渠道不匹配');
   if (mode === 'wait' || mode === 'done') return refundReceipt(row);
   if (!['refund', 'query'].includes(mode)) throw new Error('退款服务协议不兼容');
   let evidence: Record<string, unknown> = { outcome: 'unknown', method: mode, verified: false };
@@ -69,6 +72,7 @@ export async function processCashRefund(db: SupabaseClient): Promise<boolean> {
   try { getAlipayConfig(); } catch { return false; }
   const now = new Date().toISOString();
   const due = await db.from('alipay_refunds').select('out_trade_no,out_request_no')
+    .eq('pay_channel', 'alipay')
     .in('status', ['requested', 'unknown', 'success']).is('applied_at', null).lte('next_query_at', now)
     .lt('attempts', 100).or(`lease_until.is.null,lease_until.lt.${now}`).order('next_query_at').limit(1);
   if (due.error) throw new Error('退款核对队列读取失败');

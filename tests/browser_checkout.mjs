@@ -39,7 +39,8 @@ try {
     else if (path.includes('/rest/v1/orders')) {
       if (url.searchParams.has('id')) data = { ...orders[0], status: orderStatus };
       else { const offset = Number(url.searchParams.get('offset') || 0); data = orders.slice(offset, offset + 10); count = orders.length; }
-    } else if (path.endsWith('/read_notifications')) data = { items: [], total: 0, unread: 0, unread_all: 0,
+    } else if (path.endsWith('/wechat-trade-ops')) data = { code: 0, data: { local_status: orderStatus, checking: false } };
+    else if (path.endsWith('/read_notifications')) data = { items: [], total: 0, unread: 0, unread_all: 0,
       cutoff: date, preferences: { task_success: true, intelligence_success: true } };
     else if (path.endsWith('/alipay-trade-query')) data = { code: 0, data: { local_status: orderStatus, trade_status: resultStatus, amount: '10.00', order_no: 'original-order' } };
     else if (path.endsWith('/alipay-payment-order') || path.endsWith('/create-payment-order')) {
@@ -50,6 +51,7 @@ try {
       else {
         if (path.endsWith('/create-payment-order')) {
           orders[0].pay_channel = 'wechat'; orders[0].wechat_pay_url = 'weixin://wxpay/bizpayurl?pr=real-order';
+          orders[0].wechat_expires_at = new Date(Date.now() + 1800000).toISOString();
           orders[0].total_amount = Number(body.expected_amount);
         }
         data = { code: 0, data: { ...receipt, wechat_pay_url: 'weixin://wxpay/bizpayurl?pr=real-order',

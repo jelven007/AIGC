@@ -1,5 +1,7 @@
 # 测试与验收计划
 
+新增 [迭代24专项](ITERATION_24_WECHAT_TRANSACTIONS.md)：test:wechat覆盖13项真实PG单租约/原商户/期限/关闭与迟到支付、原退款/通知竞争/额度/比例欠额/365天/50次/一分钟限制/已验签不存在才恢复，真实RSA/AES协议8组及基础验签。回归cash/checkout，390px订单与微信/支付宝运营恢复和压缩页面；目标补真实Native付款/回调/丢通知/原路退款到账/异常退款/历史绑定/账单对账。probe13/00052/render2与全部匹配函数同窗发布。
+
 新增 [迭代23专项](ITERATION_23_DATA_LIFECYCLE.md)：test:lifecycle验证17项真实PG媒体引用/TTL竞争/墓碑/清理租约、声纹撤销与单退款/未知受理保护、知识正文/向量/检索副本和晚到回执、终态证据/正式文件；清理协议4组、媒体/知识/权限/MCP及既有访问回归。browser_data_lifecycle在390px开发与minified服务验证503同UUID撤销恢复、供应商状态及知识删除结果/引用按钮；目标补真实Storage/供应商删除、容量和备份恢复。
 
 新增 [迭代22收银/加载专项](ITERATION_22_CHECKOUT_LOADING.md)：test:checkout验证真实PG同UUID并发、改价原快照、终态、账号/RLS/封禁和十待支付配额；协议验证两渠道精确金额/签名表单/原订单/未知回执/未开通，browser_checkout覆盖空账单/读取失败/总额使用率/订单分页、503刷新原请求、金额冲突重选、微信QR与支付宝NOT_EXIST/退款终态、积分不足事件和390px。构建按静态依赖闭包与旧提交同环境对比；目标补真实商户、CDN/Web Vitals、微信查单/过期和退款。

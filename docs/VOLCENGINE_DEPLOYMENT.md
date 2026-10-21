@@ -1,5 +1,7 @@
 # 火山引擎部署指南
 
+最新 [迭代24](ITERATION_24_WECHAT_TRANSACTIONS.md)要求00032–00052全栈与新增wechat-trade-ops/wechat-refund-webhook及匹配共享模块、现有支付/运营/production-worker/调度/前端。verify严格要求probe13/00052/render2；退款回调关闭平台JWT，原文微信签名/AES在函数内验证。原商户与退款台账须保留，真实商户和火山部署资源仍无新增验收证据。
+
 最新 [迭代23](ITERATION_23_DATA_LIFECYCLE.md)要求00032–00051与匹配production-jobs/production-worker/knowledge-base、共享模块、调度/MCP56/前端同窗。verify严格要求probe12/00051/render2及迁移回执。撤销旧Storage/知识直接删除策略，验收原UUID撤销、实际对象与供应商删除、未知保护及备份恢复；火山资源仍无新增部署证据。
 
 最新 [迭代22](ITERATION_22_CHECKOUT_LOADING.md)发布范围00032–00050，两支付创建函数/checkout共享模块/production-worker/常驻调度/前端同窗口；verify要求probe v11/00050/render2，MCP仍54工具。客户端须确认原UUID/金额/积分，旧支付客户端不兼容。目标验收商户签名/回调、同单恢复和改价权益；火山资源无新增部署回执。

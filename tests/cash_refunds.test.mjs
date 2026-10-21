@@ -153,7 +153,7 @@ const { processCashRefund } = await loadEdge('supabase/functions/_shared/cash-re
 const originalFrom = db.from;
 db.from = table => {
   assert.equal(table, 'alipay_refunds');
-  return { select() { return this; }, in() { return this; }, is() { return this; }, lte() { return this; }, lt() { return this; },
+  return { select() { return this; }, eq() { return this; }, in() { return this; }, is() { return this; }, lte() { return this; }, lt() { return this; },
     or() { return this; }, order() { return this; }, limit: async () => ({ data: [row] }) };
 };
 db.rpc = async (name, args) => {

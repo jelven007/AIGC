@@ -49,6 +49,13 @@ export async function handleOperations(req: Request): Promise<Response> {
       return reply({ error: body.action === 'mutate' ? '操作受理待确认，请保留原申请核对' : '运营数据读取失败',
         ...(body.action === 'mutate' ? { outcome: 'unknown' } : {}) }, 503);
     }
+    if (body.action === 'list' && body.domain === 'refunds' && result.data?.items?.length) {
+      const ids = result.data.items.map((row: { id: string }) => row.id);
+      const channels = await db.from('alipay_refunds').select('id,pay_channel').in('id', ids);
+      if (channels.error || channels.data?.length !== ids.length) return reply({ error: '退款渠道读取失败' }, 503);
+      const byId = new Map(channels.data.map(row => [row.id, row.pay_channel]));
+      result.data.items = result.data.items.map((row: { id: string }) => ({ ...row, pay_channel: byId.get(row.id) }));
+    }
     return reply(result.data);
   } catch { return reply({ error: '运营服务暂不可用' }, 503); }
 }

@@ -255,7 +255,7 @@ def verify(args):
     try:
         with urlopen(request, timeout=30) as response:
             result = json.load(response)
-        if result.get("ready") is not True or result.get("version") != 12 or result.get("required_migration") != "00051" \
+        if result.get("ready") is not True or result.get("version") != 13 or result.get("required_migration") != "00052" \
                 or result.get("render_version") != 2:
             raise ValueError("not ready")
     except Exception:
