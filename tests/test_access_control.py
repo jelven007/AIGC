@@ -134,7 +134,7 @@ class AccessControlTest(unittest.TestCase):
             claims = list(pool.map(lambda _: json.loads(sql(self.as_service("SELECT claim_media_deletions()")).stdout), range(3)))
         matching = [item for group in claims for item in group if item["path"] == path]
         self.assertEqual(len(matching), 1)
-        sql(f"UPDATE media_deletions SET next_run_at=now()-interval '1 second' WHERE path='{path}'")
+        sql(f"UPDATE media_deletions SET next_run_at=now()-interval '1 second',lease_until=now()-interval '1 second' WHERE path='{path}'")
         recovered = json.loads(sql(self.as_service("SELECT claim_media_deletions()")).stdout)
         self.assertEqual(next(item for item in recovered if item["path"] == path)["attempts"], 2)
         sql(f"UPDATE media_deletions SET completed_at=now() WHERE path='{path}'")

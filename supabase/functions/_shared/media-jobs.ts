@@ -70,7 +70,7 @@ export async function createMediaJob(db: SupabaseClient, uid: string, kind: stri
   let clone;
   if (input.voice_clone_id) {
     const found = await db.from('voice_clones').select('*').eq('id', input.voice_clone_id).eq('user_id', uid).maybeSingle();
-    if (found.error || !found.data || found.data.requires_verification) throw new Error('声纹不存在或需完成供应商验证');
+    if (found.error || !found.data || found.data.requires_verification || found.data.revoked_at) throw new Error('声纹已撤销、不存在或需完成供应商验证');
     clone = found.data;
   }
   const config = await resolveModel(clone ? 'audio.voice_clone' : MEDIA_JOB_SLOTS[kind], db, clone?.model_config_version_id);
@@ -113,7 +113,10 @@ export async function processMediaJob(db: SupabaseClient, kind: string, id?: str
         if (job.payload.voice_clone_id) {
           const clone = await db.from('voice_clones').select('*').eq('id', job.payload.voice_clone_id)
             .eq('user_id', job.user_id).eq('model_config_version_id', job.model_config_version_id).single();
-          if (clone.error || !clone.data || clone.data.requires_verification) throw new Error('任务声纹不可用');
+          if (clone.error) throw new Error('声纹状态读取失败');
+          if (!clone.data || clone.data.requires_verification || clone.data.revoked_at) {
+            await jobEvent(db, job, 'failed', { error: '声纹已撤销或不可用，配音未提交' }); return true;
+          }
           voiceId = clone.data.provider_voice_id;
         }
         await executing();

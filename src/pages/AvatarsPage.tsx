@@ -474,8 +474,6 @@ export default function AvatarsPage() {
         use_count:   0,
       }).select().maybeSingle();
       if (avatarError || !newAvatar) {
-        const cleanup = await supabase.storage.from('materials').remove([up.path]);
-        if (cleanup.error) console.warn('头像上传回滚未确认');
         throw new Error('形象记录保存失败，请重试');
       }
       if (newAvatar) {

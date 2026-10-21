@@ -13,7 +13,8 @@ CREATE FUNCTION auth.role() RETURNS text LANGUAGE sql STABLE AS $$
   SELECT NULLIF(current_setting('request.jwt.claim.role', true), '');
 $$;
 CREATE TABLE storage.buckets(id text PRIMARY KEY, name text, public boolean);
-CREATE TABLE storage.objects(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), bucket_id text, name text);
+CREATE TABLE storage.objects(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), bucket_id text, name text,
+  created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now());
 CREATE FUNCTION storage.foldername(name text) RETURNS text[] LANGUAGE sql IMMUTABLE AS $$
   SELECT string_to_array(name, '/');
 $$;

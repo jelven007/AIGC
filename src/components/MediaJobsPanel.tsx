@@ -14,7 +14,8 @@ import { Loader2, RefreshCw } from 'lucide-react';
 const kinds = { tts: '生成配音', asr: '识别音频', voice_clone: '克隆声纹', avatar: '照片口播', lipsync: '口型同步' };
 type MediaKind = keyof typeof kinds;
 type Receipt = { kind: MediaKind; request_key: string; input: Record<string, unknown> };
-type Voice = { id: string; name: string; requires_verification: boolean };
+type Voice = { id: string; name: string; requires_verification: boolean; revoked_at?: string | null; provider_deleted_at?: string | null };
+type Revocation = { voice_clone_id: string; request_key: string };
 const statusLabels: Record<string, string> = { pending: '等待后台处理', running: '后台处理中', completed: '已完成',
   failed: '已失败', unknown: '原任务结果待核对', cancelled: '已取消' };
 export default function MediaJobsPanel({ imageUrl = '' }: { imageUrl?: string }) {
@@ -27,6 +28,7 @@ export default function MediaJobsPanel({ imageUrl = '' }: { imageUrl?: string })
   const [jobs, setJobs] = useState<ProductionJob[]>([]), [voices, setVoices] = useState<Voice[]>([]);
   const [costs, setCosts] = useState<Partial<Record<MediaKind, number>>>({});
   const [receipt, setReceipt] = useState<Receipt | null>(null);
+  const [revocation, setRevocation] = useState<Revocation | null>(null);
   const [busy, setBusy] = useState(''), [error, setError] = useState('');
   const key = user ? `shopro:media-receipt:${user.id}` : '';
   const refresh = async () => {
@@ -36,9 +38,12 @@ export default function MediaJobsPanel({ imageUrl = '' }: { imageUrl?: string })
     setJobs(taskData.jobs); setVoices(voiceData.voices); setCosts(prices.costs);
   };
   useEffect(() => {
-    setReceipt(null);
+    setReceipt(null); setRevocation(null); setJobs([]); setVoices([]); setVoiceClone('');
     if (!key) return;
-    try { const saved = localStorage.getItem(key); if (saved) setReceipt(JSON.parse(saved)); }
+    try {
+      const saved = localStorage.getItem(key); if (saved) setReceipt(JSON.parse(saved));
+      const revoked = localStorage.getItem(`${key}:revoke`); if (revoked) setRevocation(JSON.parse(revoked));
+    }
     catch { setError('任务回执读取失败，请在任务中心核对后再创建任务'); }
     let alive = true;
     const load = () => {
@@ -51,6 +56,9 @@ export default function MediaJobsPanel({ imageUrl = '' }: { imageUrl?: string })
     load(); const timer = setInterval(load, 5000);
     return () => { alive = false; clearInterval(timer); };
   }, [key]);
+  useEffect(() => {
+    if (voices.some(item => item.id === voiceClone && item.revoked_at)) setVoiceClone('');
+  }, [voices, voiceClone]);
   useEffect(() => { if (imageUrl) { setMedia(prev => ({ ...prev, image_url: imageUrl })); setKind('avatar'); } }, [imageUrl]);
   useEffect(() => {
     const input = location.state?.text;
@@ -102,6 +110,22 @@ export default function MediaJobsPanel({ imageUrl = '' }: { imageUrl?: string })
       }
     } finally { setBusy(''); }
   };
+  const revoke = async (item?: Voice) => {
+    if (!user || busy) return;
+    if (item && !window.confirm(`撤销「${item.name}」的声音授权？未提交配音会取消并返还积分，后台将删除供应商声纹。已生成文件继续保留。`)) return;
+    const request = revocation || (item ? { voice_clone_id: item.id, request_key: crypto.randomUUID() } : null);
+    if (!request) return;
+    setBusy('revoke'); setError('');
+    try {
+      localStorage.setItem(`${key}:revoke`, JSON.stringify(request)); setRevocation(request);
+      await productionRequest({ action: 'revoke-voice', ...request });
+      localStorage.removeItem(`${key}:revoke`); setRevocation(null);
+      if (voiceClone === request.voice_clone_id) setVoiceClone('');
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '撤销响应待确认，请恢复原请求');
+    } finally { setBusy(''); }
+  };
   const needsAudio = kind !== 'tts', needsVisual = kind === 'avatar' || kind === 'lipsync';
   const ready = kind === 'tts' ? text.trim() : media.audio_url && audioFilename && (kind === 'asr'
     || consent && name.trim() && (!needsVisual || media[kind === 'avatar' ? 'image_url' : 'video_url']));
@@ -117,6 +141,10 @@ export default function MediaJobsPanel({ imageUrl = '' }: { imageUrl?: string })
       <p>上次提交结果尚未确认。恢复时会核对原请求。</p>
       <Button disabled={!!busy} onClick={() => void submit(receipt)}>恢复原媒体任务</Button>
     </div>}
+    {revocation && <div className="rounded-lg bg-muted p-3 text-sm space-y-2">
+      <p>声纹撤销响应待确认，恢复时会核对同一声纹。</p>
+      <Button disabled={!!busy} onClick={() => void revoke()}>恢复原声纹撤销</Button>
+    </div>}
     <form onSubmit={event => { event.preventDefault(); void submit(); }} className="space-y-4">
       <fieldset disabled={!!busy || !!receipt} className="space-y-4">
         <label className="block text-sm space-y-2">任务类型<select aria-label="媒体任务类型" value={kind}
@@ -126,9 +154,9 @@ export default function MediaJobsPanel({ imageUrl = '' }: { imageUrl?: string })
           <label className="block text-sm space-y-2">配音文本<Textarea aria-label="配音文本" value={text} onChange={event => setText(event.target.value)} required maxLength={8000} rows={3} /></label>
           <div className="grid gap-3 md:grid-cols-2">
             <label className="block text-sm space-y-2">供应商音色ID<Input value={voice} onChange={event => setVoice(event.target.value)} placeholder="留空使用管理员默认音色" maxLength={200} disabled={!!voiceClone} /></label>
-            <label className="block text-sm space-y-2">克隆声纹<select value={voiceClone} onChange={event => setVoiceClone(event.target.value)}
+            <label className="block text-sm space-y-2">克隆声纹<select aria-label="克隆声纹" value={voiceClone} onChange={event => setVoiceClone(event.target.value)}
               className="h-10 rounded-md border bg-background px-3 w-full"><option value="">使用普通音色</option>
-              {voices.map(item => <option key={item.id} value={item.id} disabled={item.requires_verification}>
+              {voices.filter(item => !item.revoked_at).map(item => <option key={item.id} value={item.id} disabled={item.requires_verification}>
                 {item.name}{item.requires_verification ? '（需供应商验证）' : ''}</option>)}</select></label>
           </div>
         </> : <>
@@ -151,18 +179,31 @@ export default function MediaJobsPanel({ imageUrl = '' }: { imageUrl?: string })
         <Link to="/credits" className="text-sm underline text-muted-foreground">查看积分计费</Link>
       </div>
     </form>
+    {!!voices.length && <section aria-label="我的声纹" className="space-y-3 border-t pt-4">
+      <h3 className="text-sm font-medium">我的声纹</h3>
+      <p className="text-xs text-muted-foreground">撤销后停止新配音。供应商受理结果未知的原任务需先核对，删除状态将在后台更新。</p>
+      {voices.map(item => <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+        <div className="min-w-0"><p className="break-words">{item.name}</p><p className="text-xs text-muted-foreground">
+          {item.provider_deleted_at ? '已撤销 · 供应商声纹已删除' : item.revoked_at ? '已撤销 · 供应商删除待确认'
+            : item.requires_verification ? '需供应商验证' : '可用于配音'}</p></div>
+        {!item.revoked_at && <Button size="sm" variant="outline" disabled={!!busy || !!revocation}
+          onClick={() => void revoke(item)}>撤销「{item.name}」</Button>}
+      </div>)}
+    </section>}
     <div aria-live="polite" className="space-y-3">
       {jobs.map(job => <article key={job.id} className="border-t pt-3 space-y-2 min-w-0">
         <div className="flex flex-wrap justify-between gap-2 text-sm"><span>{kinds[job.kind as MediaKind]} · {job.id.slice(0, 8)}</span>
-          <span>{statusLabels[job.status]} · {job.credit_cost}积分{job.status === 'failed' ? '已返还' : job.status === 'completed' ? '已结算' : '预占'}</span></div>
+          <span>{statusLabels[job.status]} · {job.credit_cost}积分{['failed', 'cancelled'].includes(job.status) ? '已返还' : job.status === 'completed' ? '已结算' : '预占'}</span></div>
         {job.error_message && <p className="text-sm text-destructive break-words">{job.error_message}</p>}
         {job.status === 'completed' && job.result?.url && <div className="flex flex-wrap gap-3 items-center">
           {job.kind === 'tts' && <audio controls src={job.result.url} className="max-w-full" preload="none" />}
           <a href={job.result.url} target="_blank" rel="noreferrer" className="text-sm underline">下载生成文件</a>
           {job.project_id && <Link to={`/video/edit?importId=${job.project_id}`} className="text-sm underline">剪辑成片</Link>}
         </div>}
+        {job.result?.media_deleted && <p className="text-sm text-muted-foreground">生成文件已删除，任务计费回执继续保留。</p>}
         {job.result?.text && <Textarea value={job.result.text} readOnly aria-label="语音识别结果" rows={4} />}
-        {job.result?.voice_clone_id && <p className="text-sm">{job.result.requires_verification ? '声纹已创建，请在供应商控制台完成验证后由管理员核对。' : '声纹已创建，可在配音任务中选择。'}</p>}
+        {job.result?.voice_clone_id && <p className="text-sm">{voices.some(item => item.id === job.result?.voice_clone_id && item.revoked_at)
+          ? '此声纹已撤销。' : job.result.requires_verification ? '声纹已创建，请在供应商控制台完成验证后由管理员核对。' : '声纹已创建，可在配音任务中选择。'}</p>}
       </article>)}
       {!jobs.length && <p className="text-sm text-muted-foreground">暂无媒体任务。启用相应模型后即可提交。</p>}
     </div>

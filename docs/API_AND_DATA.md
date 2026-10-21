@@ -1,5 +1,7 @@
 # 接口与数据契约
 
+新增 [迭代23](ITERATION_23_DATA_LIFECYCLE.md)：production-jobs/revoke-voice接受voice_clone_id/request_key，当前JWT或audio:create Key绑定用户，503保留原请求、同键换声纹409；voices返回撤销/删除时间。knowledge-base/delete接受entry_id，knowledge:write Key或JWT，撤销浏览器直删权限；重复条目删除可恢复。00051新增引用索引、媒体/声纹租约及清理回执、source_erased_at和晚到知识过滤；probe12/00051/render2，需同窗前后端发布。
+
 新增 [迭代22收银契约](ITERATION_22_CHECKOUT_LOADING.md)：微信/支付宝创建POST必须个人JWT及plan_id/request_key/expected_amount两位小数文本/expected_credits整数；00050按账号原UUID恢复，价格/积分/原参数409、待支付配额429、账号403、unknown503保留原回执。终态不重收款；服务端入账仍沿原验签事务。客户端账单/订单仅本人SELECT，资金不对Key开放；probe v11/00050/render2，需前后端同窗发布。
 
 新增 [迭代21契约](ITERATION_21_TRANSLATION_NOTIFICATIONS.md)：product-management translations返回20条任务/cost，translate原UUID与商品ID/expected_updated_at/目标语言/主图布尔/确认价格，202及unknown恢复。eBay图片目标绑定稳定私有image_url/image_hash/market；analysis的competitor_reference包含本人sample_id/item_id/rights_confirmed:true，由DB读取真实统计。read_notifications/mutate_notifications为本人authenticated RPC，分类/25页/服务器cutoff/偏好/RLS；API Key不开放。probe v10/00049，MCP54工具/18权限。

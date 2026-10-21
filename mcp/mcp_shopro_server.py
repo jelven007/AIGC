@@ -155,8 +155,15 @@ async def get_media_prices():
 
 @mcp.tool()
 async def list_voice_clones():
-    """读取当前用户声纹及供应商验证状态，未验证声纹不可用于配音。"""
+    """读取当前用户声纹、验证、撤销及供应商删除状态。"""
     return await call_backend("production-jobs", {"action": "voices"})
+
+
+@mcp.tool()
+async def revoke_voice_clone(voice_clone_id: str, request_key: str):
+    """撤销指定声纹授权，取消未提交配音并返还积分，后台删除原供应商声纹；失联恢复同一request_key。"""
+    return await call_backend("production-jobs", {"action": "revoke-voice",
+        "voice_clone_id": identifier(voice_clone_id), "request_key": identifier(request_key)})
 
 
 @mcp.tool()
@@ -386,6 +393,12 @@ async def sync_platform_metrics():
 async def list_knowledge(query: str = ""):
     """读取当前用户知识条目、正文版本、索引状态及当前知识任务价格。"""
     return await call_backend("knowledge-base", {"action": "catalog", "query": query})
+
+
+@mcp.tool()
+async def delete_knowledge_entry(entry_id: str):
+    """删除当前用户条目、索引和任务内知识副本；未提交索引取消返还积分，已提交未知任务保留原用量核对。"""
+    return await call_backend("knowledge-base", {"action": "delete", "entry_id": identifier(entry_id)})
 
 
 @mcp.tool()

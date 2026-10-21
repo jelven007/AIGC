@@ -21,7 +21,7 @@ export interface ProductionJob {
   product_id?: string;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'unknown' | 'cancelled';
   progress: number; phase: string; result: { url?: string; thumbnail_url?: string; size?: number; duration?: number; resolution?: string;
-    text?: string; segments?: { start: number; end: number; text: string }[]; voice_clone_id?: string; requires_verification?: boolean;
+    text?: string; segments?: { start: number; end: number; text: string }[]; voice_clone_id?: string; requires_verification?: boolean; media_deleted?: boolean;
     mode?: 'live' | 'style'; source_url?: string; source_hash?: string; score_basis?: string; transcript_summary?: string;
     highlights?: VideoHighlight[]; report?: VideoStyleReport;
     competitor_reference?: CompetitorAnalysisReference;

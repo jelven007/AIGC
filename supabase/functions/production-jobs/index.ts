@@ -23,7 +23,8 @@ export async function handleProductionJobs(req: Request): Promise<Response> {
       ? body.kind === 'image' ? 'image:create' : body.kind === 'render' ? 'render:create'
         : body.kind === 'analysis' ? 'video:create'
         : MEDIA_JOB_SLOTS[body.kind] ? ['avatar', 'lipsync'].includes(body.kind) ? 'avatar:create' : 'audio:create' : undefined
-      : ['query', 'list', 'exports', 'query-export', 'voices', 'media-prices', 'analysis-price'].includes(body.action) ? 'jobs:read' : undefined);
+      : body.action === 'revoke-voice' ? 'audio:create'
+        : ['query', 'list', 'exports', 'query-export', 'voices', 'media-prices', 'analysis-price'].includes(body.action) ? 'jobs:read' : undefined);
     if (auth.error || !auth.user || auth.isServiceRole) return reply({ error: auth.error || '请先登录' }, auth.status || 401);
     const db = createServiceClient();
     if (body.action === 'analysis-price') {
@@ -37,10 +38,18 @@ export async function handleProductionJobs(req: Request): Promise<Response> {
       return reply({ costs: Object.fromEntries(result.data.map(row => [row.action.replace('generate_', ''), row.cost])) });
     }
     if (body.action === 'voices') {
-      const result = await db.from('voice_clones').select('id,name,requires_verification,created_at')
+      const result = await db.from('voice_clones').select('id,name,requires_verification,created_at,revoked_at,provider_deleted_at')
         .eq('user_id', auth.user.id).order('created_at', { ascending: false }).limit(100);
       if (result.error) throw new Error('声纹列表读取失败');
       return reply({ voices: result.data });
+    }
+    if (body.action === 'revoke-voice') {
+      if (!uuid(body.voice_clone_id) || !uuid(body.request_key)) return reply({ error: '声纹撤销标识非法' }, 400);
+      const result = await db.rpc('revoke_voice_clone', { p_user: auth.user.id, p_clone: body.voice_clone_id, p_key: body.request_key });
+      if (result.error) return reply({ error: /无权|不存在|同一请求标识/.test(result.error.message)
+        ? result.error.message : '撤销响应待确认，请恢复原撤销请求' },
+      /同一请求标识/.test(result.error.message) ? 409 : /无权|不存在/.test(result.error.message) ? 404 : 503);
+      return reply({ voice: result.data });
     }
     if (body.action === 'export') {
       if (!uuid(body.request_key)) return reply({ error: '缺少有效幂等标识' }, 400);

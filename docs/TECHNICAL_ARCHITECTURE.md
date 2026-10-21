@@ -1,5 +1,7 @@
 # Shopro AI 技术架构
 
+最新 [迭代23](ITERATION_23_DATA_LIFECYCLE.md)以数据库触发器统一媒体引用索引和对象级事务锁，避免清理时全表扫描及保存/TTL竞争；心跳不重写未变引用。媒体/声纹删除outbox独立UUID租约、原配置版本和回执，知识删除清理副本并过滤晚到结果，终态证据有界七天清理。复用现有队列/账户锁/原退款，MCP56/18权限，probe12/00051/render2；容量、真实供应商及备份恢复仍待验收。
+
 最新 [迭代21](ITERATION_21_TRANSLATION_NOTIFICATIONS.md)复用production_jobs/账户锁/配置版本/原结果证据，将商品翻译加入共享4槽；商品快照/图片SHA-256与模型版本绑定，原结果核对共用SQL校验。竞品引用由事务读取正式快照并独立留存；通知在真实状态事务内触发且去重，RLS/RPC和用户维度React Query共享列表/铃铛，批量cutoff保护新消息。00049、MCP54/18权限、probe v10/render2；匹配全栈与供应商待验收。
 
 最新 [迭代20](ITERATION_20_CASH_OPERATIONS.md)在现有React/Supabase新增真实运营入口，避免复建Vue/Mock中台；可信权限/客户范围与资金/预算回执在DB执行。现金退款统一账户→订单→退款锁、金额预占/原UUID/签名证据、到账/权益/审计原子化；支付发放同锁顺序且保留欠额。UTC日预算统一在deduct_credits执行，队列复用只查询退款，probe v9/00048。完整租户/工单/风险处置/现金成本与实际部署仍待交付。

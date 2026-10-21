@@ -1,5 +1,7 @@
 # 火山引擎部署指南
 
+最新 [迭代23](ITERATION_23_DATA_LIFECYCLE.md)要求00032–00051与匹配production-jobs/production-worker/knowledge-base、共享模块、调度/MCP56/前端同窗。verify严格要求probe12/00051/render2及迁移回执。撤销旧Storage/知识直接删除策略，验收原UUID撤销、实际对象与供应商删除、未知保护及备份恢复；火山资源仍无新增部署证据。
+
 最新 [迭代22](ITERATION_22_CHECKOUT_LOADING.md)发布范围00032–00050，两支付创建函数/checkout共享模块/production-worker/常驻调度/前端同窗口；verify要求probe v11/00050/render2，MCP仍54工具。客户端须确认原UUID/金额/积分，旧支付客户端不兼容。目标验收商户签名/回调、同单恢复和改价权益；火山资源无新增部署回执。
 
 最新 [迭代21](ITERATION_21_TRANSLATION_NOTIFICATIONS.md)需发布00032–00049与匹配product-management/market-intelligence/production-jobs/production-worker、常驻调度/MCP54/前端；verify要求probe v10/00049/render2与迁移回执。通知不新增Edge入口，authenticated RPC/RLS与页面同窗口。eBay图片搜索权限、视觉文本模型、私有素材与真实通知/关页/版本/清理需目标验收；火山仍无新增部署证据。

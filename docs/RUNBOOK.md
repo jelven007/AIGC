@@ -1,5 +1,7 @@
 # 运维运行手册
 
+最新 [迭代23](ITERATION_23_DATA_LIFECYCLE.md)：00051与production/knowledge API、Worker/调度/MCP56/前端同窗，probe12/00051/render2。监控媒体/声纹outbox积压、租约/退避、unknown引用及旧声纹凭据；只清理超过24小时无引用对象和七天终态证据，未知任务不丢证据或盲退。恢复需保留引用/删除墓碑/撤销时间和原配置版本，不能通过删回执重新启用对象或声纹；真实删除、容量与备份恢复仍待目标验收。
+
 最新 [迭代22](ITERATION_22_CHECKOUT_LOADING.md)：两支付创建/checkout/00050与前端同窗，调度probe11/00050/render2；前端POST缺原UUID/确认金额会拒绝。unknown先核对原订单，不删除本地原请求新建收款；监控十待支付配额与签名入账失败，备份checkout_request_key/原快照。微信官方查单/过期/关闭与原路退款仍待接入。多本地Vite服务缓存隔离；空白页先核对脚本HTTP/MIME与目标缓存，不更换用户会话绕过。
 
 最新 [迭代21运行条件](ITERATION_21_TRANSLATION_NOTIFICATIONS.md)：00032–00049、匹配商品/情报/production API与Worker、调度/MCP54/前端同窗口，probe v10/00049/render2。翻译unknown按原结果/原版本service-only核对，不重新调用模型；确认拒绝才沿原流水退款。监控共享4槽、私有原图失效/指纹不符、30天译文/竞品副本与180天通知清理；通知缺失先核对真实状态/偏好，通用publish completed不等于公开发布。备份新增通知/偏好/引用和任务原请求；目标云端尚未发布。

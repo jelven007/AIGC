@@ -118,7 +118,7 @@ class KnowledgeTest(unittest.TestCase):
         context = lambda: json.loads(sql(self.as_service(f"SELECT read_knowledge_context('{self.user}','{job}')")).stdout)
         self.assertEqual(len(context()["sources"]), 1)
         self.assertNotEqual(sql(self.as_service(f"SELECT read_knowledge_context('{self.other}','{job}')"), fail=False).returncode, 0)
-        sql(self.as_user(f"DELETE FROM knowledge_entries WHERE id='{self.entry}'"))
+        sql(self.as_service(f"SELECT delete_knowledge_entry('{self.user}','{self.entry}')"))
         self.assertEqual(context()["sources"], [])
         self.assertEqual(sql(f"SELECT count(*) FROM knowledge_chunks WHERE entry_id='{self.entry}'").stdout.strip(), "0")
 

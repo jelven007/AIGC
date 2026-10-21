@@ -6,7 +6,7 @@ export const API_PERMISSIONS = [
   ['publish:create', '发布与取消待提交作品'], ['publish:read', '读取发布任务与已授权账号'],
   ['metrics:read', '读取平台指标'], ['metrics:sync', '同步平台指标'],
   ['audio:create', '配音、识别与声纹克隆'], ['avatar:create', '照片口播与口型同步'],
-  ['knowledge:read', '读取知识库与检索引用'], ['knowledge:write', '知识索引与语义检索'],
+  ['knowledge:read', '读取知识库与检索引用'], ['knowledge:write', '知识索引、语义检索与条目删除'],
   ['intelligence:read', '读取竞品与商品情报'], ['intelligence:write', '管理情报对象、采集与监控预算'],
   ['products:read', '读取商品库、提取与翻译任务'], ['products:write', '商品提取、翻译、保存与删除'],
 ] as const;
@@ -18,7 +18,7 @@ export function productScope(action: string): string | undefined {
 }
 export function knowledgeScope(action: string): string | undefined {
   return ['catalog', 'jobs', 'context'].includes(action) ? 'knowledge:read'
-    : action === 'create' ? 'knowledge:write' : undefined;
+    : ['create', 'delete'].includes(action) ? 'knowledge:write' : undefined;
 }
 export function intelligenceScope(action: string): string | undefined {
   return action === 'catalog' ? 'intelligence:read'

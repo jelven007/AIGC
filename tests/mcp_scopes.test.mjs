@@ -49,7 +49,8 @@ const request = body => new Request('https://db.example/functions/v1/business', 
 });
 const actions = [
   [handleKnowledge, ['catalog', 'jobs', 'context'], 'knowledge:read'],
-  [handleKnowledge, ['create'], 'knowledge:write'],
+  [handleKnowledge, ['create', 'delete'], 'knowledge:write'],
+  [handleProductionJobs, ['revoke-voice'], 'audio:create'],
   [handleIntelligence, ['catalog'], 'intelligence:read'],
   [handleIntelligence, ['save_target', 'collect', 'schedule', 'delete', 'import_product'], 'intelligence:write'],
   [handleProductManagement, ['list', 'imports', 'translations'], 'products:read'],
