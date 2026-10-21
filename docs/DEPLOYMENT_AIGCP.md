@@ -1,5 +1,7 @@
 # aigcp 环境部署记录
 
+下一发布包含 [MCP迭代17](ITERATION_17_MCP_PRODUCTION.md)的45工具镜像及16权限共享模块，更新knowledge-base/market-intelligence/production-jobs/api-keys/platform-publish/platform-accounts；后者网关JWT例外由函数内安全读/账号管理鉴权约束。没有新迁移，仍需00032–00044及匹配Worker；本地SDK/权限测试不改变官方环境00031/旧函数的既有回执。
+
 下一官方升级范围为00032–00044及market-intelligence/匹配API与Worker，probe v6、20槽；正式供应商配置、日预算调度和30天清理验收见 [迭代15](ITERATION_15_MARKET_INTELLIGENCE.md)。这只是源码发布要求，未修改云端；最近核实到00031的事实不变。历史部署范围不等于当前整包依赖。
 
 下一次官方环境升级范围扩展00032–00043、knowledge-base及匹配文本/API/production-worker，探针v5；新增17槽Embedding须真实配置与验收。正文索引/引用、恢复/退款、供应商用量检查见 [迭代14](ITERATION_14_KNOWLEDGE_RETRIEVAL.md)。本段为部署要求，不是部署回执；最近云端仍到00031，本轮未改远端环境。

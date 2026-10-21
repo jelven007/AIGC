@@ -2,6 +2,7 @@ import { authenticateRequest, createServiceClient } from '../_shared/auth.ts';
 import { getCorsHeaders, handleCorsPreflight } from '../_shared/cors.ts';
 import { encryptKey, validateEndpoint } from '../_shared/model-registry.ts';
 import { PLATFORMS, platformApp, creatorInfo, type Platform } from '../_shared/platforms.ts';
+import { accountScope } from '../_shared/api-scopes.ts';
 
 export async function stateHash(value: string) {
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)));
@@ -13,10 +14,10 @@ export async function handlePlatformAccounts(req: Request): Promise<Response> {
   const reply = (body: unknown, status = 200) => Response.json(body, { headers, status });
   if (req.method !== 'POST') return reply({ error: '仅支持POST' }, 405);
   try {
-    const auth = await authenticateRequest(req);
-    if (auth.error || !auth.user || auth.isServiceRole) return reply({ error: '请先登录' }, 401);
-    const db = createServiceClient();
     const body = await req.json();
+    const auth = await authenticateRequest(req, accountScope(body?.action));
+    if (auth.error || !auth.user || auth.isServiceRole) return reply({ error: auth.error || '请先登录' }, auth.status || 401);
+    const db = createServiceClient();
     if (body.action === 'list') {
       const apps = await db.from('platform_apps').select('platform,enabled');
       const connections = await db.from('platform_connections').select('id,platform,display_name,status,expires_at,scopes')

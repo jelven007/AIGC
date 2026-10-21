@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
@@ -11,6 +11,8 @@ COPY mcp_shopro_server.py .
 COPY mcp_shopro_server_stdio.py .
 COPY backend_client.py .
 COPY http_server.py .
+COPY export_tools.py .
+COPY tools.json .
 
 EXPOSE 8080
 

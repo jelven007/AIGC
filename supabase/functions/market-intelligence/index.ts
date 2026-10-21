@@ -5,6 +5,7 @@ import { responseBytes } from '../_shared/audio-provider.ts';
 import { INTELLIGENCE_KINDS, INTELLIGENCE_SLOTS, intelligenceParams, IntelligenceError } from '../_shared/intelligence-provider.ts';
 import { createIntelligenceJob, intelligenceUuid } from '../_shared/intelligence-jobs.ts';
 import { publicProductionJob, type ProductionJob } from '../_shared/production-jobs.ts';
+import { intelligenceScope } from '../_shared/api-scopes.ts';
 export async function handleIntelligence(req: Request): Promise<Response> {
   const preflight = handleCorsPreflight(req); if (preflight) return preflight;
   const headers = getCorsHeaders(req), reply = (body: unknown, status = 200) => Response.json(body, { status, headers });
@@ -15,7 +16,7 @@ export async function handleIntelligence(req: Request): Promise<Response> {
     catch { return reply({ error: '请求正文为空、超过16KB或连接中断' }, 400); }
     const body = JSON.parse(raw);
     if (!body || typeof body !== 'object' || Array.isArray(body)) throw new IntelligenceError('请求参数非法');
-    const auth = await authenticateRequest(req);
+    const auth = await authenticateRequest(req, intelligenceScope(body.action));
     if (auth.error || !auth.user || auth.isServiceRole) return reply({ error: auth.error || '请先登录' }, auth.status || 401);
     const uid = auth.user.id, db = createServiceClient();
     const limited = await db.rpc('upsert_rate_limit', { p_window_key: `intelligence:${uid}:${Math.floor(Date.now()/60000)}`,

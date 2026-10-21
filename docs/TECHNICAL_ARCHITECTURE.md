@@ -1,5 +1,7 @@
 # Shopro AI 技术架构
 
+新增 [MCP迭代17](ITERATION_17_MCP_PRODUCTION.md)：45工具复用统一业务API，16权限共用签发/路由/页面目录；JWT/Key按请求ContextVar隔离，媒体显式价格/原UUID、业务POST不自动重试，固定八入口/2MB/禁止重定向。platform-accounts仅安全读取接受Key，OAuth/应用管理仍JWT；无新增schema，匹配函数和MCP镜像必须同步发布。
+
 新增 [渲染效果迭代16](ITERATION_16_RENDER_EFFECTS.md)：效果目录共用于前端与API，Worker固定RGB/alpha公式与参数二次校验；时间排序的主轨转场保留工程长度，蒙版混合保留定位与透明度。仍复用production_jobs/专用签名/租约，不新建执行旁路；版本1新增可选参数需匹配API与重建镜像同步发布。HSL逐像素成本需真实4K压测。
 
 00044 [市场情报](ITERATION_15_MARKET_INTELLIGENCE.md)复用业务API/生产队列/积分事务，新增20槽中的三个版本数据源、官方YouTube/eBay适配和授权网关校验。两页共用来源与计划组件，预算由数据库锁/独立回执约束，checkpoint避免重复采集，30天清理所有来源副本。最新探针v6、发布00032–00044；仍需真实供应商/平台权限与云端验收，以下较早版本范围为历史。
@@ -27,7 +29,7 @@
 ```mermaid
 flowchart TB
     Browser["React 商家端<br/>商品 / 脚本 / 视频图片 / 剪辑 / 发布 / 数据"]
-    MCP["外部 Agent → MCP<br/>当前7工具 / 用户JWT"]
+    MCP["外部 Agent → MCP<br/>45工具 / 用户JWT或受限Key"]
     Auth["Supabase Auth / JWT"]
     API["Deno 业务 API<br/>video-jobs / production-jobs / platform-publish"]
     Settings["管理员统一设置<br/>模型版本 / 平台应用 / 加密凭据"]
@@ -81,7 +83,7 @@ flowchart TB
 | 剪辑 Worker | Python 3.12 / FFmpeg / Docker | 独立 ECS 或容器宿主机，待部署 | 时间轴合成、签名素材/上传、H.264/AAC |
 | 平台与指标 | OAuth / 发布状态查询 / 数据快照 | TikTok、抖音正式 API，待账号联调 | 后台发布、审核、官方自然视频指标 |
 | 音频/数字人 | OpenAI/Step、ElevenLabs IVC、D-ID Talks、Sync | 本地实现，00040/API/生产调度待发布 | 配音/识别/声纹/口播/口型队列、私有归档及积分闭环 |
-| MCP | Python FastMCP、Starlette、HTTPX | 可选 ECS 或本地 stdio | 7 个工具复用用户 JWT 与业务 API |
+| MCP | Python FastMCP、Starlette、HTTPX | 可选 ECS 或本地 stdio | 45工具复用JWT/受限Key及业务API |
 | 运维发布 | `byted-supabase-cli`、Python 部署脚本 | 开发机/受控发布环境 | SQL、Secrets、函数、Pages 与发布前预检 |
 
 当前不需要 Redis：任务队列使用 PostgreSQL `FOR UPDATE SKIP LOCKED`。旧视频查询可触发一次受控处理，图片/发布依赖新生产调度，FFmpeg依赖独立容器；不能只升级旧视频Cron。上述为源码逻辑架构，实际吞吐/并发容量需部署后测量。
@@ -112,7 +114,7 @@ flowchart TB
 
 前端删除模型 `VITE_*` 密钥、硬编码兜底密钥、代理回退与虚假文本/ASR 成功输出。构建拒绝非公开 `VITE_*KEY/SECRET/TOKEN/PASSWORD`。音频/数字人通过production-jobs使用JWT或限定scope Key，旧同步音频入口410，浏览器朗读不再冒充生成结果。
 
-MCP HTTP 使用请求中的用户 JWT，并通过 ContextVar 隔离并发调用身份；无状态 HTTP 避免会话复用混淆。视频工具要求显式幂等 UUID，复用 `video-jobs`；模型和 service_role 密钥不配置到 MCP。stdio 的用户 JWT 由受控环境提供。HTTP 服务需 TLS 反向代理及真实域名 allowlist。
+MCP HTTP使用每请求JWT/受限Key，通过ContextVar隔离并发身份并在返回后重置。45工具覆盖文本/生产/批量/发布/知识/情报；创建显式UUID，媒体/分析/知识/采集须确认价格。网络中断不重发POST，返回原键供恢复查询；模型/service_role不配置到MCP。stdio凭据受控，HTTP需TLS反代及真实域名allowlist。
 
 ## 数据与部署边界
 

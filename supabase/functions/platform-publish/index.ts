@@ -2,6 +2,7 @@ import { authenticateRequest, createServiceClient } from '../_shared/auth.ts';
 import { getCorsHeaders, handleCorsPreflight } from '../_shared/cors.ts';
 import { collectPlatformMetrics } from '../_shared/platform-jobs.ts';
 import { creatorInfo } from '../_shared/platforms.ts';
+import { publishScope } from '../_shared/api-scopes.ts';
 
 export async function handlePlatformPublish(req: Request): Promise<Response> {
   const preflight = handleCorsPreflight(req); if (preflight) return preflight;
@@ -10,8 +11,7 @@ export async function handlePlatformPublish(req: Request): Promise<Response> {
   if (req.method !== 'POST') return reply({ error: '仅支持POST' }, 405);
   try {
     const body = await req.json();
-    const auth = await authenticateRequest(req, body.action === 'create' ? 'publish:create'
-      : ['query', 'list'].includes(body.action) ? 'publish:read' : body.action === 'metrics' ? 'metrics:read' : undefined);
+    const auth = await authenticateRequest(req, publishScope(body.action));
     if (auth.error || !auth.user || auth.isServiceRole) return reply({ error: auth.error || '请先登录' }, auth.status || 401);
     const db = createServiceClient();
     if (body.action === 'query') {

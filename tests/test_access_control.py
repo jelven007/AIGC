@@ -52,6 +52,25 @@ class AccessControlTest(unittest.TestCase):
                           f"SELECT consume_api_key('{digest}','video:read','/video-jobs')"):
             self.assertNotEqual(sql(self.as_user(statement), fail=False).returncode, 0)
 
+    def test_new_mcp_scopes_are_independent_and_account_bound(self):
+        key, digest = str(uuid.uuid4()), uuid.uuid4().hex
+        scopes = ["knowledge:read", "knowledge:write", "intelligence:read", "intelligence:write",
+                  "publish:read", "metrics:sync"]
+        values = ",".join("'" + scope + "'" for scope in scopes)
+        sql(f"""INSERT INTO api_keys(id,user_id,name,key_hash,key_prefix,scopes,rate_limit,issuance_version,expires_at)
+          VALUES('{key}','{self.user}','MCP','{digest}','ak_live_',ARRAY[{values}],100,1,now()+interval '1 day')""")
+        for scope in scopes:
+            result = json.loads(sql(self.as_service(f"SELECT consume_api_key('{digest}','{scope}','/mcp')")).stdout)
+            self.assertEqual(result["user_id"], self.user)
+            self.assertEqual(result["key_id"], key)
+        for scope in ["publish:create", "metrics:read", "admin:*", "knowledge:delete"]:
+            result = json.loads(sql(self.as_service(f"SELECT consume_api_key('{digest}','{scope}','/mcp')")).stdout)
+            self.assertEqual(result["status"], 403)
+        self.assertEqual(sql(f"SELECT total_calls FROM api_keys WHERE id='{key}'").stdout.strip(), "6")
+        sql(f"UPDATE api_keys SET is_active=false WHERE id='{key}'")
+        self.assertEqual(json.loads(sql(self.as_service(
+            f"SELECT consume_api_key('{digest}','knowledge:write','/mcp')")).stdout)["status"], 401)
+
     def test_team_transaction_invitation_email_capacity_and_replay(self):
         team = self.create_team()
         self.assertEqual(sql(f"SELECT count(*) FROM team_members WHERE team_id='{team}' AND role='owner'").stdout.strip(), "1")

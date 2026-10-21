@@ -4,6 +4,7 @@ import { ConfigError } from '../_shared/model-registry.ts';
 import { createKnowledgeJob, KNOWLEDGE_KINDS, knowledgeContext, knowledgeInput } from '../_shared/knowledge.ts';
 import { publicProductionJob, type ProductionJob } from '../_shared/production-jobs.ts';
 import { responseBytes } from '../_shared/audio-provider.ts';
+import { knowledgeScope } from '../_shared/api-scopes.ts';
 
 export async function handleKnowledge(req: Request): Promise<Response> {
   const preflight = handleCorsPreflight(req); if (preflight) return preflight;
@@ -17,7 +18,7 @@ export async function handleKnowledge(req: Request): Promise<Response> {
     catch (cause) { return reply({ error: '请求正文为空、超出限制或连接中断' }, cause instanceof Error && cause.message.includes('超过') ? 413 : 400); }
     const body = JSON.parse(raw);
     if (!body || typeof body !== 'object' || Array.isArray(body)) return reply({ error: '请求参数非法' }, 400);
-    const auth = await authenticateRequest(req);
+    const auth = await authenticateRequest(req, knowledgeScope(body.action));
     if (auth.error || !auth.user || auth.isServiceRole) return reply({ error: auth.error || '请先登录' }, auth.status || 401);
     const db = createServiceClient(), uid = auth.user.id;
     const limit = await db.rpc('upsert_rate_limit', { p_window_key: `knowledge:${uid}:${Math.floor(Date.now() / 60000)}`,

@@ -1,5 +1,7 @@
 # 变更、需求与文档追踪矩阵
 
+新增REQ-MCP-02–04/OPENAPI-02、AT-MCP-02–05：[迭代17](ITERATION_17_MCP_PRODUCTION.md)对应45真实SDK工具、旧配音迁队列、16权限共用目录、请求隔离/原UUID/脱敏与传输边界。11项SDK/4组权限/6项PG及Deno/lint/build通过，同步需求/架构/API/开发/测试/运营/运维/部署；无新schema，匹配六函数与MCP镜像待部署，云端事实不变。
+
 新增REQ-RENDER-03–05/EDITOR-02、AT-RENDER-03–06：[迭代16](ITERATION_16_RENDER_EFFECTS.md)对应render-effects共用目录、Worker固定RGB/alpha公式、参数双校验、工程保存恢复及演示清理。实际FFmpeg12项、协议2组、页面桌面/390px及production6组通过，同步需求/方案/开发/测试/运营/运维。无需新迁移；匹配API/Worker镜像必须先于前端，云端事实未改变。
 
 新增REQ-INTELLIGENCE-01/AT-INTELLIGENCE-01–04：[迭代15](ITERATION_15_MARKET_INTELLIGENCE.md)对应00044、20槽、官方/授权协议、计划预算/原请求/退款、两页来源入库与30天清理。专项覆盖数据库、协议、390px页面及既有财务/配置/任务回归；同步需求至运维文档。下一发布00032–00044和market-intelligence/匹配函数，实际云端仍旧基线。

@@ -1,12 +1,12 @@
 # MCP 接入指南
 
-更新：2026-10-21，已提交源码 ce90bfe。FastMCP 提供 7 个工具，共用 Shopro 用户 JWT 与业务 API/模型配置，不直接调用独立供应商。当前后端新版辅助函数/模型表未上线，完整工具需先部署匹配服务。状态见 [CURRENT_STATE](../docs/CURRENT_STATE.md)。
+更新：2026-10-21，迭代17提供45个实际SDK工具，复用用户JWT或有范围/限额的业务API Key。统一任务、计费、私有素材、配置版本与网页相同，模型密钥不进入MCP。新函数/00032–00044尚未云端验收，接入前须部署匹配服务。状态见 [CURRENT_STATE](../docs/CURRENT_STATE.md)。
 
 ## 1. 入口与连接配置
 
 HTTP 入口 http_server.py，stdio 入口 mcp_shopro_server_stdio.py；mcp_shopro_server.py 含工具定义，也可作为 stdio 入口。原极简入口只作兼容，不建立计费旁路。配置模板见 [.env.example](.env.example)。
 
-连接参数 SUPABASE_URL/SUPABASE_ANON_KEY 指向自己的目标项目；HTTP 每次请求携带 Authorization: Bearer 用户JWT，MCP_ALLOWED_HOSTS 填真实公开域名。stdio 使用 SUPABASE_USER_JWT，凭据放受控环境而非分享客户端配置。不给 MCP service_role、模型 Key 或加密主密钥。
+连接参数SUPABASE_URL/SUPABASE_ANON_KEY指向目标项目HTTPS根地址；HTTP每次携带`Authorization: Bearer 用户JWT或业务Key`，MCP_ALLOWED_HOSTS填真实公开域名。stdio沿用SUPABASE_USER_JWT环境名，可提供JWT或业务Key，放受控环境。禁止service_role、anon、模型Key和加密主密钥作为用户身份；业务服务验证签名、Key摘要、权限、到期、撤销、用户禁用和速率。
 
 HTTP ContextVar 在每次请求后重置，无状态传输避免用户会话混用；MCP 握手只表示协议可用，业务仍由后端 Auth 验证 JWT。公开服务必须 TLS 反向代理，不能沿用第三方演示域名。
 
@@ -14,17 +14,37 @@ HTTP ContextVar 在每次请求后重置，无状态传输避免用户会话混�
 
 | 工具 | 输入 | 行为/边界 |
 | --- | --- | --- |
-| extract_product_highlights | product_info | ai-assistant.generate_selling_points；当前作为 product_name 传入，不自动代表任意 URL 抓取 |
-| generate_marketing_script | product_highlights、target_audience、platform=TikTok、language=Chinese | text-generation JSON；返回 script，质量/语言需实测 |
+| extract_product_highlights | product_info | text-generation；提取给定资料中的真实卖点，不自动抓取URL |
+| generate_marketing_script | product_highlights、target_audience、platform、language、可选knowledge_job_id | 统一文本配置；可引用当前用户已完成知识检索，条目更新/删除后过滤旧引用 |
 | translate_marketing_script | script、target_language | 同一文本配置；返回 script，不承诺完美本地化 |
-| synthesize_voice_tts | text、voice_id、speed=1.0、volume=0.9 | siliconflow-audio?action=tts；audio_base64/content_type；非默认速度/音量会拒绝 |
+| synthesize_voice_tts | text、request_key、confirmed_credit_cost、voice_id、speed、格式、instruction、voice_clone_id | production-jobs.create/tts，返回后台任务；空voice使用管理员默认。旧无UUID/价格的同步调用报参数错误 |
 | enhance_prompt | prompt | text-generation；enhanced_prompt |
-| submit_video_generation | prompt、必填 request_key UUID、duration=5、resolution=720p、ratio=16:9、first_frame_url、watermark=false | video-jobs.create，provider 固定 ArkSeedance；watermark=true 拒绝；返回公开 job |
-| query_video_status | request_id | 该值是本地 job.id，不是上游 ID；video-jobs.query，可能执行到期任务 |
+| submit_video_generation | prompt、request_key、provider、规格、首尾帧/参考图视频、watermark=false | 七种协议按管理员配置启用；素材组合及规格由业务服务校验，返回公开job |
+| query_video_status/list_video_jobs | 本地request_id或原request_key之一/无 | 查询可推进原视频任务；不使用供应商任务ID |
+| get_media_prices/list_voice_clones | 无 | 读取五媒体类型积分价格/自有声纹和供应商验证状态 |
+| submit_audio_transcription/submit_voice_clone | 私有audio_url、filename、UUID、价格；克隆另有name/consent | asr/voice_clone后台任务，声纹授权必须显式确认 |
+| submit_avatar_video/submit_lipsync | 私有照片或视频/音频、title、consent、UUID、价格 | avatar/lipsync后台任务，必须授权人物与声音 |
+| submit_image_generation | prompt、UUID、size/quality、reference_image、project_id | 图片或封面任务，服务端按generate_image/generate_cover预占 |
+| submit_render | render_spec、project_id、UUID | 工程v1交给现有双校验和FFmpeg队列，完整协议见[API](../docs/API_AND_DATA.md) |
+| submit_render_export/query_render_export | 源作品、formats、UUID/导出ID或UUID | 多规格事务导出组，包含各子任务状态和成片 |
+| query_production_status/list_production_jobs | 本地job_id或原UUID/无 | 当前用户任务，结果URL短效签名，过期重新查询 |
+| get_analysis_price/submit_video_analysis | 无/私有视频、title、live或style、UUID、价格 | 真实抽帧/ASR任务，平台播放页不是源素材 |
+| get_batch_video_quote/submit_batch_videos | 无/商品IDs、provider、风格语言规格、单价、总预算、UUID | 1–50个自有商品，事务固定快照/版本与整批预占 |
+| query_video_batch/list_video_batches/control_video_batch | ID或UUID/无/batch_id及pause/resume/cancel | 读取批次，控制未提交项，已受理项继续核对 |
+| list_publish_accounts/get_publish_options | 无/connection_id | 账号安全摘要/实际可见范围；网页完成OAuth授权 |
+| submit_platform_publish/query_platform_publish/list_platform_publish_tasks/cancel_platform_publish | 作品/账号/title/description/tags/options/UUID/排期；原UUID/无/task_id | 发布需完整可见/商业/AIGC及consent选项；取消只影响未提交项，每账号独立UUID |
+| get_platform_metrics/sync_platform_metrics | 无 | 读自然视频官方指标/主动同步；同步单独metrics:sync权限，2次/用户/分钟 |
+| list_knowledge/submit_knowledge_index/search_knowledge/get_knowledge_context | 查询/条目hash+UUID+价格/查询+UUID+价格/检索job_id | 读取、索引、语义查询及有效引用；不是自动训练 |
+| list_market_intelligence/save_intelligence_target/collect_market_intelligence | 类型/对象及source_slot/params/UUID/target_id+UUID+价格 | 读取、保存和采集正式或授权来源，字段缺失保留空值 |
+| schedule_market_intelligence/import_intelligence_product/delete_intelligence_target | target_id+次数预算价格UUID/sample_id+item_id/target_id | 有界监控、真实来源商品入库、删除对象；活跃任务不能直接删 |
 
-TTS 工具默认 voice_id 为 fnlp/MOSS-TTSD-v0.5:alex，必须是配置供应商支持的音色；设置页和工具输入不能保证音色已开通。视频素材/规格由服务端适配器校验。
+完整参数由[tools.json](tools.json)维护，来源为真实SDK而非手写。`python mcp/export_tools.py`更新目录，`--check`拒绝漂移。TTS速度0.5–2，克隆0.7–1.2/MP3；Step TTS数值速度须1，具体供应商功能仍需验收。
 
-计费沿用实际业务入口：卖点 AI Action 按表计费，直接文本/音频暂免费但有频控，视频一次预占/成功结算/明确失败释放。重试必须复用 request_key 与完整参数；创建返回 202/job 不是供应商完成。unknown 不重提、不凭超时退款。
+计费沿用业务入口：文本暂不扣应用积分且有频控；视频、图片、媒体、分析、知识和情报按服务端表计费，媒体/分析/知识/情报须显式确认读取的价格，批次另有预算。渲染/发布目前不扣应用积分，但消耗基础设施和平台配额。创建返回任务不代表完成；重试复用UUID与完整参数，unknown不重提、不凭超时退款。
+
+16种权限目录由`api-scopes.ts`共用。知识读/写、情报读/写、发布创建/读取和指标读取/同步相互独立；generic jobs:read可读自有生产结果。API Key每分钟最多100次，接口另外执行用户限流。持有全部业务权限仍不能管理Key、OAuth授权/撤销、平台应用或支付。MCP仅接受固定八个业务函数，不开放任意路由。
+
+业务网络中断或503返回脱敏错误和原request_key，不自动POST重试；响应正文上限2MB、不跟随重定向。客户端先查询原键，仍不确定则以完全相同参数恢复，不能重新生成UUID。
 
 ## 3. 本地与 Docker 启动
 
@@ -39,6 +59,6 @@ Docker：docker compose -f docker-compose.mcp.yml up -d --build；端口绑定 1
 
 支持 streamable-http 的客户端配置实际 /mcp URL 与用户 Authorization；stdio 配置本地 Python/入口路径和受控用户环境。客户端必须处理 JWT 过期、限流和业务错误，不能以一次 initialize 成功宣称生成链路全通。
 
-先在仓库根运行 python3 tests/test_mcp_backend.py（需安装依赖）；实际 SDK 覆盖无 JWT 拒绝、初始化/工具保留用户身份、视频参数。上线再测试两个用户并发、跨用户 job 查询、同 UUID 重试、真实文本/TTS/视频、TLS/域名与 JWT 过期。
+构建`docker build -t shoproai-mcp:local -f mcp/Dockerfile.mcp mcp`后，在根目录运行`npm run test:mcp`。Python3.12实际SDK验证初始化/并发身份/45工具、旧配音拒绝、各媒体及导出/批量/发布/知识/情报载荷、原请求恢复、跨用户拒绝和传输错误。`npm run test:access`执行真实PG权限/限流/撤销。上线仍须真实TLS/域名、JWT过期、供应商生成、平台发布与持久后台运行验收。
 
 接口状态见 [API_AND_DATA](../docs/API_AND_DATA.md)，真实验收见 [TEST_PLAN](../docs/TEST_PLAN.md)，部署见 [火山指南](../docs/VOLCENGINE_DEPLOYMENT.md) 或 [官方记录](../docs/DEPLOYMENT_AIGCP.md)。MCP 与前端同版本/同后端，不能用工具绕过配置/计费。

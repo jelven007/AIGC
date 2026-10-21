@@ -7,17 +7,13 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Code2, Copy, Key, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { API_PERMISSIONS } from '../../supabase/functions/_shared/api-scopes';
 
 interface ApiKey {
   id: string; name: string; key_prefix: string; scopes: string[]; rate_limit: number;
   is_active: boolean; total_calls: number; expires_at: string | null;
 }
-const permissions = [
-  ['video:create', '创建视频'], ['video:read', '查看视频任务'], ['image:create', '生成图片'],
-  ['render:create', '渲染成片'], ['jobs:read', '查看生产任务'], ['script:generate', '文本生成'],
-  ['publish:create', '发布作品'], ['publish:read', '查看发布任务'], ['metrics:read', '读取平台指标'],
-  ['audio:create', '语音识别、配音和声纹克隆'], ['avatar:create', '照片口播和口型同步'],
-];
+const permissions = API_PERMISSIONS;
 const examples = [
   { name: '创建视频 · video:create', endpoint: 'video-jobs', body: {
     action: 'create', request_key: '请替换为每次业务请求的UUID', provider: 'ArkSeedance',
@@ -28,8 +24,14 @@ const examples = [
     action: 'create', request_key: '新UUID', kind: 'image', input: { prompt: '商品主图', size: '1024x1024' },
   } },
   { name: '配音任务 · audio:create', endpoint: 'production-jobs', body: {
-    action: 'create', request_key: '新UUID', kind: 'tts', input: { input: '已确认的商品口播台词' },
+    action: 'create', request_key: '新UUID', kind: 'tts', input: { input: '已确认的商品口播台词', confirmed_credit_cost: '先读取media-prices中的tts价格' },
   } },
+  { name: '媒体价格 · jobs:read', endpoint: 'production-jobs', body: { action: 'media-prices' } },
+  { name: '知识检索 · knowledge:write', endpoint: 'knowledge-base', body: {
+    action: 'create', kind: 'knowledge_search', request_key: '新UUID',
+    input: { query: '商品介绍脚本结构', limit: 5, confirmed_credit_cost: '先读取catalog中的knowledge_search价格' },
+  } },
+  { name: '竞品情报 · intelligence:read', endpoint: 'market-intelligence', body: { action: 'catalog', kind: 'intelligence_competitor' } },
   { name: '文本生成 · script:generate', endpoint: 'text-generation', body: {
     messages: [{ role: 'user', content: '根据已确认的商品卖点编写视频脚本' }], stream: false,
   } },

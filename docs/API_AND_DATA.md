@@ -1,5 +1,7 @@
 # 接口与数据契约
 
+新增 [MCP与Key契约](ITERATION_17_MCP_PRODUCTION.md)：45工具定义由真实SDK导出，媒体create强制工具层UUID/confirmed_credit_cost。16权限共用目录；knowledge-base读/写、market-intelligence读/写、platform-publish取消/指标同步和platform-accounts安全读取接入Key范围，账号授权/撤销/应用设置仍JWT。错误脱敏并保留原键，不自动重发POST。完整参数见[MCP指南](../mcp/mcp.md)。
+
 render v1增量见 [迭代16](ITERATION_16_RENDER_EFFECTS.md)：十二transition标识、可选transitionDuration(0.02–2s)，视觉轨blendMode八模式、chromaKey六位RGB/容差0.01–1/平滑0–1。前后交接按时长收缩，不延长工程；转场主轨不得重叠，画中画可叠加。API/Worker双校验，沿原production-jobs/request_key/私有引用提交；项目整数duration上取整，style_data保存精确时长。
 
 00044新增 [market-intelligence契约](ITERATION_15_MARKET_INTELLIGENCE.md)：JWT POST、16KB/60次每分钟、catalog/save_target/collect/schedule/import_product/delete。collect固定request_key/target_id/confirmed_credit_cost，schedule另有request_key/runs/budget；数据库事务隔离、相同UUID重放不重复扣费/重启计划。只读供应商GET及eBay应用OAuth，结果有来源版本、观测时间/定义和空指标，不回传凭据；原phase3竞品入口410。
@@ -137,6 +139,6 @@ stateDiagram-v2
 
 支付接口、验签、权益快照与对账见 [支付方案](plan/支付.md)。支付宝查询是 GET `alipay-trade-query?order_no=...`，不能用 POST 或页面跳转直接认定支付成功。
 
-MCP [接入指南](../mcp/mcp.md) 使用同一业务 API，HTTP 每次请求携带用户 JWT 并隔离并发身份；视频显式 UUID，默认 ArkSeedance。没有旁路计费或独立模型 Key。
+MCP [接入指南](../mcp/mcp.md)的45工具使用同一业务API，HTTP每请求JWT/受限Key并隔离身份；创建显式UUID，媒体/分析/知识/情报确认价格，视频默认ArkSeedance可选择七协议。任务状态/预占与网页相同，错误保留原键且不自动POST重试。
 
 API/字段变更必须同步调用端、迁移、测试、运维查询与 [追踪矩阵](CHANGE_TRACEABILITY.md)；删改旧签名前先核对未完成任务和当前已部署版本。

@@ -1,5 +1,7 @@
 # 开发指南
 
+MCP修改见 [迭代17](ITERATION_17_MCP_PRODUCTION.md)：45工具仅调用业务API，先构建shoproai-mcp:local后运行`npm run test:mcp`；`python mcp/export_tools.py`生成目录，`--check`检查漂移。权限统一api-scopes.ts，不能新建供应商/资金旁路，写入必须保留原UUID且不自动重发；新增scope同时验证拒绝、所属用户和网关配置。
+
 剪辑效果修改见 [迭代16](ITERATION_16_RENDER_EFFECTS.md)：render-effects.ts与render_effects.py维护对应标识；不得把用户表达式直接插入FFmpeg图。`test:render`同时验证API协议与实际成片，browser_render_effects.mjs验证参数/保存恢复/移动控件。RGB滤镜须保留alpha；新增模块必须进入Worker重建镜像，禁止只提交前端效果名称。
 
 市场情报入口见 [迭代15](ITERATION_15_MARKET_INTELLIGENCE.md)：00044、intelligence-provider/jobs、market-intelligence与共用MarketIntelligenceWorkspace，20槽。运行`pnpm test:intelligence`验证实际PG与协议；旧竞品表只读，不把预置数据迁入来源表。新增Provider须验证正式端点、指标口径、缺失字段及合同权限；接口/Worker/数据库与前端一起交付。
@@ -69,7 +71,7 @@ docker run --rm -it -p 127.0.0.1:5173:5173 \
 | `supabase/migrations` | 递增数据库迁移、权限、资金事务、队列与配置版本 |
 | `supabase/ops` | Cron 安装、状态与停用脚本 |
 | `scripts`、`deploy` | 发布预检、后台调度、Docker 与配置模板 |
-| `mcp` | 共用用户 JWT 与业务 API 的 7 个工具 |
+| `mcp` | JWT/受限Key与业务API共用的45工具、SDK目录/传输边界 |
 | `tests` | 真实事务、受控上游协议、调度与发布回归 |
 | `backend` | 缺少核心源码；不作为现有可运行后台 |
 
