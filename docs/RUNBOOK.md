@@ -1,5 +1,7 @@
 # 运维运行手册
 
+发布组运行见 [迭代18](ITERATION_18_PUBLISH_GROUPS.md)：先00032–00045与匹配platform-publish/production-worker，probe v7，再47工具MCP与前端。关注每用户24未结案/unknown容量、每账号状态和原平台ID；503查询原组，409冲突保留参数，确定拒绝才改内容。账号撤销不删除已提交证据，取消仅未提交项，不能通过回滚页面重发成功项。备份新增publish_groups及关联任务/审计。
+
 MCP发布与故障见 [迭代17](ITERATION_17_MCP_PRODUCTION.md)：先部署匹配API/00032–00044后部署45工具镜像，platform-accounts网关JWT关闭但函数内验证Key安全读取/JWT管理。旧客户端配音须升级UUID/确认价格；HTTP部署TLS/真实Host规则。401/403核对用户/范围/撤销，409核对原参数/价格，503查询原UUID，unknown核对供应商；不记录Authorization/密钥/原始正文，不更换UUID重提。
 
 渲染增量发布见 [迭代16](ITERATION_16_RENDER_EFFECTS.md)：重建镜像包含render_effects.py，部署匹配production-jobs后再发布前端；迁移仍00032–00044。新增HSL/蒙版/转场逐像素效果关注CPU、内存、临时盘、排队/取消及超时，执行真实长工程/4K容量验收。旧Worker可能拒绝或忽略新参数，切换须统一版本，保存任务/镜像与错误证据后回滚匹配服务。

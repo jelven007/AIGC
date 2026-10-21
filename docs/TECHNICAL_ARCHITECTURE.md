@@ -1,5 +1,7 @@
 # Shopro AI 技术架构
 
+00045 [发布组](ITERATION_18_PUBLISH_GROUPS.md)复用原production_jobs：用户→作品锁、源/时长快照、整组事务与每账号独立Worker证据；单账号与组共用24配额，unknown保持占用。发布契约在页面/API/Worker共用，47工具沿原业务权限；probe v7要求00045。后端/迁移/MCP/前端须匹配部署，真实平台仍待验收。
+
 新增 [MCP迭代17](ITERATION_17_MCP_PRODUCTION.md)：45工具复用统一业务API，16权限共用签发/路由/页面目录；JWT/Key按请求ContextVar隔离，媒体显式价格/原UUID、业务POST不自动重试，固定八入口/2MB/禁止重定向。platform-accounts仅安全读取接受Key，OAuth/应用管理仍JWT；无新增schema，匹配函数和MCP镜像必须同步发布。
 
 新增 [渲染效果迭代16](ITERATION_16_RENDER_EFFECTS.md)：效果目录共用于前端与API，Worker固定RGB/alpha公式与参数二次校验；时间排序的主轨转场保留工程长度，蒙版混合保留定位与透明度。仍复用production_jobs/专用签名/租约，不新建执行旁路；版本1新增可选参数需匹配API与重建镜像同步发布。HSL逐像素成本需真实4K压测。

@@ -1,5 +1,7 @@
 # aigcp 环境部署记录
 
+下一发布范围新增 [00045发布组](ITERATION_18_PUBLISH_GROUPS.md)：应用缺失00032–00045，部署匹配platform-publish/production-worker及共享契约，probe v7验证组/子任务结构，再47工具MCP与前端。需实际平台账号逐项验收源读取、原ID/审核、定时/取消；本地PG/网页通过不是云端回执，最近已核验的官方00031基线未因本段改变。
+
 下一发布包含 [MCP迭代17](ITERATION_17_MCP_PRODUCTION.md)的45工具镜像及16权限共享模块，更新knowledge-base/market-intelligence/production-jobs/api-keys/platform-publish/platform-accounts；后者网关JWT例外由函数内安全读/账号管理鉴权约束。没有新迁移，仍需00032–00044及匹配Worker；本地SDK/权限测试不改变官方环境00031/旧函数的既有回执。
 
 下一官方升级范围为00032–00044及market-intelligence/匹配API与Worker，probe v6、20槽；正式供应商配置、日预算调度和30天清理验收见 [迭代15](ITERATION_15_MARKET_INTELLIGENCE.md)。这只是源码发布要求，未修改云端；最近核实到00031的事实不变。历史部署范围不等于当前整包依赖。

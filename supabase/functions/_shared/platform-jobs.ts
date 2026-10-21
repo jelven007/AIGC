@@ -3,6 +3,7 @@ import { connectionToken, creatorInfo, officialJson, PlatformError, type Platfor
 import { jobEvent, type ProductionJob } from './production-jobs.ts';
 import { signedMedia } from './private-media.ts';
 import { validateEndpoint } from './model-registry.ts';
+import { capabilityError } from './publish-contract.ts';
 
 export async function publishSource(db: SupabaseClient, job: ProductionJob): Promise<Uint8Array> {
   const source = await signedMedia(db, job.payload.source_url, job.user_id, 3600);
@@ -64,10 +65,10 @@ export async function processPublishJob(db: SupabaseClient): Promise<boolean> {
     const caption = [job.payload.title, job.payload.description, ...job.payload.tags.map((tag: string) => `#${tag}`)].filter(Boolean).join(' ');
     if (!evidence) {
       const info = await creatorInfo(db, connection.id, job.user_id);
-      if (!info.privacy_level_options.includes(options.privacy_level)
-        || !Number.isFinite(job.payload.duration) || job.payload.duration > info.max_video_post_duration_sec) {
-        await updateTask({ status: 'failed', error_message: '可见范围或视频时长不符合账号权限' });
-        await jobEvent(db, job, 'failed', { error: '发布参数不符合账号权限' }); return true;
+      const invalid = options?.consent !== true ? '缺少发布确认' : capabilityError(info, options, job.payload.duration);
+      if (invalid) {
+        await updateTask({ status: 'failed', error_message: invalid });
+        await jobEvent(db, job, 'failed', { error: invalid }); return true;
       }
       const bytes = await publishSource(db, job);
       await updateTask({ status: 'publishing', error_message: null });

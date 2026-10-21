@@ -2,7 +2,7 @@ import { supabase } from '@/db/supabase';
 import { backendAnonKey, edgeFunctionUrl } from '@/lib/backendConfig';
 
 export class EdgeRequestError extends Error {
-  constructor(message: string, readonly status: number) { super(message); }
+  constructor(message: string, readonly status: number, readonly code?: string) { super(message); }
 }
 /** SDK 刷新会话后，以用户 JWT 调用流式/二进制函数，anon key 仅作 apikey。 */
 export async function authenticatedEdgeRequest(
@@ -18,7 +18,7 @@ export async function authenticatedEdgeRequest(
   const response = await fetch(`${edgeFunctionUrl(name)}${query}`, { ...init, headers });
   if (!response.ok) {
     const data = await response.json().catch(() => null);
-    throw new EdgeRequestError(data?.error || data?.message || `服务返回 HTTP ${response.status}`, response.status);
+    throw new EdgeRequestError(data?.error || data?.message || `服务返回 HTTP ${response.status}`, response.status, data?.code);
   }
   return response;
 }

@@ -137,7 +137,7 @@ class MCPTest(unittest.TestCase):
             if function == "text-generation":
                 return {"choices": [{"message": {"content": "依据真实资料的脚本"}}]}
             value = {"id": self.key, "status": "pending"}
-            return {"job": value, "export": value, "batch": value, "task": value}
+            return {"job": value, "export": value, "batch": value, "task": value, "group": value}
 
         options = {"consent": True, "privacy_level": "SELF_ONLY",
                    **{name: False for name in ("disable_comment", "disable_duet", "disable_stitch",
@@ -150,6 +150,9 @@ class MCPTest(unittest.TestCase):
                                       "style": "展示", "language": "zh", "expected_unit_cost": 10, "budget": 10}, "batch-video-jobs", "create"),
             ("submit_platform_publish", {"project_id": self.other_key, "connection_id": self.other_key,
                                           "title": "标题", "description": "", "tags": [], "options": options}, "platform-publish", "create"),
+            ("submit_publish_group", {"project_id": self.other_key, "source_url": "https://db.example/confirmed.mp4",
+                                       "duration": 2, "title": "标题", "description": "", "tags": [],
+                                       "targets": [{"connection_id": self.other_key, "options": options}]}, "platform-publish", "create_group"),
             ("submit_knowledge_index", {"entry_id": self.other_key, "content_hash": "a" * 64, "confirmed_credit_cost": 2}, "knowledge-base", "create"),
             ("search_knowledge", {"query": "脚本结构", "confirmed_credit_cost": 1}, "knowledge-base", "create"),
             ("save_intelligence_target", {"name": "竞品", "kind": "intelligence_competitor",
@@ -193,6 +196,7 @@ class MCPTest(unittest.TestCase):
             ("list_publish_accounts", {}, "platform-accounts", "list"),
             ("get_publish_options", {"connection_id": self.key}, "platform-accounts", "creator"),
             ("query_platform_publish", {"request_key": self.key}, "platform-publish", "query"),
+            ("query_publish_group", {"request_key": self.key}, "platform-publish", "query_group"),
             ("list_platform_publish_tasks", {}, "platform-publish", "list"),
             ("cancel_platform_publish", {"task_id": self.key}, "platform-publish", "cancel"),
             ("get_platform_metrics", {}, "platform-publish", "metrics"),
@@ -215,6 +219,18 @@ class MCPTest(unittest.TestCase):
                 result = self.call(name, {})
                 self.assertTrue(result["isError"])
         self.assertIsNone(request_token.get())
+
+    def test_publish_group_rejects_duplicate_and_unconfirmed_accounts_before_backend(self):
+        options = {"consent": True, "privacy_level": "SELF_ONLY", "disable_comment": True,
+                   "disable_duet": True, "disable_stitch": True, "brand_content_toggle": False,
+                   "brand_organic_toggle": False, "is_aigc": True}
+        args = {"project_id": self.other_key, "source_url": "https://db.example/confirmed.mp4",
+                "duration": 2, "title": "成片", "description": "", "tags": [], "request_key": self.key}
+        for targets in ([], [{"connection_id": self.other_key, "options": options}] * 2,
+                        [{"connection_id": self.other_key, "options": {**options, "consent": False}}]):
+            with patch.object(server, "call_backend") as backend:
+                self.assertTrue(self.call("submit_publish_group", {**args, "targets": targets})["isError"])
+                backend.assert_not_called()
 
     def test_concurrent_identity_isolation_and_unknown_retry_preserves_request(self):
         jobs, attempts = {}, []

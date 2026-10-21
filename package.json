@@ -20,6 +20,7 @@
     "test:scheduler": "python3 tests/test_video_scheduler.py && python3 tests/test_video_schedule_db.py",
     "test:volcengine": "python3 tests/test_volcengine_deploy.py && node tests/volcengine.test.mjs",
     "test:production": "node tests/production_jobs.test.mjs",
+    "test:publish": "python3 tests/test_publish_groups.py && node tests/publish_groups.test.mjs",
     "test:task-center": "node tests/task_center.test.mjs",
     "test:access": "python3 tests/test_access_control.py && node tests/access_control.test.mjs",
     "test:mcp": "node tests/mcp_scopes.test.mjs && docker run --rm -v \"$PWD:/workspace\" -w /workspace shoproai-mcp:local python tests/test_mcp_backend.py && docker run --rm -v \"$PWD:/workspace\" -w /workspace shoproai-mcp:local python mcp/export_tools.py --check",

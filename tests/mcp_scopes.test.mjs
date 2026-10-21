@@ -51,8 +51,8 @@ const actions = [
   [handleKnowledge, ['create'], 'knowledge:write'],
   [handleIntelligence, ['catalog'], 'intelligence:read'],
   [handleIntelligence, ['save_target', 'collect', 'schedule', 'delete', 'import_product'], 'intelligence:write'],
-  [handlePlatformPublish, ['create', 'cancel'], 'publish:create'],
-  [handlePlatformPublish, ['query', 'list'], 'publish:read'],
+  [handlePlatformPublish, ['create', 'create_group', 'cancel'], 'publish:create'],
+  [handlePlatformPublish, ['query', 'query_group', 'list'], 'publish:read'],
   [handlePlatformPublish, ['metrics'], 'metrics:read'],
   [handlePlatformPublish, ['sync'], 'metrics:sync'],
   [handlePlatformAccounts, ['list', 'creator'], 'publish:read'],
@@ -68,7 +68,7 @@ for (const [handle, cases, scope] of actions) {
     assert.deepEqual(rpcs.map(call => call.name), ['consume_api_key']);
   }
 }
-console.log('PASS 20种操作缺少权限在读写、模型调用及计费前拒绝');
+console.log('PASS 22种操作缺少权限在读写、模型调用及计费前拒绝');
 granted = new Set(permissions.API_SCOPES);
 for (const action of ['authorize', 'disconnect', 'apps', 'save_app', 'unknown']) {
   consumed = []; reads = [];

@@ -1,4 +1,6 @@
 import { authenticatedEdgeRequest } from '@/lib/edgeRequest';
+export type { PublishOptions, PublishTarget, PublishGroupRequest } from '../../supabase/functions/_shared/publish-contract';
+import type { PublishGroupRequest } from '../../supabase/functions/_shared/publish-contract';
 export interface PlatformConnection {
   id: string; platform: string; display_name: string; status: string; expires_at: string; scopes: string[];
 }
@@ -12,6 +14,9 @@ export interface CreatorInfo {
 }
 export interface PlatformPublishTask {
   id: string;
+  group_id?: string | null;
+  request_key?: string;
+  connection_id?: string;
   job_id: string | null;
   project_id: string;
   title: string | null;
@@ -21,6 +26,9 @@ export interface PlatformPublishTask {
   created_at: string;
   error_message: string | null;
   platform_url: string | null;
+}
+export interface PublishGroup {
+  id: string; request_key: string; request: PublishGroupRequest; created_at: string; tasks: PlatformPublishTask[];
 }
 export async function listPlatformPublishTasks(): Promise<PlatformPublishTask[]> {
   const result = await platformRequest<{ tasks: PlatformPublishTask[] }>('platform-publish', { action: 'list' });

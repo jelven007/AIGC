@@ -1,5 +1,7 @@
 # 开发指南
 
+发布组入口见 [迭代18](ITERATION_18_PUBLISH_GROUPS.md)：00045、publish-contract.ts、platform-publish、PublishPage及MCP两个工具。`npm run test:publish`执行真实PG和Edge，browser_publish_groups.mjs验证页面恢复；修改options须同步三端。不得为每账号另建供应商直连或重试整组旁路，保存预览源/原UUID，SQL原子回滚并共用24队列配额。MCP当前47工具需重新导出与镜像重建。
+
 MCP修改见 [迭代17](ITERATION_17_MCP_PRODUCTION.md)：45工具仅调用业务API，先构建shoproai-mcp:local后运行`npm run test:mcp`；`python mcp/export_tools.py`生成目录，`--check`检查漂移。权限统一api-scopes.ts，不能新建供应商/资金旁路，写入必须保留原UUID且不自动重发；新增scope同时验证拒绝、所属用户和网关配置。
 
 剪辑效果修改见 [迭代16](ITERATION_16_RENDER_EFFECTS.md)：render-effects.ts与render_effects.py维护对应标识；不得把用户表达式直接插入FFmpeg图。`test:render`同时验证API协议与实际成片，browser_render_effects.mjs验证参数/保存恢复/移动控件。RGB滤镜须保留alpha；新增模块必须进入Worker重建镜像，禁止只提交前端效果名称。

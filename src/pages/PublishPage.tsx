@@ -2,135 +2,288 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/db/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { platformRequest, type PlatformConnection, type CreatorInfo } from '@/api/platforms';
+import { platformRequest, type PlatformConnection, type CreatorInfo, type PlatformPublishTask,
+  type PublishOptions, type PublishTarget, type PublishGroup, type PublishGroupRequest } from '@/api/platforms';
+import { capabilityError, groupRequest, uuid } from '../../supabase/functions/_shared/publish-contract';
 import { EdgeRequestError } from '@/lib/edgeRequest';
+import { canonicalMedia } from '@/lib/privateMedia';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { Globe, RefreshCw, Send, ExternalLink } from 'lucide-react';
-type PublishTask = { id: string; project_id: string; connection_id: string; platform: string; title: string;
-  request_key?: string;
-  status: string; scheduled_at: string | null; platform_url: string | null; error_message: string | null };
+
+type Form = { project_id: string; title: string; description: string; tags: string; scheduled_at: string; targets: PublishTarget[] };
+type Receipt = { request_key: string; action: 'create_group' | 'create'; payload: Record<string, unknown> };
+type Project = { id: string; title: string; video_url: string; duration: number };
+const blank = (project = ''): Form => ({ project_id: project, title: '', description: '', tags: '', scheduled_at: '', targets: [] });
+const initialOptions = (): PublishOptions => ({ privacy_level: '', consent: false, disable_comment: true,
+  disable_duet: true, disable_stitch: true, brand_content_toggle: false, brand_organic_toggle: false, is_aigc: true });
 const statuses: Record<string, string> = { draft: '已排队', scheduled: '定时发布', publishing: '上传中',
   submitted: '平台处理中', moderating: '平台审核中', published: '已发布', failed: '失败', unknown: '待核对', cancelled: '已取消' };
 const privacyNames: Record<string, string> = { PUBLIC_TO_EVERYONE: '所有人', MUTUAL_FOLLOW_FRIENDS: '互关好友',
   FOLLOWER_OF_CREATOR: '关注者', SELF_ONLY: '仅自己', '0': '所有人', '1': '仅自己', '2': '好友' };
+const optionLabels = { disable_comment: '关闭评论', disable_duet: '关闭合拍', disable_stitch: '关闭拼接',
+  brand_content_toggle: '付费合作推广', brand_organic_toggle: '推广自己的品牌', is_aigc: 'AI生成内容' };
+function localTime(iso: string | null) {
+  if (!iso) return '';
+  const date = new Date(iso);
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
 export default function PublishPage() {
   const { user } = useAuth();
   const [params] = useSearchParams();
   const [connections, setConnections] = useState<PlatformConnection[]>([]);
   const [platforms, setPlatforms] = useState<{ id: string; name: string; enabled: boolean }[]>([]);
-  const [tasks, setTasks] = useState<PublishTask[]>([]);
-  const [projects, setProjects] = useState<{ id: string; title: string; video_url: string; duration: number }[]>([]);
-  const [creator, setCreator] = useState<CreatorInfo | null>(null);
+  const [tasks, setTasks] = useState<PlatformPublishTask[]>([]);
+  const [groups, setGroups] = useState<PublishGroup[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [creators, setCreators] = useState<Record<string, CreatorInfo>>({});
+  const [creatorErrors, setCreatorErrors] = useState<Record<string, string>>({});
+  const [form, setForm] = useState<Form>(() => blank(params.get('projectId') || ''));
+  const [pending, setPending] = useState<Receipt | null>(null);
+  const receipt = useRef<Receipt | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
-  const [form, setForm] = useState({ project_id: params.get('projectId') || '', connection_id: '', title: '',
-    description: '', tags: '', scheduled_at: '', privacy_level: '', consent: false,
-    disable_comment: true, disable_duet: true, disable_stitch: true, brand_content_toggle: false,
-    brand_organic_toggle: false, is_aigc: true });
-  const requestKey = useRef<string | null>(null);
-  const receipt = useRef<{ request_key: string; form: typeof form } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [storageError, setStorageError] = useState(false);
+  const activeUser = useRef(user?.id);
+  activeUser.current = user?.id;
+  const submitting = useRef(false);
+  const loadingRef = useRef(false);
+  const storageKey = user ? `shopro:publish:${user.id}` : '';
+  const project = projects.find(item => item.id === form.project_id);
+
+  const clearReceipt = useCallback(() => {
+    localStorage.removeItem(storageKey);
+    receipt.current = null; setPending(null);
+    setForm(previous => ({ ...previous, targets: previous.targets.map(target =>
+      ({ ...target, options: { ...target.options, consent: false } })) }));
+  }, [storageKey]);
   useEffect(() => {
-    localStorage.removeItem('platform_credentials');
-    localStorage.removeItem('platform_auth');
-    if (user) localStorage.removeItem(`platform_auths_${user.id}`);
-    try {
-      receipt.current = user ? JSON.parse(localStorage.getItem(`shopro:publish:${user.id}`) || 'null') : null;
-      if (receipt.current) { requestKey.current = receipt.current.request_key; setForm(receipt.current.form); }
-    } catch { receipt.current = null; }
-  }, [user]);
-  const load = useCallback(async () => {
+    setConnections([]); setTasks([]); setGroups([]); setProjects([]); setCreators({}); setCreatorErrors({});
+    setForm(blank(params.get('projectId') || '')); receipt.current = null; setPending(null); setError(''); setStorageError(false);
     if (!user) return;
     try {
+      localStorage.removeItem('platform_credentials'); localStorage.removeItem('platform_auth');
+      localStorage.removeItem(`platform_auths_${user.id}`);
+      const stored = JSON.parse(localStorage.getItem(storageKey) || 'null');
+      if (!stored) return;
+      // 升级前未确认的单账号请求必须沿用旧 action 与 UUID，不能迁移成新的发布组。
+      let saved: Receipt;
+      if (stored.form && uuid(stored.request_key)) {
+        const old = stored.form;
+        saved = { request_key: stored.request_key, action: 'create', payload: {
+          project_id: old.project_id, connection_id: old.connection_id, title: old.title, description: old.description,
+          tags: old.tags.split(/[,，\s]+/).filter(Boolean), scheduled_at: old.scheduled_at ? new Date(old.scheduled_at).toISOString() : null,
+          options: Object.fromEntries(['privacy_level', 'consent', ...Object.keys(optionLabels)].map(key => [key, old[key]])),
+        } };
+      } else saved = stored;
+      if (!uuid(saved.request_key) || !['create', 'create_group'].includes(saved.action)) throw new Error('本地发布回执无法读取，请联系管理员核对任务');
+      const payload = groupRequest({ request_key: saved.request_key, ...saved.payload,
+        ...(saved.action === 'create' ? { source_url: 'https://legacy.invalid/unused', duration: 1 } : {}),
+        targets: saved.action === 'create' ? [{ connection_id: saved.payload.connection_id, options: saved.payload.options }] : saved.payload.targets });
+      receipt.current = saved; setPending(saved);
+      setForm({ ...payload, tags: payload.tags.join(', '), scheduled_at: localTime(payload.scheduled_at) });
+    } catch (cause) { setStorageError(true); setError(cause instanceof Error ? cause.message : '本地发布记录读取失败'); }
+  }, [storageKey, user?.id, params]);
+
+  const load = useCallback(async () => {
+    if (!user || loadingRef.current) return;
+    loadingRef.current = true;
+    const owner = user.id;
+    try {
       const accounts = await platformRequest('platform-accounts', { action: 'list' });
-      const publish = await platformRequest('platform-publish', { action: 'list' });
-      const result = await supabase.from('video_projects').select('id,title,video_url,duration').eq('user_id', user.id)
+      const publish = await platformRequest<{ tasks: PlatformPublishTask[]; groups?: PublishGroup[] }>('platform-publish', { action: 'list' });
+      const result = await supabase.from('video_projects').select('id,title,video_url,duration').eq('user_id', owner)
         .eq('status', 'completed').order('created_at', { ascending: false }).limit(50);
       if (result.error) throw new Error('作品读取失败');
-      setConnections(accounts.connections); setPlatforms(accounts.platforms); setTasks(publish.tasks);
-      setProjects(result.data || []); setError('');
-      if (receipt.current) {
-        const existing = await platformRequest('platform-publish', { action: 'query', request_key: receipt.current.request_key });
-        if (existing.task) {
-          receipt.current = null; requestKey.current = null; localStorage.removeItem(`shopro:publish:${user.id}`);
-        }
+      if (activeUser.current !== owner) return;
+      setConnections(accounts.connections); setPlatforms(accounts.platforms);
+      setTasks(publish.tasks); setGroups(publish.groups || []); setProjects(result.data || []);
+      const saved = receipt.current;
+      if (saved && !submitting.current) {
+        const found = await platformRequest('platform-publish', {
+          action: saved.action === 'create_group' ? 'query_group' : 'query', request_key: saved.request_key,
+        });
+        if (activeUser.current !== owner || receipt.current !== saved) return;
+        if (found.group || found.task) { clearReceipt(); toast.success('已恢复原发布记录，请查看下方进度'); }
       }
-    } catch (e) { setError(e instanceof Error ? e.message : '发布数据读取失败'); }
-  }, [user]);
+    } catch (cause) { if (activeUser.current === owner) setError(cause instanceof Error ? cause.message : '发布数据读取失败'); }
+    finally { loadingRef.current = false; if (activeUser.current === owner) setLoading(false); }
+  }, [user, clearReceipt]);
   useEffect(() => { void load(); const timer = setInterval(() => void load(), 15000); return () => clearInterval(timer); }, [load]);
+
+  const fetchCreator = async (id: string) => {
+    const owner = user?.id;
+    setCreatorErrors(previous => ({ ...previous, [id]: '' }));
+    try {
+      const info = await platformRequest<CreatorInfo>('platform-accounts', { action: 'creator', connection_id: id });
+      if (activeUser.current === owner) setCreators(previous => ({ ...previous, [id]: info }));
+    } catch (cause) {
+      if (activeUser.current === owner) setCreatorErrors(previous => ({ ...previous, [id]: (cause as Error).message }));
+    }
+  };
+  const selectedIds = form.targets.map(target => target.connection_id).join(',');
   useEffect(() => {
-    let stopped = false;
-    setCreator(null);
-    if (form.connection_id) platformRequest<CreatorInfo>('platform-accounts', { action: 'creator', connection_id: form.connection_id })
-      .then(info => { if (!stopped) setCreator(info); }).catch(e => { if (!stopped) setError(e.message); });
-    return () => { stopped = true; };
-  }, [form.connection_id]);
+    for (const id of selectedIds.split(',').filter(Boolean)) void fetchCreator(id);
+  }, [selectedIds, user?.id]);
+
+  const patch = (values: Partial<Form>) => {
+    if (receipt.current || submitting.current) return;
+    setForm(previous => ({ ...previous, ...values, targets: (values.targets || previous.targets)
+      .map(target => ({ ...target, options: { ...target.options, consent: false } })) }));
+  };
+  const patchTarget = (id: string, values: Partial<PublishOptions>) => {
+    if (receipt.current || submitting.current) return;
+    setForm(previous => ({ ...previous, targets: previous.targets.map(target => target.connection_id !== id ? target
+      : { ...target, options: { ...target.options, consent: false, ...values } }) }));
+  };
   const authorize = async (platform: string) => {
     setBusy(platform);
     try { const result = await platformRequest('platform-accounts', { action: 'authorize', platform }); window.location.assign(result.url); }
-    catch (e) { setError(e instanceof Error ? e.message : '授权失败'); setBusy(''); }
+    catch (cause) { setError((cause as Error).message); setBusy(''); }
   };
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!user) return;
-    if (!creator || !form.consent || !form.privacy_level) return;
-    const project = projects.find(item => item.id === form.project_id);
-    if (!project || project.duration > creator.max_video_post_duration_sec) { setError('视频时长超出平台账号限制'); return; }
-    setBusy('publish');
-    requestKey.current ||= crypto.randomUUID();
-    const original = receipt.current?.form || form;
-    receipt.current ||= { request_key: requestKey.current, form: original };
-    try { localStorage.setItem(`shopro:publish:${user?.id}`, JSON.stringify(receipt.current)); } catch {}
+    if (!user || submitting.current) return;
+    const owner = user.id;
+    submitting.current = true; setBusy('publish'); setError('');
+    let attempted = false;
     try {
-      await platformRequest('platform-publish', { action: 'create', request_key: requestKey.current,
-        project_id: original.project_id, connection_id: original.connection_id, title: original.title,
-        description: original.description, tags: original.tags.split(/[,，\s]+/).filter(Boolean),
-        scheduled_at: original.scheduled_at ? new Date(original.scheduled_at).toISOString() : null,
-        options: { privacy_level: original.privacy_level, consent: original.consent, disable_comment: original.disable_comment,
-          disable_duet: original.disable_duet, disable_stitch: original.disable_stitch,
-          brand_content_toggle: original.brand_content_toggle, brand_organic_toggle: original.brand_organic_toggle, is_aigc: original.is_aigc } });
-      receipt.current = null; localStorage.removeItem(`shopro:publish:${user?.id}`);
-      requestKey.current = null; setForm(previous => ({ ...previous, consent: false }));
-      toast.success('发布任务已保存，平台完成后自动更新状态'); await load();
-    } catch (e) {
-      if (e instanceof EdgeRequestError && [400, 401, 403, 409].includes(e.status)) {
-        receipt.current = null; requestKey.current = null; localStorage.removeItem(`shopro:publish:${user.id}`);
+      let saved = receipt.current;
+      if (!saved) {
+        if (!project) throw new Error('请选择已完成的作品');
+        for (const target of form.targets) {
+          const invalid = capabilityError(creators[target.connection_id], target.options, project.duration);
+          if (invalid) throw new Error(invalid);
+        }
+        const key = crypto.randomUUID();
+        const payload: PublishGroupRequest = groupRequest({ ...form, request_key: key,
+          source_url: canonicalMedia(project.video_url), duration: project.duration,
+          tags: form.tags.split(/[,，\s]+/).filter(Boolean), scheduled_at: form.scheduled_at ? new Date(form.scheduled_at).toISOString() : null });
+        saved = { action: 'create_group', request_key: key, payload };
+        // 保存成功后才发起请求，使断线/关页后能够继续核对。
+        localStorage.setItem(storageKey, JSON.stringify(saved)); receipt.current = saved; setPending(saved);
       }
-      setError(e instanceof Error ? e.message : '发布请求结果待确认，请保留原参数重试');
+      attempted = true;
+      const response = await platformRequest('platform-publish', { ...saved.payload, action: saved.action, request_key: saved.request_key });
+      if (!response.group && !response.task) throw new Error('发布结果待确认，请核对原请求');
+      if (activeUser.current !== owner) return;
+      clearReceipt(); toast.success('发布任务已保存，各账号进度将在后台持续更新');
+    } catch (cause) {
+      if (activeUser.current !== owner) return;
+      // 鉴权失败、幂等冲突和网络故障保留回执；参数拒绝/数据库确定回滚才允许编辑。
+      if (attempted && cause instanceof EdgeRequestError && (cause.status === 400 || cause.code === 'publish_group_rejected')) clearReceipt();
+      setError(cause instanceof Error ? cause.message : '发布请求结果待确认，请核对原请求');
+    } finally {
+      submitting.current = false;
+      if (activeUser.current === owner) { setBusy(''); void load(); }
     }
+  };
+  const changeAccount = (id: string, checked: boolean) => {
+    if (checked && form.targets.length >= 10) { toast.info('一次最多选择10个账号'); return; }
+    patch({ targets: checked ? [...form.targets, { connection_id: id, options: initialOptions() }]
+      : form.targets.filter(target => target.connection_id !== id) });
+  };
+  const cancel = async (id: string) => {
+    setBusy(id);
+    try { await platformRequest('platform-publish', { action: 'cancel', task_id: id }); await load(); }
+    catch (cause) { toast.error((cause as Error).message); }
     finally { setBusy(''); }
   };
-  const patch = (values: Partial<typeof form>) => {
-    if (receipt.current) { toast.info('上一请求结果待确认，请保持原参数重试或刷新任务列表'); return; }
-    setForm(previous => ({ ...previous, ...values }));
-  };
-  const project = projects.find(item => item.id === form.project_id);
+  const accountName = (id?: string) => connections.find(connection => connection.id === id)?.display_name || '历史账号';
+  const renderTask = (task: PlatformPublishTask) => <div key={task.id} className="py-3 flex flex-wrap justify-between gap-3">
+    <div className="min-w-0 flex-1"><p className="font-medium break-words">{accountName(task.connection_id)} · {task.platform}</p>
+      <p className="text-sm text-muted-foreground mt-1">{statuses[task.status] || task.status}{task.scheduled_at ? ` · ${new Date(task.scheduled_at).toLocaleString()}` : ''}</p>
+      {task.error_message && <p className="text-sm text-destructive mt-2 break-words">{task.error_message}</p>}</div>
+    <div className="flex gap-2 items-start">{task.platform_url?.startsWith('https://') && <Button asChild size="sm" variant="outline"><a href={task.platform_url} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4 mr-1" />查看</a></Button>}
+      {['draft', 'scheduled'].includes(task.status) && <Button disabled={!!busy} variant="ghost" size="sm" onClick={() => void cancel(task.id)}>取消</Button>}</div>
+  </div>;
+  const locked = !!pending || !!busy || storageError;
+  const valid = !!project && form.targets.length > 0 && form.targets.every(target =>
+    target.options.consent && !creatorErrors[target.connection_id] && !capabilityError(creators[target.connection_id], target.options, project.duration));
+  const knownGroups = new Set(groups.map(group => group.id));
+
   return <div className="mx-auto max-w-6xl p-4 md:p-8 space-y-6">
-    <div className="flex justify-between gap-4"><div><h1 className="text-2xl font-semibold flex gap-2 items-center"><Globe className="h-5 w-5" />跨平台发布</h1><p className="text-sm text-muted-foreground mt-2">授权自己的账号，确认内容和可见范围后提交。发布进度在后台持续核对。</p></div><Button variant="outline" onClick={() => void load()}><RefreshCw className="mr-2 h-4 w-4" />刷新</Button></div>
+    <div className="flex justify-between gap-4"><div><h1 className="text-2xl font-semibold flex gap-2 items-center"><Globe className="h-5 w-5" />跨平台发布</h1>
+      <p className="text-sm text-muted-foreground mt-2">一份成片可发布到多个账号。逐个确认可见范围和内容声明，发布后分别跟踪进度。</p></div>
+      <Button variant="outline" disabled={!!busy} onClick={() => void load()}><RefreshCw className="mr-2 h-4 w-4" />刷新</Button></div>
     {error && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error}</p>}
-    <section className="grid gap-4 sm:grid-cols-2">{platforms.map(platform => <div key={platform.id} className="border border-border rounded-xl p-5 bg-card">
-      <div className="flex justify-between gap-3"><h2 className="font-semibold">{platform.name}</h2><Button size="sm" disabled={!platform.enabled || !!busy} onClick={() => void authorize(platform.id)}>{platform.enabled ? '授权账号' : '待管理员配置'}</Button></div>
-      <div className="space-y-2 mt-3">{connections.filter(connection => connection.platform === platform.id).map(connection => <div key={connection.id} className="flex justify-between text-sm items-center gap-2"><span>{connection.display_name} · {connection.status === 'active' ? '已连接' : '已断开'}</span><Button size="sm" variant="ghost" onClick={async () => { await platformRequest('platform-accounts', { action: 'disconnect', connection_id: connection.id }); await load(); }}>断开</Button></div>)}</div>
+    {pending && <div role="status" className="rounded-lg border border-amber-500/40 p-4 space-y-2 text-sm">
+      <p>上一请求结果待确认。原内容已保留，请刷新核对或按原参数重试。</p>
+      <p className="break-all text-muted-foreground">请求编号：{pending.request_key}</p>
+      <Button variant="outline" disabled={!!busy} onClick={() => void load()}>核对原请求</Button>
+    </div>}
+    <section aria-label="平台授权" className="grid gap-4 sm:grid-cols-2">{platforms.map(platform => <div key={platform.id} className="border border-border rounded-xl p-5 bg-card">
+      <div className="flex justify-between gap-3"><h2 className="font-semibold">{platform.name}</h2><Button size="sm" disabled={!platform.enabled || locked} onClick={() => void authorize(platform.id)}>{platform.enabled ? '授权账号' : '待管理员配置'}</Button></div>
+      <div className="space-y-2 mt-3">{connections.filter(connection => connection.platform === platform.id).map(connection => <div key={connection.id} className="flex justify-between text-sm items-center gap-2">
+        <span className="break-words min-w-0">{connection.display_name} · {connection.status === 'active' ? '已连接' : '已断开'}</span>
+        <Button size="sm" variant="ghost" disabled={locked || connection.status !== 'active'} onClick={async () => {
+          setBusy(connection.id);
+          try {
+            await platformRequest('platform-accounts', { action: 'disconnect', connection_id: connection.id });
+            patch({ targets: form.targets.filter(target => target.connection_id !== connection.id) }); await load();
+          } catch (cause) { toast.error((cause as Error).message); } finally { setBusy(''); }
+        }}>断开</Button></div>)}</div>
     </div>)}</section>
-    <form onSubmit={submit} className="rounded-xl border border-border bg-card p-5 md:p-6 space-y-4">
-      <h2 className="text-lg font-semibold">创建发布任务</h2>
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="text-sm space-y-2">成片<select required value={form.project_id} onChange={event => { const item = projects.find(p => p.id === event.target.value); patch({ project_id: event.target.value, title: item?.title || '' }); }} className="block w-full h-10 rounded-md border border-input bg-background px-3"><option value="">选择已完成作品</option>{projects.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label>
-        <label className="text-sm space-y-2">发布账号<select required value={form.connection_id} onChange={event => patch({ connection_id: event.target.value, privacy_level: '', consent: false })} className="block w-full h-10 rounded-md border border-input bg-background px-3"><option value="">选择已授权账号</option>{connections.filter(item => item.status === 'active').map(item => <option key={item.id} value={item.id}>{item.platform} · {item.display_name}</option>)}</select></label>
-      </div>
-      {project?.video_url && <video src={project.video_url} controls playsInline className="w-full max-h-64 rounded-lg bg-black" />}
-      {creator && <p className="text-sm text-muted-foreground">发布到：{creator.display_name} · 最长 {creator.max_video_post_duration_sec} 秒</p>}
-      <label className="block text-sm space-y-2">标题<Input required maxLength={150} value={form.title} onChange={event => patch({ title: event.target.value })} /></label>
-      <label className="block text-sm space-y-2">简介<Textarea maxLength={1000} value={form.description} onChange={event => patch({ description: event.target.value })} /></label>
-      <div className="grid gap-4 md:grid-cols-2"><label className="text-sm space-y-2">标签<Input value={form.tags} onChange={event => patch({ tags: event.target.value })} placeholder="逗号分隔，最多10个" /></label><label className="text-sm space-y-2">定时发布<Input type="datetime-local" value={form.scheduled_at} onChange={event => patch({ scheduled_at: event.target.value })} /></label></div>
-      <label className="block text-sm space-y-2">可见范围<select required value={form.privacy_level} onChange={event => patch({ privacy_level: event.target.value })} className="w-full h-10 rounded-md border border-input bg-background px-3"><option value="">请选择</option>{creator?.privacy_level_options.map(value => <option key={value} value={value}>{privacyNames[value] || value}</option>)}</select></label>
-      {creator?.platform === 'tiktok' && <div className="flex flex-wrap gap-4 text-sm">{(['disable_comment', 'disable_duet', 'disable_stitch', 'brand_content_toggle', 'brand_organic_toggle', 'is_aigc'] as const).map((field, index) => <label key={field} className="flex items-center gap-2"><input type="checkbox" checked={form[field]} disabled={(field === 'disable_comment' && creator?.comment_disabled) || (field === 'disable_duet' && creator?.duet_disabled) || (field === 'disable_stitch' && creator?.stitch_disabled)} onChange={event => patch({ [field]: event.target.checked })} />{['关闭评论', '关闭合拍', '关闭拼接', '付费合作推广', '推广自己的品牌', 'AI生成内容'][index]}</label>)}</div>}
-      {creator?.platform === 'douyin' && <p className="text-sm text-muted-foreground">抖音评论、商业推广与 AI 内容标识请在平台按实际内容确认；此处只设置发布内容与可见范围。</p>}
-      <label className="flex gap-2 items-start text-sm"><input type="checkbox" checked={form.consent} onChange={event => patch({ consent: event.target.checked })} className="mt-1" />我已预览当前视频并确认发布到所选账号，已确认音乐使用权和平台条款。</label>
-      <Button type="submit" disabled={!!busy || !creator || !form.consent}><Send className="mr-2 h-4 w-4" />{busy === 'publish' ? '正在提交…' : '提交发布任务'}</Button>
+    <form onSubmit={submit} className="rounded-xl border border-border bg-card p-5 md:p-6 space-y-5">
+      <h2 className="text-lg font-semibold">创建发布组</h2>
+      <fieldset disabled={locked} className="space-y-4 min-w-0">
+        <label className="block text-sm space-y-2">成片<select required value={form.project_id} onChange={event => {
+          const item = projects.find(p => p.id === event.target.value); patch({ project_id: event.target.value, title: item?.title || '' });
+        }} className="block w-full h-10 rounded-md border border-input bg-background px-3"><option value="">选择已完成作品</option>{projects.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label>
+        {project?.video_url && <video src={project.video_url} controls playsInline className="w-full max-h-64 rounded-lg bg-black" />}
+        {!projects.length && !loading && <p className="text-sm text-muted-foreground">还没有成片，请先在作品库完成生成或渲染。</p>}
+        <label className="block text-sm space-y-2">标题<Input required maxLength={150} value={form.title} onChange={event => patch({ title: event.target.value })} /></label>
+        <label className="block text-sm space-y-2">简介<Textarea maxLength={1000} value={form.description} onChange={event => patch({ description: event.target.value })} /></label>
+        <div className="grid gap-4 md:grid-cols-2"><label className="text-sm space-y-2">标签<Input value={form.tags} onChange={event => patch({ tags: event.target.value })} placeholder="逗号分隔，最多10个" /></label>
+          <label className="text-sm space-y-2">定时发布<Input type="datetime-local" value={form.scheduled_at} onChange={event => patch({ scheduled_at: event.target.value })} /><span className="block text-xs text-muted-foreground">本地时间，未来30天内；留空立即排队。</span></label></div>
+        <fieldset className="space-y-3"><legend className="text-sm font-medium mb-2">发布账号 · 已选 {form.targets.length}/10</legend>
+          {!connections.some(item => item.status === 'active') && <p className="text-sm text-muted-foreground">请先在上方授权一个平台账号。</p>}
+          {connections.filter(item => item.status === 'active').map(connection => <label key={connection.id} className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={form.targets.some(target => target.connection_id === connection.id)} onChange={event => changeAccount(connection.id, event.target.checked)} />
+            {connection.platform} · {connection.display_name}</label>)}
+        </fieldset>
+        <div className="divide-y divide-border">{form.targets.map(target => {
+          const info = creators[target.connection_id], options = target.options;
+          const invalid = info && project ? capabilityError(info, options, project.duration) : null;
+          return <fieldset key={target.connection_id} className="py-4 space-y-3 min-w-0">
+            <legend className="font-medium pt-3 break-words">{accountName(target.connection_id)}</legend>
+            {!info && !creatorErrors[target.connection_id] && <p role="status" className="text-sm text-muted-foreground">正在读取账号权限…</p>}
+            {creatorErrors[target.connection_id] && <div className="text-sm text-destructive"><p>{creatorErrors[target.connection_id]}</p><Button type="button" variant="outline" size="sm" onClick={() => void fetchCreator(target.connection_id)}>重试读取权限</Button></div>}
+            {info && <><p className="text-sm text-muted-foreground">{info.platform} · 最长 {info.max_video_post_duration_sec} 秒</p>
+              <label className="block text-sm space-y-2">可见范围<select required value={options.privacy_level}
+                onChange={event => patchTarget(target.connection_id, { privacy_level: event.target.value })} className="block w-full h-10 rounded-md border border-input bg-background px-3">
+                <option value="">请选择</option>{info.privacy_level_options.map(value => <option key={value} value={value}>{privacyNames[value] || value}</option>)}</select></label>
+              {info.platform === 'tiktok' && <div className="flex flex-wrap gap-4 text-sm">{(Object.keys(optionLabels) as (keyof typeof optionLabels)[]).map(field => <label key={field} className="flex items-center gap-2">
+                <input type="checkbox" checked={options[field]} disabled={(field === 'disable_comment' && info.comment_disabled) || (field === 'disable_duet' && info.duet_disabled) || (field === 'disable_stitch' && info.stitch_disabled)}
+                  onChange={event => patchTarget(target.connection_id, { [field]: event.target.checked })} />{optionLabels[field]}</label>)}</div>}
+              {info.platform === 'douyin' && <p className="text-sm text-muted-foreground">抖音评论、商业推广与 AI 内容标识请在平台按实际内容确认；此处设置内容与可见范围。</p>}
+              {invalid && <p className="text-sm text-destructive">{invalid}</p>}
+              <label className="flex gap-2 items-start text-sm"><input type="checkbox" checked={options.consent} className="mt-1"
+                onChange={event => patchTarget(target.connection_id, { consent: event.target.checked })} />
+                我已预览当前视频，确认发布到 {info.display_name}，并确认音乐使用权和平台条款。</label>
+            </>}
+          </fieldset>;
+        })}</div>
+      </fieldset>
+      <p className="text-sm text-muted-foreground">发布服务当前不额外扣积分。全部账号通过校验后一起保存，平台受理和审核进度各自更新。</p>
+      <Button type="submit" disabled={storageError || !!busy || (!pending && !valid)}><Send className="mr-2 h-4 w-4" />
+        {busy === 'publish' ? '正在提交…' : pending ? '按原参数重试' : `提交到 ${form.targets.length} 个账号`}</Button>
     </form>
-    <section><h2 className="text-lg font-semibold mb-3">发布记录</h2>{!tasks.length && <p className="py-8 text-muted-foreground text-sm">暂无发布任务。</p>}<div className="divide-y divide-border">{tasks.map(task => <div key={task.id} className="py-4 flex justify-between gap-4"><div className="min-w-0"><p className="font-medium truncate">{task.title} · {task.platform}</p><p className="text-sm text-muted-foreground mt-1">{statuses[task.status] || task.status}{task.scheduled_at ? ` · ${new Date(task.scheduled_at).toLocaleString()}` : ''}</p>{task.error_message && <p className="text-xs text-muted-foreground mt-2 break-words">{task.error_message}</p>}</div><div className="flex gap-2 shrink-0">{task.platform_url && <Button asChild size="sm" variant="outline"><a href={task.platform_url} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4 mr-1" />查看</a></Button>}{['draft', 'scheduled'].includes(task.status) && <Button variant="ghost" size="sm" onClick={async () => { try { await platformRequest('platform-publish', { action: 'cancel', task_id: task.id }); await load(); } catch (e) { toast.error((e as Error).message); } }}>取消</Button>}</div></div>)}</div></section>
+    <section aria-label="发布记录" className="space-y-3"><h2 className="text-lg font-semibold">发布记录</h2>
+      <p className="text-sm text-muted-foreground">最近20个发布组与100条任务，每15秒更新。已提交平台的任务继续核对，不会因重试整组而重复发布。</p>
+      {loading && <p role="status" className="text-sm text-muted-foreground">正在读取发布记录…</p>}
+      {!loading && !tasks.length && !groups.length && <p className="py-8 text-muted-foreground text-sm">暂无发布任务。</p>}
+      {groups.map(group => <article key={group.id} className="rounded-xl border border-border p-4">
+        <h3 className="font-semibold break-words">{group.request.title}</h3>
+        <p className="text-sm text-muted-foreground mt-1">{group.tasks.filter(task => task.status === 'published').length}/{group.tasks.length} 个账号已发布 · {new Date(group.created_at).toLocaleString()}</p>
+        <div className="divide-y divide-border mt-2">{group.tasks.map(renderTask)}</div>
+      </article>)}
+      {tasks.filter(task => !task.group_id || !knownGroups.has(task.group_id)).map(task => <article key={task.id} className="border border-border rounded-xl p-4">
+        <h3 className="font-semibold break-words">{task.title}</h3>{renderTask(task)}</article>)}
+    </section>
   </div>;
 }

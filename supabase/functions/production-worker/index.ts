@@ -31,11 +31,14 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
       const knowledgeCosts = await db.from('credit_costs').select('cost').in('action', KNOWLEDGE_KINDS.map(kind => `generate_${kind}`));
       const intelligence = await db.from('intelligence_targets').select('id,remaining_budget,schedule_version').limit(0);
       const intelligenceCosts = await db.from('credit_costs').select('cost').in('action', INTELLIGENCE_KINDS.map(kind => `generate_${kind}`));
+      const publishGroups = await db.from('publish_groups').select('id,request_key').limit(0);
+      const publishTasks = await db.from('publish_tasks').select('id,group_id,connection_id').limit(0);
       const ready = !error && !voices.error && !costs.error && costs.data?.length === Object.keys(MEDIA_JOB_SLOTS).length
         && !analysis.error && !!analysis.data && !measurements.error && !experiments.error && !knowledge.error && !chunks.error
         && !knowledgeCosts.error && knowledgeCosts.data?.length === 2 && knowledgeCosts.data.every(row => Number.isInteger(row.cost) && row.cost >= 0)
-        && !intelligence.error && !intelligenceCosts.error && intelligenceCosts.data?.length === 2;
-      return Response.json({ ready, version: 6, render_version: 2, required_migration: '00044' }, { status: ready ? 200 : 503 });
+        && !intelligence.error && !intelligenceCosts.error && intelligenceCosts.data?.length === 2
+        && !publishGroups.error && !publishTasks.error;
+      return Response.json({ ready, version: 7, render_version: 2, required_migration: '00045' }, { status: ready ? 200 : 503 });
     }
     if (general && body.action === 'run') {
       const scheduled = await db.rpc('enqueue_intelligence_schedule');
