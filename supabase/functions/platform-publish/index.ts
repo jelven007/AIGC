@@ -9,9 +9,11 @@ export async function handlePlatformPublish(req: Request): Promise<Response> {
   const reply = (body: unknown, status = 200) => Response.json(body, { headers, status });
   if (req.method !== 'POST') return reply({ error: '仅支持POST' }, 405);
   try {
-    const auth = await authenticateRequest(req);
-    if (auth.error || !auth.user || auth.isServiceRole) return reply({ error: '请先登录' }, 401);
-    const db = createServiceClient(), body = await req.json();
+    const body = await req.json();
+    const auth = await authenticateRequest(req, body.action === 'create' ? 'publish:create'
+      : ['query', 'list'].includes(body.action) ? 'publish:read' : body.action === 'metrics' ? 'metrics:read' : undefined);
+    if (auth.error || !auth.user || auth.isServiceRole) return reply({ error: auth.error || '请先登录' }, auth.status || 401);
+    const db = createServiceClient();
     if (body.action === 'query') {
       const result = await db.from('publish_tasks').select('*').eq('user_id', auth.user.id).eq('request_key', body.request_key).maybeSingle();
       if (result.error) throw new Error('发布请求核对失败');

@@ -18,3 +18,16 @@ verify_jwt = false
 
 [functions.platform-oauth-callback]
 verify_jwt = false
+
+# 业务函数同时验证用户 JWT 或有权限/限额的 API Key。
+[functions.text-generation]
+verify_jwt = false
+
+[functions.video-jobs]
+verify_jwt = false
+
+[functions.production-jobs]
+verify_jwt = false
+
+[functions.platform-publish]
+verify_jwt = false

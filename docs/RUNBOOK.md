@@ -2,6 +2,8 @@
 
 更新：2026-10-21，源码基线 `ce90bfe`。当前实际为官方 Supabase，迁移到 00031、三个旧函数、10 秒 Cron；新版 00032–00034 尚未发布。火山 BaaS/Pages/ECS 是独立待验收方案。[当前状态](CURRENT_STATE.md) 是环境判断入口。
 
+源码增量已到00037，实际云端记录未刷新。除 [生产链路](ITERATION_06_PRODUCTION_PIPELINE.md) 外，本次发布须包含 [访问控制](ITERATION_08_ACCESS_CONTROL.md)：旧Key迁移停用，四业务入口函数内验证JWT/Key；团队只从事务API写入；素材删除清理由production调度执行。查看未清理对象只查询 `media_deletions` 的 id/bucket/path/attempts/next_run_at/last_error，不输出认证请求；持续失败应修复Storage并重试原清理项。
+
 ## 1. 环境与访问责任
 
 生产记录至少包含平台、项目/workspace/branch、URL、前端构建 Git/校验值、迁移回执、函数版本与对应源码、调度方式、配置版本、负责人和验收链接。URL 是公开信息，密钥不写运行记录。

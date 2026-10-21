@@ -15,6 +15,7 @@
     "test:volcengine": "python3 tests/test_volcengine_deploy.py && node tests/volcengine.test.mjs",
     "test:production": "node tests/production_jobs.test.mjs",
     "test:task-center": "node tests/task_center.test.mjs",
+    "test:access": "python3 tests/test_access_control.py && node tests/access_control.test.mjs",
     "test:render": "docker run --rm -v \"$PWD:/app\" -w /app shoproai-render-worker:local python tests/test_render.py",
     "deploy:prepare": "python3 scripts/deploy_volcengine.py prepare",
     "scheduler:start": "python3 scripts/manage_video_scheduler.py start",

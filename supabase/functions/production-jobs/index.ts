@@ -12,11 +12,13 @@ export async function handleProductionJobs(req: Request): Promise<Response> {
   const reply = (body: unknown, status = 200) => Response.json(body, { status, headers });
   if (req.method !== 'POST') return reply({ error: '仅支持 POST' }, 405);
   try {
-    const auth = await authenticateRequest(req);
-    if (auth.error || !auth.user || auth.isServiceRole) return reply({ error: '请先登录' }, 401);
-    const db = createServiceClient();
     const body = await req.json().catch(() => null);
     if (!body) return reply({ error: '任务参数非法' }, 400);
+    const auth = await authenticateRequest(req, body.action === 'create'
+      ? body.kind === 'image' ? 'image:create' : body.kind === 'render' ? 'render:create' : undefined
+      : ['query', 'list'].includes(body.action) ? 'jobs:read' : undefined);
+    if (auth.error || !auth.user || auth.isServiceRole) return reply({ error: auth.error || '请先登录' }, auth.status || 401);
+    const db = createServiceClient();
     if (body.action === 'create') {
       if (!uuid(body.request_key) || !['image', 'render'].includes(body.kind) || !body.input) return reply({ error: '缺少任务类型与幂等标识' }, 400);
       let input;

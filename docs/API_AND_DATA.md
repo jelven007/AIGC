@@ -8,6 +8,8 @@
 
 JSON 请求使用 `Content-Type: application/json`，允许的预检由各函数处理。通常 400 表示参数/配置非法，401 未登录，403 无权限，402 视频积分不足，404 本人任务不存在，409 幂等/配置冲突，429 频控，503 运行错误或结果未确认。各接口具体状态以实现为准，不能把所有非 2xx 当作上游未受理。
 
+访问控制增量 `00037`：四个业务入口支持 `Authorization: Bearer ak_live_...`，按 Action 的 scope 验证；管理端 `api-keys/team-space/material-assets` 仅用户 JWT。完整 Action/权限与 Key 有效期、每分钟限额、团队邀请/共享、删除 outbox 见 [访问控制接口](ITERATION_08_ACCESS_CONTROL.md)。旧 phase3 团队和密钥 Actions 返回410；前端不再直接写相关管理表。网关设置与函数内鉴权须一起发布。
+
 ## 2. 视频任务
 
 入口 [video-jobs](../supabase/functions/video-jobs/index.ts)，仅 POST：

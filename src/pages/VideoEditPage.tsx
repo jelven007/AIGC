@@ -26,6 +26,7 @@ import { Slider } from '@/components/ui/slider';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
 import { storedMedia, stableMedia } from '@/api/media';
+import { deleteMaterial } from '@/api/accessControl';
 import { canonicalMediaTree, hydrateMediaTree } from '@/lib/privateMedia';
 import { backendAnonKey } from '@/lib/backendConfig';
 import { useProductionJob } from '@/hooks/useProductionJob';
@@ -3303,15 +3304,17 @@ export default function VideoEditPage() {
   }, [dragInfo, tracks, duration]);
 
   const handleDeleteMaterial = async (id: string) => {
-    setMaterials(prev => prev.filter(m => m.id !== id));
+    if (!/^[a-f0-9-]{36}$/i.test(id)) {
+      setMaterials(prev => prev.filter(m => m.id !== id));
+      toast.success('已从当前素材面板移除');
+      return;
+    }
     try {
-      const { error } = await supabase.from('materials').delete().eq('id', id);
-      if (error) {
-        console.warn('DB delete failed:', error.message);
-      }
+      await deleteMaterial(id);
+      setMaterials(prev => prev.filter(m => m.id !== id));
       toast.success('素材已从媒体库删除');
-    } catch (err) {
-      console.error(err);
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : '素材删除失败');
     }
   };
 
@@ -4143,12 +4146,8 @@ export default function VideoEditPage() {
       .order('created_at', { ascending: false })
       .limit(30);
     const list = (data ?? []) as any[];
-    // 过滤并持久删除历史杂项素材
-    const junkIds = list.filter(m => isLegacyJunkMaterial(String(m.name ?? ''))).map(m => m.id);
+    // 历史分类仅影响当前面板，不在加载时删除用户资产。
     const cleanList = list.filter(m => !isLegacyJunkMaterial(String(m.name ?? '')));
-    if (junkIds.length > 0) {
-      supabase.from('materials').delete().in('id', junkIds).then(() => {});
-    }
     if (cleanList.length > 0) {
       setMaterials(cleanList);
       return;

@@ -40,6 +40,8 @@ docker run --rm -it -p 127.0.0.1:5173:5173 \
 
 新版模型服务要求 00034、`MODEL_CONFIG_ENCRYPTION_KEY`、匹配的函数与共享模块。通过 Auth 管理面授权真实管理员后，在 `/settings/models` 配置接口；不能通过 `profiles.role` 或 `user_metadata` 提权。完整步骤见 [模型设置](MODEL_SETTINGS.md)。
 
+访问控制增量要求00037及 `api-keys/team-space/material-assets`，业务Key入口与production Worker同步更新。团队成员/Key不能再从Data API直接写入；素材删除使用持久化outbox，客户端统一 `src/api/accessControl.ts`。专项入口 `npm run test:access`，页面夹具 `tests/browser_access_control.mjs`；兼容与网关要求见 [访问控制迭代](ITERATION_08_ACCESS_CONTROL.md)。
+
 ## 3. 目录与修改位置
 
 | 目录 | 职责 |

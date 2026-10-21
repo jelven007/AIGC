@@ -25,6 +25,7 @@ const db = {
     upload: async () => ({ error: uploadFailure ? new Error('storage outage') : null }),
   }; } },
   async rpc(name, args) {
+    if (name === 'can_read_media') return { data: args.p_path.startsWith(uid + '/') || args.p_path.startsWith(`generated-images/${uid}/`) };
     if (name === 'claim_production_job') return { data: job };
     if (name === 'update_production_job') {
       events.push({ event: args.p_event, data: args.p_data });

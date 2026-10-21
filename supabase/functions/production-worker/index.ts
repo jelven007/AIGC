@@ -3,6 +3,7 @@ import { processImageJob, jobEvent, type ProductionJob } from '../_shared/produc
 import { mediaReference, signMediaTree } from '../_shared/private-media.ts';
 import { processPublishJob, collectPlatformMetrics } from '../_shared/platform-jobs.ts';
 import { processVideoJob } from '../_shared/video-jobs.ts';
+import { processMediaDeletions } from '../_shared/media-cleanup.ts';
 
 export async function handleProductionWorker(req: Request): Promise<Response> {
   if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
@@ -23,7 +24,8 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
       const offset = Math.floor(Date.now() / 1000) % runners.length;
       let processed = false;
       for (let index = 0; index < runners.length && !processed; index++) processed = await runners[(index + offset) % runners.length]();
-      return Response.json({ processed: processed ? 1 : 0 });
+      const cleaned = await processMediaDeletions(db);
+      return Response.json({ processed: processed ? 1 : 0, cleaned });
     }
     if (general && body.action === 'metrics') return Response.json({ collected: await collectPlatformMetrics(db) });
     if (render && body.action === 'claim') {
