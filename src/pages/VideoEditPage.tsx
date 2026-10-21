@@ -4768,7 +4768,8 @@ export default function VideoEditPage() {
           ...(pip ? { x: track.x ?? pipSettings.x, y: track.y ?? pipSettings.y,
             scale: track.scale ?? pipSettings.scale * 0.35, opacity: track.opacity ?? pipSettings.opacity,
             rotation: track.rotation ?? pipSettings.rotation } : {}),
-          ...(track.type === 'video' && appliedFilter !== '无' ? { filter: appliedFilter } : {}),
+          ...(['video', 'image'].includes(track.type) && (track.filter || appliedFilter) !== '无'
+            ? { filter: track.filter || appliedFilter, filterIntensity: filterIntensity[track.filter || appliedFilter] ?? 80 } : {}),
           ...(aiBeautyEnabled && track.type === 'video' ? { brightness: 106, contrast: 103, saturation: 108 } : {}),
         });
       }

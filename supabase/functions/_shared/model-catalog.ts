@@ -15,6 +15,13 @@ export const MODEL_SLOTS = [
   { id: 'video.Seedance', name: 'Seedance 网关', category: 'video', protocols: ['Seedance'], model: 'Cdance2.0-A', endpoint: '' },
 ] as const;
 
+// 退役信息独立于可配置目录，不能被启用或用于创建计费任务。
+export const RETIRED_MODELS = [
+  { id: 'Sora', name: 'Sora', retired_on: '2026-09-24',
+    reason: 'OpenAI 官方 Sora API 已关闭，请选择已开通的视频供应商。',
+    source: 'https://developers.openai.com/api/reference/resources/videos/methods/create' },
+] as const;
+
 export interface ModelSettings {
   name: string;
   protocol: string;

@@ -61,12 +61,54 @@ def expression(track, prop, default, low, high, time="t"):
     return result
 
 
+def preset_filters(preset, intensity):
+    """按浏览器 CSS 滤镜的 RGB 定义应用强度，0% 保持原画。"""
+    if preset in ("none", "无", ""):
+        return []
+    pct = intensity / 100
+    def matrix(values):
+        keys = ("rr", "rg", "rb", "gr", "gg", "gb", "br", "bg", "bb")
+        return "colorchannelmixer=" + ":".join(f"{key}={value:.8f}" for key, value in zip(keys, values))
+    def saturation(value):
+        weights = (.213, .715, .072)
+        return matrix([weights[col] * (1-value) + (value if row == col else 0) for row in range(3) for col in range(3)])
+    def contrast(value):
+        offset = 255 * .5 * (1-value)
+        return "lutrgb=" + ":".join(f"{channel}='clip(val*{value}+{offset},0,255)'" for channel in "rgb")
+    def brightness(value):
+        return "lutrgb=" + ":".join(f"{channel}='clip(val*{value},0,255)'" for channel in "rgb")
+    def sepia(value):
+        full = (.393, .769, .189, .349, .686, .168, .272, .534, .131)
+        return matrix([(1-value if index in (0, 4, 8) else 0) + value * part for index, part in enumerate(full)])
+    if preset == "f1":
+        return [contrast(1+.2*pct), saturation(1-.2*pct), brightness(1-.05*pct), sepia(.2*pct)]
+    if preset == "f2":
+        return [sepia(.35*pct), saturation(1+.3*pct), brightness(1+.05*pct)]
+    if preset == "f3":
+        c, s = math.cos(math.pi*pct), math.sin(math.pi*pct)
+        return [matrix((.213+.787*c-.213*s, .715-.715*c-.715*s, .072-.072*c+.928*s,
+                        .213-.213*c+.143*s, .715+.285*c+.140*s, .072-.072*c-.283*s,
+                        .213-.213*c-.787*s, .715-.715*c+.715*s, .072+.928*c+.072*s)),
+                saturation(1-.1*pct)]
+    if preset == "f4":
+        return [sepia(.4*pct), contrast(1+.15*pct), brightness(1-.1*pct)]
+    if preset == "f5":
+        return [saturation(1-pct), contrast(1+.2*pct)]
+    if preset == "f6":
+        return ["lutrgb=" + ":".join(f"{channel}='val*{1-2*pct}+{255*pct}'" for channel in "rgb")]
+    if preset == "f7":
+        return [saturation(1+1.2*pct), contrast(1+.1*pct)]
+    if preset == "f8":
+        return [saturation(1-.8*pct), brightness(1+.05*pct)]
+    raise RenderError("滤镜未接入服务端")
+
+
 def validate(spec):
     if spec.get("version") != 1 or not isinstance(spec.get("tracks"), list) or not 1 <= len(spec["tracks"]) <= 80:
         raise RenderError("工程协议或轨道数不正确")
     duration = numeric(spec.get("duration"), 30, .1, 600)
     height = spec.get("height")
-    if height not in (720, 1080, 2160) or spec.get("fps") not in (24, 25, 30, 60) or spec.get("ratio") not in ("16:9", "9:16", "1:1", "4:3", "3:4"):
+    if height not in (720, 1080, 2160) or spec.get("fps") not in (24, 25, 30, 60) or spec.get("ratio") not in ("16:9", "9:16", "1:1", "4:3", "3:4", "4:5"):
         raise RenderError("输出规格不支持")
     seen = set()
     if spec.get("transition", "none") not in ("none", "t1", "t2"):
@@ -151,15 +193,7 @@ def build_command(spec, media_files, directory):
             saturation = numeric(item.get("saturation"), 100, 0, 200) / 100
             visual.append(f"eq=brightness={brightness}:contrast={contrast}:saturation={saturation}")
             preset = item.get("filter", "none")
-            presets = {
-                "none": [], "无": [], "f1": ["eq=contrast=1.1:saturation=.8"],
-                "f2": ["colorbalance=rs=.1:bs=-.05"], "f3": ["colorbalance=bs=.1:rs=-.05"],
-                "f4": ["eq=saturation=.6:contrast=.9"], "f5": ["hue=s=0"],
-                "f6": ["negate"], "f7": ["eq=saturation=1.4"], "f8": ["eq=saturation=.5"],
-            }
-            if preset not in presets:
-                raise RenderError("滤镜未接入服务端")
-            visual += presets[preset]
+            visual += preset_filters(preset, numeric(item.get("filterIntensity"), 100, 0, 100))
             opacity = numeric(item.get("opacity"), 100, 0, 100) / 100
             if any(frame["property"] == "opacity" for frame in item.get("keyframes", [])):
                 alpha = expression(item, "opacity", 100, 0, 100, "T")

@@ -17,6 +17,7 @@
 | 本轮任务中心修复 | 新协议合并、审核/未知/计费、取消与错误保留，移除旧重试/删除 | TASK-01 | TaskQueuePage、taskCenter、平台API类型，见ITERATION_07 | 8专项测试、真实UI夹具、视频/生产回归与lint/build | 无新迁移/后端接口；需既有production-jobs/platform-publish匹配部署 |
 | 访问控制迭代 | Key签发/鉴权、团队事务/共享、私有形象、素材清理outbox | OPENAPI-01、TEAM-01、ASSET-02 | 00037、api-keys/team-space/material-assets、auth/private-media、production-worker，见ITERATION_08 | 5项PG、3组API、2组页面及既有回归/编译检查 | 旧Key停用；4业务入口函数内JWT/Key鉴权；production调度执行清理；云端待部署 |
 | 批量视频迭代 | 整批预算/套餐/版本、商品快照、父子任务、暂停取消/退款、同键恢复、积分刷新保留页面 | BATCH-01/02、TASK-01 | 00038、batch-video-jobs、batch-video、BatchCreatePage/PlanGate、videoWorker，见ITERATION_09 | 8项PG、5组API、2组浏览器、既有33资金/16视频/8任务中心及编译检查 | 复用视频调度；仅queued取消退款；00038/API/Worker待发布 |
+| 多规格导出迭代 | 六画幅/三短边多选、输出全批事务/配额/恢复、滤镜强度、Sora退役和检查失败真实退出 | RENDER-02、MODEL-04、OPS-01 | 00039、render-exports、production-jobs、ExportFormatsPage、worker/render、model-catalog、rules，见ITERATION_10 | 5项PG、8项FFmpeg、API与两组移动页面、33项PG回归及Deno/编译检查 | 00039/API/更新FFmpeg镜像须一起发布，前端最后；Sora关闭不可启用 |
 
 提交名与更详细时点见 [历史迭代](ITERATION_03_VIDEO_JOBS.md) 与 [架构对比](ARCHITECTURE_REVIEW_20261021.md)。旧审计的行号和未修复清单需结合此矩阵，不直接当作当前缺陷。
 

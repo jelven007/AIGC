@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { AlertCircle, CheckCircle2, Loader2, RefreshCw, Save, Settings2, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
-import { MODEL_SLOTS, modelSettingsRequest, type ModelConfigView, type ModelCatalogEntry } from '@/api/modelSettings';
+import { MODEL_SLOTS, RETIRED_MODELS, modelSettingsRequest, type ModelConfigView, type ModelCatalogEntry } from '@/api/modelSettings';
 import { cn } from '@/lib/utils';
 import PlatformAppSettings from '@/components/PlatformAppSettings';
 
@@ -16,6 +16,13 @@ const categories = [
   { id: 'audio', label: '音频', description: '语音合成与识别分别设置模型和接口。' },
   { id: 'reader', label: '网页读取', description: '读取商品网页后交给文本模型提炼卖点。' },
 ];
+function RetiredModels() {
+  return <div className="text-sm text-muted-foreground border rounded-lg p-4 my-5">
+    {RETIRED_MODELS.map(model => <p key={model.id}>{model.reason}
+      <a href={model.source} target="_blank" rel="noreferrer" className="underline ml-2">查看官方退役说明（{model.retired_on}）</a>
+    </p>)}
+  </div>;
+}
 export function ModelSettingsEditor({ request = modelSettingsRequest }: { request?: typeof modelSettingsRequest }) {
   const [configs, setConfigs] = useState<ModelConfigView[]>([]);
   const [category, setCategory] = useState('text');
@@ -96,6 +103,7 @@ export function ModelSettingsEditor({ request = modelSettingsRequest }: { reques
         <ShieldCheck className="h-5 w-5 shrink-0 text-primary" />
         <p className="text-muted-foreground">密钥加密保存在服务端。更新或禁用配置只影响新任务，已创建的视频任务继续使用原配置版本。</p>
       </div>
+      <RetiredModels />
       {error && <div role="alert" className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm flex gap-2"><AlertCircle className="h-4 w-4 shrink-0" />{error}</div>}
       {loading ? <div role="status" className="flex justify-center gap-2 py-16 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" />正在加载配置</div> : (
         <div className="grid gap-6 md:grid-cols-[240px_minmax(0,1fr)]">
@@ -168,6 +176,7 @@ export default function ModelSettingsPage() {
   if (admin) return <><ModelSettingsEditor /><PlatformAppSettings /></>;
   return <div className="mx-auto max-w-4xl p-6 md:p-10">
     <h1 className="text-2xl font-semibold">模型接口</h1><p className="text-muted-foreground mt-2 mb-6">平台管理员负责接口配置。这里显示当前可用模型。</p>
+    <RetiredModels />
     {error && <p role="alert" className="text-destructive">{error}</p>}
     <div className="divide-y divide-border">{catalog.map(item => <div key={item.slot} className="flex justify-between py-4"><span>{item.name}</span><span className={item.enabled ? 'text-emerald-600' : 'text-muted-foreground'}>{item.enabled ? '已启用' : '未启用'}</span></div>)}</div>
   </div>;

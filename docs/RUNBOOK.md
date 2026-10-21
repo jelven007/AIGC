@@ -6,6 +6,8 @@
 
 最新00038增量见 [批量迭代](ITERATION_09_BATCH_VIDEO.md)。batch-video-jobs与共享videoWorker一起发布，既有调度执行子任务，无需第二套批量模型调度。父表状态仅是控制意图，监控批次须用batch_video_snapshot汇总子任务/预占/结算/退款/unknown；不能直接将父批次标completed。暂停阻止新提交、已受理继续；取消只释放queued，退款故障重试原事务，unknown沿原核对流程处理。
 
+00039新增多规格导出，见 [迭代10](ITERATION_10_RENDER_EXPORTS.md)。先迁移/production-jobs，重建更新FFmpeg镜像和既有production调度，前端最后发布。每用户24个未结案渲染共用队列上限；429等待原任务释放容量。监控production_jobs按export_id的状态/年龄/租约/归档失败，不输出payload/签名/凭据。批次失联恢复原UUID，单项失败不改其他成片；父进度只汇总，不手动标成功。官方Sora API已关闭，旧接口410是退役状态，不通过启用历史端点处理。
+
 ## 1. 环境与访问责任
 
 生产记录至少包含平台、项目/workspace/branch、URL、前端构建 Git/校验值、迁移回执、函数版本与对应源码、调度方式、配置版本、负责人和验收链接。URL 是公开信息，密钥不写运行记录。

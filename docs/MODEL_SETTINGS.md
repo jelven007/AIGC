@@ -4,6 +4,8 @@
 
 入口：侧边栏「模型接口设置」→ `/settings/models`。平台管理员可编辑，普通用户仅看到模型名称与启用状态。所有客户端和 MCP 共用服务端配置。
 
+供应商生命周期：OpenAI官方确认Sora 2和Videos API已于2026-09-24关闭，无一对一替代接口。设置页展示退役日期及 [官方说明](https://developers.openai.com/api/reference/resources/videos/methods/create)，退役信息独立于13个可配置槽，不能启用或计费；原Sora函数保持410。不得使用历史API文档宣称当前服务可用，详见 [迭代10](ITERATION_10_RENDER_EXPORTS.md)。
+
 ## 首次启用
 
 1. 核对并先应用未发布的 00032/00033，再应用 `00034_model_registry.sql`，部署新函数、兼容入口与共享模块。火山清单共 26 个生产入口，不包含 `setup-demo`；官方目标按同一入口/鉴权语义逐项发布，不用火山脚本重放旧库。

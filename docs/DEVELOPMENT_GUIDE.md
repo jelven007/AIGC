@@ -44,6 +44,8 @@ docker run --rm -it -p 127.0.0.1:5173:5173 \
 
 批量增量要求00038、batch-video-jobs和匹配共享视频Worker，客户端 `src/api/batchVideoJobs.ts`。父子创建/套餐/价格/预算统一事务；暂停与取消用父锁，已提交不停止查询。调用端不得直接写批次表；专项 `npm run test:batch`，页面夹具 `tests/browser_batch_video.mjs`，见 [批量迭代](ITERATION_09_BATCH_VIDEO.md)。
 
+多规格增量要求00039、production-jobs与更新的FFmpeg镜像；沿既有production调度。客户端createRenderExport只提交源作品ID/规格/原UUID，禁止先写占位作品。共享队列配额/旧回执兼容见 [迭代10](ITERATION_10_RENDER_EXPORTS.md)。专项 `npm run test:exports`、`npm run test:render`、`tests/browser_render_exports.mjs`。`npm run lint`要求PATH可找到ast-grep；缺工具或规则失败会终止，不再记录为通过。
+
 ## 3. 目录与修改位置
 
 | 目录 | 职责 |

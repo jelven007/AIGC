@@ -4,6 +4,7 @@ import { resolveModel } from '../_shared/model-registry.ts';
 import { validateMediaTree } from '../_shared/private-media.ts';
 import { publicProductionJob, type ProductionJob } from '../_shared/production-jobs.ts';
 import { validateRender } from '../_shared/render-spec.ts';
+import { exportRequest, publicRenderExport } from '../_shared/render-exports.ts';
 
 const uuid = (value: unknown) => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 export async function handleProductionJobs(req: Request): Promise<Response> {
@@ -14,11 +15,61 @@ export async function handleProductionJobs(req: Request): Promise<Response> {
   try {
     const body = await req.json().catch(() => null);
     if (!body) return reply({ error: '任务参数非法' }, 400);
-    const auth = await authenticateRequest(req, body.action === 'create'
+    const auth = await authenticateRequest(req, body.action === 'export' ? 'render:create' : body.action === 'create'
       ? body.kind === 'image' ? 'image:create' : body.kind === 'render' ? 'render:create' : undefined
-      : ['query', 'list'].includes(body.action) ? 'jobs:read' : undefined);
+      : ['query', 'list', 'exports', 'query-export'].includes(body.action) ? 'jobs:read' : undefined);
     if (auth.error || !auth.user || auth.isServiceRole) return reply({ error: auth.error || '请先登录' }, auth.status || 401);
     const db = createServiceClient();
+    if (body.action === 'export') {
+      if (!uuid(body.request_key)) return reply({ error: '缺少有效幂等标识' }, 400);
+      let request;
+      try { request = exportRequest(body); }
+      catch (cause) { return reply({ error: cause instanceof Error ? cause.message : '导出参数非法' }, 400); }
+      const prior = await db.from('render_exports').select('*').eq('user_id', auth.user.id).eq('request_key', body.request_key).maybeSingle();
+      if (prior.error) throw new Error('导出请求核对失败');
+      if (prior.data) {
+        if (JSON.stringify(exportRequest(prior.data.request_payload)) !== JSON.stringify(request)) {
+          return reply({ error: '同一请求标识不能用于不同导出' }, 409);
+        }
+        return reply({ export: await publicRenderExport(db, prior.data) }, 202);
+      }
+      const source = await db.from('video_projects').select('id,title,video_url,duration,status')
+        .eq('user_id', auth.user.id).eq('id', request.source_project_id).maybeSingle();
+      if (source.error) throw new Error('源作品读取失败');
+      if (!source.data || source.data.status !== 'completed' || !source.data.video_url
+        || !Number.isFinite(source.data.duration) || source.data.duration < 1 || source.data.duration > 600) {
+        return reply({ error: '请选择时长不超过10分钟的已完成作品' }, 400);
+      }
+      let mediaUrl;
+      try { mediaUrl = await validateMediaTree(db, source.data.video_url, auth.user.id); }
+      catch { return reply({ error: '源素材不存在或无权访问，请重新选择作品' }, 400); }
+      const created = await db.rpc('create_render_export', { p_user_id: auth.user.id, p_request_key: body.request_key,
+        p_request: request, p_expected_source_url: source.data.video_url, p_media_url: mediaUrl });
+      if (created.error) {
+        const message = created.error.message;
+        if (message.includes('队列')) return reply({ error: message }, 429);
+        if (message.includes('同一请求标识')) return reply({ error: '同一请求标识不能用于不同导出' }, 409);
+        if (message.includes('源作品')) return reply({ error: message }, 409);
+        throw new Error('导出创建结果待确认，请使用原请求恢复');
+      }
+      const group = await db.from('render_exports').select('*').eq('id', created.data).eq('user_id', auth.user.id).single();
+      if (group.error) throw new Error('导出创建结果待确认，请使用原请求恢复');
+      return reply({ export: await publicRenderExport(db, group.data) }, 202);
+    }
+    if (body.action === 'query-export') {
+      if (!uuid(body.export_id) && !uuid(body.request_key)) return reply({ error: '缺少导出标识' }, 400);
+      const query = db.from('render_exports').select('*').eq('user_id', auth.user.id);
+      const { data, error } = await (body.export_id ? query.eq('id', body.export_id) : query.eq('request_key', body.request_key)).maybeSingle();
+      if (error) throw new Error('导出查询失败');
+      if (!data) return reply({ error: '导出不存在' }, 404);
+      return reply({ export: await publicRenderExport(db, data) });
+    }
+    if (body.action === 'exports') {
+      const { data, error } = await db.from('render_exports').select('*').eq('user_id', auth.user.id)
+        .order('created_at', { ascending: false }).limit(20);
+      if (error) throw new Error('导出列表查询失败');
+      return reply({ exports: await Promise.all(data.map(group => publicRenderExport(db, group))) });
+    }
     if (body.action === 'create') {
       if (!uuid(body.request_key) || !['image', 'render'].includes(body.kind) || !body.input) return reply({ error: '缺少任务类型与幂等标识' }, 400);
       let input;
@@ -46,6 +97,7 @@ export async function handleProductionJobs(req: Request): Promise<Response> {
         p_user_id: auth.user.id, p_request_key: body.request_key, p_kind: body.kind,
         p_payload: input, p_project_id: projectId, p_version: version,
       });
+      if (error?.message.includes('渲染队列')) return reply({ error: error.message }, 429);
       if (error) return reply({ error: error.message.includes('积分不足') ? '积分不足'
         : error.message.includes('同一请求标识') ? '同一请求标识不能用于不同任务' : '任务创建失败，请保留原请求标识重试' },
       error.message.includes('积分不足') ? 402 : error.message.includes('同一请求标识') ? 409 : 503);
