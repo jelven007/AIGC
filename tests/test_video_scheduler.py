@@ -81,6 +81,18 @@ class SchedulerTest(unittest.TestCase):
             self.assertEqual(str(error.exception), "http_401")
             self.assertNotIn(self.secret, str(error.exception))
 
+    def test_production_probe_requires_current_schema_and_protocol(self):
+        config = scheduler.Config("https://project.example/functions/v1/production-worker",
+            self.secret, 4, 10, 150, self.config.state_path)
+        good = {"ready": True, "version": 8, "required_migration": "00046", "render_version": 2}
+        with patch.object(scheduler.urllib.request, "build_opener") as mock:
+            mock.return_value.open.return_value = Response(good)
+            self.assertEqual(scheduler.call_worker(config, "probe"), 0)
+            for override in ({"version": 1}, {"version": 7}, {"required_migration": "00045"}, {"render_version": 1}, {"ready": False}):
+                mock.return_value.open.return_value = Response({**good, **override})
+                with self.assertRaises(scheduler.WorkerError):
+                    scheduler.call_worker(config, "probe")
+
     def test_malformed_response_and_fake_processed_are_rejected(self):
         for data in [{"processed": True}, {"processed": 3}, {"unexpected": "value"}, []]:
             with patch.object(scheduler.urllib.request, "build_opener") as mock:

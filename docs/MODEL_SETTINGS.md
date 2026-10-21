@@ -1,5 +1,7 @@
 # 统一模型接口设置
 
+商品资料提取见 [迭代19](ITERATION_19_PRODUCT_MANAGEMENT.md)：使用实际JSON-LD/用户资料读取，不调用语言模型猜测商品，不需要新的模型槽位或积分价格。商品卖点/翻译创作仍使用既有真实文本模型协议；公开页提取不等于已授权所有电商原生接口。匹配00046和生产调度probe v8仍待目标部署。
+
 00044 [情报设置](ITERATION_15_MARKET_INTELLIGENCE.md)新增intelligence.youtube/ebay/licensed，当前20槽。YouTube固定正式地址及x-goog-api-key raw；eBay固定Browse地址和Basic编码应用凭据，token仅在服务端；licensed需真实授权网关。情报不填模型ID、单次HTTP最多30秒，所有凭据继续服务端加密。以下17/16槽表述是先前迭代记录，当前目录以model-catalog及数据库目录为准。
 
 00043 [知识索引](ITERATION_14_KNOWLEDGE_RETRIEVAL.md)新增embedding.primary，当前总计17槽。填完整OpenAI兼容Embeddings地址及已开通模型/Key，必须返回float格式2–1536维非零同维向量；不是Chat接口。启用后用户主动确认积分提交索引/查询，新版本需重建索引；原任务始终读取旧版本，已有检索引用按正文再次核验。数据库目录model_slot_catalog统一白名单，00043/API/Worker须一起部署；旧16槽表述为前轮基线。

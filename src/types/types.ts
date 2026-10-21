@@ -25,12 +25,15 @@ export interface Product {
   ai_selling_points: string[];
   original_price: number | null;
   sale_price: number | null;
-  stock: number;
+  currency?: string | null;
+  import_job_id?: string | null;
+  source?: { mode: string; url: string | null; content_hash: string; observed_at: string; facts: Record<string, unknown> } | null;
+  stock: number | null;
   specs: ProductSpec[];
   images: string[];
   cover_image: string | null;
   status: 'active' | 'inactive' | 'draft';
-  sales_count: number;
+  sales_count: number | null;
   target_language: string;
   target_platform: 'douyin' | 'tiktok';
   created_at: string;

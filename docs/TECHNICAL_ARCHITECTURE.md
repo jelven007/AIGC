@@ -1,5 +1,7 @@
 # Shopro AI 技术架构
 
+最新 [商品管理迭代19](ITERATION_19_PRODUCT_MANAGEMENT.md)统一两处导入/表单/字段校验/API，撤销浏览器商品写权限。后台product_import复用租约队列，以真实来源/图片/证据归档；商品写入/版本/来源一次性/回执/审计同事务。CSV与页面不再重复解析/猜测结果。00046、MCP52/18权限，常驻调度严格匹配probe v8/00046；目标云端部署仍待验收。
+
 00045 [发布组](ITERATION_18_PUBLISH_GROUPS.md)复用原production_jobs：用户→作品锁、源/时长快照、整组事务与每账号独立Worker证据；单账号与组共用24配额，unknown保持占用。发布契约在页面/API/Worker共用，47工具沿原业务权限；probe v7要求00045。后端/迁移/MCP/前端须匹配部署，真实平台仍待验收。
 
 新增 [MCP迭代17](ITERATION_17_MCP_PRODUCTION.md)：45工具复用统一业务API，16权限共用签发/路由/页面目录；JWT/Key按请求ContextVar隔离，媒体显式价格/原UUID、业务POST不自动重试，固定八入口/2MB/禁止重定向。platform-accounts仅安全读取接受Key，OAuth/应用管理仍JWT；无新增schema，匹配函数和MCP镜像必须同步发布。

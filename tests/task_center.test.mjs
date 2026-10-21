@@ -83,4 +83,9 @@ test('竞品和选品归属正式页面，失败保留退款说明及采集来�
     assert.ok(productionCenterTask({ ...production,kind,status:'completed' }).detail.includes('快照保留30天'));
   }
 });
+test('商品提取完成后要求核对，归属商品库并且不冒报视频生成或积分消费', () => {
+  const task = productionCenterTask({ ...production, kind: 'product_import', status: 'completed', credit_cost: 0 });
+  assert.equal(task.kind, 'product_import'); assert.equal(task.billing, null); assert.equal(task.outputUrl, null);
+  assert.match(task.detail, /核对后导入/); assert.equal(taskDestination(task).href, '/products');
+});
 console.log(`${passed} tests passed`);

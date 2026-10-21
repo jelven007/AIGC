@@ -9,7 +9,7 @@ import httpx
 request_token = ContextVar("shopro_user_token", default=None)
 BUSINESS_FUNCTIONS = frozenset({
     "text-generation", "video-jobs", "production-jobs", "batch-video-jobs",
-    "platform-accounts", "platform-publish", "knowledge-base", "market-intelligence",
+    "platform-accounts", "platform-publish", "knowledge-base", "market-intelligence", "product-management",
 })
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 

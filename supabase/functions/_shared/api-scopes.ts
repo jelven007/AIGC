@@ -8,9 +8,14 @@ export const API_PERMISSIONS = [
   ['audio:create', '配音、识别与声纹克隆'], ['avatar:create', '照片口播与口型同步'],
   ['knowledge:read', '读取知识库与检索引用'], ['knowledge:write', '知识索引与语义检索'],
   ['intelligence:read', '读取竞品与商品情报'], ['intelligence:write', '管理情报对象、采集与监控预算'],
+  ['products:read', '读取商品库与提取任务'], ['products:write', '商品提取、保存与删除'],
 ] as const;
 export const API_SCOPES: string[] = API_PERMISSIONS.map(([scope]) => scope);
 
+export function productScope(action: string): string | undefined {
+  return ['list', 'imports'].includes(action) ? 'products:read'
+    : ['extract', 'save', 'delete'].includes(action) ? 'products:write' : undefined;
+}
 export function knowledgeScope(action: string): string | undefined {
   return ['catalog', 'jobs', 'context'].includes(action) ? 'knowledge:read'
     : action === 'create' ? 'knowledge:write' : undefined;

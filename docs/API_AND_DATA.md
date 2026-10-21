@@ -1,5 +1,7 @@
 # 接口与数据契约
 
+新增 [商品管理契约](ITERATION_19_PRODUCT_MANAGEMENT.md)：product-management的list/imports/extract/save/delete；products:read/write权限、1MB正文、60请求/分钟、1–100条原子操作。00046新增来源、原币种、生成价格列、可空库存/销量、只读浏览器商品、版本检查与哈希回执；受理未知503保留原UUID。后台任务与MCP52工具共用，目标待部署。
+
 00045新增 [发布组契约](ITERATION_18_PUBLISH_GROUPS.md)：platform-publish/create_group接受原UUID、project_id、稳定source_url/真实duration、内容/时间与1–10个targets，各target完整options/consent。publish:create创建、publish:read/query_group核对；202返回组与独立任务，list新增20组/100任务。409明确区分publish_group_rejected与publish_group_conflict，超时503保留原键。组表/RPC仅服务身份可用，API绑定当前用户。
 
 新增 [MCP与Key契约](ITERATION_17_MCP_PRODUCTION.md)：45工具定义由真实SDK导出，媒体create强制工具层UUID/confirmed_credit_cost。16权限共用目录；knowledge-base读/写、market-intelligence读/写、platform-publish取消/指标同步和platform-accounts安全读取接入Key范围，账号授权/撤销/应用设置仍JWT。错误脱敏并保留原键，不自动重发POST。完整参数见[MCP指南](../mcp/mcp.md)。

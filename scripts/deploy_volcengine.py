@@ -255,7 +255,8 @@ def verify(args):
     try:
         with urlopen(request, timeout=30) as response:
             result = json.load(response)
-        if result.get("ready") is not True:
+        if result.get("ready") is not True or result.get("version") != 8 or result.get("required_migration") != "00046" \
+                or result.get("render_version") != 2:
             raise ValueError("not ready")
     except Exception:
         raise RuntimeError("Worker 只读预检失败，请检查部署与专用密钥") from None

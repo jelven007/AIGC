@@ -1,5 +1,7 @@
 # 视频任务后台调度
 
+当前 [迭代19](ITERATION_19_PRODUCT_MANAGEMENT.md)production-worker新增product_import轮转和30天原文/结果清理。常驻调度修复旧version1预检：生产模式严格要求version8、00046、render2，旧video-job-worker模式仍version1。数据库、函数和调度器须一起升级；探针只读通过不证明真实商家/模型任务和生产持续运行已验收。
+
 新增 [发布组迭代18](ITERATION_18_PUBLISH_GROUPS.md)：各账号仍按原publish任务轮转和next_run_at领取，不依赖页面；无整组重发执行器。probe v7要求00045的组/子任务结构，render_version仍2。部署匹配函数/迁移后验收定时、多账号并发和unknown核对，原10秒调度机制保持。
 
 production-worker run新增 [情报计划及采集](ITERATION_15_MARKET_INTELLIGENCE.md)：每24小时按用户确认次数/预算入队，与现有任务轮转；同一时点确定性UUID，拥堵延后，权限/余额/配置变化停用。run同时清理30天统计来源副本。probe v6要求00044；VIDEO_WORKER_SECRET仍为专用后台凭据，新链依赖常驻调度而非页面计时。

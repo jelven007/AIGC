@@ -1,5 +1,7 @@
 # 变更、需求与文档追踪矩阵
 
+迭代19 [商品管理需求闭环](ITERATION_19_PRODUCT_MANAGEMENT.md)：真实来源/空值/原币种/私有实拍图，product_import与product-management/00046原子商品写入、版本/一次性来源/哈希回执、CSV和两入口统一。同步需求、技术、API、开发、PG/HTTP/页面/MCP/资金回归、运营、运维和部署主文档。MCP52/18权限，probe v8/00046，目标部署和剩余全系统缺口不记为已交付。
+
 新增REQ-PUBLISH-02–03/AT-PUBLISH-02–06：[迭代18](ITERATION_18_PUBLISH_GROUPS.md)对应00045、共用发布契约、1–10账号确认、源/时长绑定、整组回滚/同UUID恢复、独立取消及47工具。PG5项/Edge与网页各4组/SDK12项通过，需求、架构、API、开发、测试、运营/运维及部署同步；00032–00045/probe v7和匹配服务尚需目标发布与真实平台验收。
 
 新增REQ-MCP-02–04/OPENAPI-02、AT-MCP-02–05：[迭代17](ITERATION_17_MCP_PRODUCTION.md)对应45真实SDK工具、旧配音迁队列、16权限共用目录、请求隔离/原UUID/脱敏与传输边界。11项SDK/4组权限/6项PG及Deno/lint/build通过，同步需求/架构/API/开发/测试/运营/运维/部署；无新schema，匹配六函数与MCP镜像待部署，云端事实不变。

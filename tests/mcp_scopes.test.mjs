@@ -38,6 +38,7 @@ globalThis.__createClient = () => db;
 const permissions = await loadEdge('supabase/functions/_shared/api-scopes.ts', 'mcp-scopes');
 const { handleKnowledge } = await loadEdge('supabase/functions/knowledge-base/index.ts', 'mcp-scope-knowledge');
 const { handleIntelligence } = await loadEdge('supabase/functions/market-intelligence/index.ts', 'mcp-scope-intelligence');
+const { handleProductManagement } = await loadEdge('supabase/functions/product-management/index.ts', 'mcp-scope-products');
 const { handlePlatformPublish } = await loadEdge('supabase/functions/platform-publish/index.ts', 'mcp-scope-publish');
 const { handlePlatformAccounts } = await loadEdge('supabase/functions/platform-accounts/index.ts', 'mcp-scope-accounts');
 const { handleApiKeys } = await loadEdge('supabase/functions/api-keys/index.ts', 'mcp-scope-keys');
@@ -51,13 +52,15 @@ const actions = [
   [handleKnowledge, ['create'], 'knowledge:write'],
   [handleIntelligence, ['catalog'], 'intelligence:read'],
   [handleIntelligence, ['save_target', 'collect', 'schedule', 'delete', 'import_product'], 'intelligence:write'],
+  [handleProductManagement, ['list', 'imports'], 'products:read'],
+  [handleProductManagement, ['extract', 'save', 'delete'], 'products:write'],
   [handlePlatformPublish, ['create', 'create_group', 'cancel'], 'publish:create'],
   [handlePlatformPublish, ['query', 'query_group', 'list'], 'publish:read'],
   [handlePlatformPublish, ['metrics'], 'metrics:read'],
   [handlePlatformPublish, ['sync'], 'metrics:sync'],
   [handlePlatformAccounts, ['list', 'creator'], 'publish:read'],
 ];
-assert.equal(new Set(permissions.API_SCOPES).size, 16);
+assert.equal(new Set(permissions.API_SCOPES).size, 18);
 for (const [handle, cases, scope] of actions) {
   for (const action of cases) {
     consumed = []; reads = []; rpcs = [];
@@ -68,7 +71,7 @@ for (const [handle, cases, scope] of actions) {
     assert.deepEqual(rpcs.map(call => call.name), ['consume_api_key']);
   }
 }
-console.log('PASS 22种操作缺少权限在读写、模型调用及计费前拒绝');
+console.log(`PASS ${actions.reduce((count, [, cases]) => count + cases.length, 0)}种操作缺少权限在读写、模型调用及计费前拒绝`);
 granted = new Set(permissions.API_SCOPES);
 for (const action of ['authorize', 'disconnect', 'apps', 'save_app', 'unknown']) {
   consumed = []; reads = [];
