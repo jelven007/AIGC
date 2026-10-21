@@ -1,6 +1,7 @@
 import { authenticateRequest, createServiceClient } from './auth.ts';
 import { getCorsHeaders, handleCorsPreflight } from './cors.ts';
 import { requestTextModel } from './text-provider.ts';
+import { knowledgeContext, knowledgeMessages } from './knowledge.ts';
 
 export async function handleTextGeneration(req: Request): Promise<Response> {
   const preflight = handleCorsPreflight(req);
@@ -34,12 +35,15 @@ export async function handleTextGeneration(req: Request): Promise<Response> {
     });
     if (limit.error) throw new Error('文本限流服务暂不可用');
     if (!limit.data) return Response.json({ error: '请求过于频繁，请稍后重试' }, { status: 429, headers });
-    const upstream = await requestTextModel(body.messages, {
+    const context = body.knowledge_job_id ? await knowledgeContext(createServiceClient(), auth.user.id, body.knowledge_job_id) : null;
+    const messages = context ? [...knowledgeMessages(context), ...body.messages] : body.messages;
+    const upstream = await requestTextModel(messages, {
       stream: body.stream !== false, temperature, max_tokens: maxTokens,
     });
     return new Response(upstream.body, {
       headers: { ...headers, 'Content-Type': body.stream === false ? 'application/json' : 'text/event-stream',
-        'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+        'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
+        ...(context ? { 'X-Knowledge-Job': context.job_id, 'X-Knowledge-Sources': String(context.sources.length) } : {}) },
     });
   } catch (cause) {
     return Response.json({ error: cause instanceof Error ? cause.message : '文本服务暂不可用' }, { status: 503, headers });

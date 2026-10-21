@@ -1,5 +1,7 @@
 # 视频任务后台调度
 
+production-worker新增knowledge_index/search轮转执行，与现有视频/图片/媒体/分析公平领取，不依赖知识页打开。probe v5要求00043知识表结构，专用VIDEO_WORKER_SECRET保持不变；Embedding POST结果未知不自动重发，checkpoint后仅恢复数据库写入。发布范围00032–00043与匹配共享模块，详见 [知识迭代14](ITERATION_14_KNOWLEDGE_RETRIEVAL.md)，云端旧调度证据不证明新链已启用。
+
 00042 [观测及实验](ITERATION_13_MEASUREMENTS_EXPERIMENTS.md)把production-worker探针升级v4，核对measurement_sources/key_digest及content_experiments结构。自然视频仍由原15分钟指标调度采集，签名日观测/实验事件由授权采集服务主动送达；不能靠视频Cron推断广告/电商/实验流量已接入。最新部署须覆盖00032–00042及新增函数，旧探针说明仅为历史版本。
 
 00041新增 [两段素材分析](ITERATION_12_GROUNDED_ANALYSIS.md)：通用production轮转增加analysis；FFmpeg轮转render与analysis_prepare，prepared后释放租约进入模型阶段。probe升级version=3/required_migration=00041，部署仍需匹配函数与镜像，现有旧视频Cron不会自行支持新分析。

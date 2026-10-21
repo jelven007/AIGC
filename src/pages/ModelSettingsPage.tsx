@@ -11,6 +11,7 @@ import PlatformAppSettings from '@/components/PlatformAppSettings';
 
 const categories = [
   { id: 'text', label: '文本', description: '脚本、提示词优化、分析与翻译共用主备模型。' },
+  { id: 'embedding', label: '知识检索', description: 'OpenAI兼容的Embeddings接口，浮点向量维度2–1536。更新后需按新版本重新建索引。' },
   { id: 'video', label: '视频', description: '选择供应商协议，提交与查询地址分别配置。' },
   { id: 'image', label: '图片', description: '工作台绘图与视频封面共用此模型。' },
   { id: 'audio', label: '音频', description: '语音合成与识别分别设置模型和接口。' },

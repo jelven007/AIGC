@@ -6,6 +6,7 @@ import { processVideoJob } from '../_shared/video-jobs.ts';
 import { processMediaDeletions } from '../_shared/media-cleanup.ts';
 import { processMediaJob, MEDIA_JOB_SLOTS } from '../_shared/media-jobs.ts';
 import { processAnalysisJob } from '../_shared/video-analysis.ts';
+import { KNOWLEDGE_KINDS, processKnowledgeJob } from '../_shared/knowledge.ts';
 
 export async function handleProductionWorker(req: Request): Promise<Response> {
   if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
@@ -23,13 +24,18 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
       const analysis = await db.from('credit_costs').select('cost').eq('action', 'generate_analysis').maybeSingle();
       const measurements = await db.from('measurement_sources').select('id,key_digest').limit(0);
       const experiments = await db.from('content_experiments').select('id,planned_sample').limit(0);
+      const knowledge = await db.from('knowledge_entries').select('id,content_hash').limit(0);
+      const chunks = await db.from('knowledge_chunks').select('entry_id,version_id').limit(0);
+      const knowledgeCosts = await db.from('credit_costs').select('cost').in('action', KNOWLEDGE_KINDS.map(kind => `generate_${kind}`));
       const ready = !error && !voices.error && !costs.error && costs.data?.length === Object.keys(MEDIA_JOB_SLOTS).length
-        && !analysis.error && !!analysis.data && !measurements.error && !experiments.error;
-      return Response.json({ ready, version: 4, required_migration: '00042' }, { status: ready ? 200 : 503 });
+        && !analysis.error && !!analysis.data && !measurements.error && !experiments.error && !knowledge.error && !chunks.error
+        && !knowledgeCosts.error && knowledgeCosts.data?.length === 2 && knowledgeCosts.data.every(row => Number.isInteger(row.cost) && row.cost >= 0);
+      return Response.json({ ready, version: 5, required_migration: '00043' }, { status: ready ? 200 : 503 });
     }
     if (general && body.action === 'run') {
       // 以轮转顺序避免长视频队列使图片或发布饿死。
       const runners = [() => processVideoJob(db), () => processImageJob(db), () => processPublishJob(db), () => processAnalysisJob(db),
+        ...KNOWLEDGE_KINDS.map(kind => () => processKnowledgeJob(db, kind)),
         ...Object.keys(MEDIA_JOB_SLOTS).map(kind => () => processMediaJob(db, kind))];
       const offset = Math.floor(Date.now() / 1000) % runners.length;
       let processed = false;

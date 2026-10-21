@@ -30,6 +30,7 @@
     { "name": "platform-oauth-callback", "verify_jwt": false },
     { "name": "platform-publish", "verify_jwt": false },
     { "name": "measurements", "verify_jwt": false },
+    { "name": "knowledge-base", "verify_jwt": false },
     { "name": "measurement-ingest", "verify_jwt": false },
     { "name": "create-payment-order", "verify_jwt": true },
     { "name": "wechat-payment-webhook", "verify_jwt": false },

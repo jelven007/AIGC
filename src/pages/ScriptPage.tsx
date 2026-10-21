@@ -85,10 +85,13 @@ async function callLLMStream(
   messages: Array<{ role: string; content: string }>,
   onChunk: (text: string) => void,
   signal: AbortSignal,
+  knowledgeJobId?: string,
 ): Promise<void> {
+  let failure: Error | null = null;
   await sendDeepSeekStreamRequest({
     messages,
     max_tokens: 2000,
+    knowledge_job_id: knowledgeJobId,
     onData: (data) => {
       if (data === '[DONE]') return;
       try {
@@ -98,9 +101,11 @@ async function callLLMStream(
       } catch { /* skip */ }
     },
     onComplete: () => {},
-    onError: (err) => { if (!signal.aborted) toast.error(`AI 生成失败：${err.message}`); },
+    onError: (err) => { failure = err; },
     signal,
   });
+  if (signal.aborted) throw new Error('脚本生成已取消');
+  if (failure) throw failure;
 }
 
 // ── 对话消息类型 ─────────────────────────────────────────────────────────────
@@ -265,7 +270,7 @@ export default function ScriptPage() {
   // P1-N05 草稿自动保存
   type ScriptDraft = {
     productName: string; category: string; priceRange: string;
-    sellingPoints: string[]; audience: string; platform: string; videoLength: number;
+    sellingPoints: string[]; audience: string; platform: string; videoLength: number; knowledgeJobId?: string;
   };
   const { value: draft, save: saveDraft, clear: clearDraft, hasDraft } =
     useDraft<ScriptDraft>(`script-draft-${user?.id ?? 'anon'}`, {
@@ -273,13 +278,14 @@ export default function ScriptPage() {
       sellingPoints: [], audience: '', platform: 'douyin', videoLength: 25,
     });
 
-  const [productName, setProductName]     = useState(draft.productName || '草本氨基酸水润洗面奶');
+  const [productName, setProductName]     = useState(draft.productName || '');
   const [category, setCategory]           = useState(draft.category || '美妆护肤');
-  const [priceRange, setPriceRange]       = useState(draft.priceRange || '¥50-200 中端');
+  const [priceRange, setPriceRange]       = useState(draft.priceRange || '');
   const [sellingInput, setSellingInput]   = useState('');
-  const [sellingPoints, setSellingPoints] = useState<string[]>(draft.sellingPoints?.length ? draft.sellingPoints : ['温和无刺激敏感肌可用', '微米级细腻泡沫深层清洁', '复配玻尿酸洗完不紧绷']);
-  const [selectedPainPoints, setSelectedPainPoints] = useState<string[]>(['肤色暗沉不均', '毛孔粗大油光']);
-  const [audience, setAudience]           = useState(draft.audience || '18-30岁熬夜冒痘、出油敏感的年轻人');
+  const [sellingPoints, setSellingPoints] = useState<string[]>(draft.sellingPoints || []);
+  const [selectedPainPoints, setSelectedPainPoints] = useState<string[]>([]);
+  const [audience, setAudience]           = useState(draft.audience || '');
+  const [knowledgeJobId, setKnowledgeJobId] = useState(draft.knowledgeJobId || '');
   const [platform, setPlatform]           = useState(draft.platform || 'douyin');
   const [videoLength, setVideoLength]     = useState(draft.videoLength || 25);
   const [draftRestored, setDraftRestored] = useState(hasDraft);
@@ -294,6 +300,7 @@ export default function ScriptPage() {
     if (state?.productName) {
       setProductName(state.productName);
     }
+    if (state?.knowledgeJobId) setKnowledgeJobId(state.knowledgeJobId);
     if (state?.category) {
       setCategory(state.category);
     }
@@ -305,18 +312,11 @@ export default function ScriptPage() {
     }
   }, [location.state]);
 
-  // 生成结果默认展现预置示例
-  const [scenes, setScenes]       = useState<ScriptScene[]>([
-    { order: 1, scene: '镜头1：痛点特写 (前3秒Hook)', visual: '女主角对镜叹气，特写T区油光与暗沉粗大毛孔', dialogue: '天天熬夜加班，脸油得能炒菜，用普通洗面奶洗完紧绷脱皮？', duration: 3, prompt: '字幕高亮【脸油紧绷】' },
-    { order: 2, scene: '镜头2：产品亮相 (卖点展示)', visual: '极简白瓶洗面奶置于竹叶与微水流背景中，镜头推近特写细腻泡泡', dialogue: '试试这款草本氨基酸洗面奶！蕴含三重草本提取，微米级泡沫一冲即净。', duration: 5, prompt: '展示泡沫绵密感' },
-    { order: 3, scene: '镜头3：对比实验 (痛点解法)', visual: '左右对比测试：左边传统皂基pH呈强碱，右边本品pH呈弱酸温和亲肤', dialogue: '看！温和弱酸性，洗走油脂污垢的同时，牢牢锁住皮肤水分！', duration: 6, prompt: '实验直观显色' },
-    { order: 4, scene: '镜头4：使用后体验 (情感共鸣)', visual: '女主角洗完脸露出生机水润肌肤，满脸笑容摸脸特写', dialogue: '洗完摸上去嫩滑水润，完全不紧绷，连后续护肤品都好吸收了！', duration: 5, prompt: '近景特写水润感' },
-    { order: 5, scene: '镜头5：促销促单 (CTA转化)', visual: '手持产品展示，弹窗出现限时优惠买一送一及左下角小黄车箭头', dialogue: '官方旗舰店活动，今天下单直接买一发二！点击左下角赶紧抢吧！', duration: 6, prompt: '闪烁提示左下角领券' },
-  ]);
-  const [promptText, setPromptText] = useState('你是一位全网千万级爆款带货短视频编剧。请根据以下信息撰写黄金三段式脚本：\n1. 【黄金3秒Hook】：用令人意想不到的痛点直击【18-30岁熬夜冒痘、出油敏感的年轻人】；\n2. 【核心卖点呈现】：突出【草本氨基酸水润洗面奶】的【温和无刺激敏感肌可用】；\n3. 【结尾引导下单】：给出限时福利【买一送一领券下单】。');
+  const [scenes, setScenes]       = useState<ScriptScene[]>([]);
+  const [promptText, setPromptText] = useState('');
   const [generating, setGenerating] = useState(false);
   const [streamingText, setStreamingText] = useState('');
-  const [generated, setGenerated]   = useState(true);
+  const [generated, setGenerated]   = useState(false);
   const [saving, setSaving]         = useState(false);
   const [copied, setCopied]         = useState(false);
   const [savedScriptId, setSavedScriptId] = useState<string | null>(null);
@@ -341,8 +341,8 @@ export default function ScriptPage() {
 
   // 自动保存草稿（防抖 500ms）
   useEffect(() => {
-    saveDraft({ productName, category, priceRange, sellingPoints, audience, platform, videoLength });
-  }, [productName, category, priceRange, sellingPoints, audience, platform, videoLength, saveDraft]);
+    saveDraft({ productName, category, priceRange, sellingPoints, audience, platform, videoLength, knowledgeJobId });
+  }, [productName, category, priceRange, sellingPoints, audience, platform, videoLength, knowledgeJobId, saveDraft]);
 
   // ── 痛点选择切换 ─────────────────────────────────────────────────────────
   const togglePainPoint = (pp: string) => {
@@ -383,6 +383,7 @@ export default function ScriptPage() {
 
     setGenerating(true);
     setGenerated(false);
+    setScenes([]); setSavedScriptId(null);
     setStreamingText('');
     setChatMessages([]);
     setLayerStatuses({ selling_point: 'idle', pain_point: 'idle', hook: 'idle', cta: 'idle' });
@@ -396,7 +397,7 @@ export default function ScriptPage() {
 ①卖点层：深度理解商品核心差异化价值
 ②痛点层：匹配目标用户真实痛点与情感共鸣
 ③钩子层：设计平台专属的开场钩子与悬念结构（前3秒留存）
-④CTA层：构建紧迫感与高转化行动召唤`;
+④CTA层：构建明确的行动召唤。商品价格、功效、活动和销量只使用已确认资料，参考话术不得引入新事实。`;
 
     const userPrompt = `请基于「四层Prompt工程」为以下商品生成完整带货视频脚本：
 
@@ -448,17 +449,19 @@ export default function ScriptPage() {
           setStreamingText(fullText);
         },
         abortRef.current.signal,
+        knowledgeJobId || undefined,
       );
 
       const jsonMatch = fullText.match(/```json\s*([\s\S]*?)```/);
       const promptMatch = fullText.match(/```prompt\s*([\s\S]*?)```/);
 
-      if (jsonMatch) {
-        try {
-          const parsed = JSON.parse(jsonMatch[1].trim()) as ScriptScene[];
-          setScenes(parsed);
-        } catch { /* fallback */ }
+      if (!jsonMatch) throw new Error('模型未返回分镜JSON，请调整要求后重试');
+      const parsed = JSON.parse(jsonMatch[1].trim()) as ScriptScene[];
+      if (!Array.isArray(parsed) || !parsed.length || parsed.length > 50 || parsed.some(scene =>
+        !scene || typeof scene.dialogue !== 'string' || typeof scene.visual !== 'string' || !Number.isFinite(scene.duration) || scene.duration <= 0)) {
+        throw new Error('模型分镜格式不正确，请重试');
       }
+      setScenes(parsed);
       if (promptMatch) {
         setPromptText(promptMatch[1].trim());
       } else {
@@ -476,7 +479,7 @@ export default function ScriptPage() {
       ]);
       toast.success('脚本生成完成！四层Prompt工程已全部执行');
     } catch (err) {
-      if (!abortRef.current.signal.aborted) toast.error('生成失败，请重试');
+      if (!abortRef.current.signal.aborted) toast.error(err instanceof Error ? err.message : '生成失败，请重试');
     } finally {
       setGenerating(false);
     }
@@ -485,10 +488,7 @@ export default function ScriptPage() {
   const handleStopGenerate = () => {
     abortRef.current?.abort();
     setGenerating(false);
-    if (streamingText) {
-      setGenerated(true);
-      setStreamingText('');
-    }
+    setGenerated(false); setStreamingText('');
   };
 
   // ── 场景编辑 ───────────────────────────────────────────────────────────
@@ -586,7 +586,7 @@ export default function ScriptPage() {
         if (!script) { toast.error('保存失败，请重试'); return; }
         scriptId = script.id;
       }
-      await supabase.from('knowledge_entries').insert({
+      const knowledge = await supabase.from('knowledge_entries').insert({
         user_id:       user.id,
         source_type:   'script_edit',
         source_id:     scriptId,
@@ -594,7 +594,10 @@ export default function ScriptPage() {
         content:       { scenes, prompt_text: promptText, selling_points: sellingPoints },
         quality_score: 3,
       });
-      toast.success('已保存并同步至知识库！AI 将在下次生成时学习该数据');
+      if (knowledge.error) throw new Error(knowledge.error.message);
+      toast.success('脚本已保存到知识库，请前往知识库建立语义索引');
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : '知识保存失败');
     } finally {
       setSaving(false);
     }
@@ -640,6 +643,10 @@ export default function ScriptPage() {
         </div>
       )}
       {/* ── 页头 ── */}
+      {knowledgeJobId && <div className="rounded-lg border p-3 text-sm flex flex-wrap items-center justify-between gap-2">
+        <p className="break-all">已携带知识检索引用 {knowledgeJobId}，生成时由服务端核对当前正文。</p>
+        <Button size="sm" variant="outline" onClick={() => setKnowledgeJobId('')}>移除知识引用</Button>
+      </div>}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-xl font-bold flex items-center gap-2 text-balance">
@@ -654,31 +661,11 @@ export default function ScriptPage() {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => {
-              setProductName('草本氨基酸水润洗面奶');
-              setCategory('美妆护肤');
-              setPriceRange('¥50-200 中端');
-              setSellingPoints(['温和无刺激敏感肌可用', '微米级细腻泡沫深层清洁', '复配玻尿酸洗完不紧绷']);
-              setAudience('18-30岁熬夜冒痘、出油敏感的年轻人');
-              setSelectedPainPoints(['肤色暗沉不均', '毛孔粗大油光', '过敏刺激敏感']);
-              setVideoLength(25);
-              setPlatform('douyin');
-              setPromptText(`你是一位全网千万级爆款带货短视频编剧。请根据以下信息撰写黄金三段式脚本：\n1. 【黄金3秒Hook】：用令人意想不到的痛点或悬念直击【18-30岁熬夜冒痘、出油敏感的年轻人】，引起好奇；\n2. 【核心卖点呈现】：突出【草本氨基酸水润洗面奶】的【温和无刺激敏感肌可用、微米级细腻泡沫深层清洁】，真实对比传统洗面奶的干燥紧绷；\n3. 【结尾引导下单】：给出限时福利【买一送一领券下单】，建立购买紧迫感。`);
-              setScenes([
-                { order: 1, scene: '镜头1：痛点特写 (前3秒Hook)', visual: '女主角对镜叹气，特写T区油光与暗沉粗大毛孔', dialogue: '天天熬夜加班，脸油得能炒菜，用普通洗面奶洗完紧绷脱皮？', duration: 3, prompt: '字幕高亮【脸油紧绷】' },
-                { order: 2, scene: '镜头2：产品亮相 (卖点展示)', visual: '极简白瓶洗面奶置于竹叶与微水流背景中，镜头推近特写细腻泡泡', dialogue: '试试这款草本氨基酸洗面奶！蕴含三重草本提取，微米级泡沫一冲即净。', duration: 5, prompt: '展示泡沫绵密感' },
-                { order: 3, scene: '镜头3：对比实验 (痛点解法)', visual: '左右对比测试：左边传统皂基pH呈强碱，右边本品pH呈弱酸温和亲肤', dialogue: '看！温和弱酸性，洗走油脂污垢的同时，牢牢锁住皮肤水分！', duration: 6, prompt: '实验直观显色' },
-                { order: 4, scene: '镜头4：使用后体验 (情感共鸣)', visual: '女主角洗完脸露出生机水润肌肤，满脸笑容摸脸特写', dialogue: '洗完摸上去嫩滑水润，完全不紧绷，连后续护肤品都好吸收了！', duration: 5, prompt: '近景特写水润感' },
-                { order: 5, scene: '镜头5：促销促单 (CTA转化)', visual: '手持产品展示，弹窗出现限时优惠买一送一及左下角小黄车箭头', dialogue: '官方旗舰店活动，今天下单直接买一发二！点击左下角赶紧抢吧！', duration: 6, prompt: '闪烁提示左下角领券' },
-              ]);
-              setGenerated(true);
-              setLayerStatuses({ selling_point: 'done', pain_point: 'done', hook: 'done', cta: 'done' });
-              toast.success('已载入爆款商品带货脚本生成示例！');
-            }}
+            onClick={() => navigate('/knowledge')}
             className="h-8 text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/10"
           >
             <Sparkles className="w-3.5 h-3.5" />
-            一键载入示例脚本
+            从知识库选取资料
           </Button>
           <Badge variant="outline" className="text-xs shrink-0 gap-1 border-primary/40 text-primary">
             <Sparkles className="w-3 h-3" />CR-01

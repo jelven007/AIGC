@@ -1,5 +1,7 @@
 # 运维运行手册
 
+知识运行新增见 [迭代14](ITERATION_14_KNOWLEDGE_RETRIEVAL.md)：00043、knowledge-base、匹配production/text/AI函数、probe v5和常驻production调度一起发布。监控knowledge_index/search的ready/accepted/unknown与4任务配额，checkpoint后可恢复数据库结案；executing超时禁止重发。确认未受理后沿reconcile_production_job空证据释放，向量人工导入未支持。备份knowledge_entries/chunks、任务和全部历史加密版本/主密钥，恢复后校验摘要与版本；新Embedding版本需重新建索引。200条/24块精确扫描扩大前先压测。
+
 最新发布范围00032–00042与 [观测实验](ITERATION_13_MEASUREMENTS_EXPERIMENTS.md)，新增measurements/measurement-ingest，匹配AI与production-worker probe v4。监控签名401/体积413/限流429/依赖503、来源最后接收时间、版本冲突、回执增长、实验分组/曝光缺失及样本比例；停用来源后拒绝新写但保留历史。HMAC需要采集端与服务器时钟一致，不记录密钥/原始身份；每分钟来源500、报告90，失败不可用随机数据填充。真实采集分流、留存压测、告警与备份仍需目标验收。
 
 当前新增源码需部署到00041，见 [素材分析运行契约](ITERATION_12_GROUNDED_ANALYSIS.md)。重建FFmpeg Worker以支持analysis_prepare，匹配production-worker两段处理和probe v3；关注准备阶段队列年龄、8帧/WAV私有对象、unknown、旧版本和退款。数据库最近真实回执仍00031；不得用探针或本地测试充当发布回执。输入/中间对象清理与备份演练继续待实施。

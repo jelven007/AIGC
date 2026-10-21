@@ -1,5 +1,7 @@
 # 统一模型接口设置
 
+00043 [知识索引](ITERATION_14_KNOWLEDGE_RETRIEVAL.md)新增embedding.primary，当前总计17槽。填完整OpenAI兼容Embeddings地址及已开通模型/Key，必须返回float格式2–1536维非零同维向量；不是Chat接口。启用后用户主动确认积分提交索引/查询，新版本需重建索引；原任务始终读取旧版本，已有检索引用按正文再次核验。数据库目录model_slot_catalog统一白名单，00043/API/Worker须一起部署；旧16槽表述为前轮基线。
+
 00042 [观测及实验](ITERATION_13_MEASUREMENTS_EXPERIMENTS.md)不增加模型槽。创意建议沿text.primary，先确认实际积分价，只引用背景和服务端观测，不让模型创造流量概率。广告/交易签名数据源独立登记于AB页，仅管理员，密钥同主加密体系保护但不作为LLM API Key；需实际取得来源授权和采集服务，不能用文本模型替代真实交易。
 
 新增 [素材分析任务](ITERATION_12_GROUNDED_ANALYSIS.md)复用text.primary与audio.asr，数量仍16槽；任务固定两个旧配置版本。文本模型需真实支持image_url画面，直播ASR须openai-asr/whisper-1及可靠分段；Step只有正文时不能生成高光时间。不要在未验收时宣称视觉模型或声音权限可用。
@@ -34,6 +36,7 @@ WHERE id = '实际管理员用户UUID';
 | 配置项 | 协议与用途 |
 |---|---|
 | 主文本 / 备用文本 | OpenAI Chat Completions，文本业务共用主备，首选火山方舟 |
+| 知识索引 / 语义查询 | OpenAI Embeddings，2–1536维浮点、独立模型版本、后台任务 |
 | 图片与封面 | OpenAI Images，同步 URL 或 base64 图片；Chat Completions 图片 URL，可携带参考图 |
 | 语音合成 | OpenAI Audio Speech 或 Step TTS，模型与默认音色可设置 |
 | 语音识别 | OpenAI Audio Transcriptions 或 Step ASR SSE，服务端兼容上传文件与原 Step 输入 |

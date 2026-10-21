@@ -1,5 +1,7 @@
 # Shopro AI
 
+新增 [私有知识索引与脚本引用](docs/ITERATION_14_KNOWLEDGE_RETRIEVAL.md)：17槽含独立Embedding，知识库统一真实存储，后台分块/语义查询/版本与正文失效/积分，流式及四层脚本服务端加载引用；移除假整合、假训练和默认脚本结果。最新源码部署范围00032–00043及knowledge-base/匹配Worker与文本函数，尚未部署云端。
+
 新增 [统一观测与对照实验](docs/ITERATION_13_MEASUREMENTS_EXPERIMENTS.md)：三个看板统一官方数据，支持签名授权观测、分源币种CTR/CVR/ROAS、固定匿名分组与真实统计，移除随机预测/固定提升。最新源码要求00032–00042及匹配函数，尚未部署；下文较早部署范围由此更新。
 
 面向商家的商品脚本与 AI 短视频创作工具。当前实际连接官方 Supabase，仍依赖 Supabase Auth、数据库、Storage 与 Edge Functions。火山引擎 BaaS、Pages、ECS 和方舟已有适配与部署方案，尚未切换运行环境。
@@ -53,6 +55,7 @@ pnpm typecheck
 pnpm test:video
 pnpm test:models
 pnpm test:media
+pnpm test:knowledge
 pnpm test:payments
 pnpm test:volcengine
 pnpm test:finance

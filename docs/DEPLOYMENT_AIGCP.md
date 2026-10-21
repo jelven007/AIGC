@@ -1,5 +1,7 @@
 # aigcp 环境部署记录
 
+下一次官方环境升级范围扩展00032–00043、knowledge-base及匹配文本/API/production-worker，探针v5；新增17槽Embedding须真实配置与验收。正文索引/引用、恢复/退款、供应商用量检查见 [迭代14](ITERATION_14_KNOWLEDGE_RETRIEVAL.md)。本段为部署要求，不是部署回执；最近云端仍到00031，本轮未改远端环境。
+
 本地增量00042及 [观测实验](ITERATION_13_MEASUREMENTS_EXPERIMENTS.md)不改变真实部署回执。下次需核对00032–00042、measurements/measurement-ingest、匹配AI/Worker probe v4和前端，再实际登记授权采集来源/验收分流与指标；现有云端00031及旧3函数不能运行新报告。
 
 新增本地00041与 [真实素材分析](ITERATION_12_GROUNDED_ANALYSIS.md)，官方云端实际回执仍00031。本段不更新部署记录；下一次发布应核对00032–00041、共享函数、production调度、FFmpeg镜像与真实模型能力，再发布前端。
