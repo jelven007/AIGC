@@ -67,7 +67,8 @@ class DeployTest(unittest.TestCase):
     def test_function_jwt_exceptions_are_explicit(self):
         functions = json.loads(deploy.MANIFEST.read_text())["functions"]
         public = {item["name"] for item in functions if not item["verify_jwt"]}
-        self.assertEqual(public, {"video-job-worker", "wechat-payment-webhook", "alipay-payment-notify"})
+        self.assertEqual(public, {"video-job-worker", "production-worker", "platform-oauth-callback",
+                                  "wechat-payment-webhook", "alipay-payment-notify"})
 
     def test_service_role_cannot_be_packaged_as_anon_key(self):
         with tempfile.TemporaryDirectory() as directory:

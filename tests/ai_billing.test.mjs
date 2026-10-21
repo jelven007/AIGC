@@ -44,7 +44,9 @@ const source = readFileSync('supabase/functions/ai-assistant/index.ts', 'utf8')
   .replace("import { generateText } from '../_shared/text-provider.ts';", 'const generateText = async () => { throw new Error("upstream unavailable"); };')
   .replace("import { resolveModel, validateEndpoint } from '../_shared/model-registry.ts';", 'const resolveModel = async () => { throw new Error("service unconfigured"); }; const validateEndpoint = async () => {};')
   .replace("import { generateImage } from '../_shared/image-provider.ts';", 'const generateImage = async () => { throw new Error("image unconfigured"); };');
-writeFileSync(`${directory}/handler.mjs`, ts.transpileModule(source, {
+const queuedSource = source.replace("import { createImageJob } from '../_shared/production-jobs.ts';",
+  'const createImageJob = async () => { throw new Error("image queue unconfigured"); };');
+writeFileSync(`${directory}/handler.mjs`, ts.transpileModule(queuedSource, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
 }).outputText);
 await import(pathToFileURL(`${directory}/handler.mjs`).href);

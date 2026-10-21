@@ -104,7 +104,7 @@ db.storage = { from: () => ({
 const pngBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
 globalThis.fetch = async () => Response.json({ data: [{ b64_json: pngBytes.toString('base64') }] });
 const image = await generateImage(db, 'user-id', { prompt: '商品' });
-assert.match(image.image_url, /^https:\/\/storage.example\/generated-images\/user-id\//);
+assert.match(image.image_url, /^https:\/\/db.example\/storage\/v1\/object\/authenticated\/materials\/generated-images\/user-id\//);
 assert.equal(savedImage.blob.size, 11);
 versions[0].settings = { ...imageSettings, protocol: 'chat-image' };
 fetches = [];

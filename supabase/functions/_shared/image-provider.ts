@@ -1,9 +1,13 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { modelFetch, resolveModel, validateEndpoint } from './model-registry.ts';
+import { mediaReference, signedMedia } from './private-media.ts';
 
-export async function generateImage(db: SupabaseClient, userId: string, input: Record<string, unknown>): Promise<{ image_url: string }> {
+export async function generateImage(db: SupabaseClient, userId: string, input: Record<string, unknown>, options: {
+  version?: string; jobId?: string; evidence?: any; checkpoint?: (data: unknown) => Promise<void>;
+  executing?: () => Promise<void>;
+} = {}): Promise<{ image_url: string; size: number }> {
   if (typeof input.prompt !== 'string' || !input.prompt.trim() || input.prompt.length > 8000) throw new Error('图片描述应为 1–8000 字');
-  const config = await resolveModel('image.primary', db);
+  const config = await resolveModel('image.primary', db, options.version);
   const size = String(input.size || '1024x1024');
   if (!['1024x1024', '1024x1536', '1536x1024'].includes(size)) throw new Error('图片尺寸不支持');
   const quality = String(input.quality || 'auto');
@@ -11,22 +15,51 @@ export async function generateImage(db: SupabaseClient, userId: string, input: R
   let reference: string | undefined;
   if (input.reference_image) {
     if (typeof input.reference_image !== 'string') throw new Error('参考图应为已上传的公网地址');
-    reference = await validateEndpoint(input.reference_image);
+    reference = await signedMedia(db, input.reference_image, userId, 3600);
+    const checked = new URL(reference); checked.search = '';
+    await validateEndpoint(checked.href);
     if (config.settings.protocol !== 'chat-image') throw new Error('当前 Images 协议不支持参考图，请选择支持参考图的图片协议');
   }
-  const response = await modelFetch(config, JSON.stringify(config.settings.protocol === 'openai-images'
+  let data = options.evidence;
+  if (!data) {
+    await options.executing?.();
+    const response = await modelFetch(config, JSON.stringify(config.settings.protocol === 'openai-images'
     ? { model: config.settings.model, prompt: input.prompt.trim(), n: 1, size, quality }
     : { model: config.settings.model, stream: false, messages: [{ role: 'user', content: [
       { type: 'text', text: `生成图片，尺寸 ${size}，质量 ${quality}，返回图片 URL：${input.prompt.trim()}` },
       ...(reference ? [{ type: 'image_url', image_url: { url: reference } }] : []),
     ] }] }));
-  const data = await response.json().catch(() => null);
+    const reader = response.body?.getReader();
+    let text = '', total = 0;
+    const decoder = new TextDecoder();
+    try {
+      if (!reader) throw new Error('模型返回格式无效');
+      for (;;) {
+        const chunk = await reader.read(); if (chunk.done) break;
+        total += chunk.value.length;
+        if (total > 28_000_000) throw new Error('模型返回图片内容过大');
+        text += decoder.decode(chunk.value, { stream: true });
+      }
+      text += decoder.decode();
+    } finally { await reader?.cancel().catch(() => {}); }
+    const raw = JSON.parse(text);
+    const content = raw?.choices?.[0]?.message?.content;
+    const encoded = raw?.data?.[0]?.b64_json;
+    const source = raw?.data?.[0]?.url || (typeof content === 'string' ? content.match(/https:\/\/[^\s<>"\])]+/)?.[0] : null);
+    data = encoded ? { data: [{ b64_json: encoded }] } : source ? { data: [{ url: source }] } : null;
+    if (!data) throw new Error('模型未返回图片，请核对接口协议');
+    await options.checkpoint?.(data);
+  }
   let imageBytes: Uint8Array;
   let mime = 'image/png';
   const encoded = data?.data?.[0]?.b64_json;
   if (typeof encoded === 'string') {
     if (encoded.length > 28_000_000) throw new Error('生成图片超过 20MB');
-    try { imageBytes = Uint8Array.from(atob(encoded), c => c.charCodeAt(0)); }
+    try {
+      const binary = atob(encoded);
+      imageBytes = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index++) imageBytes[index] = binary.charCodeAt(index);
+    }
     catch { throw new Error('模型返回的图片编码不正确'); }
   } else {
     const content = data?.choices?.[0]?.message?.content;
@@ -62,8 +95,8 @@ export async function generateImage(db: SupabaseClient, userId: string, input: R
   if (!png && !jpeg && !webp) throw new Error('模型返回的内容不是有效图片');
   mime = jpeg ? 'image/jpeg' : webp ? 'image/webp' : 'image/png';
   const extension = mime === 'image/jpeg' ? 'jpg' : mime === 'image/webp' ? 'webp' : 'png';
-  const path = `generated-images/${userId}/${crypto.randomUUID()}.${extension}`;
-  const { error } = await db.storage.from('materials').upload(path, new Blob([imageBytes], { type: mime }), { contentType: mime });
+  const path = `generated-images/${userId}/${options.jobId || crypto.randomUUID()}.${extension}`;
+  const { error } = await db.storage.from('materials').upload(path, new Blob([imageBytes], { type: mime }), { contentType: mime, upsert: true });
   if (error) throw new Error('图片保存失败，请稍后重试');
-  return { image_url: db.storage.from('materials').getPublicUrl(path).data.publicUrl };
+  return { image_url: mediaReference(Deno.env.get('SUPABASE_URL') || '', 'materials', path), size: imageBytes.length };
 }

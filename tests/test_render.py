@@ -1,0 +1,100 @@
+"""容器中真实FFmpeg验证轨道合成结果，不连接任何云端。"""
+import sys
+import tempfile
+from pathlib import Path
+import subprocess
+import unittest
+import array
+import math
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "worker"))
+from render import render, probe, RenderError
+
+
+class RenderTest(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory(prefix="render-test-")
+        self.addCleanup(self.directory.cleanup)
+        self.root = Path(self.directory.name)
+        for name, color in (("red", "red"), ("blue", "blue")):
+            subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"color={color}:s=320x180:r=30:d=3",
+                            "-f", "lavfi", "-i", "sine=frequency=440:duration=3", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                            "-c:a", "aac", "-shortest", str(self.root / f"{name}.mp4")],
+                           capture_output=True, check=True, timeout=30)
+        self.spec = {"version": 1, "duration": 2, "height": 720, "fps": 30, "ratio": "16:9", "title": "真实合成",
+                     "tracks": [
+                         {"id": "one", "type": "video", "start": 0, "duration": 1, "sourceStart": .5, "url": "https://example/red.mp4"},
+                         {"id": "two", "type": "video", "start": 1, "duration": 1, "speed": 2, "url": "https://example/blue.mp4"},
+                     ]}
+
+    def pixels(self, path, moment):
+        data = subprocess.check_output(["ffmpeg", "-v", "error", "-ss", str(moment), "-i", str(path),
+                                        "-frames:v", "1", "-vf", "scale=1:1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], timeout=15)
+        return list(data[:3])
+
+    def test_trim_concatenate_and_audio_encoding(self):
+        result = render(self.spec, {"one": self.root / "red.mp4", "two": self.root / "blue.mp4"}, self.root / "out")
+        streams = probe(result["file"])["streams"]
+        self.assertEqual(streams[0]["codec_name"], "h264")
+        self.assertEqual(streams[0]["width"], 1280)
+        self.assertEqual(streams[0]["height"], 720)
+        self.assertTrue(any(stream["codec_name"] == "aac" for stream in streams))
+        red = self.pixels(result["file"], .5)
+        blue = self.pixels(result["file"], 1.5)
+        self.assertGreater(red[0], red[2] + 100)
+        self.assertGreater(blue[2], blue[0] + 100)
+        self.assertAlmostEqual(result["duration"], 2, delta=.1)
+        self.assertTrue(result["thumbnail"].is_file())
+
+    def test_pip_and_chinese_subtitles(self):
+        self.spec["tracks"][1].update(start=0, duration=2, speed=1, scale=50, x=50, y=50)
+        self.spec["tracks"].append({"id": "text", "type": "text", "start": 0, "duration": 2,
+                                    "text": "商品字幕：100% ' 安全", "fontSize": 48, "fontColor": "#ffffff"})
+        result = render(self.spec, {"one": self.root / "red.mp4", "two": self.root / "blue.mp4"}, self.root / "pip")
+        self.assertGreater(result["size"], 0)
+
+    def test_source_too_short_and_invalid_spec_rejected(self):
+        self.spec["tracks"][0]["sourceStart"] = 9
+        with self.assertRaises(RenderError):
+            render(self.spec, {"one": self.root / "red.mp4", "two": self.root / "blue.mp4"}, self.root / "bad")
+        self.spec["duration"] = 36000
+        with self.assertRaises(RenderError):
+            render(self.spec, {}, self.root / "bad2")
+
+    def test_dissolve_preserves_duration_and_blends_boundary(self):
+        self.spec["transition"] = "t2"
+        result = render(self.spec, {"one": self.root / "red.mp4", "two": self.root / "blue.mp4"}, self.root / "dissolve")
+        mixed = self.pixels(result["file"], 1.25)
+        self.assertGreater(mixed[0], 60)
+        self.assertGreater(mixed[2], 60)
+        self.assertAlmostEqual(result["duration"], 2, delta=.1)
+
+    def test_opacity_keyframes_and_audio_pan_change_real_output(self):
+        self.spec["tracks"][0].update(duration=2, sourceStart=0, pan=100)
+        self.spec["tracks"][1].update(start=0, duration=2, speed=1, mute=True,
+            opacity=0, keyframes=[{"time": 1, "property": "opacity", "value": 100}])
+        result = render(self.spec, {"one": self.root / "red.mp4", "two": self.root / "blue.mp4"}, self.root / "keyframes")
+        early, late = self.pixels(result["file"], .2), self.pixels(result["file"], 1.5)
+        self.assertGreater(early[0], early[2] + 80)
+        self.assertGreater(late[2], late[0] + 100)
+        samples = array.array("f")
+        samples.frombytes(subprocess.check_output(["ffmpeg", "-v", "error", "-i", str(result["file"]),
+            "-vn", "-t", "0.5", "-f", "f32le", "-ac", "2", "-"], timeout=15))
+        rms = lambda channel: math.sqrt(sum(value * value for value in samples[channel::2]) / (len(samples) / 2))
+        self.assertLess(rms(0), .001)
+        self.assertGreater(rms(1), .02)
+
+    def test_text_local_animation_and_render_watchdog(self):
+        self.spec["tracks"].append({"id": "text", "type": "text", "start": .5, "duration": 1,
+            "text": "中文真实成片", "entrance": "ta2", "exit": "ta6", "bgColor": "rgba(239,68,68,.85)",
+            "keyframes": [{"property": "x", "time": 1, "value": 60}]})
+        files = {"one": self.root / "red.mp4", "two": self.root / "blue.mp4"}
+        result = render(self.spec, files, self.root / "text")
+        self.assertTrue(result["file"].is_file())
+        with self.assertRaisesRegex(RenderError, "停止"):
+            render(self.spec, files, self.root / "cancel", cancelled=lambda: True)
+        with self.assertRaisesRegex(RenderError, "最大执行"):
+            render(self.spec, files, self.root / "timeout", timeout=0)
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)

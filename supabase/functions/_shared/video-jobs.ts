@@ -4,6 +4,7 @@ import {
   type VideoInput, type VideoProvider,
 } from './video-providers.ts';
 import { validateEndpoint } from './model-registry.ts';
+import { mediaReference, signMediaTree } from './private-media.ts';
 
 export interface VideoJob {
   id: string;
@@ -68,7 +69,7 @@ async function persistVideo(db: SupabaseClient, job: VideoJob, source: string | 
     type: extension === 'webm' ? 'video/webm' : 'video/mp4',
   }), { contentType: extension === 'webm' ? 'video/webm' : 'video/mp4', upsert: true });
   if (error) throw new Error('成片转存暂时失败');
-  return db.storage.from('materials').getPublicUrl(path).data.publicUrl;
+  return mediaReference(Deno.env.get('SUPABASE_URL') || '', 'materials', path);
 }
 
 export async function processVideoJob(db: SupabaseClient, id?: string): Promise<boolean> {
@@ -108,7 +109,7 @@ export async function processVideoJob(db: SupabaseClient, id?: string): Promise<
     }
     let taskId: string;
     try {
-      taskId = await submitVideo(config, job.payload);
+      taskId = await submitVideo(config, await signMediaTree(db, job.payload, job.user_id, 3600));
     } catch (cause) {
       const details = { p_error: cause instanceof Error ? cause.message : '上游受理结果未知' };
       if (cause instanceof SubmissionError && cause.confirmedRejected) await finish('submit_rejected', details);

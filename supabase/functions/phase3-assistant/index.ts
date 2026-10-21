@@ -357,34 +357,12 @@ Deno.serve(async (req) => {
 
       // ─── P3-S01: 创建发布任务 ─────────────────────────────────────────────
       case 'create_publish_task': {
-        if (!userId) return err('未登录', 401);
-        const { project_id, platform, title: pubTitle, description, tags, cover_url, scheduled_at } = body as Record<string, unknown>;
-        if (!project_id || !platform) return err('缺少必要参数');
-        const { data: task, error: taskErr } = await supabase.from('publish_tasks').insert({
-          user_id: userId, project_id, platform,
-          title: pubTitle, description, tags: tags ?? [],
-          cover_url, scheduled_at: scheduled_at ?? null,
-          status: scheduled_at ? 'scheduled' : 'draft',
-        }).select('id').maybeSingle();
-        if (taskErr) return err(taskErr.message);
-        return ok({ task_id: task?.id, message: '发布任务已创建' });
+        return err('发布已迁移到 platform-publish，请先授权平台账号并明确发布选项', 410);
       }
 
       // ─── P3-S01: 模拟发布（真实发布需平台OAuth授权）─────────────────────
       case 'publish_video': {
-        if (!userId) return err('未登录', 401);
-        const { task_id } = body as Record<string, string>;
-        await supabase.from('publish_tasks').update({
-          status: 'published',
-          published_at: new Date().toISOString(),
-          platform_video_id: `platform_sim_${Date.now()}`,
-          platform_url: `https://www.douyin.com/video/sim_${Date.now()}`,
-        }).eq('id', task_id).eq('user_id', userId);
-        return ok({
-          message: '视频已发布成功（模拟发布演示）',
-          simulated: true,
-          notice: '生产环境发布需经抖音/TikTok官方开放平台企业OAuth2授权并打通发布API',
-        });
+        return err('模拟发布已停用，请使用 platform-publish 创建真实后台发布任务', 410);
       }
 
       // ─── P3-S04: 更新个性化偏好 ───────────────────────────────────────────

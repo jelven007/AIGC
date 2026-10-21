@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/db/supabase';
+import { storedMedia } from '@/api/media';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDraft } from '@/hooks/useDraft';
 import { Button } from '@/components/ui/button';
@@ -1316,7 +1317,7 @@ function Step4Materials({ materials, onMaterialsChange, onNext, onPrev, shots }:
     const { data: upData, error } = await supabase.storage.from(bucket).upload(filePath, file);
     if (error) { toast.error(`上传失败：${file.name}`); return; }
 
-    const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(upData.path);
+    const urlData = { publicUrl: storedMedia(bucket, upData.path) };
 
     await supabase.from('materials').insert({
       user_id: user.id, name: file.name,

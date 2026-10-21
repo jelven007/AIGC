@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/db/supabase';
+import { storedMedia } from '@/api/media';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar as AvatarType, VideoTemplate } from '@/types/types';
 import { Input } from '@/components/ui/input';
@@ -517,7 +518,7 @@ export default function AvatarsPage() {
         .from('materials')
         .upload(path, uploadFile, { contentType: uploadFile.type });
       if (upErr) throw upErr;
-      const { data: urlData } = supabase.storage.from('materials').getPublicUrl(up.path);
+      const urlData = { publicUrl: storedMedia('materials', up.path) };
       const { data: newAvatar } = await supabase.from('avatars').insert({
         name:        uploadForm.name.trim(),
         gender:      uploadForm.gender,

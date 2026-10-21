@@ -52,3 +52,5 @@ __pycache__/
 
 # Supabase CLI 本地链接与缓存
 supabase/.temp/
+deploy/render-worker/render_worker_secret
+deploy/render-worker/.env

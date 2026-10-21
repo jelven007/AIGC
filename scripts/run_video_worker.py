@@ -57,7 +57,8 @@ def load_config():
         return value
 
     return Config(
-        base + "/functions/v1/video-job-worker", secret,
+        base + "/functions/v1/" + (
+            "production-worker" if os.environ.get("PRODUCTION_WORKER_ENABLED") == "true" else "video-job-worker"), secret,
         number("VIDEO_WORKER_CONCURRENCY", 4, 1, 8),
         number("VIDEO_WORKER_INTERVAL_SECONDS", 10, 5, 300),
         number("VIDEO_WORKER_TIMEOUT_SECONDS", 150, 10, 150),
@@ -138,6 +139,18 @@ def serve(config, stop):
                 state["last_ok"] = time.time()
                 log("ready")
             result = run_cycle(config)
+            if config.endpoint.endswith('/production-worker'):
+                # 独立低频采集自然视频指标，避免每条图片任务触发全账号采集。
+                if time.time() - state.get("last_metrics", 0) >= 900:
+                    request = urllib.request.Request(config.endpoint, method="POST",
+                        data=b'{"action":"metrics"}',
+                        headers={"Authorization": "Bearer " + config.secret, "Content-Type": "application/json"})
+                    try:
+                        with urllib.request.build_opener(NoRedirect).open(request, timeout=config.timeout) as response:
+                            response.read(16384)
+                        state["last_metrics"] = time.time()
+                    except Exception:
+                        log("metrics_deferred")
             if result["errors"]:
                 state["failures"] += 1
                 if any(code in ("http_401", "http_403", "http_404") for code in result["error_codes"]):

@@ -153,7 +153,7 @@ await test('成功转存使用固定路径并在服务端结算', async () => {
   await processVideoJob(db);
   assert.deepEqual(events(), ['completed']);
   assert.deepEqual(state.uploads, [`generated-videos/${userId}/${jobId}.mp4`]);
-  assert.match(state.calls.at(-1).parameters.p_video_url, /^https:\/\/storage.example/);
+  assert.match(state.calls.at(-1).parameters.p_video_url, /^https:\/\/db.example\/storage\/v1\/object\/authenticated\/materials\/generated-videos\//);
 });
 await test('退款事务故障后用持久化证据恢复，无需再次请求上游', async () => {
   reset();
