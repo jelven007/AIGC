@@ -16,7 +16,7 @@
 | 运维 | [运行手册](RUNBOOK.md)、[调度](VIDEO_SCHEDULER.md)、[备份恢复](BACKUP_RECOVERY.md) | probe22、独立FFmpeg、持久告警、原任务核对、加密恢复 |
 | 部署 | [官方记录](DEPLOYMENT_AIGCP.md)、[火山方案](VOLCENGINE_DEPLOYMENT.md) | 实际00031旧回执、00032–00062升级、独立迁移工具 |
 | MCP | [接入指南](../mcp/mcp.md)、[工具目录](../mcp/tools.json) | 59真实工具、19权限、原请求/预算/身份/传输边界 |
-| 发布 | [追踪矩阵](CHANGE_TRACEABILITY.md)、[待办](PENDING_CHANGES.md)、[版本管理](VERSION_MANAGEMENT.md) | 全部提交对照、目标差距、Gitee合并和两个历史标签 |
+| 发布 | [追踪矩阵](CHANGE_TRACEABILITY.md)、[待办](PENDING_CHANGES.md)、[版本管理](VERSION_MANAGEMENT.md) | 全部提交对照、目标差距、GitHub合并和两个历史标签 |
 | 历史 | [2026-10-21测试](TEST_REPORT_20261021.md)、[当日覆盖核验](FUNCTION_COVERAGE_REVIEW_20261021.md)、[当日架构对比](ARCHITECTURE_REVIEW_20261021.md) | 保留原核验时点；当前范围以本次综合基线为准 |
 
 ## 迭代记录

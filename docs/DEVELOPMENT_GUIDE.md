@@ -138,7 +138,7 @@ git diff --check
 
 MCP先构建`shoproai-mcp:local`；媒体测试先构建`shoproai-render-worker:local`，备份测试先构建`shoproai-backup:local`。按变更选择image-editing/profile/rewards/account-credits/pipeline/operations/alerts/backup等`package.json`入口，UI脚本使用明确本地夹具服务及Chromium。Deno从仅挂载supabase的目录检查；lint包含typecheck/Biome/ast-grep/Tailwind/检查构建，缺工具或检查失败必须如实记录。最新功能证据见 [2026-10-22报告](TEST_REPORT_20261022.md)。
 
-涉及API/身份/状态/权限/收费时同步需求、接口、测试、运营/财务与运维。纯文档变更核对链接/锚点/命令/契约/凭据，无需重复全量业务测试。中文提交，明确推送`aigcp`并按 [版本管理](VERSION_MANAGEMENT.md)合并及保留两历史版本。
+涉及API/身份/状态/权限/收费时同步需求、接口、测试、运营/财务与运维。纯文档变更核对链接/锚点/命令/契约/凭据，无需重复全量业务测试。中文提交，当前明确推送`github`（jelven007/AIGC）并按 [版本管理](VERSION_MANAGEMENT.md)同步已合并主线及两历史版本。
 
 ## 6. 发布顺序
 

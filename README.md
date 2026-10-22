@@ -13,7 +13,7 @@
 - [模型设置](docs/MODEL_SETTINGS.md)、[MCP接入](mcp/mcp.md)
 - [运营](docs/OPERATIONS_GUIDE.md)、[支付](docs/plan/支付.md)、[运维](docs/RUNBOOK.md)
 - [调度](docs/VIDEO_SCHEDULER.md)、[备份恢复](docs/BACKUP_RECOVERY.md)、[火山部署](docs/VOLCENGINE_DEPLOYMENT.md)
-- [全部提交追踪](docs/CHANGE_TRACEABILITY.md)、[Gitee合并与两个历史版本](docs/VERSION_MANAGEMENT.md)
+- [全部提交追踪](docs/CHANGE_TRACEABILITY.md)、[GitHub合并与两个历史版本](docs/VERSION_MANAGEMENT.md)
 
 ## 技术栈
 
