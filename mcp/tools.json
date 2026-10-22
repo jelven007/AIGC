@@ -329,6 +329,131 @@
       }
     },
     {
+      "name": "get_edit_prices",
+      "description": "读取真实节拍beats/时间分段字幕subtitles价格；使用jobs:read权限，创建需render:create。",
+      "inputSchema": {
+        "properties": {},
+        "title": "get_edit_pricesArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "submit_edit_analysis",
+      "description": "创建后台剪辑分析。保留片段id、裁剪、速度和原UUID；先get_edit_prices确认价格。\n    query_production_status读取结果，unknown需核对原请求；使用render:create权限。\n    ",
+      "inputSchema": {
+        "$defs": {
+          "EditSource": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "maxLength": 200,
+                "minLength": 1,
+                "title": "Id",
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "audio",
+                  "video"
+                ],
+                "title": "Type",
+                "type": "string"
+              },
+              "url": {
+                "maxLength": 4096,
+                "minLength": 1,
+                "title": "Url",
+                "type": "string"
+              },
+              "start": {
+                "maximum": 600,
+                "minimum": 0,
+                "title": "Start",
+                "type": "number"
+              },
+              "duration": {
+                "maximum": 600,
+                "minimum": 0.1,
+                "title": "Duration",
+                "type": "number"
+              },
+              "sourceStart": {
+                "default": 0,
+                "maximum": 36000,
+                "minimum": 0,
+                "title": "Sourcestart",
+                "type": "number"
+              },
+              "speed": {
+                "default": 1,
+                "maximum": 4,
+                "minimum": 0.25,
+                "title": "Speed",
+                "type": "number"
+              }
+            },
+            "required": [
+              "id",
+              "type",
+              "url",
+              "start",
+              "duration"
+            ],
+            "title": "EditSource",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "mode": {
+            "enum": [
+              "beats",
+              "subtitles"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/$defs/EditSource"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          },
+          "confirmed_credit_cost": {
+            "maximum": 100000,
+            "minimum": 0,
+            "title": "Confirmed Credit Cost",
+            "type": "integer"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Project Id"
+          }
+        },
+        "required": [
+          "mode",
+          "title",
+          "source",
+          "request_key",
+          "confirmed_credit_cost"
+        ],
+        "title": "submit_edit_analysisArguments",
+        "type": "object"
+      }
+    },
+    {
       "name": "list_voice_clones",
       "description": "读取当前用户声纹、验证、撤销及供应商删除状态。",
       "inputSchema": {

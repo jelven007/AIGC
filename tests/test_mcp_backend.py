@@ -96,6 +96,38 @@ class MCPTest(unittest.TestCase):
     key = "11111111-1111-4111-8111-111111111111"
     other_key = "22222222-2222-4222-8222-222222222222"
 
+    def test_edit_sdk_preserves_original_clip_price_owner_and_project(self):
+        captured = []
+
+        async def backend(function, body):
+            captured.append((function, body, request_token.get()))
+            return {"costs": {"beats": 0, "subtitles": 3}, "job": {"id": self.key, "status": "pending"}}
+
+        source = {"id": "original-clip", "type": "audio", "url": "https://db.example/private.wav",
+                  "start": 2, "duration": 5.5, "sourceStart": 3, "speed": 1.5}
+        args = {"mode": "subtitles", "title": "原片段字幕", "source": source,
+                "request_key": self.key, "confirmed_credit_cost": 3, "project_id": self.other_key}
+        with patch.object(server, "call_backend", backend):
+            self.assertFalse(self.call("get_edit_prices", {}, "user-b").get("isError", False))
+            self.assertEqual(captured[-1], ("production-jobs", {"action": "edit-prices"}, "user-b"))
+            self.assertFalse(self.call("submit_edit_analysis", args, "user-a").get("isError", False))
+            function, body, token = captured[-1]
+            self.assertEqual(function, "production-jobs")
+            self.assertEqual(body["kind"], "edit_analysis")
+            self.assertEqual(body["request_key"], self.key)
+            self.assertEqual(body["project_id"], self.other_key)
+            self.assertEqual(body["input"]["source"], source)
+            self.assertEqual(body["input"]["confirmed_credit_cost"], 3)
+            self.assertEqual(token, "user-a")
+            before = len(captured)
+            for change in ({"mode": "legacy"}, {"confirmed_credit_cost": True}, {"confirmed_credit_cost": -1},
+                           {"source": {**source, "start": 599}}, {"source": {**source, "speed": 0}},
+                           {"source": {**source, "duration": True}}, {"source": {**source, "url": "file:///tmp/audio"}},
+                           {"request_key": "not-uuid"}, {"title": ""}):
+                self.assertTrue(self.call("submit_edit_analysis", {**args, **change})["isError"])
+            self.assertEqual(len(captured), before)
+        self.assertIsNone(request_token.get())
+
     def test_sdk_voice_revoke_and_knowledge_delete_preserve_identity_and_identifiers(self):
         captured = []
 

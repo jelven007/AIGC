@@ -24,8 +24,19 @@ export function validateRender(raw: Record<string, any>) {
       ['sourceStart', 0, 36000], ['speed', 0.25, 4], ['scale', 1, 400], ['opacity', 0, 100],
       ['x', -100, 200], ['y', -100, 200], ['rotation', -360, 360], ['volume', 0, 200],
       ['fadeIn', 0, 600], ['fadeOut', 0, 600], ['brightness', 0, 200], ['contrast', 0, 200],
-      ['saturation', 0, 200], ['filterIntensity', 0, 100], ['fontSize', 8, 300], ['strokeWidth', 0, 20], ['pan', -100, 100], ['pitch', -12, 12],
+      ['saturation', 0, 200], ['filterIntensity', 0, 100], ['fontSize', 8, 300], ['strokeWidth', 0, 20], ['pan', -100, 100], ['pitch', -12, 12], ['echo', 0, 100],
     ] as const) if (item[key] !== undefined) number(item[key], min, max, key);
+    if (item.eqBands !== undefined) {
+      if (!['audio', 'video'].includes(item.type) || !item.eqBands || typeof item.eqBands !== 'object' || Array.isArray(item.eqBands)) throw new Error('均衡器参数不正确');
+      for (const [frequency, gain] of Object.entries(item.eqBands)) {
+        if (!['32', '64', '125', '250', '500', '1000', '2000', '4000', '8000', '16000'].includes(frequency)) throw new Error('均衡器频段不支持');
+        number(gain, -12, 12, '均衡器增益');
+      }
+    }
+    if (item.voiceEffect !== undefined && !['none', 'robot'].includes(item.voiceEffect)
+      || !['audio', 'video'].includes(item.type) && (item.voiceEffect || item.echo !== undefined)) throw new Error('音频效果不支持此轨道');
+    if (item.denoise !== undefined && !['无降噪', '轻度去噪', '深度纯音'].includes(item.denoise)
+      || item.reverb !== undefined && !['', '原声纯净', '录音棚', 'KTV沉浸', '大厅空间', '广播电台', '温暖剧场'].includes(item.reverb)) throw new Error('降噪或混响档位不支持');
     if ((item.fadeIn ?? 0) > item.duration || (item.fadeOut ?? 0) > item.duration) throw new Error('淡变时间不可超过轨道时长');
     if (item.layer !== undefined) number(item.layer, 0, 1000, '图层');
     if (item.blendMode !== undefined && !RENDER_BLENDS.some(mode => mode.id === item.blendMode)

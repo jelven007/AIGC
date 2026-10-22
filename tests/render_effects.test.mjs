@@ -48,6 +48,15 @@ overlap.tracks[1].trackId = 'pip';
 assert.equal(validateRender(overlap), overlap);
 console.log('PASS 错误蒙版/表达式/淡变、重叠主轨计费前拒绝，画中画保留叠加');
 
+const audio = { ...spec, tracks: [{ ...spec.tracks[0], type: 'audio', eqBands: { 1000: -12, 4000: 6 }, echo: 50, voiceEffect: 'robot' }] };
+assert.equal(validateRender(audio), audio);
+for (const change of [{ eqBands: { 999: 3 } }, { eqBands: { 1000: NaN } }, { eqBands: { 1000: true } },
+  { eqBands: { 1000: 13 } }, { eqBands: [] }, { echo: 101 }, { voiceEffect: 'unknown' }, { denoise: 'fake' }, { reverb: 'fake' }]) {
+  assert.throws(() => validateRender({ ...audio, tracks: [{ ...audio.tracks[0], ...change }] }));
+}
+assert.throws(() => validateRender({ ...spec, tracks: [{ ...spec.tracks[0], type: 'image', echo: 0 }] }));
+console.log('PASS 十频段均衡器、回声与机器人参数校验，错误效果计费前拒绝');
+
 globalThis.Deno = { env: { get: name => ({ SUPABASE_URL: 'https://db.example', SUPABASE_SERVICE_ROLE_KEY: 'service',
   RENDER_WORKER_SECRET: 'render-secret' })[name] }, serve() {} };
 let claims = 0;
@@ -58,7 +67,8 @@ const request = body => new Request('https://db.example/functions/v1/production-
 assert.equal((await handleProductionWorker(request({ action: 'claim' }))).status, 426);
 assert.equal(claims, 0);
 assert.equal((await handleProductionWorker(request({ action: 'claim', render_version: 2 }))).status, 426);
-assert.equal((await handleProductionWorker(request({ action: 'claim', render_version: 3 }))).status, 200);
+assert.equal((await handleProductionWorker(request({ action: 'claim', render_version: 3 }))).status, 426);
+assert.equal((await handleProductionWorker(request({ action: 'claim', render_version: 4 }))).status, 200);
 assert.equal(claims, 1);
 assert.equal((await handleProductionWorker(request({ action: 'claim', kind: 'analysis_prepare' }))).status, 200);
 console.log('PASS 旧Worker领取前426，不消耗租约，新版本渲染与原分析预处理可领取');

@@ -191,7 +191,7 @@ export interface Material {
   id: string;
   user_id: string;
   name: string;
-  type: 'image' | 'video';
+  type: 'image' | 'video' | 'audio';
   url: string;
   size: number | null;
   width: number | null;

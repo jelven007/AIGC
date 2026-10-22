@@ -51,6 +51,7 @@ const actions = [
   [handleKnowledge, ['catalog', 'jobs', 'context'], 'knowledge:read'],
   [handleKnowledge, ['create', 'delete'], 'knowledge:write'],
   [handleProductionJobs, ['revoke-voice'], 'audio:create'],
+  [handleProductionJobs, ['edit-prices'], 'jobs:read'],
   [handleIntelligence, ['catalog'], 'intelligence:read'],
   [handleIntelligence, ['save_target', 'collect', 'schedule', 'delete', 'import_product'], 'intelligence:write'],
   [handleProductManagement, ['list', 'imports', 'translations'], 'products:read'],
@@ -73,6 +74,11 @@ for (const [handle, cases, scope] of actions) {
   }
 }
 console.log(`PASS ${actions.reduce((count, [, cases]) => count + cases.length, 0)}种操作缺少权限在读写、模型调用及计费前拒绝`);
+consumed = []; reads = [];
+granted = new Set(['jobs:read']);
+assert.equal((await handleProductionJobs(request({ action: 'create', kind: 'edit_analysis' }))).status, 403);
+assert.deepEqual(consumed, ['render:create']); assert.deepEqual(reads, []);
+console.log('PASS 剪辑价格沿jobs:read、创建沿render:create，读取权限不能创建任务');
 granted = new Set(permissions.API_SCOPES);
 for (const action of ['authorize', 'disconnect', 'apps', 'save_app', 'unknown']) {
   consumed = []; reads = [];
