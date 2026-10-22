@@ -1,87 +1,45 @@
 # 项目文档中心
 
-最新 [迭代33积分权益与短信会话](ITERATION_33_CREDITS_SMS.md)：00061权威余额/权益与共享账号缓存、错误重试/到期门禁、原手机短信/独立验证会话/未知冷却、正式协议配置和通知身份隔离。发布要求probe21/00061/render4/edit2和00032–00061匹配全栈；官方管理401，未上线。下文为历次交付时点。
-
-当前 [迭代31账号与分镜入口](ITERATION_31_ACCOUNT_STORYBOARD.md)修复Auth迟到资料、账号页面/缓存/路由输入隔离、本人完整概览与私有头像；真实脚本流/保存恢复和首页分镜复用多镜头后台任务。00059/probe19/render4/edit2，官方管理当前401，目标发布与其余遗留功能继续处理。
-
-前一轮 [迭代30作品与素材入口](ITERATION_30_WORKS_LIBRARY.md)统一作品分页、真实私有上传/原回执恢复、首页本人作品和真实实验入口，去除公开虚构互动与40个旧媒体资源。
-
-当前 [迭代29运行告警与恢复](ITERATION_29_ALERTS_RECOVERY.md)新增00057扣费锁序、00058原对象告警/接手/恢复与采集心跳、调度持久卷和加密DB/Storage/扩展/历史密钥恢复。双PG16/HTTP隔离演练通过，实际操作见 [备份恢复](BACKUP_RECOVERY.md)；probe18/00058/render4/edit2匹配全栈仍待目标发布，MCP59/19保持。外部值班通知、目标备份调度/异地保管与实际容量/RPO/RTO继续验收，以下迭代按历史时点阅读。
-
-最新 [迭代28运营流程](ITERATION_28_OPERATIONS_WORKFLOWS.md)新增00056、客户工单/分配/回复、租户启停/成员/所有权/预算、风险处置/新计费限制与原账单现金/币种/冲销。probe17/00056/render4/edit2及00032–00056匹配服务待发布，MCP仍59/19权限；告警/备份恢复、企业统一账套和真实目标验收继续执行。当前状态统一见 [运行状态](CURRENT_STATE.md)，下文各轮按历史时点阅读。
-
-最新 [迭代26资源与录音](ITERATION_26_EDITOR_ASSETS.md)新增00054、私有素材登记/原请求/存储证据/删除墓碑、真实资源与录音、音频EQ/回声/机器人导出、有界账号缓存和MCP58工具/18权限。probe15/00054/render4/edit1与00032–00054匹配全栈待发布；商业资源交易、自动编排、完整运营/告警备份和真实目标验收继续执行。下文迭代按历史时点阅读。
-
-最新 [迭代25剪辑音轨与人物蒙版](ITERATION_25_EDIT_ANALYSIS.md)新增00053、实际裁剪变速/节拍、Whisper原版本时间分段、原UUID/工程结果恢复及固定模型逐帧alpha。probe14/00053/render3/edit1，MCP仍56工具/18权限，00032–00053匹配全栈待发布；真实供应商/长素材质量和容量、自动编排及完整运营/告警备份继续执行。下文保留历史时点。
-
-最新 [迭代24微信交易链](ITERATION_24_WECHAT_TRANSACTIONS.md)新增00052、签名查单/二维码到期关单、原路现金退款/通知/原申请恢复，两渠道共用预占与权益事务。probe13/00052/render2、MCP56/18权限，00032–00052全栈待发布；真实商户、异常退款/对账、剪辑编排及告警备份/完整运营仍待开发或验收。下文保留各轮历史时点。
-
-最新 [迭代23数据生命周期](ITERATION_23_DATA_LIFECYCLE.md)新增00051、媒体引用索引/24小时孤立对象TTL/租约回执、声纹撤销/退款/原供应商删除、知识副本及七天证据清理。MCP56工具/18权限，probe v12/00051/render2，00032–00051与匹配全栈待发布；真实删除及备份恢复仍需目标验收。微信退款、剪辑编排和运营剩余功能继续执行，下文保留历史时点。
-
-最新 [迭代22](ITERATION_22_CHECKOUT_LOADING.md)新增00050、真实收银/账单/原UUID金额确认与订单配额、移除静态收款和虚假兑换；布局懒加载、共享依赖及多环境Vite缓存隔离。probe v11/00050/render2，资金不对Key开放，MCP仍54工具/18权限；匹配全栈与真实商户验收待执行。媒体生命周期、剪辑编排及其余运营功能继续开发。下文各迭代保留历史时点。
-
-此前 [迭代21](ITERATION_21_TRANSLATION_NOTIFICATIONS.md)新增00049、私有图片选品、12语言翻译/主图文字对照、竞品统计与真实通知；网页与MCP54工具共用18权限。
-
-当前 [现金与真实运营迭代20](ITERATION_20_CASH_OPERATIONS.md)交付00047/00048、原申请预占/签名到账/权益与欠额、只查询调度、实际运营RBAC/客户范围/分页/日预算及浏览器恢复。发布需匹配函数/前端与probe v9/00048；MCP仍52工具/18权限，财务不对Key开放。完整中台/微信退款和其他功能及目标云端/真实供应商验收继续执行。
-
-当前增量 [商品管理迭代19](ITERATION_19_PRODUCT_MANAGEMENT.md)新增00046、真实来源后台提取/私有图片、商品原子写入/版本/回执/CSV与两个入口统一，清理首页假商品及假视频同步。MCP52工具/18权限，常驻调度匹配probe v8/00046。尚需全栈目标部署与真实供应商验收；下文为各轮历史记录。
-
-最新 [发布组迭代18](ITERATION_18_PUBLISH_GROUPS.md)新增00045、多账号逐项确认与整组事务、原请求恢复/独立执行、MCP47工具和probe v7。本地数据库/接口/页面/SDK已有验证；下一发布范围00032–00045，真实环境与供应商验收继续处理。需求至部署文档已同步，下面各轮基线保留为历史记录。
-
-最新 [MCP迭代17](ITERATION_17_MCP_PRODUCTION.md)接入45工具、16业务权限，修复配音旧接口，覆盖生成/渲染/批次/发布/指标/知识/情报；原UUID/价格/请求身份与网页一致。实际SDK/权限/PG及工程检查已通过，真实云端/TLS与供应商验收仍待完成；同步下列全生命周期主文档。
-
-最新 [剪辑效果迭代16](ITERATION_16_RENDER_EFFECTS.md)新增十二转场、八种RGB混合与可调色键、工程效果恢复，移除编辑器部分演示写入/失败字幕。仍需同步production-jobs与重建FFmpeg；迁移范围保持00032–00044，云端仍无本轮回执。实际范围、验收与剩余缺口见专项文档。
-
-当前增量是 [竞品与选品迭代15](ITERATION_15_MARKET_INTELLIGENCE.md)：00044、20槽、YouTube/eBay官方协议及授权数据商、预算监控、原请求恢复与30天留存。待发布00032–00044及market-intelligence/匹配函数，探针v6；以下迭代14及更早文字为各轮时点记录，云端证据仍00031。
-
-最新 [知识检索迭代14](ITERATION_14_KNOWLEDGE_RETRIEVAL.md)新增00043/knowledge-base、17槽Embedding、私有版本索引与语义任务、脚本真实引用；同步下列需求、方案、API、开发、测试、运营/财务、运维及部署文档。当前待发布范围00032–00043，云端证据保持00031。
-
-最新增量：[统一观测与对照实验迭代13](ITERATION_13_MEASUREMENTS_EXPERIMENTS.md)，00042。三看板、签名授权数据、CTR/CVR/ROAS、匿名分组/去重/窗口/统计及原请求恢复已新增本地验证；广告/电商供应商、真实分流和全栈云端待验收。
-
-最新增量：[真实素材分析迭代12](ITERATION_12_GROUNDED_ANALYSIS.md)，迁移00041。直播/风格改为真实抽帧+转录任务与MP4切片，口播/分镜/A/B取消预置成功结果；云端仍待发布。
-
-更新日期：2026-10-21，业务源码基线 `53be501`。先读 [当前状态](CURRENT_STATE.md)：最近核验的实际连接为官方 Supabase，火山引擎是已适配、尚未验收的部署方案。代码已实现、测试通过和已在云端部署是三个不同状态。
+更新：2026-10-22，功能基线`d7e3d38`，迭代01–34。本次按31个尚未同步Gitee的提交统一需求、方案、开发、测试、运营和运维。先读 [全生命周期发布基线](RELEASE_BASELINE_20261022.md) 和 [当前状态](CURRENT_STATE.md)；当前源码00062/probe22/render4/edit2、MCP59/19、模型20槽，官方最新全栈未部署。
 
 ## 按职责阅读
 
-| 领域 | 主文档 | 内容与用途 |
+| 领域 | 主文档 | 内容 |
 | --- | --- | --- |
-| 产品需求 | [PRD](prd/PRD.md) | 范围、角色、能力边界、验收标准与优先级 |
-| 技术方案 | [技术架构](TECHNICAL_ARCHITECTURE.md) | 平台边界、配置版本、资金事务、队列和协议 |
-| 功能覆盖 | [原版覆盖核验](FUNCTION_COVERAGE_REVIEW_20261021.md) | 原版与当前逐项对照、兼容缺口、整体功能和补齐顺序 |
-| 生产链路 | [最新迭代](ITERATION_06_PRODUCTION_PIPELINE.md) | 私有素材、图片恢复、FFmpeg、两平台发布及官方指标，部署与测试边界 |
-| 任务中心 | [协议修复](ITERATION_07_TASK_CENTER.md) | 视频/生产/发布合并、审核与未知、错误保留、取消及真实UI验证 |
-| 访问控制 | [团队与开放接口](ITERATION_08_ACCESS_CONTROL.md) | Key鉴权/权限/限流、团队成员事务与共享、形象隔离、素材删除outbox |
-| 批量生成 | [批次与预算](ITERATION_09_BATCH_VIDEO.md) | 商品快照、整批预占、父子任务、暂停/取消与退款、刷新恢复及验证 |
-| 多规格导出 | [导出与供应商生命周期](ITERATION_10_RENDER_EXPORTS.md) | 六画幅含4:5/三短边多选、全批输出事务/渲染配额、刷新/旧回执恢复、独立成片、滤镜强度与Sora退役 |
-| 语音与数字人 | [后台语音/声纹/口播/口型](ITERATION_11_AUDIO_AVATAR_JOBS.md) | 16槽、五类任务、原声纹版本、价格与配额、私有归档、退款/刷新恢复，专业训练及真实账号验收边界 |
-| 素材分析 | [真实分析与MP4高光](ITERATION_12_GROUNDED_ANALYSIS.md) | 真实抽帧/ASR/指纹、两段队列、编辑评分、片段裁剪；分镜/变体/口播结构校验与Reader正文 |
-| 市场情报 | [竞品统计与多市场选品](ITERATION_15_MARKET_INTELLIGENCE.md) | 官方/授权数据协议、20槽、每日预算计划、来源入库与CSV、30天清理及真实供应商验收 |
-| 开发 | [开发指南](DEVELOPMENT_GUIDE.md)、[接口与数据](API_AND_DATA.md) | 本地配置、目录、协议、状态、变更与发布顺序 |
-| 测试 | [测试计划](TEST_PLAN.md)、[验证报告](TEST_REPORT_20261021.md) | 用例、覆盖边界、真实验收、当前执行结果 |
-| 运营 | [运营手册](OPERATIONS_GUIDE.md)、[商业化方案](plan/商业化.md) | 准入、成本、指标、客服退款、试点与推广口径 |
-| 运维 | [运维手册](RUNBOOK.md) | 监控、告警、任务核对、密钥、发布、备份与恢复 |
-| 模型 | [模型设置](MODEL_SETTINGS.md)、[AI 能力](ai/ai.md) | 20槽含Embedding与情报数据源，管理员授权、协议与供应商实测 |
-| 财务 | [支付与积分方案](plan/支付.md) | 支付验签、原子入账、任务退款与对账 |
-| 当前环境 | [官方部署记录](DEPLOYMENT_AIGCP.md)、[调度指南](VIDEO_SCHEDULER.md) | 实际部署清单、已验证事实、版本差距 |
-| 火山方案 | [火山部署指南](VOLCENGINE_DEPLOYMENT.md) | workspace/branch、迁移回执、Pages 和 ECS |
-| 变更追踪 | [文档同步矩阵](CHANGE_TRACEABILITY.md) | 提交、需求、实现、测试和运维的对应关系 |
-| 真实联调待办 | [待验收变更](PENDING_CHANGES.md) | 历史观察与云端/供应商/平台验收要求；最新本地实现见生产链路 |
+| 产品 | [PRD](prd/PRD.md)、[计划书](prd/计划书.md)、[竞品](prd/竞品.md) | 当前完整接受条件、商业假设与未覆盖范围 |
+| 方案 | [技术架构](TECHNICAL_ARCHITECTURE.md)、[业务后端](后端.md) | 账号边界、服务端事务、队列/编排、运营和恢复架构 |
+| 开发 | [开发指南](DEVELOPMENT_GUIDE.md)、[API与数据](API_AND_DATA.md) | 环境、修改入口、当前契约、兼容与检查 |
+| 模型 | [模型设置](MODEL_SETTINGS.md)、[AI方案](ai/ai.md) | 20槽不可变配置、图片编辑、实际协议、质量和成本 |
+| 测试 | [测试计划](TEST_PLAN.md)、[2026-10-22报告](TEST_REPORT_20261022.md) | 迭代验证索引、本轮文档检查与真实目标待验收 |
+| 运营 | [运营手册](OPERATIONS_GUIDE.md)、[商业化](plan/商业化.md) | 用户培训、工单/风险/租户、权益、实际经营口径 |
+| 财务 | [支付与积分](plan/支付.md) | 收银、两渠道验签/退款、权益/欠额、供应商现金成本 |
+| 运维 | [运行手册](RUNBOOK.md)、[调度](VIDEO_SCHEDULER.md)、[备份恢复](BACKUP_RECOVERY.md) | probe22、独立FFmpeg、持久告警、原任务核对、加密恢复 |
+| 部署 | [官方记录](DEPLOYMENT_AIGCP.md)、[火山方案](VOLCENGINE_DEPLOYMENT.md) | 实际00031旧回执、00032–00062升级、独立迁移工具 |
+| MCP | [接入指南](../mcp/mcp.md)、[工具目录](../mcp/tools.json) | 59真实工具、19权限、原请求/预算/身份/传输边界 |
+| 发布 | [追踪矩阵](CHANGE_TRACEABILITY.md)、[待办](PENDING_CHANGES.md)、[版本管理](VERSION_MANAGEMENT.md) | 全部提交对照、目标差距、Gitee合并和两个历史标签 |
+| 历史 | [2026-10-21测试](TEST_REPORT_20261021.md)、[当日覆盖核验](FUNCTION_COVERAGE_REVIEW_20261021.md)、[当日架构对比](ARCHITECTURE_REVIEW_20261021.md) | 保留原核验时点；当前范围以本次综合基线为准 |
 
-## 计划、演示与历史
+## 迭代记录
 
-- [产品商业计划](prd/计划书.md)、[竞品研究](prd/竞品.md)：待验证用户/市场假设、实验方法与阶段条件。
-- [后台开发方案](后端.md)：现有业务后端与缺失运营后台的开发边界；`backend/` 文档仅规格/历史设计。
-- [演示提纲](ppt/ppt.md)、[视觉素材规范](ppt/ppts.md)、[项目答疑](ok/答辩.md)、[视频脚本](ai/vedio.md)：引用实际证据，不填宣传评分。
-- [MCP 接入](../mcp/mcp.md)、[第三方来源记录](../mcp/AI_DISCLOSURE.md)：JWT/工具协议、依赖与素材核验。
-- [第一轮](ITERATION_01_FINANCE.md)、[第二轮](ITERATION_02_TYPECHECK.md)、[第三轮](ITERATION_03_VIDEO_JOBS.md) 和 `docs/ok/fx*`、`doc/fx*`：历史迭代/审计，结合追踪矩阵阅读。
-- 根目录 PRD、架构测试、支付及 `doc/` 重复材料转为主文档入口；历史内容可通过 Git 查阅。
+| 迭代 | 内容 |
+| --- | --- |
+| 01–03 | [资金事务](ITERATION_01_FINANCE.md)、[类型与检查](ITERATION_02_TYPECHECK.md)、[视频租约队列](ITERATION_03_VIDEO_JOBS.md) |
+| 04–05 | 调度/官方接入/火山适配/统一模型，提交及证据在 [追踪矩阵](CHANGE_TRACEABILITY.md)；未另建同号报告 |
+| 06–08 | [私有生产链](ITERATION_06_PRODUCTION_PIPELINE.md)、[任务中心](ITERATION_07_TASK_CENTER.md)、[Key/团队共享](ITERATION_08_ACCESS_CONTROL.md) |
+| 09–11 | [批量视频](ITERATION_09_BATCH_VIDEO.md)、[多规格导出](ITERATION_10_RENDER_EXPORTS.md)、[语音数字人](ITERATION_11_AUDIO_AVATAR_JOBS.md) |
+| 12–14 | [真实素材分析](ITERATION_12_GROUNDED_ANALYSIS.md)、[观测实验](ITERATION_13_MEASUREMENTS_EXPERIMENTS.md)、[私有知识](ITERATION_14_KNOWLEDGE_RETRIEVAL.md) |
+| 15–17 | [正式情报](ITERATION_15_MARKET_INTELLIGENCE.md)、[剪辑效果](ITERATION_16_RENDER_EFFECTS.md)、[MCP生产链](ITERATION_17_MCP_PRODUCTION.md) |
+| 18–20 | [发布组](ITERATION_18_PUBLISH_GROUPS.md)、[商品管理](ITERATION_19_PRODUCT_MANAGEMENT.md)、[现金/运营](ITERATION_20_CASH_OPERATIONS.md) |
+| 21–23 | [翻译通知](ITERATION_21_TRANSLATION_NOTIFICATIONS.md)、[收银加载](ITERATION_22_CHECKOUT_LOADING.md)、[数据生命周期](ITERATION_23_DATA_LIFECYCLE.md) |
+| 24–26 | [微信交易](ITERATION_24_WECHAT_TRANSACTIONS.md)、[音轨与人物蒙版](ITERATION_25_EDIT_ANALYSIS.md)、[素材录音](ITERATION_26_EDITOR_ASSETS.md) |
+| 27–29 | [多镜头编排](ITERATION_27_BATCH_PIPELINE.md)、[运营持久流程](ITERATION_28_OPERATIONS_WORKFLOWS.md)、[告警恢复](ITERATION_29_ALERTS_RECOVERY.md) |
+| 30–32 | [作品库](ITERATION_30_WORKS_LIBRARY.md)、[账号分镜](ITERATION_31_ACCOUNT_STORYBOARD.md)、[奖励恢复](ITERATION_32_REWARDS_AUTH.md) |
+| 33–34 | [积分短信](ITERATION_33_CREDITS_SMS.md)、[图片编辑](ITERATION_34_IMAGE_EDITING.md) |
 
 ## 使用约定
 
-- PRD 描述需求与接受条件；当前状态和部署记录描述已知事实；测试报告记录实测，不合并成“全部已上线”。
-- 明确标注“已实现 / 已验证 / 已部署 / 待验收 / 停用 / 规划”。无证据的成本、转化、成功率、市场规模与竞品评分不作为结论。
-- `docs/ITERATION_*.md`、`docs/ok/` 的历史审计保留时点记录；其旧行号、函数、Mock、收费和架构不用于当前操作。答疑与事实记录已同步为新版。
-- 商业计划和演示材料引用当前事实，未实现功能只作为规划。个人经历、宣传评分和推广链接不作为产品交付内容。
-- 提交涉及 API、数据库、配置、计费或状态变化时，同步更新需求、接口、测试和运行手册；发布时补充真实环境和版本证据。详见同步矩阵。
-- 凭据、密码、JWT、供应商 Key、密文和全量生产日志不得写入文档。环境地址是公开连接信息，服务端密钥不是。
+源码实现、隔离验证、仓库同步和目标部署分别记录。历史迭代中的数量、未实现项与旧部署要求按记录时点阅读，不用于当前操作。没有实际证据的成功率、转化、现金成本、SLA与RPO/RTO保持未知。
+
+`backend/`保留历史规格；当前运营入口为React `/operations`和Supabase事务。演示 [提纲](ppt/ppt.md)、[答疑](ok/答辩.md) 引用本次事实。历史`docs/ok`、`doc`审计与研究不替代当前验收。
+
+变更涉及身份、状态、价格、权限、配置或API时同步主文档和对应专项。凭据、JWT、密文及全量生产日志不得进入文档；实际环境地址可以记录，秘密材料只保存在受控系统。
