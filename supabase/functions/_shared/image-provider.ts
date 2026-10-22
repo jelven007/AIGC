@@ -1,32 +1,38 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { modelFetch, resolveModel, validateEndpoint } from './model-registry.ts';
 import { mediaReference, signedMedia } from './private-media.ts';
+import { requireImageCapability } from './image-contract.ts';
+import { readImageEditInput } from './image-edit-input.ts';
 
 export async function generateImage(db: SupabaseClient, userId: string, input: Record<string, unknown>, options: {
   version?: string; jobId?: string; evidence?: any; checkpoint?: (data: unknown) => Promise<void>;
   executing?: () => Promise<void>;
 } = {}): Promise<{ image_url: string; size: number }> {
-  if (typeof input.prompt !== 'string' || !input.prompt.trim() || input.prompt.length > 8000) throw new Error('图片描述应为 1–8000 字');
   const config = await resolveModel('image.primary', db, options.version);
+  const mode = requireImageCapability(input, config.settings);
   const size = String(input.size || '1024x1024');
   if (!['1024x1024', '1024x1536', '1536x1024'].includes(size)) throw new Error('图片尺寸不支持');
   const quality = String(input.quality || 'auto');
   if (!['auto', 'low', 'medium', 'high'].includes(quality)) throw new Error('图片质量不支持');
   let reference: string | undefined;
-  if (input.reference_image) {
+  let editInput: Awaited<ReturnType<typeof readImageEditInput>> | undefined;
+  if (!options.evidence && mode !== 'generate' && config.settings.protocol === 'openai-images') {
+    editInput = await readImageEditInput(db, userId, input);
+  } else if (!options.evidence && input.reference_image) {
     if (typeof input.reference_image !== 'string') throw new Error('参考图应为已上传的公网地址');
     reference = await signedMedia(db, input.reference_image, userId, 3600);
     const checked = new URL(reference); checked.search = '';
     await validateEndpoint(checked.href);
-    if (config.settings.protocol !== 'chat-image') throw new Error('当前 Images 协议不支持参考图，请选择支持参考图的图片协议');
   }
   let data = options.evidence;
   if (!data) {
     await options.executing?.();
-    const response = await modelFetch(config, JSON.stringify(config.settings.protocol === 'openai-images'
-    ? { model: config.settings.model, prompt: input.prompt.trim(), n: 1, size, quality }
+    const response = await modelFetch(editInput ? { ...config, settings: { ...config.settings, endpoint: config.settings.edit_endpoint! } } : config,
+      JSON.stringify(config.settings.protocol === 'openai-images'
+    ? { model: config.settings.model, prompt: String(input.prompt).trim(), n: 1, size, quality,
+      ...(editInput ? { ...editInput, output_format: 'png' } : {}) }
     : { model: config.settings.model, stream: false, messages: [{ role: 'user', content: [
-      { type: 'text', text: `生成图片，尺寸 ${size}，质量 ${quality}，返回图片 URL：${input.prompt.trim()}` },
+      { type: 'text', text: `生成图片，尺寸 ${size}，质量 ${quality}，返回图片 URL：${String(input.prompt).trim()}` },
       ...(reference ? [{ type: 'image_url', image_url: { url: reference } }] : []),
     ] }] }));
     const reader = response.body?.getReader();

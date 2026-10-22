@@ -73,6 +73,7 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
       const profileSchema = await db.rpc('profile_overview_schema_ready');
       const rewardSchema = await db.rpc('reward_schema_ready');
       const creditsSchema = await db.rpc('account_credits_schema_ready');
+      const imageSchema = await db.rpc('image_editing_schema_ready');
       const ready = !error && !voices.error && !costs.error && costs.data?.length === Object.keys(MEDIA_JOB_SLOTS).length
         && !analysis.error && !!analysis.data && !measurements.error && !experiments.error && !knowledge.error && !chunks.error
         && !knowledgeCosts.error && knowledgeCosts.data?.length === 2 && knowledgeCosts.data.every(row => Number.isInteger(row.cost) && row.cost >= 0)
@@ -85,8 +86,9 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
         && !alerts.error && !alertEvents.error && !monitor.error && !profileSchema.error && profileSchema.data === true
         && !rewardSchema.error && rewardSchema.data === true
         && !creditsSchema.error && creditsSchema.data === true
+        && !imageSchema.error && imageSchema.data === true
         && editCosts.data?.length === 2 && editCosts.data.every(row => Number.isInteger(row.cost) && row.cost >= 0);
-      return Response.json({ ready, version: 21, render_version: 4, edit_version: 2, required_migration: '00061' }, { status: ready ? 200 : 503 });
+      return Response.json({ ready, version: 22, render_version: 4, edit_version: 2, required_migration: '00062' }, { status: ready ? 200 : 503 });
     }
     if (general && body.action === 'monitor') {
       if (typeof body.scheduler_healthy !== 'boolean') return Response.json({ error: '缺少调度健康状态' }, { status: 400 });

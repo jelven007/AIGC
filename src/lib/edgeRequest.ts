@@ -9,9 +9,11 @@ export async function authenticatedEdgeRequest(
   name: string,
   init: RequestInit,
   query = '',
+  expectedUserId?: string,
 ): Promise<Response> {
   const { data: { session }, error } = await supabase.auth.getSession();
   if (error || !session?.access_token) throw new Error('请先登录后使用 AI 功能');
+  if (expectedUserId && session.user.id !== expectedUserId) throw new EdgeRequestError('账号已切换，请在原账号恢复任务', 401);
   const headers = new Headers(init.headers);
   headers.set('Authorization', `Bearer ${session.access_token}`);
   headers.set('apikey', backendAnonKey);

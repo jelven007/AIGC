@@ -1,4 +1,4 @@
-import { authenticatedEdgeRequest } from '@/lib/edgeRequest';
+import { authenticatedEdgeRequest, EdgeRequestError } from '@/lib/edgeRequest';
 import { canonicalMediaTree } from '@/lib/privateMedia';
 import type { EditSource, EditRequest } from '../../supabase/functions/_shared/edit-contract';
 export interface VideoHighlight {
@@ -49,22 +49,26 @@ export async function listRenderExports(): Promise<RenderExport[]> {
 export class ProductionJobError extends Error {
   constructor(message: string, readonly status: number) { super(message); }
 }
-export async function productionRequest(body: Record<string, unknown>) {
+export async function productionRequest(body: Record<string, unknown>, expectedUserId?: string) {
   // 需要状态码区分请求丢失、404和参数拒绝，便于安全恢复。
-  const { supabase } = await import('@/db/supabase');
-  const { data, error } = await supabase.functions.invoke('production-jobs', { body: canonicalMediaTree(body) });
-  if (error) {
-    const response = error.context instanceof Response ? error.context : null;
-    const details = await response?.json().catch(() => null);
-    throw new ProductionJobError(details?.error || error.message, response?.status || 0);
+  try {
+    const response = await authenticatedEdgeRequest('production-jobs', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(canonicalMediaTree(body)), signal: AbortSignal.timeout(15000),
+    }, '', expectedUserId);
+    const data = await response.json();
+    if (data?.error) throw new ProductionJobError(data.error, 400);
+    return data;
+  } catch (cause) {
+    if (cause instanceof ProductionJobError) throw cause;
+    throw new ProductionJobError(cause instanceof Error ? cause.message : '任务请求结果待确认',
+      cause instanceof EdgeRequestError ? cause.status : 0);
   }
-  if (data?.error) throw new ProductionJobError(data.error, 400);
-  return data;
 }
-export async function createProductionJob(kind: string, requestKey: string, input: unknown, projectId?: string): Promise<ProductionJob> {
-  return (await productionRequest({ action: 'create', kind, request_key: requestKey, input, project_id: projectId })).job;
+export async function createProductionJob(kind: string, requestKey: string, input: unknown, projectId?: string, userId?: string): Promise<ProductionJob> {
+  return (await productionRequest({ action: 'create', kind, request_key: requestKey, input, project_id: projectId }, userId)).job;
 }
-export async function queryProductionJob(id: string): Promise<ProductionJob> {
-  return (await productionRequest({ action: 'query', job_id: id })).job;
+export async function queryProductionJob(id: string, userId?: string): Promise<ProductionJob> {
+  return (await productionRequest({ action: 'query', job_id: id }, userId)).job;
 }
-export async function listProductionJobs(): Promise<ProductionJob[]> { return (await productionRequest({ action: 'list' })).jobs; }
+export async function listProductionJobs(userId?: string): Promise<ProductionJob[]> { return (await productionRequest({ action: 'list' }, userId)).jobs; }

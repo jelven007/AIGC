@@ -2,6 +2,7 @@ import { authenticateRequest, createServiceClient } from '../_shared/auth.ts';
 import { MODEL_SLOTS, defaultSettings } from '../_shared/model-catalog.ts';
 import { ConfigError, encryptKey, resolveModel, validateEndpoint, validateSettings } from '../_shared/model-registry.ts';
 import { legacyModelConfigs } from '../_shared/model-env-import.ts';
+import { imageCapabilities } from '../_shared/image-contract.ts';
 
 const headers = {
   'Access-Control-Allow-Origin': '*',
@@ -31,6 +32,8 @@ export async function handleModelSettings(req: Request): Promise<Response> {
         if (body.action === 'catalog') return {
           slot: definition.id, name: version?.settings?.name || definition.name, category: definition.category,
           enabled: row?.enabled ?? false, provider: definition.category === 'video' ? definition.protocols[0] : undefined,
+          ...(definition.category === 'image' ? { version_id: row?.current_version_id || null,
+            image_capabilities: imageCapabilities(version?.settings) } : {}),
         };
         return { slot: definition.id, enabled: row?.enabled ?? false, version_id: row?.current_version_id || null,
           updated_at: row?.updated_at, has_key: !!version?.key_ciphertext, settings: version?.settings || defaultSettings(definition.id) };

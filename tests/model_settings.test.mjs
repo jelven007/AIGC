@@ -62,7 +62,8 @@ versions = [{ id: 'old-version', slot: 'text.primary', settings, key_ciphertext:
 const listed = await (await handleModelSettings(request({ action: 'list' }))).text();
 assert.ok(!listed.includes(key) && !listed.includes(cipher)); assert.ok(listed.includes('"has_key":true'));
 const catalog = await (await handleModelSettings(request({ action: 'catalog' }))).text();
-assert.ok(!catalog.includes('endpoint') && !catalog.includes('key_ciphertext') && !catalog.includes('version_id'));
+assert.ok(!catalog.includes('endpoint') && !catalog.includes('key_ciphertext'));
+assert.equal(JSON.parse(catalog).configs.filter(item => item.version_id !== undefined).length, 1);
 console.log('PASS 管理列表与用户目录都不回传密钥');
 let response = await handleModelSettings(request({ action: 'save', slot: 'text.primary',
   version_id: null, settings, enabled: true, api_key: key }));

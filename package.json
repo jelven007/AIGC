@@ -28,6 +28,8 @@
     "test:scheduler": "python3 tests/test_video_scheduler.py && python3 tests/test_video_schedule_db.py",
     "test:volcengine": "python3 tests/test_volcengine_deploy.py && node tests/volcengine.test.mjs",
     "test:production": "node tests/production_jobs.test.mjs",
+    "test:image-editing": "python3 tests/test_image_editing.py && node tests/image_editing.test.mjs && node tests/production_probe.test.mjs",
+    "test:image-editing-ui": "node tests/browser_image_editing.mjs",
     "test:publish": "python3 tests/test_publish_groups.py && node tests/publish_groups.test.mjs",
     "test:products": "python3 tests/test_products.py && node tests/products.test.mjs",
     "test:translation": "python3 tests/test_translation_notifications.py && node tests/product_translation.test.mjs",

@@ -40,6 +40,7 @@ export interface ModelSettings {
   timeout_ms: number;
   voice: string;
   test_endpoint: string;
+  edit_endpoint?: string;
 }
 export interface ModelConfigView {
   slot: string;
@@ -58,5 +59,6 @@ export function defaultSettings(slot: string): ModelSettings {
     model: definition.model, auth_header: slot === 'intelligence.youtube' ? 'x-goog-api-key' : slot === 'avatar.lipsync' ? 'x-api-key' : slot === 'audio.voice_clone' ? 'xi-api-key' : 'Authorization',
     auth_scheme: ['avatar.photo', 'intelligence.ebay'].includes(slot) ? 'Basic' : ['avatar.lipsync', 'audio.voice_clone', 'intelligence.youtube'].includes(slot) ? 'raw' : 'Bearer',
     timeout_ms: ['video', 'avatar', 'intelligence'].includes(definition.category) ? 30_000 : 90_000, voice: '', test_endpoint: '',
+    ...(slot === 'image.primary' ? { edit_endpoint: '' } : {}),
   };
 }

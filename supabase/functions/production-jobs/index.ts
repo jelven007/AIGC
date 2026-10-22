@@ -12,6 +12,8 @@ import { INTELLIGENCE_KINDS } from '../_shared/intelligence-provider.ts';
 import { editInput } from '../_shared/edit-contract.ts';
 import { createEditJob } from '../_shared/edit-jobs.ts';
 import { workloadPolicy } from '../_shared/workload-policy.ts';
+import { validateImageInput, requireImageCapability } from '../_shared/image-contract.ts';
+import { readImageEditInput } from '../_shared/image-edit-input.ts';
 
 const uuid = (value: unknown) => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 export async function handleProductionJobs(req: Request): Promise<Response> {
@@ -160,9 +162,8 @@ export async function handleProductionJobs(req: Request): Promise<Response> {
       try { input = await validateMediaTree(db, body.input, auth.user.id); }
       catch { return reply({ error: '素材不存在或无权访问，请重新选择自己的素材' }, 400); }
       if (body.kind === 'image') {
-        if (typeof input.prompt !== 'string' || !input.prompt.trim() || input.prompt.length > 8000
-          || !['1024x1024', '1024x1536', '1536x1024'].includes(input.size || '1024x1024')
-          || !['auto', 'low', 'medium', 'high'].includes(input.quality || 'auto')) return reply({ error: '图片描述、尺寸或质量非法' }, 400);
+        try { validateImageInput(input); }
+        catch (cause) { return reply({ error: cause instanceof Error ? cause.message : '图片参数非法' }, 400); }
       } else {
         try { validateRender(input); }
         catch (cause) { return reply({ error: cause instanceof Error ? cause.message : '工程参数非法' }, 400); }
@@ -174,7 +175,10 @@ export async function handleProductionJobs(req: Request): Promise<Response> {
       let version = null;
       if (!prior.data && body.kind === 'image') {
         const config = await resolveModel('image.primary', db);
-        if (input.reference_image && config.settings.protocol !== 'chat-image') return reply({ error: '当前图片模型不支持参考图' }, 400);
+        try {
+          const mode = requireImageCapability(input, config.settings);
+          if (mode !== 'generate' && config.settings.protocol === 'openai-images') await readImageEditInput(db, auth.user.id, input);
+        } catch (cause) { return reply({ error: cause instanceof Error ? cause.message : '图片编辑参数非法' }, 400); }
         version = config.version_id;
       }
       const { data, error } = await db.rpc('create_production_job', {
@@ -185,8 +189,10 @@ export async function handleProductionJobs(req: Request): Promise<Response> {
       if (policy) return reply({ error: policy.message, outcome: 'rejected' }, policy.status);
       if (error?.message.includes('渲染队列')) return reply({ error: error.message }, 429);
       if (error) return reply({ error: error.message.includes('积分不足') ? '积分不足'
-        : error.message.includes('同一请求标识') ? '同一请求标识不能用于不同任务' : '任务创建失败，请保留原请求标识重试' },
-      error.message.includes('积分不足') ? 402 : error.message.includes('同一请求标识') ? 409 : 503);
+        : error.message.includes('同一请求标识') ? '同一请求标识不能用于不同任务'
+        : /图片.*(价格|配置|素材|掩码|参数)/.test(error.message) ? error.message : '任务创建失败，请保留原请求标识重试' },
+      error.message.includes('积分不足') ? 402 : /同一请求标识|价格已更新|配置已更新/.test(error.message) ? 409
+        : /图片.*(素材|掩码|参数)/.test(error.message) ? 400 : 503);
       return reply({ job: await publicProductionJob(db, data as ProductionJob) }, 202);
     }
     if (body.action === 'query') {
