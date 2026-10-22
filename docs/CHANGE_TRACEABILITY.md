@@ -1,5 +1,7 @@
 # 变更、需求与文档追踪矩阵
 
+迭代30 [作品与真实素材入口](ITERATION_30_WORKS_LIBRARY.md)对应REQ-WORK-LIBRARY-01：作品每页24项/当前用户搜索、上传登记原UUID/使用权/实际时长/回执恢复、私有预览下载、首页最近40真实作品、完整文本流与失败原输入。公开虚构评价/直播与旧媒体删除，原数据库历史记录保持；00058/probe18/render4/edit2，官方管理401待恢复有效访问。
+
 迭代29 [告警与恢复](ITERATION_29_ALERTS_RECOVERY.md)对应REQ-OPS-ALERT-01/RECOVERY-01：00057真实死锁→统一套餐锁序，00058原对象规则/范围/版本/原UUID接手/恢复事件、采集心跳与常驻持久卷；加密DB快照/Storage实物/历史密钥/扩展/迁移回执、空隔离恢复及内容摘要/文件hash验证。PRD/API/架构/开发/测试/运行/部署同步，probe18/00058/render4/edit2，MCP59/19；目标备份运行/异地保管、平台系统迁移和外部值班通知未列为已验收。
 
 迭代28 [运营持久流程](ITERATION_28_OPERATIONS_WORKFLOWS.md)对应REQ-SUPPORT-01/TENANT-OPS-01/RISK-DISPOSITION-01/SUPPLIER-CASH-01：00056工单/内部备注/关联/版本、租户所有权/成员/启停/并发团队预算、人工风险/计费限制、原账单/币种/指纹/冲销；复用operations与统一扣费事务、原UUID及审计，拆出共享表单/记录组件。PRD/当前状态/架构/运营/测试/部署同步，probe17/00056/render4/edit2；企业统一账套、自动账单与目标环境不列为本地已验收。
