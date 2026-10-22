@@ -14,12 +14,15 @@ export default function QRCodeDataUrl({ value, size = 200, className }: Props) {
   const [dataUrl, setDataUrl] = useState<string>('');
 
   useEffect(() => {
+    let current = true;
+    setDataUrl('');
     if (!value) return;
     QRCode.toDataURL(value, {
       width: size,
       margin: 1,
       color: { dark: '#000000', light: '#ffffff' },
-    }).then(setDataUrl).catch(() => setDataUrl(''));
+    }).then(url => { if (current) setDataUrl(url); }).catch(() => { if (current) setDataUrl(''); });
+    return () => { current = false; };
   }, [value, size]);
 
   if (!dataUrl) {

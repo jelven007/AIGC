@@ -1,5 +1,7 @@
 # aigcp 环境部署记录
 
+最新 [迭代32](ITERATION_32_REWARDS_AUTH.md)新增00060；待发布官方00032–00060/全部匹配函数与共享模块、probe20/production-worker/调度/前端，render4/edit2及MCP59保持。新增奖励与受控上报RPC、注册/验证触发器，邮件重定向允许/auth/reset和/login?mode=login。官方管理最近401、本轮无部署回执；用户Gitee只读状态独立确认，下文为历史记录。
+
 迭代31 [账号与分镜入口](ITERATION_31_ACCOUNT_STORYBOARD.md)新增00059；待同步官方00032–00059、probe19/production-worker/调度与前端，包含profile概览/头像引用保护。render4/edit2与MCP59保持。本地验证不代表已推送或上线，用户Gitee远端需独立只读确认。
 
 2026-10-22最近检查：官方Management API的functions列表与只读迁移查询均返回401，原本24小时的本地管理令牌已无法使用。最近成功核验仍00031/三旧函数；本地00032–00059及匹配probe19/00059/render4/edit2全栈尚未发布。恢复管理访问后先只读确认真实差距及备份，再执行部署；不能把火山CLI当作官方管理工具。

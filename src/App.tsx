@@ -10,6 +10,7 @@ function RedirectWithState({ to }: { to: string }) {
 }
 function LoginRedirect() {
   const location = useLocation();
+  if (new URLSearchParams(location.search).get('mode') === 'reset') return <Navigate to="/auth/reset" replace />;
   const to = new URLSearchParams(location.search).get('redirect') === '/credits?tab=plans' ? '/credits?tab=plans' : '/';
   return <Navigate to={to} replace />;
 }
@@ -20,6 +21,7 @@ import { Button } from "@/components/ui/button";
 
 // FP-01: 路由级懒加载
 const LoginPage       = lazy(() => import("@/pages/LoginPage"));
+const ResetPasswordPage = lazy(() => import("@/pages/ResetPasswordPage"));
 const MainLayout = lazy(() => import("@/components/layouts/MainLayout"));
 const LandingPage     = lazy(() => import("@/pages/LandingPage"));
 const HomePage        = lazy(() => import("@/pages/HomePage"));
@@ -66,6 +68,7 @@ const PublishPage            = lazy(() => import("@/pages/PublishPage"));
 const DataDashboardPage      = lazy(() => import("@/pages/DataDashboardPage"));
 
 import { supabase } from "@/db/supabase";
+import { accountRequest } from "@/api/accountSession";
 import PlanGate from "@/components/PlanGate";
 import ForbiddenPage from "@/components/ForbiddenPage";
 import { Send, CheckCircle2 } from "lucide-react";
@@ -88,13 +91,19 @@ interface EBState {
   error?: Error;
   reported: boolean;
   reporting: boolean;
+  reportError: string;
 }
 
 class ErrorBoundary extends Component<{ children: ReactNode; fallback?: ReactNode }, EBState> {
   constructor(props: { children: ReactNode; fallback?: ReactNode }) {
     super(props);
-    this.state = { hasError: false, reported: false, reporting: false };
+    this.state = { hasError: false, reported: false, reporting: false, reportError: '' };
   }
+  private reportKey = crypto.randomUUID();
+  private reportGeneration = 0;
+  private active = true;
+  componentDidMount() { this.active = true; }
+  componentWillUnmount() { this.active = false; this.reportGeneration++; }
 
   static getDerivedStateFromError(error: Error): Partial<EBState> {
     return { hasError: true, error };
@@ -106,33 +115,31 @@ class ErrorBoundary extends Component<{ children: ReactNode; fallback?: ReactNod
 
   handleReportError = async () => {
     if (this.state.reported || this.state.reporting) return;
-    this.setState({ reporting: true });
+    const generation = this.reportGeneration;
+    this.setState({ reporting: true, reportError: '' });
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
+      const { data: sessionData, error } = await supabase.auth.getSession();
       const currentUserId = sessionData?.session?.user?.id ?? null;
-
-      await supabase.from('error_logs').insert({
-        user_id: currentUserId,
-        source: 'frontend_error_boundary',
-        action: window.location.pathname,
-        error_code: 'REACT_RENDER_CRASH',
-        error_msg: this.state.error?.message ?? 'Unknown React Error',
-        meta: {
-          stack: this.state.error?.stack,
-          url: window.location.href,
-          userAgent: navigator.userAgent,
-          time: new Date().toISOString(),
-        },
+      if (!this.active || generation !== this.reportGeneration) return;
+      if (error || !currentUserId) throw new Error('会话已失效');
+      const result = await accountRequest(currentUserId, '/rest/v1/rpc/report_frontend_error', 'POST', {
+        p_request_key: this.reportKey,
+        p_path: window.location.pathname,
       });
+      if (!this.active || generation !== this.reportGeneration) return;
+      if (!result?.ok || result.request_key !== this.reportKey || !result.id) throw new Error('上报回执无效');
       this.setState({ reported: true, reporting: false });
     } catch (e) {
       console.warn('[ErrorBoundary] 错误日志上报失败:', e);
-      this.setState({ reported: true, reporting: false });
+      if (this.active && generation === this.reportGeneration) this.setState({
+        reported: false, reporting: false, reportError: '异常记录尚未确认，请重试上报。',
+      });
     }
   };
 
   handleReset = () => {
-    this.setState({ hasError: false, error: undefined, reported: false });
+    this.reportGeneration++; this.reportKey = crypto.randomUUID();
+    this.setState({ hasError: false, error: undefined, reported: false, reporting: false, reportError: '' });
   };
 
   render() {
@@ -165,7 +172,7 @@ class ErrorBoundary extends Component<{ children: ReactNode; fallback?: ReactNod
             >
               {this.state.reported ? (
                 <>
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> 已上报技术团队
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> 异常记录已提交
                 </>
               ) : (
                 <>
@@ -174,6 +181,7 @@ class ErrorBoundary extends Component<{ children: ReactNode; fallback?: ReactNod
               )}
             </Button>
           </div>
+          {this.state.reportError && <p role="alert" className="text-sm text-destructive">{this.state.reportError}</p>}
 
           {this.state.error?.stack && (
             <details className="mt-4 text-left max-w-xl text-xs text-muted-foreground/80 bg-muted/30 p-3 rounded-lg border border-border/50 overflow-auto max-h-40">
@@ -228,6 +236,7 @@ function AppRoutes() {
         <Routes>
           <Route path="/landing" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/auth/reset" element={<ResetPasswordPage key="anonymous" />} />
           <Route path="*" element={<Navigate to="/landing" replace />} />
         </Routes>
       </Suspense>
@@ -238,6 +247,7 @@ function AppRoutes() {
     <Suspense fallback={<PageLoader />}>
       <Routes>
         <Route path="/landing" element={<LandingPage />} />
+        <Route path="/auth/reset" element={<ResetPasswordPage key={session.user.id} />} />
         <Route path="/*" element={
           <AccountScope key={session.user.id}>
           <MainLayout>
