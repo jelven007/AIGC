@@ -1,5 +1,7 @@
 # 运维运行手册
 
+当前 [迭代30](ITERATION_30_WORKS_LIBRARY.md)需同步material-assets搜索接口和前端。官方只读管理访问当前401；恢复有效管理访问后按00032–00058匹配全栈发布步骤验收，禁止将本地压缩构建或隔离夹具结果当作目标上线。
+
 当前 [迭代29](ITERATION_29_ALERTS_RECOVERY.md)：00057统一扣费套餐→团队/风险锁，00058/probe18/匹配operations与production-worker、常驻调度/前端同窗。运行告警保存原对象/版本/范围/接手/恢复，后台monitor每分钟扫描；采集过三分钟显示失效，容器持久卷记录Edge/DB不可达事件，内部告警未配置外部值班通知。加密备份与双PG16/HTTP实物恢复见 [执行指南](BACKUP_RECOVERY.md)，目标实际调度、官方平台迁移、异地保管与RPO/RTO仍待验收。以下迭代为历史运行条件。
 
 最新 [迭代26](ITERATION_26_EDITOR_ASSETS.md)：必须匹配00054/material-assets/production API、probe15/render4/edit1、常驻调度、前端/MCP58与FFmpeg镜像。上传失联恢复本人原UUID，404重新选择原文件，不覆盖原对象；正式素材受引用保护，删除墓碑与回执必须进入备份。检查Storage大小/MIME元数据、录音失败与有界缓存；render3旧镜像领取前426。自动编排、正式告警/备份恢复与真实目标验收继续执行。

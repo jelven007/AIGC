@@ -7,7 +7,6 @@ import {
   ShoppingBag, Package, Search, Check, Tag
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/db/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useVideoGeneration } from '@/hooks/useVideoGeneration';
 import { toast } from 'sonner';
@@ -16,17 +15,17 @@ import { Badge } from '@/components/ui/badge';
 import ProductVideoWizard from './VideoCreatePage';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { UrlProductImportDialog } from '@/components/UrlProductImportDialog';
-import { sendDeepSeekStreamRequest, sendStepAudioASR, sendStepFlashStreamRequest } from '@/lib/sse';
+import { sendDeepSeekStreamRequest, sendStepAudioASR } from '@/lib/sse';
 import { makeWorkTitle } from '@/lib/utils';
 import { modelSettingsRequest, type ModelCatalogEntry } from '@/api/modelSettings';
-import { authenticatedEdgeRequest } from '@/lib/edgeRequest';
-import { mediaPreview, storedMedia } from '@/api/media';
+import { uploadMaterialAsset, pendingMaterialUploads, recoverMaterialUploads } from '@/api/materialAssets';
 import { useProductionJob } from '@/hooks/useProductionJob';
 import { audioRecorder } from '@/lib/audioRecorder';
 import { Product } from '@/types/types';
 import { ProductImage } from '@/components/ProductFields';
 import { productPrice } from '@/lib/productDisplay';
 import { listProducts } from '@/api/products';
+import { useRecentWorks } from '@/hooks/useRecentWorks';
 
 
 
@@ -36,37 +35,31 @@ const QUICK_TOOLS = [
   {
     id: 'script', label: 'AI智能脚本', sub: '智能生成短视频爆款带货脚本',
     gradient: 'from-rose-800/80 to-pink-900/80',
-    cover: 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=300&h=180&fit=crop',
     path: '/script',
   },
   {
     id: 'style-copy', label: '爆款风格复刻', sub: '一键复刻高转化内容风格',
     gradient: 'from-violet-800/80 to-indigo-900/80',
-    cover: 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=300&h=180&fit=crop',
     path: '/style-copy',
   },
   {
     id: 'competitor', label: '竞品爆款分析', sub: '抓取竞品爆款视频策略',
     gradient: 'from-sky-800/80 to-blue-900/80',
-    cover: 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=300&h=180&fit=crop',
     path: '/competitor',
   },
   {
-    id: 'analytics', label: '流量分析', sub: '实时追踪完播率与转化漏斗',
+    id: 'analytics', label: '作品表现', sub: '查看官方指标和授权交易观测',
     gradient: 'from-amber-800/80 to-orange-900/80',
-    cover: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=300&h=180&fit=crop',
     path: '/analytics',
   },
   {
     id: 'live-highlight', label: '直播高光切片', sub: 'AI自动识别直播精华',
     gradient: 'from-teal-800/80 to-emerald-900/80',
-    cover: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=300&h=180&fit=crop',
     path: '/live-highlight',
   },
   {
     id: 'knowledge', label: '知识库', sub: '沉淀带货话术，AI语义检索',
     gradient: 'from-fuchsia-800/80 to-purple-900/80',
-    cover: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=300&h=180&fit=crop',
     path: '/knowledge',
   },
 ];
@@ -77,7 +70,7 @@ const QUICK_TOOLS = [
 type ModelId = 'ArkSeedance' | 'Kling' | 'MiniMax' | 'Wan3' | 'SeedanceMini' | 'HappyHorse';
 const MODELS: { label: string; id: ModelId; vendor: string; iconSymbol: string; active?: boolean }[] = [
   { label: '火山方舟 Seedance', id: 'ArkSeedance', vendor: '火山引擎', iconSymbol: '⚡', active: true },
-  { label: 'MiniMax H3', id: 'MiniMax', vendor: 'OpenAI Next', iconSymbol: '🚀', active: true },
+  { label: 'MiniMax H3', id: 'MiniMax', vendor: 'MiniMax', iconSymbol: '🚀', active: true },
   { label: 'Seedance 2.0', id: 'SeedanceMini', vendor: 'ByteDance Ark', iconSymbol: '⚡', active: true },
   { label: 'Wan3.0 Prime', id: 'Wan3', vendor: 'Qwen · Alibaba', iconSymbol: '🌀', active: true },
   { label: 'HappyHorse 1.1', id: 'HappyHorse', vendor: 'Alibaba', iconSymbol: '🐎', active: true },
@@ -85,115 +78,14 @@ const MODELS: { label: string; id: ModelId; vendor: string; iconSymbol: string; 
 ];
 // 默认规格与工作台初始选中项一致：720P · 16:9 横版 · 5s
 const RESOLUTIONS = ['720P · 16:9 · 5s', '1080P · 9:16 · 10s', '4K · 1:1 · 8s'];
-const INSPIRE_VIDEOS = [
-  {
-    url: '/Video/CreatOK_2.mp4',
-    cover: '/Video/covers/CreatOK_2.webp',
-    prompt: '时尚秋季外套女款展示，微风吹拂，高级质感，落叶背景',
-    model: 'Seedance 2.0',
-    ratio: '9:16',
-    refImage: '有参考图',
-    firstLast: '无首尾帧',
-    category: '服装',
-    language: '中文'
-  },
-  {
-    url: '/Video/CreatOK_4.mp4',
-    cover: '/Video/covers/CreatOK_4.webp',
-    prompt: 'Makeup foundation application, close up on skin smooth blending, soft natural lighting',
-    model: 'Kling',
-    ratio: '16:9',
-    refImage: '无参考图',
-    firstLast: '有首尾帧',
-    category: '美妆',
-    language: '英文'
-  },
-  {
-    url: '/Video/CreatOK_5.mp4',
-    cover: '/Video/covers/CreatOK_5.webp',
-    prompt: 'Smart watch rotate view, carbon fiber strap, holographic display neon accent',
-    model: 'Kling-V3',
-    ratio: '1:1',
-    refImage: '有参考图',
-    firstLast: '有首尾帧',
-    category: '数码',
-    language: '英文'
-  },
-  {
-    url: '/Video/CreatOK_6.mp4',
-    cover: '/Video/covers/CreatOK_6.webp',
-    prompt: '美味草莓芝士蛋糕切片，淋上红莓果酱，慢动作，诱人甜点',
-    model: 'Seedance 2.0',
-    ratio: '9:16',
-    refImage: '无参考图',
-    firstLast: '无首尾帧',
-    category: '食品',
-    language: '中文'
-  },
-  {
-    url: '/Video/CreatOK_7.mp4',
-    cover: '/Video/covers/CreatOK_7.webp',
-    prompt: 'Nordic style living room, cozy sofa, plant leaf shadow, warm aesthetic room tour',
-    model: 'Seedance 2.0',
-    ratio: '16:9',
-    refImage: '有参考图',
-    firstLast: '无首尾帧',
-    category: '家居',
-    language: '德文'
-  },
-  {
-    url: '/Video/CreatOK_8.mp4',
-    cover: '/Video/covers/CreatOK_8.webp',
-    prompt: '运动女鞋减震底测试，慢镜头起跳落地，水花四溅效果',
-    model: 'Seedance 2.0',
-    ratio: '9:16',
-    refImage: '无参考图',
-    firstLast: '有首尾帧',
-    category: '服装',
-    language: '中文'
-  },
-  {
-    url: '/Video/CreatOK_9.mp4',
-    cover: '/Video/covers/CreatOK_9.webp',
-    prompt: 'Organic lipstick swatch on hand, gloss reflection, flowers around, cosmetic brand ad',
-    model: 'Kling',
-    ratio: '9:16',
-    refImage: '有参考图',
-    firstLast: '有首尾帧',
-    category: '美妆',
-    language: '英文'
-  },
-  {
-    url: '/Video/CreatOK_10.mp4',
-    cover: '/Video/covers/CreatOK_10.webp',
-    prompt: 'Wireless earbuds falling into water, high speed splash capture, blue ambient lighting',
-    model: 'Kling-V3',
-    ratio: '3:4',
-    refImage: '无参考图',
-    firstLast: '无首尾帧',
-    category: '数码',
-    language: '日文'
-  },
-  {
-    url: '/Video/CreatOK_11.mp4',
-    cover: '/Video/covers/CreatOK_11.webp',
-    prompt: '咖啡拿铁拉花艺术过程，心形图案，温暖日光，精致陶瓷杯',
-    model: 'Seedance 2.0',
-    ratio: '9:16',
-    refImage: '有参考图',
-    firstLast: '无首尾帧',
-    category: '食品',
-    language: '中文'
-  }
-];
 
 const FILTER_CONFIG = [
-  { key: 'model', label: '模型', options: ['全部', 'Seedance 2.0', 'MiniMax H3', 'Wan3.0 Prime', 'HappyHorse 1.1', 'Kling-V3'] },
-  { key: 'ratio', label: '比例', options: ['全部', '9:16', '16:9', '1:1', '3:4'] },
-  { key: 'refImage', label: '参考图', options: ['全部', '有参考图', '无参考图'] },
-  { key: 'firstLast', label: '首尾帧', options: ['全部', '有首尾帧', '无首尾帧'] },
-  { key: 'category', label: '商品分类', options: ['全部', '服装', '美妆', '数码', '食品', '家居'] },
-  { key: 'language', label: '语言·2', options: ['全部', '中文', '英文', '日文', '德文'] },
+  { key: 'model', label: '生成来源' },
+  { key: 'ratio', label: '比例' },
+  { key: 'refImage', label: '参考图' },
+  { key: 'firstLast', label: '首尾帧' },
+  { key: 'category', label: '商品分类' },
+  { key: 'language', label: '语言' },
 ];
 
 const MAIN_TABS = ['视频生成', '分镜编辑', '图片生成'];
@@ -211,114 +103,33 @@ export interface CategoryVideoItem {
   duration?: string;
 }
 
-const INITIAL_CATEGORY_VIDEOS: CategoryVideoItem[] = [
-  {
-    id: 'vid-001',
-    name: '极简美学 冰感丝滑防晒外套',
-    category: '服装配饰',
-    url: '/Video/CreatOK_2.mp4',
-    cover: '/Video/covers/CreatOK_2.webp',
-    prompt: '【服装配饰·爆款带货】时尚秋季女款高质感冰感防晒外套，微风吹拂，高级面料垂坠感，光影自然流转，特写展示微孔透气原纱细节，高能引导下单。',
-    model: 'Seedance 2.0',
-    ratio: '9:16',
-    duration: '5s',
-  },
-  {
-    id: 'vid-002',
-    name: '光采焕亮 玻色因紧致精华眼霜',
-    category: '美妆护肤',
-    url: '/Video/CreatOK_4.mp4',
-    cover: '/Video/covers/CreatOK_4.webp',
-    prompt: '【美妆护肤·爆款带货】玻色因眼部精华护理，特写展示冰感金属按摩头紧致眼周轮廓，微距高光细腻质地渗透吸收，自然柔光，促成购买。',
-    model: 'MiniMax H3',
-    ratio: '16:9',
-    duration: '5s',
-  },
-  {
-    id: 'vid-003',
-    name: '空间声学 空间音频主动降噪耳机 Pro',
-    category: '数码电器',
-    url: '/Video/CreatOK_5.mp4',
-    cover: '/Video/covers/CreatOK_5.webp',
-    prompt: '【数码电器·爆款带货】深空灰智能降噪无线耳机，360度悬浮环绕运镜，碳纤维与金属质感高光反射，慢动作展示入耳贴合与震撼声学场。',
-    model: 'Kling-V3',
-    ratio: '1:1',
-    duration: '5s',
-  },
-  {
-    id: 'vid-004',
-    name: '高山原叶 手作冷萃白桃乌龙茶包',
-    category: '食品饮料',
-    url: '/Video/CreatOK_6.mp4',
-    cover: '/Video/covers/CreatOK_6.webp',
-    prompt: '【食品饮料·爆款带货】诱人冷萃白桃乌龙茶道特写，晶莹冰块碰击高脚杯，新鲜白桃果肉与茶汤交融，慢动作飞溅，清爽诱人食欲。',
-    model: 'Seedance 2.0',
-    ratio: '9:16',
-    duration: '5s',
-  },
-  {
-    id: 'vid-005',
-    name: '自然沉香 悬浮感天然慢回弹枕',
-    category: '家居用品',
-    url: '/Video/CreatOK_7.mp4',
-    cover: '/Video/covers/CreatOK_7.webp',
-    prompt: '【家居用品·爆款带货】北欧风极简温馨卧室，晨曦自然光线漫射，慢回弹记忆棉无重力托举颈椎弧度演示，亲肤天丝纹理特写。',
-    model: 'Seedance 2.0',
-    ratio: '16:9',
-    duration: '5s',
-  },
-  {
-    id: 'vid-006',
-    name: '潮流老爹鞋 减震缓震运动女鞋',
-    category: '服装配饰',
-    url: '/Video/CreatOK_8.mp4',
-    cover: '/Video/covers/CreatOK_8.webp',
-    prompt: '【服装配饰·爆款带货】运动女鞋减震气垫极限回弹测试，慢镜头水花飞溅，时尚穿搭立体展示。',
-    model: 'Seedance 2.0',
-    ratio: '9:16',
-    duration: '5s',
-  },
-  {
-    id: 'vid-007',
-    name: '奢金持色 丝绒哑光唇膏口红',
-    category: '美妆护肤',
-    url: '/Video/CreatOK_9.mp4',
-    cover: '/Video/covers/CreatOK_9.webp',
-    prompt: '【美妆护肤·爆款带货】法式高级丝绒哑光唇膏膏体特写，柔滑上色微距渲染，奢金外壳磁吸开合高光。',
-    model: 'Kling-V3',
-    ratio: '9:16',
-    duration: '5s',
-  },
-  {
-    id: 'vid-008',
-    name: '防水运动 钛金防水蓝牙运动耳机',
-    category: '数码电器',
-    url: '/Video/CreatOK_10.mp4',
-    cover: '/Video/covers/CreatOK_10.webp',
-    prompt: '【数码电器·爆款带货】无线运动耳机入水防汗冲击特写，深蓝光感氛围，水滴悬浮超高速摄影。',
-    model: 'Kling-V3',
-    ratio: '3:4',
-    duration: '5s',
-  },
-  {
-    id: 'vid-009',
-    name: '匠心现磨 意式浓缩特调咖啡豆',
-    category: '食品饮料',
-    url: '/Video/CreatOK_11.mp4',
-    cover: '/Video/covers/CreatOK_11.webp',
-    prompt: '【食品饮料·爆款带货】浓郁意式金黄咖啡油脂萃取，心形拉花丝滑成型，温暖晨光弥漫咖啡香气。',
-    model: 'Seedance 2.0',
-    ratio: '9:16',
-    duration: '5s',
-  }
-];
 
 // ── 主页组件 ───────────────────────────────────────────────────────────
 export default function HomePage() {
+  const { user } = useAuth();
+  return <HomeWorkspace key={user?.id || 'signed-out'} />;
+}
+
+function HomeWorkspace() {
   const { projectId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const { user, profile } = useAuth();
+  const [referenceRights, setReferenceRights] = useState(false), [referenceBusy, setReferenceBusy] = useState(false);
+  const [pendingReferences, setPendingReferences] = useState(() => user ? pendingMaterialUploads(user.id) : 0);
+  const workspaceActive = useRef(true), referenceBusyRef = useRef(false);
+  useEffect(() => { workspaceActive.current = true; return () => { workspaceActive.current = false; }; }, []);
+  const recoverReferences = async () => {
+    if (!user || referenceBusyRef.current) return;
+    referenceBusyRef.current = true; setReferenceBusy(true);
+    try {
+      const result = await recoverMaterialUploads(user.id);
+      if (!workspaceActive.current) return;
+      if (result.restored) toast.success(`已恢复${result.restored}个原素材登记，请在素材库查看`);
+      if (result.pending) toast.error(result.errors[0] || '原素材仍待确认');
+    } catch (cause) { if (workspaceActive.current) toast.error(cause instanceof Error ? cause.message : '恢复失败'); }
+    finally { referenceBusyRef.current = false; if (workspaceActive.current) { setReferenceBusy(false); setPendingReferences(pendingMaterialUploads(user.id)); } }
+  };
 
   const [mainTab, setMainTab] = useState(projectId ? '分镜编辑' : '视频生成');
   const [inputTab, setInputTab] = useState(location.state?.inputTab || '参考');
@@ -371,8 +182,10 @@ export default function HomePage() {
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('全部');
   const [urlParseOpen, setUrlParseOpen] = useState(false);
   const [modalViewTab, setModalViewTab] = useState<'products' | 'videos'>('products');
-  const [categoryVideos, setCategoryVideos] = useState<CategoryVideoItem[]>(INITIAL_CATEGORY_VIDEOS);
-  const [inspireVideos, setInspireVideos] = useState(INSPIRE_VIDEOS);
+  const recentWorks = useRecentWorks(user?.id);
+  const categoryVideos = recentWorks.items, inspireVideos = recentWorks.items;
+  const workFilters = FILTER_CONFIG.map(filter => ({ ...filter, options: ['全部',
+    ...Array.from(new Set(inspireVideos.map(video => video[filter.key as keyof typeof video]))).filter(value => value !== '未记录')] }));
 
   // 接收真实商品回执，视频通过创作流程生成。
   const handleImportProductSuccess = (newProd: Product) => {
@@ -583,53 +396,22 @@ export default function HomePage() {
     setResolution(`${res} · ${ratio} · ${dur}s`);
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        setRefImage(reader.result as string);
-        toast.success('参考图片已导入');
-      };
-      reader.readAsDataURL(file);
-    }
+  const importReference = async (file: File | undefined, kind: 'image' | 'video', update: (value: string) => void) => {
+    if (!file || !user || referenceBusyRef.current) return;
+    if (!referenceRights) { toast.error('请先确认素材使用权'); return; }
+    referenceBusyRef.current = true; setReferenceBusy(true);
+    try {
+      if (!file.type.startsWith(kind + '/')) throw new Error('请选择' + (kind === 'image' ? '图片' : '视频') + '素材');
+      const material = await uploadMaterialAsset(file, user.id, referenceRights);
+      if (!workspaceActive.current) return;
+      update(material.url); toast.success('参考素材已登记，可在素材库管理');
+    } catch (cause) { if (workspaceActive.current) toast.error(cause instanceof Error ? cause.message : '素材登记未确认'); }
+    finally { referenceBusyRef.current = false; if (workspaceActive.current) { setReferenceBusy(false); setPendingReferences(pendingMaterialUploads(user.id)); } }
   };
-
-  const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        setRefVideo(reader.result as string);
-        toast.success('参考视频已导入');
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleFirstFrameUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        setFirstFrame(reader.result as string);
-        toast.success('首帧图片已导入');
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleLastFrameUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        setLastFrame(reader.result as string);
-        toast.success('尾帧图片已导入');
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; event.target.value = ''; void importReference(file, 'image', setRefImage); };
+  const handleVideoUpload = (event: React.ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; event.target.value = ''; void importReference(file, 'video', setRefVideo); };
+  const handleFirstFrameUpload = (event: React.ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; event.target.value = ''; void importReference(file, 'image', setFirstFrame); };
+  const handleLastFrameUpload = (event: React.ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; event.target.value = ''; void importReference(file, 'image', setLastFrame); };
 
   const handleVoiceInput = async () => {
     if (recording) {
@@ -696,93 +478,10 @@ export default function HomePage() {
     setImgResolution(`${resType} · ${qual}`);
   };
 
-  const [generatedVideos, setGeneratedVideos] = useState<any[]>([]);
   const [activePlayVideo, setActivePlayVideo] = useState<any>(null);
-
-  const loadGeneratedVideos = useCallback(async () => {
-    if (!user) return;
-    const { data } = await supabase
-      .from('video_projects')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('status', 'completed')
-      .order('created_at', { ascending: false });
-    if (data) {
-      setGeneratedVideos(data);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    loadGeneratedVideos();
-  }, [loadGeneratedVideos]);
-
-  useEffect(() => {
-    window.addEventListener('shopro:works-updated', loadGeneratedVideos);
-    return () => window.removeEventListener('shopro:works-updated', loadGeneratedVideos);
-  }, [loadGeneratedVideos]);
 
   const [imgEnhanceProgress, setImgEnhanceProgress] = useState(0);
 
-  const handleEnhanceImgPrompt = async () => {
-    if (!imgPrompt.trim()) { toast.error('请输入图片描述'); return; }
-    setEnhancingImg(true);
-    setImgEnhanceProgress(15);
-    const progressTimer = setInterval(() => {
-      setImgEnhanceProgress(p => (p < 92 ? p + Math.floor(Math.random() * 8 + 5) : p));
-    }, 200);
-
-    const originalPrompt = imgPrompt;
-    abortRef.current = new AbortController();
-    let fullText = '';
-    let isFirstChunk = true;
-    try {
-      await sendDeepSeekStreamRequest({
-        messages: [{
-          role: 'user',
-          content: `请将以下简短图片描述扩展为一段专业的AI绘图提示词，要求：画面细节丰富、构图精美、适合带货电商场景。完全使用中文输出，直接输出提示词内容，严禁包含额外解释、前缀或引号。原文：${originalPrompt}`,
-        }],
-        max_tokens: 512,
-        onData: (data) => {
-          if (!data || data === '[DONE]') return;
-          let chunk = data;
-          try {
-            const parsed = JSON.parse(data);
-            chunk = parsed.choices?.[0]?.delta?.content ?? parsed.choices?.[0]?.text ?? data;
-          } catch {
-            // plain text chunk
-          }
-          if (chunk) {
-            if (isFirstChunk) {
-              setImgPrompt('');
-              isFirstChunk = false;
-            }
-            fullText += chunk;
-            setImgPrompt(fullText);
-          }
-        },
-        onComplete: () => {
-          clearInterval(progressTimer);
-          setImgEnhanceProgress(100);
-          toast.success('图片提示词已增强');
-        },
-        onError: (_err) => {
-          clearInterval(progressTimer);
-          setImgEnhanceProgress(100);
-          toast.success('图片提示词已增强');
-        },
-        signal: abortRef.current?.signal,
-      });
-    } catch (_e: unknown) {
-      clearInterval(progressTimer);
-      setImgEnhanceProgress(100);
-      toast.success('图片提示词已增强');
-    } finally {
-      setTimeout(() => {
-        setImgEnhanceProgress(0);
-        setEnhancingImg(false);
-      }, 500);
-    }
-  };
 
   const handleImgVoiceInput = async () => {
     if (imgRecording) {
@@ -825,17 +524,8 @@ export default function HomePage() {
     }
   };
 
-  const handleImgRefImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
-    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 10 * 1024 * 1024) { toast.error('请上传不超过 10MB 的 PNG、JPG 或 WebP 图片'); return; }
-    try {
-      const path = `${user.id}/references/${crypto.randomUUID()}.${file.type.split('/')[1]}`;
-      const { error } = await supabase.storage.from('materials').upload(path, file, { contentType: file.type });
-      if (error) throw new Error('参考图上传失败');
-      setImgRefImage(await mediaPreview(storedMedia('materials', path)));
-      toast.success('参考图已上传');
-    } catch (e) { toast.error(e instanceof Error ? e.message : '上传失败'); }
+  const handleImgRefImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]; event.target.value = ''; void importReference(file, 'image', setImgRefImage);
   };
   const imageTask = useProductionJob('image', user?.id);
   const imgGenerating = imageTask.generating;
@@ -845,6 +535,8 @@ export default function HomePage() {
     if (imageTask.job?.status === 'completed' && imageTask.job.result?.url) setResultImage(imageTask.job.result.url);
   }, [imageTask.job?.id, imageTask.job?.status, imageTask.job?.result?.url]);
   const abortRef = useRef<AbortController | null>(null);
+  const [enhanceError, setEnhanceError] = useState('');
+  useEffect(() => () => { abortRef.current?.abort(); }, []);
 
   // 提示词增强状态
   const [enhancing, setEnhancing] = useState(false);
@@ -872,86 +564,38 @@ export default function HomePage() {
     });
   };
 
-  // GLM-5.3-Flash 提示词增强 (全中文低延时打字机流式输出)
-  const handleEnhancePrompt = async () => {
-    if (!prompt.trim()) { toast.error('请先输入基础描述'); return; }
-    setEnhancing(true);
-    setEnhanceProgress(10);
-
-    const progressTimer = setInterval(() => {
-      setEnhanceProgress(prev => (prev < 90 ? prev + 8 : prev));
-    }, 150);
-
-    const originalPrompt = prompt;
-    abortRef.current = new AbortController();
-    let fullText = '';
-    let isFirstChunk = true;
-
+  // 完整流确认成功才替换原输入；失败回滚，离页中止当前请求。
+  const enhancePrompt = async (kind: 'video' | 'image') => {
+    const original = kind === 'video' ? prompt : imgPrompt;
+    if (!original.trim()) { toast.error('请先输入基础描述'); return; }
+    if (abortRef.current) return;
+    const controller = new AbortController(); abortRef.current = controller;
+    const update = kind === 'video' ? setPrompt : setImgPrompt;
+    const updateCount = kind === 'video' ? setEnhanceProgress : setImgEnhanceProgress;
+    const updateBusy = kind === 'video' ? setEnhancing : setEnhancingImg;
+    updateBusy(true); updateCount(0); setEnhanceError('');
+    let text = '', completed = false, failure: Error | null = null;
     try {
       await sendDeepSeekStreamRequest({
-        messages: [{
-          role: 'user',
-          content: `请对以下描述进行视频提示词扩展与增强。必须完全使用中文输出，严禁包含任何英文、解释、前缀或引导语，直接输出包含场景细节与视觉画面的中文提示词。原描述：${originalPrompt}`,
-        }],
-        max_tokens: 1024,
-        onData: (data) => {
-          if (!data || data === '[DONE]') return;
-          let chunk = data;
-          try {
-            const parsed = JSON.parse(data);
-            chunk = parsed.choices?.[0]?.delta?.content ?? parsed.choices?.[0]?.text ?? data;
-          } catch {
-            // data is already a plain text chunk
-          }
-          if (chunk) {
-            if (isFirstChunk) {
-              setPrompt('');
-              isFirstChunk = false;
-            }
-            fullText += chunk;
-            setPrompt(fullText);
-          }
-        },
-        onComplete: () => {
-          clearInterval(progressTimer);
-          setEnhanceProgress(100);
-          setTimeout(() => {
-            toast.success('提示词已增强');
-            setEnhancing(false);
-            setEnhanceProgress(0);
-          }, 200);
-        },
-        onError: (_err) => {
-          clearInterval(progressTimer);
-          if (!abortRef.current?.signal.aborted) {
-            setEnhanceProgress(100);
-            setTimeout(() => {
-              toast.success('提示词已增强');
-              setEnhancing(false);
-              setEnhanceProgress(0);
-            }, 200);
-          } else {
-            setEnhancing(false);
-            setEnhanceProgress(0);
-          }
-        },
-        signal: abortRef.current.signal,
+        messages: [{ role: 'user', content: '请将以下描述扩展为适合电商的' + (kind === 'video' ? '视频' : '图片')
+          + '提示词，保持商品事实不变，使用中文直接输出画面描述，不添加解释。原文：' + original }],
+        max_tokens: kind === 'video' ? 1024 : 512, signal: controller.signal,
+        onData: chunk => { if (!controller.signal.aborted) { text += chunk; update(text); updateCount(text.length); } },
+        onComplete: () => { completed = true; }, onError: cause => { failure = cause; },
       });
-    } catch (_e: unknown) {
-      clearInterval(progressTimer);
-      if (!abortRef.current?.signal.aborted) {
-        setEnhanceProgress(100);
-        setTimeout(() => {
-          toast.success('提示词已增强');
-          setEnhancing(false);
-          setEnhanceProgress(0);
-        }, 200);
-      } else {
-        setEnhancing(false);
-        setEnhanceProgress(0);
-      }
+      if (controller.signal.aborted) return;
+      if (failure) throw failure;
+      if (!completed || !text.trim()) throw new Error('提示词结果未完成，请重试');
+      toast.success(kind === 'video' ? '提示词已增强' : '图片提示词已增强');
+    } catch (cause) {
+      if (!controller.signal.aborted) { update(original); setEnhanceError(cause instanceof Error ? cause.message : '提示词增强失败，原输入已保留'); }
+    } finally {
+      if (abortRef.current === controller) abortRef.current = null;
+      if (!controller.signal.aborted) { updateBusy(false); updateCount(0); }
     }
   };
+  const handleEnhancePrompt = () => enhancePrompt('video');
+  const handleEnhanceImgPrompt = () => enhancePrompt('image');
 
   return (
     <div
@@ -986,6 +630,13 @@ export default function HomePage() {
             ))}
           </div>
         </div>
+        <div className="flex flex-wrap items-center justify-center gap-3 text-xs text-white/70">
+          <label className="flex gap-2 items-center"><input type="checkbox" checked={referenceRights} disabled={referenceBusy}
+            onChange={event => setReferenceRights(event.target.checked)} />我拥有参考素材的使用权</label>
+          {referenceBusy && <span role="status">正在核对素材登记…</span>}
+          {pendingReferences > 0 && <button disabled={referenceBusy} onClick={() => void recoverReferences()} className="text-orange-300 underline">恢复原参考素材上传（{pendingReferences}）</button>}
+        </div>
+        {enhanceError && <p role="alert" className="rounded-lg border border-rose-500/30 p-3 text-sm text-rose-300">{enhanceError} · 原输入已保留</p>}
 
         {/* ── 视频生成输入区 ───────────────────────────────────────────────── */}
         {mainTab === '视频生成' && (
@@ -1062,6 +713,8 @@ export default function HomePage() {
               <input
                 type="file"
                 ref={imageInputRef}
+                aria-label="上传视频参考图片"
+                disabled={!referenceRights || referenceBusy}
                 onChange={handleImageUpload}
                 accept="image/*"
                 className="hidden"
@@ -1069,6 +722,8 @@ export default function HomePage() {
               <input
                 type="file"
                 ref={videoInputRef}
+                aria-label="上传视频参考视频"
+                disabled={!referenceRights || referenceBusy}
                 onChange={handleVideoUpload}
                 accept="video/*"
                 className="hidden"
@@ -1076,6 +731,8 @@ export default function HomePage() {
               <input
                 type="file"
                 ref={firstFrameInputRef}
+                aria-label="上传首帧图片"
+                disabled={!referenceRights || referenceBusy}
                 onChange={handleFirstFrameUpload}
                 accept="image/*"
                 className="hidden"
@@ -1083,6 +740,8 @@ export default function HomePage() {
               <input
                 type="file"
                 ref={lastFrameInputRef}
+                aria-label="上传尾帧图片"
+                disabled={!referenceRights || referenceBusy}
                 onChange={handleLastFrameUpload}
                 accept="image/*"
                 className="hidden"
@@ -1096,12 +755,12 @@ export default function HomePage() {
                       <Sparkles className="w-3.5 h-3.5 text-rose-400 animate-spin" />
                       AI 正在深度智能扩展视频画面视角与光影细节...
                     </span>
-                    <span className="text-[11px] font-mono text-rose-400 font-bold">{enhanceProgress}%</span>
+                    <span className="text-[11px] font-mono text-rose-400 font-bold">已接收 {enhanceProgress} 字符</span>
                   </div>
                   <div className="w-full bg-zinc-900/80 rounded-full h-1.5 overflow-hidden border border-rose-500/30">
                     <div
                       className="h-full bg-gradient-to-r from-rose-500 via-pink-500 to-amber-400 rounded-full transition-all duration-150 shadow-[0_0_12px_rgba(244,63,94,0.6)]"
-                      style={{ width: `${enhanceProgress}%` }}
+                      style={{ width: '100%' }}
                     />
                   </div>
                 </div>
@@ -1511,7 +1170,7 @@ export default function HomePage() {
                     )}
                   </div>
 
-                  <button onClick={handleEnhancePrompt} disabled={enhancing || generating}
+                  <button aria-label="提示词增强" onClick={handleEnhancePrompt} disabled={enhancing || enhancingImg || generating}
                     className="flex items-center gap-1 px-2 md:px-3 py-1 md:py-1.5 rounded-lg bg-pink-500/10 hover:bg-pink-500/15 text-[11px] md:text-xs text-pink-400 transition-colors border border-pink-500/20 disabled:opacity-40 shrink-0">
                     {enhancing ? <Loader2 className="w-3 h-3 animate-spin text-pink-400" /> : <Sparkles className="w-3 h-3 text-pink-400" />}
                     <span className="hidden sm:inline">提示词增强</span>
@@ -1610,6 +1269,8 @@ export default function HomePage() {
               <input
                 type="file"
                 ref={imgUploadInputRef}
+                aria-label="上传绘图参考图片"
+                disabled={!referenceRights || referenceBusy}
                 onChange={handleImgRefImageUpload}
                 accept="image/*"
                 className="hidden"
@@ -1640,7 +1301,7 @@ export default function HomePage() {
                     "flex-1 min-w-0 bg-transparent resize-none text-sm text-white/80 placeholder:text-white/25 outline-none min-h-[56px] sm:min-h-[72px] leading-relaxed transition-all duration-300",
                     enhancingImg && "enhancing-text-wave"
                   )}
-                  disabled={imgGenerating}
+                  disabled={imgGenerating || enhancingImg}
                 />
               </div>
 
@@ -1650,7 +1311,7 @@ export default function HomePage() {
                   <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden relative border border-white/5">
                     <div
                       className="h-full bg-gradient-to-r from-pink-500 via-purple-500 to-rose-500 transition-all duration-300 rounded-full"
-                      style={{ width: `${imgEnhanceProgress}%` }}
+                      style={{ width: '100%' }}
                     />
                   </div>
                   <div className="flex items-center justify-between text-[11px] text-pink-400 mt-1 font-medium">
@@ -1658,7 +1319,7 @@ export default function HomePage() {
                       <Sparkles className="w-3 h-3 animate-spin text-pink-400" />
                       AI 多模态画质与画面提示词智能增强中...
                     </span>
-                    <span className="font-mono font-bold text-pink-300">{imgEnhanceProgress}%</span>
+                    <span className="font-mono font-bold text-pink-300">已接收 {imgEnhanceProgress} 字符</span>
                   </div>
                 </div>
               )}
@@ -1856,7 +1517,7 @@ export default function HomePage() {
                   </div>
 
                   {/* 提示词增强 */}
-                  <button onClick={handleEnhanceImgPrompt} disabled={enhancingImg || imgGenerating}
+                  <button aria-label="图片提示词增强" onClick={handleEnhanceImgPrompt} disabled={enhancing || enhancingImg || imgGenerating}
                     className="flex items-center gap-1 px-2 md:px-3 py-1 md:py-1.5 rounded-lg bg-pink-500/10 hover:bg-pink-500/15 text-[11px] md:text-xs text-pink-400 transition-colors border border-pink-500/20 disabled:opacity-40 shrink-0">
                     {enhancingImg ? <Loader2 className="w-3 h-3 animate-spin text-pink-400" /> : <Sparkles className="w-3.5 h-3.5 text-pink-400" />}
                     <span className="hidden sm:inline">提示词增强</span>
@@ -1908,7 +1569,7 @@ export default function HomePage() {
                 <span className="text-sm font-medium text-white/80">生成结果</span>
                 {selectedAvatar && (
                   <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-pink-500/15 border border-pink-500/30 text-xs text-pink-300">
-                    <img src={selectedAvatar.preview_image || '/person/girl1.png'} alt={selectedAvatar.name} className="w-4 h-4 rounded-full object-cover shrink-0" />
+                    {selectedAvatar.preview_image && <img src={selectedAvatar.preview_image} alt={selectedAvatar.name} className="w-4 h-4 rounded-full object-cover shrink-0" />}
                     <span>当前所选数字人：<strong>{selectedAvatar.name}</strong></span>
                   </div>
                 )}
@@ -1950,8 +1611,7 @@ export default function HomePage() {
               <div className="lg:col-span-2 rounded-2xl p-4 sm:p-6 flex flex-col justify-between min-h-[170px] sm:min-h-[220px] relative overflow-hidden cursor-pointer group"
                 style={{ background: 'linear-gradient(135deg,#1a1230 0%,#251840 100%)', border: '1px solid rgba(139,92,246,0.25)' }}
                 onClick={() => navigate('/works')}>
-                <img src="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=280&fit=crop" alt="作品素材"
-                  className="absolute right-0 top-0 w-28 sm:w-36 h-full object-cover opacity-30 group-hover:opacity-40 transition-opacity" />
+                <Video aria-hidden="true" className="absolute right-5 top-5 w-20 h-20 text-violet-300/15" />
                 <div className="relative z-10 space-y-1.5 md:space-y-2">
                   <h3 className="text-base sm:text-xl font-bold">作品素材</h3>
                   <p className="text-xs sm:text-sm text-white/50">管理已生成的视频与上传的素材库</p>
@@ -1974,7 +1634,6 @@ export default function HomePage() {
                   <button key={tool.id} onClick={() => navigate(tool.path)}
                     className="relative rounded-xl overflow-hidden group h-[74px] sm:h-[90px] flex items-end p-2.5 sm:p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-lg"
                     style={{ background: '#1a1830', border: '1px solid rgba(255,255,255,0.07)' }}>
-                    <img src={tool.cover} alt={tool.label} className="absolute inset-0 w-full h-full object-cover opacity-20 group-hover:opacity-30 transition-opacity" />
                     <div className={cn('absolute inset-0 bg-gradient-to-r opacity-60', tool.gradient)} />
                     <div className="relative z-10">
                       <p className="text-xs sm:text-sm font-semibold text-white">{tool.label}</p>
@@ -1990,18 +1649,23 @@ export default function HomePage() {
             {/* ── 灵感广场 ──────────────────────────────────────────────── */}
             <div className="space-y-3.5 md:space-y-5">
               <div className="flex items-center justify-between">
-                <h2 className="text-base md:text-lg font-bold">灵感广场</h2>
-                <button className="text-xs text-white/40 hover:text-white/70 transition-colors flex items-center gap-1">
-                  More <ChevronRight className="w-3 h-3" />
+                <h2 className="text-base md:text-lg font-bold">我的创作参考</h2>
+                <button onClick={() => navigate('/works')} className="text-xs text-white/60 hover:text-white transition-colors flex items-center gap-1">
+                  全部作品 <ChevronRight className="w-3 h-3" />
                 </button>
               </div>
+              <p className="text-xs text-white/60">来自当前账号最近40个已完成作品，可预览并复用原提示词。未保存的生成信息显示「未记录」。</p>
+              {recentWorks.error && <p role="alert" className="text-sm text-rose-300">{recentWorks.error}</p>}
+              <button disabled={recentWorks.loading} onClick={() => void recentWorks.reload()} className="text-xs text-white/70 hover:text-white">
+                {recentWorks.loading ? '正在读取最近作品…' : '刷新最近作品'}
+              </button>
 
               {/* 筛选栏 */}
               <div className="flex items-center gap-2 flex-wrap relative">
                 {activeDropdown && (
                   <div className="fixed inset-0 z-40" onClick={() => setActiveDropdown(null)} />
                 )}
-                {FILTER_CONFIG.map(f => (
+                {workFilters.map(f => (
                   <div key={f.key} className="relative z-50">
                     <button
                       onClick={() => setActiveDropdown(activeDropdown === f.key ? null : f.key)}
@@ -2100,12 +1764,12 @@ export default function HomePage() {
                   >
                     <video
                       src={video.url}
-                      poster={(video as any).cover}
+                      poster={video.cover || undefined}
                       muted
                       loop
                       playsInline
                       preload="none"
-                      className="w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      className="w-full aspect-video object-contain transition-transform duration-300 group-hover:scale-105"
                       onError={(e) => {
                         (e.target as HTMLElement).style.display = 'none';
                       }}
@@ -2151,7 +1815,7 @@ export default function HomePage() {
               </div>
               {filteredInspireVideos.length === 0 && (
                 <div className="text-center py-10 text-white/30 text-sm">
-                  没有找到符合筛选条件的灵感视频
+                  {recentWorks.loading ? '正在读取作品…' : recentWorks.error ? '作品暂时无法读取，点击刷新重试' : '暂无符合筛选条件的真实作品，生成完成后可在这里复用'}
                 </div>
               )}
             </div>
@@ -2216,7 +1880,7 @@ export default function HomePage() {
                     </span>
                   </DialogTitle>
                   <p className="text-xs text-zinc-400 mt-0.5">
-                    选择商品或营销视频后将自动提取标题、活动价格、核心卖点与详细描述，一键转换填充为带货脚本提示词
+                    选择商品可复用已保存的卖点和描述；选择本人的真实作品可复用原提示词
                   </p>
                 </div>
               </div>
@@ -2335,7 +1999,7 @@ export default function HomePage() {
                 {filteredCategoryVideos.length === 0 ? (
                   <div className="py-16 text-center text-zinc-400 space-y-3">
                     <Video className="w-10 h-10 text-zinc-600 mx-auto" />
-                    <p className="text-sm">未搜索到相关视频</p>
+                    <p className="text-sm">{recentWorks.loading ? '正在读取作品…' : recentWorks.error || '暂无匹配的真实作品'}</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -2349,14 +2013,8 @@ export default function HomePage() {
                           className="w-24 h-32 rounded-lg overflow-hidden bg-black shrink-0 border border-white/10 relative cursor-pointer group/vid"
                           onClick={() => setActivePlayVideo(vid as any)}
                         >
-                          <img
-                            src={vid.cover}
-                            alt={vid.name}
-                            className="w-full h-full object-cover group-hover/vid:scale-105 transition-transform duration-300"
-                            onError={(e) => {
-                              (e.target as HTMLElement).style.display = 'none';
-                            }}
-                          />
+                          <video src={vid.url} poster={vid.cover || undefined} preload="metadata" muted playsInline
+                            aria-label={vid.name} className="w-full h-full object-contain" />
                           <div className="absolute inset-0 bg-black/30 flex items-center justify-center group-hover/vid:bg-black/10 transition-colors">
                             <div className="w-8 h-8 rounded-full bg-white/30 backdrop-blur-md flex items-center justify-center text-white shadow-lg group-hover/vid:scale-110 transition-transform">
                               <Play className="w-4 h-4 fill-white translate-x-0.5" />

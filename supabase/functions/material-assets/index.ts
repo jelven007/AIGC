@@ -43,13 +43,15 @@ export async function handleMaterialAssets(req: Request): Promise<Response> {
       return reply(await signMediaTree(db, saved.data, user));
     }
     if (body.action === 'list') {
-      const offset = body.offset ?? 0, limit = body.limit ?? 30;
+      const offset = body.offset ?? 0, limit = body.limit ?? 30, search = body.search ?? '';
       if (!Number.isInteger(offset) || offset < 0 || offset > 10000 || !Number.isInteger(limit)
-        || limit < 1 || limit > 100 || body.type && !['image', 'video', 'audio'].includes(body.type)) {
+        || limit < 1 || limit > 100 || body.type && !['image', 'video', 'audio'].includes(body.type)
+        || typeof search !== 'string' || search.length > 200) {
         return reply({ error: '素材分页或类型无效' }, 400);
       }
       let query = db.from('materials').select('*', { count: 'exact' }).eq('user_id', user);
       if (body.type) query = query.eq('type', body.type);
+      if (search.trim()) query = query.ilike('name', `%${search.trim().replace(/[\\%_]/g, '\\$&')}%`);
       const items = await query.order('created_at', { ascending: false }).order('id').range(offset, offset + limit - 1);
       if (items.error) throw new Error('素材列表读取失败');
       return reply({ materials: await signMediaTree(db, items.data || [], user), total: items.count || 0 });

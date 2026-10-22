@@ -1,5 +1,9 @@
 # aigcp 环境部署记录
 
+迭代30 [作品与素材入口](ITERATION_30_WORKS_LIBRARY.md)待同步material-assets和前端，迁移/任务协议保持00058/probe18/render4/edit2；正式构建与隔离开发/压缩交互测试通过。当前Gitee用户远端aigcp/master只读仍ce90bfe，本地修改未视为已推送。
+
+2026-10-22当前检查：官方Management API的functions列表与只读迁移查询均返回401，原本24小时的本地管理令牌已无法使用，不能刷新部署事实或发布。最近成功核验仍00031/三旧函数；当前本地16975d3包含00032–00058、告警/恢复/扣费锁序，匹配probe18/00058/render4/edit2的全栈尚未发布。恢复管理访问后先只读确认真实差距及备份，再执行部署；不能把火山CLI当作官方管理工具。
+
 最新待发布范围00032–00056，见 [迭代28](ITERATION_28_OPERATIONS_WORKFLOWS.md)：匹配operations/production-worker/全部共享模块、调度与前端，包含工单/租户/风险/现金成本；保留多镜头编排、MCP59/19权限及render4/edit2镜像。严格要求probe17/00056/render4/edit2；官方最近00031/三旧函数事实未变，本段是发布条件，真实业务/容量及全栈尚未验收。
 
 最新待发布范围00032–00053，见 [迭代25](ITERATION_25_EDIT_ANALYSIS.md)：匹配production-jobs/production-worker及共享模块、常驻调度/前端，重建含固定PPHumanSeg模型/许可证的FFmpeg镜像。严格要求probe14/00053/render3/edit1，旧render2领取前426；真实Whisper、长素材质量/资源和目标部署仍待验收。最近官方00031/三旧函数事实未变，本段不是上线回执。

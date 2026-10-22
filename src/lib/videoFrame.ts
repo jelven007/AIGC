@@ -64,19 +64,6 @@ export async function extractVideoMeta(videoUrl: string): Promise<{ frame: strin
   });
 }
 
-// 视频与本地真实首帧封面映射字典 (极速秒开 WebP 高清封面，数据库与前端素材库秒开)
-export const VIDEO_COVER_MAP: Record<string, string> = {
-  '/Video/CreatOK_2.mp4': '/Video/covers/CreatOK_2.webp',
-  '/Video/CreatOK_4.mp4': '/Video/covers/CreatOK_4.webp',
-  '/Video/CreatOK_5.mp4': '/Video/covers/CreatOK_5.webp',
-  '/Video/CreatOK_6.mp4': '/Video/covers/CreatOK_6.webp',
-  '/Video/CreatOK_7.mp4': '/Video/covers/CreatOK_7.webp',
-  '/Video/CreatOK_8.mp4': '/Video/covers/CreatOK_8.webp',
-  '/Video/CreatOK_9.mp4': '/Video/covers/CreatOK_9.webp',
-  '/Video/CreatOK_10.mp4': '/Video/covers/CreatOK_10.webp',
-  '/Video/CreatOK_11.mp4': '/Video/covers/CreatOK_11.webp',
-};
-
 export async function getVideoCoverImage(videoUrl: string, firstFrame?: string): Promise<string> {
   // 1. 首选：直接从成片 Canvas 抽取真实第一帧（保证封面就是视频本身画面）
   const extracted = await extractVideoFirstFrame(videoUrl);
@@ -87,12 +74,7 @@ export async function getVideoCoverImage(videoUrl: string, firstFrame?: string):
   // 2. 用户在工作台上传的首帧图：它本身就是成片的起始画面，等价于真实首帧
   if (firstFrame && firstFrame.startsWith('data:image')) return firstFrame;
 
-  // 3. 本地演示视频与真实首帧画面的映射兼容（Canvas 因浏览器安全策略提取失败时的等效画面）
-  if (videoUrl && VIDEO_COVER_MAP[videoUrl]) {
-    return VIDEO_COVER_MAP[videoUrl];
-  }
-
-  // 4. 提取失败时绝不使用头像/默认图/unsplash 占位图兜底（封面必须是视频真实第一帧），
+  // 提取失败时保留空封面，由调用方显示原始视频或读取失败状态，
   //    返回空串由调用方保留空封面，待列表页异步首帧提取重试
   return '';
 }

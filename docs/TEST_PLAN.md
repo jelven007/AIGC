@@ -1,5 +1,7 @@
 # 测试与验收计划
 
+当前 [迭代30专项](ITERATION_30_WORKS_LIBRARY.md)：test:assets真实PG5项/Edge登记搜索/FFmpeg音频3项；browser_works_library验证分页、签名成片解码、原上传恢复/音频下载、真实参考视频、文本故障/完整流、跨标签账号切换与390px，browser_editor_assets覆盖共享资源、录音和工程保存。开发和独立压缩构建分别验证；夹具不视作目标验收。
+
 当前 [迭代29专项](ITERATION_29_ALERTS_RECOVERY.md)：test:operations包含真实PG9项和已复现deadlock后通过的创建/直接扣费锁序；test:alerts验证去重/范围/撤销/接手回执/恢复再发生/陈旧心跳、后台专用协议及调度11项。test:backup运行双PG16/真实HTTP实物归档/恢复，认证篡改/错误密钥/非隔离与重复目标拒绝，核对账表内容/迁移/对象/历史解密及unknown不重提；开发和独立压缩浏览器验证390px告警503原UUID/只读/采集状态。Deno、lint/build、部署9项通过；目标需真实平台/调度/异地保管/容量和RPO/RTO验收。
 
 新增 [迭代28专项](ITERATION_28_OPERATIONS_WORKFLOWS.md)：`test:operations`执行真实PG8项工单归属/内部消息/处理人/版本/容量、租户所有权/成员/暂停/并发预算/固定归因、风险与原退款、原账单币种/版本/零凭证/一次冲销；Edge4组个人身份/原参数/16KB/拒绝与未知。浏览器覆盖工单503刷新原UUID/真实回复、租户暂停/预算/成员/冲突、风险限制和实际文件指纹/1.23分币种入账，原现金16PG/8接口与团队权限6PG回归。最终压缩构建、Deno、lint、probe17/00056/render4/edit2与调度/发布检查同步；目标仍需真实角色/账单/共享链接过期/容量和全栈验收。

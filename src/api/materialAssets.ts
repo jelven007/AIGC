@@ -16,8 +16,13 @@ function forget(userId: string, key: string) {
 function checkRegistration(saved: any) {
   if (saved?.deleted !== true && (!saved?.material?.id || typeof saved.material.url !== 'string')) throw new Error('原素材登记结果待确认，请恢复原上传');
 }
-export async function listMaterialAssets(offset = 0, limit = 30, type?: string): Promise<{ materials: Material[]; total: number }> {
-  const data = await accessRequest('material-assets', { action: 'list', offset, limit, ...(type ? { type } : {}) });
+async function requireUploadOwner(userId: string) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session || session.user.id !== userId) throw new Error('账号已切换，请在原账号恢复素材上传');
+}
+export function pendingMaterialUploads(userId: string): number { return receipts(userId).length; }
+export async function listMaterialAssets(offset = 0, limit = 30, type?: string, search = ''): Promise<{ materials: Material[]; total: number }> {
+  const data = await accessRequest('material-assets', { action: 'list', offset, limit, search, ...(type ? { type } : {}) });
   if (!Array.isArray(data.materials) || !Number.isInteger(data.total) || data.total < 0) throw new Error('素材列表格式异常，请重试读取');
   return data;
 }
@@ -49,9 +54,11 @@ export async function materialDuration(material: EditorMaterial): Promise<number
   return readMediaDuration(await mediaPreview(material.url), material.type === 'audio' ? 'audio' : 'video');
 }
 export async function recoverMaterialUploads(userId: string): Promise<{ restored: number; deleted: number; pending: number; errors: string[] }> {
+  await requireUploadOwner(userId);
   const result = { restored: 0, deleted: 0, pending: 0, errors: [] as string[] };
   for (const receipt of receipts(userId)) {
     try {
+      await requireUploadOwner(userId);
       const saved = await accessRequest('material-assets', { action: 'register', ...receipt });
       checkRegistration(saved);
       forget(userId, receipt.request_key);
@@ -65,6 +72,7 @@ export async function recoverMaterialUploads(userId: string): Promise<{ restored
 }
 export async function uploadMaterialAsset(file: File, userId: string, rightsConfirmed: boolean,
   source: 'upload' | 'recording' = 'upload'): Promise<Material> {
+  await requireUploadOwner(userId);
   if (!rightsConfirmed) throw new Error('请确认素材使用权');
   if (!file.size || file.size > 50 * 1024 * 1024) throw new Error('请上传1字节至50MB的媒体文件');
   const extension = file.name.split('.').pop()?.toLowerCase() || '';
@@ -73,6 +81,7 @@ export async function uploadMaterialAsset(file: File, userId: string, rightsConf
   const type = file.type.split('/')[0] as 'image' | 'video' | 'audio';
   const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await file.arrayBuffer())),
     byte => byte.toString(16).padStart(2, '0')).join('');
+  await requireUploadOwner(userId);
   const original = receipts(userId).find(item => item.input.content_hash === hash && item.input.name === file.name
     && item.input.source === source && item.input.mime === file.type);
   const localUrl = URL.createObjectURL(file);
@@ -88,6 +97,7 @@ export async function uploadMaterialAsset(file: File, userId: string, rightsConf
     localStorage.setItem(receiptKey(userId), JSON.stringify([...pending, receipt]));
   }
   const register = async () => {
+    await requireUploadOwner(userId);
     const saved = await accessRequest('material-assets', { action: 'register', ...receipt });
     checkRegistration(saved);
     forget(userId, receipt.request_key);
@@ -100,6 +110,7 @@ export async function uploadMaterialAsset(file: File, userId: string, rightsConf
     catch (cause) { if (!(cause instanceof EdgeRequestError) || cause.status !== 404) throw cause; }
   }
   const path = `${userId}/uploads/${receipt.request_key}.${extension}`;
+  await requireUploadOwner(userId);
   const uploaded = await supabase.storage.from('materials').upload(path, file, { contentType: file.type, upsert: false });
   // 包括响应丢失和已存在：只核对原对象，不生成新路径或覆盖。
   try { return await register(); }

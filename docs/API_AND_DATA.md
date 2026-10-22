@@ -1,5 +1,7 @@
 # 接口与数据契约
 
+当前 [迭代30](ITERATION_30_WORKS_LIBRARY.md)：material-assets list增加search（0–200字符，字面名称匹配），offset/limit/type和当前用户范围保持。作品与首页参考上传统一原UUID/register/使用权；私有下载读取真实文件。无需新迁移，00058/probe18/render4/edit2保持。
+
 当前 [迭代29](ITERATION_29_ALERTS_RECOVERY.md)：operations list新增alerts，返回monitor.last_scan_at/stale和每条can_ack；mutate alert_ack需alert_id/expected/reason/原request_key，沿原对象权限与客户范围核对，恢复前仍验证当前权限。production-worker monitor只接受后台专用密钥和scheduler_healthy真实布尔，返回active/opened/resolved/observed_at，不领取业务任务。00057统一扣费锁序，00058告警/事件/心跳，probe18/00058/render4/edit2；前端/调度/发布工具同窗升级。
 
 新增 [迭代26](ITERATION_26_EDITOR_ASSETS.md)：material-assets POST list(offset/limit/type)/register(request_key/input)，只接受用户JWT，服务端生成本人路径/稳定引用；Storage大小/MIME核对、material_upload_receipts原请求/使用权时间与删除墓碑。render4新增eqBands(十频段/-12至12dB)、echo(0–100)、voiceEffect(none/robot)。MCP新增get_edit_prices/submit_edit_analysis，保留原片段/价格/UUID/本人工程，创建使用render:create、价格读取使用jobs:read；目录58工具/18权限，probe15/00054/render4/edit1。以下迭代描述为历史时点。

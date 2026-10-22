@@ -2,7 +2,7 @@
  * P2-N03: 智能封面候选组件
  * 可嵌入 WorksPage / 视频详情，复用服务端图片队列。
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/db/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import {
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useProductionJob } from '@/hooks/useProductionJob';
+import { mediaPreview } from '@/api/media';
 
 interface CoverCandidate {
   id: string;
@@ -31,6 +32,7 @@ interface CoverCandidate {
 interface Props {
   projectId: string;
   projectTitle?: string;
+  onSelected?: () => void;
 }
 
 const COVER_STYLES = [
@@ -40,26 +42,33 @@ const COVER_STYLES = [
   { id: 'text_headline',   label: '文字钩子',  prompt: '大字报风格封面，醒目标题文字，品牌色调' },
 ];
 
-export default function CoverCandidates({ projectId, projectTitle }: Props) {
+export default function CoverCandidates({ projectId, projectTitle, onSelected }: Props) {
   const { user } = useAuth();
   const [candidates, setCandidates] = useState<CoverCandidate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(''), [busy, setBusy] = useState(false);
+  const owner = useRef('');
+  owner.current = `${user?.id}:${projectId}`;
   const task = useProductionJob('image', user?.id, projectId);
   const generating = task.generating;
   const [selectedStyle, setSelectedStyle] = useState('product_close');
 
   const loadCandidates = useCallback(async () => {
-    const { data } = await supabase
+    const current = owner.current;
+    setLoading(true);
+    const { data, error } = await supabase
       .from('cover_candidates')
       .select('id, project_id, image_url, gen_task_id, status, is_selected, style_prompt, created_at')
       .eq('project_id', projectId)
       .order('created_at', { ascending: false })
       .limit(12);
-    setCandidates(Array.isArray(data) ? (data as CoverCandidate[]) : []);
+    if (current !== owner.current) return;
+    if (error) setError('封面候选读取失败，请重试');
+    else { setCandidates(Array.isArray(data) ? (data as CoverCandidate[]) : []); setError(''); }
     setLoading(false);
-  }, [projectId]);
+  }, [projectId, user?.id]);
 
-  useEffect(() => { loadCandidates(); }, [loadCandidates]);
+  useEffect(() => { owner.current = `${user?.id}:${projectId}`; setCandidates([]); void loadCandidates(); return () => { owner.current = ''; }; }, [loadCandidates]);
   useEffect(() => { if (task.job?.status === 'completed') void loadCandidates(); }, [task.job?.id, task.job?.status, loadCandidates]);
 
   const handleGenerate = async () => {
@@ -75,15 +84,33 @@ export default function CoverCandidates({ projectId, projectTitle }: Props) {
   };
 
   const handleSelect = async (id: string) => {
+    if (busy) return;
+    const current = owner.current;
+    setBusy(true);
     const { error } = await supabase.rpc('select_project_cover', { p_project: projectId, p_cover: id });
-    if (error) { toast.error('封面选择失败，请刷新重试'); return; }
+    if (current !== owner.current) return;
+    setBusy(false);
+    if (error) { setError('封面选择失败，请刷新重试'); return; }
     setCandidates(prev => prev.map(c => ({ ...c, is_selected: c.id === id })));
     toast.success('已设置为视频封面');
+    onSelected?.();
   };
 
-  const handleDownload = (url: string) => {
-    const a = document.createElement('a');
-    a.href = url; a.download = `cover-${Date.now()}.jpg`; a.click();
+  const handleDownload = async (url: string) => {
+    if (busy) return;
+    const current = owner.current;
+    setBusy(true);
+    try {
+      const response = await fetch(await mediaPreview(url));
+      if (!response.ok) throw new Error('封面下载失败');
+      const blob = await response.blob();
+      if (!blob.type.startsWith('image/') || !blob.size) throw new Error('封面文件不可用');
+      if (current !== owner.current) return;
+      const objectUrl = URL.createObjectURL(blob), a = document.createElement('a');
+      a.href = objectUrl; a.download = `cover-${Date.now()}.${blob.type.split('/')[1]}`; a.click();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    } catch (cause) { if (current === owner.current) setError(cause instanceof Error ? cause.message : '封面下载失败'); }
+    finally { if (current === owner.current) setBusy(false); }
   };
 
   return (
@@ -121,8 +148,8 @@ export default function CoverCandidates({ projectId, projectTitle }: Props) {
         </div>
 
         {/* 生成按钮 */}
-        {(task.error || task.job?.error_message) && <p role="alert" className="text-sm text-destructive">{task.error || task.job?.error_message}</p>}
-        <Button onClick={handleGenerate} disabled={generating} className="w-full" size="sm">
+        {(error || task.error || task.job?.error_message) && <p role="alert" className="text-sm text-destructive">{error || task.error || task.job?.error_message}</p>}
+        <Button onClick={handleGenerate} disabled={generating || busy} className="w-full" size="sm">
           {generating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
           {generating ? '生成中…' : '生成封面候选'}
         </Button>
@@ -165,6 +192,7 @@ export default function CoverCandidates({ projectId, projectTitle }: Props) {
                     <Button
                       size="sm"
                       className="w-full h-7 text-xs"
+                      disabled={busy}
                       onClick={() => handleSelect(c.id)}
                     >
                       <Star className="w-3 h-3 mr-1" />{c.is_selected ? '已选' : '选为封面'}
@@ -173,6 +201,7 @@ export default function CoverCandidates({ projectId, projectTitle }: Props) {
                       size="sm"
                       variant="ghost"
                       className="w-full h-7 text-xs border border-white/40 text-white hover:bg-white/10"
+                      disabled={busy}
                       onClick={() => handleDownload(c.image_url!)}
                     >
                       <Download className="w-3 h-3 mr-1" />下载
@@ -184,8 +213,8 @@ export default function CoverCandidates({ projectId, projectTitle }: Props) {
           </div>
         )}
 
-        {candidates.length > 0 && (
-          <Button variant="ghost" size="sm" className="w-full text-xs" onClick={loadCandidates}>
+        {(candidates.length > 0 || error) && (
+          <Button variant="ghost" size="sm" disabled={busy || loading} className="w-full text-xs" onClick={loadCandidates}>
             <RefreshCw className="w-3.5 h-3.5 mr-1" />刷新状态
           </Button>
         )}

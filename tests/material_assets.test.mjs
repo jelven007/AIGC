@@ -12,7 +12,7 @@ const db = {
     calls.push({ name, args }); return { data: { material, request_key: key }, error: failure };
   },
   from() {
-    return { select() { return this; }, eq(...args) { filters.push(args); return this; }, order() { return this; },
+    return { select() { return this; }, eq(...args) { filters.push(args); return this; }, ilike(...args) { filters.push(args); return this; }, order() { return this; },
       range: async () => ({ data: [material], count: 1, error: listFailure ? new Error('down') : null }) };
   },
   storage: { from() { return { createSignedUrl: async () => ({ data: { signedUrl: material.url.replace('/authenticated/', '/sign/') + '?token=fixture' } }) }; } },
@@ -48,6 +48,14 @@ const list = await handleMaterialAssets(request({ action: 'list', type: 'audio',
 assert.equal(list.status, 200); assert.equal((await list.json()).total, 1);
 assert.deepEqual(filters, [['user_id', uid], ['type', 'audio']]);
 assert.equal((await handleMaterialAssets(request({ action: 'list', offset: -1 }))).status, 400);
+filters = [];
+assert.equal((await handleMaterialAssets(request({ action: 'list', search: '  100%_\\原图  ', user_id: key }))).status, 200);
+assert.deepEqual(filters, [['user_id', uid], ['name', '%100\\%\\_\\\\原图%']]);
+for (const search of [[], {}, null, 'a'.repeat(201)]) {
+  if (search === null) continue;
+  assert.equal((await handleMaterialAssets(request({ action: 'list', search }))).status, 400);
+}
+console.log('PASS 服务端全库搜索、通配符按字面匹配和强制当前用户范围');
 listFailure = true;
 assert.equal((await handleMaterialAssets(request({ action: 'list' }))).status, 503);
 user = null;
