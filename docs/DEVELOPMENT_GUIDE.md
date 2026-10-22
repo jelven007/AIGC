@@ -2,7 +2,9 @@
 
 当前 [迭代30](ITERATION_30_WORKS_LIBRARY.md)复用materialAssets上传/原回执/身份核对和useRecentWorks限40条只读入口；作品分页每页24项，服务端搜索做字面匹配。公开演示媒体不进入生产资源；测试MP4/WAV只生成在.volcengine-build。
 
-当前 [迭代29](ITERATION_29_ALERTS_RECOVERY.md)：禁止改动已提交00056，00057修复套餐→团队/风险→团队行锁；测试真实创建和直接扣费并发，原预算/账本归因不变。00058刷新规则/告警事件/心跳，operations新增alerts/alert_ack，后台monitor独立且只用Worker专用身份。执行test:operations/test:alerts、test:backup（先构建deploy/backup镜像），恢复只向空隔离库，秘密文件0600且Docker context忽略；probe18/00058/render4/edit2与匹配全栈同步。
+当前 [迭代31](ITERATION_31_ACCOUNT_STORYBOARD.md)：新增00059，不修改旧迁移；资料读取失败不得自动插入profiles或代做注册。认证回调内不能等待SDK自身锁，异步结果须检查当前账号/代次；账号布局、缓存和继承路由输入隔离。SSE工具已返回解码正文，调用方不要再次JSON解析文本；完整响应与分镜校验后才更新结果。新增test:profile/test:profile-ui，probe19/00059/render4/edit2同窗更新。
+
+历史 [迭代29](ITERATION_29_ALERTS_RECOVERY.md)：00057修复套餐→团队/风险→团队行锁，00058刷新规则/告警事件/心跳。备份恢复只向空隔离库，秘密文件0600且Docker context忽略。
 
 最新 [迭代26](ITERATION_26_EDITOR_ASSETS.md)：materialAssets API与五个独立资源/上传/录音/音频/预览组件共用私有路径、原UUID和实际时长；00054核对存储证据、回执和墓碑。删除旧模拟资源交易、演示工程和装饰波形；MediaBlobCache限制账号/页面内128MB，render4执行真实EQ/回声/调制。执行test:assets、MCP58/权限、浏览器和原剪辑回归；probe15/00054/render4/edit1与匹配服务同窗发布。
 

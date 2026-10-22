@@ -23,20 +23,28 @@ export function useDraft<T>(key: string, initialValue: T, debounceMs = 500) {
   });
 
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const pending = useRef<{ key: string; value: T } | null>(null);
+  const flush = useCallback((updateState = false) => {
+    clearTimeout(timer.current);
+    const saved = pending.current;
+    pending.current = null;
+    if (!saved) return;
+    try {
+      localStorage.setItem(saved.key, JSON.stringify(saved.value));
+      if (updateState) setHasDraft(true);
+    } catch { /* storage full */ }
+  }, []);
 
   const save = useCallback((newValue: T) => {
     setValue(newValue);
     clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      try {
-        localStorage.setItem(key, JSON.stringify(newValue));
-        setHasDraft(true);
-      } catch { /* storage full */ }
-    }, debounceMs);
-  }, [key, debounceMs]);
+    pending.current = { key, value: newValue };
+    timer.current = setTimeout(() => flush(true), debounceMs);
+  }, [key, debounceMs, flush]);
 
   const clear = useCallback(() => {
     clearTimeout(timer.current);
+    pending.current = null;
     try { localStorage.removeItem(key); } catch { /* noop */ }
     setHasDraft(false);
     setValue(initialValue);
@@ -51,8 +59,17 @@ export function useDraft<T>(key: string, initialValue: T, debounceMs = 500) {
     }
   }, [key]);
 
-  // 组件卸载时清理 timer
-  useEffect(() => () => clearTimeout(timer.current), []);
+  // 离页/换键时按保存时的原键写最后一次内容，避免防抖队列丢失或串入新账号。
+  useEffect(() => {
+    const persist = () => flush();
+    window.addEventListener('pagehide', persist);
+    window.addEventListener('beforeunload', persist);
+    return () => {
+      window.removeEventListener('pagehide', persist);
+      window.removeEventListener('beforeunload', persist);
+      flush();
+    };
+  }, [key, flush]);
 
   return { value, save, clear, restore, hasDraft };
 }

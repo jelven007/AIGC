@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { supabase } from '@/db/supabase';
+import { saveScriptDraft, saveScriptKnowledge, pendingScriptWrites, recoverScriptWrites } from '@/api/scriptDrafts';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDraft } from '@/hooks/useDraft';
 import { Button } from '@/components/ui/button';
@@ -92,20 +92,23 @@ async function callLLMStream(
     messages,
     max_tokens: 2000,
     knowledge_job_id: knowledgeJobId,
-    onData: (data) => {
-      if (data === '[DONE]') return;
-      try {
-        const parsed = JSON.parse(data);
-        const chunk = parsed.choices?.[0]?.delta?.content ?? '';
-        if (chunk) onChunk(chunk);
-      } catch { /* skip */ }
-    },
+    onData: onChunk,
     onComplete: () => {},
     onError: (err) => { failure = err; },
     signal,
   });
   if (signal.aborted) throw new Error('脚本生成已取消');
   if (failure) throw failure;
+}
+
+function parseScenes(value: string): ScriptScene[] {
+  const parsed = JSON.parse(value);
+  if (!Array.isArray(parsed) || !parsed.length || parsed.length > 50 || parsed.some(scene =>
+    !scene || ['scene', 'visual', 'dialogue', 'prompt'].some(key => typeof scene[key] !== 'string' || !scene[key].trim())
+    || !Number.isInteger(scene.duration) || scene.duration < 1 || scene.duration > 120)) {
+    throw new Error('模型分镜格式不正确，请重试');
+  }
+  return parsed.map((scene, i) => ({ ...scene, order: i + 1 }));
 }
 
 // ── 对话消息类型 ─────────────────────────────────────────────────────────────
@@ -127,7 +130,7 @@ function FourLayerPipeline({ statuses, activeLayer }: {
   return (
     <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
       <p className="text-xs font-semibold text-muted-foreground mb-2.5 flex items-center gap-1.5">
-        <Sparkles className="w-3.5 h-3.5 text-primary" />四层 Prompt 工程流水线
+        <Sparkles className="w-3.5 h-3.5 text-primary" />脚本结构检查
       </p>
       <div className="flex items-center gap-0">
         {FOUR_LAYER_STEPS.map((step, idx) => {
@@ -271,6 +274,7 @@ export default function ScriptPage() {
   type ScriptDraft = {
     productName: string; category: string; priceRange: string;
     sellingPoints: string[]; audience: string; platform: string; videoLength: number; knowledgeJobId?: string;
+    scenes?: ScriptScene[]; promptText?: string; generated?: boolean;
   };
   const { value: draft, save: saveDraft, clear: clearDraft, hasDraft } =
     useDraft<ScriptDraft>(`script-draft-${user?.id ?? 'anon'}`, {
@@ -300,6 +304,9 @@ export default function ScriptPage() {
     if (state?.productName) {
       setProductName(state.productName);
     }
+    if (Array.isArray(state?.sellingPoints) && state.sellingPoints.every((point: unknown) => typeof point === 'string')) {
+      setSellingPoints(state.sellingPoints.slice(0, 6));
+    }
     if (state?.knowledgeJobId) setKnowledgeJobId(state.knowledgeJobId);
     if (state?.category) {
       setCategory(state.category);
@@ -312,21 +319,28 @@ export default function ScriptPage() {
     }
   }, [location.state]);
 
-  const [scenes, setScenes]       = useState<ScriptScene[]>([]);
-  const [promptText, setPromptText] = useState('');
+  const [scenes, setScenes]       = useState<ScriptScene[]>(draft.scenes || []);
+  const [promptText, setPromptText] = useState(draft.promptText || '');
   const [generating, setGenerating] = useState(false);
   const [streamingText, setStreamingText] = useState('');
-  const [generated, setGenerated]   = useState(false);
+  const [generated, setGenerated]   = useState(!!draft.generated && !!draft.scenes?.length && !!draft.promptText);
   const [saving, setSaving]         = useState(false);
+  const [pendingWrites, setPendingWrites] = useState(() => user ? pendingScriptWrites(user.id) : 0);
   const [copied, setCopied]         = useState(false);
   const [savedScriptId, setSavedScriptId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   // 四层流水线状态
   const [layerStatuses, setLayerStatuses] = useState<LayerStatuses>({
-    selling_point: 'done', pain_point: 'done', hook: 'done', cta: 'done',
+    selling_point: 'idle', pain_point: 'idle', hook: 'idle', cta: 'idle',
   });
   const [activeLayer, setActiveLayer] = useState<LayerKey | null>(null);
+  const alive = useRef(true);
+  const generation = useRef(0);
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; generation.current++; abortRef.current?.abort(); chatAbortRef.current?.abort(); };
+  }, []);
 
   // 多轮对话优化
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -341,8 +355,8 @@ export default function ScriptPage() {
 
   // 自动保存草稿（防抖 500ms）
   useEffect(() => {
-    saveDraft({ productName, category, priceRange, sellingPoints, audience, platform, videoLength, knowledgeJobId });
-  }, [productName, category, priceRange, sellingPoints, audience, platform, videoLength, knowledgeJobId, saveDraft]);
+    saveDraft({ productName, category, priceRange, sellingPoints, audience, platform, videoLength, knowledgeJobId, scenes, promptText, generated });
+  }, [productName, category, priceRange, sellingPoints, audience, platform, videoLength, knowledgeJobId, scenes, promptText, generated, saveDraft]);
 
   // ── 痛点选择切换 ─────────────────────────────────────────────────────────
   const togglePainPoint = (pp: string) => {
@@ -363,34 +377,20 @@ export default function ScriptPage() {
   const removeSellingPoint = (i: number) =>
     setSellingPoints(p => p.filter((_, idx) => idx !== i));
 
-  // ── 模拟四层流水线动画 ─────────────────────────────────────────────────
-  const runPipelineAnimation = async () => {
-    const layers: LayerKey[] = ['selling_point', 'pain_point', 'hook', 'cta'];
-    for (const layer of layers) {
-      setActiveLayer(layer);
-      setLayerStatuses(prev => ({ ...prev, [layer]: 'processing' }));
-      await new Promise(r => setTimeout(r, 600));
-      setLayerStatuses(prev => ({ ...prev, [layer]: 'done' }));
-    }
-    setActiveLayer(null);
-  };
-
   // ── SSE 流式生成脚本 (CR-01 四层Prompt) ─────────────────────────────────
   const handleGenerate = async () => {
+    if (generating) return;
     if (!productName.trim()) { toast.error('请填写商品名称'); return; }
     if (sellingPoints.length === 0) { toast.error('请至少添加一个核心卖点'); return; }
     if (!audience.trim()) { toast.error('请填写目标用户'); return; }
 
     setGenerating(true);
-    setGenerated(false);
-    setScenes([]); setSavedScriptId(null);
     setStreamingText('');
-    setChatMessages([]);
     setLayerStatuses({ selling_point: 'idle', pain_point: 'idle', hook: 'idle', cta: 'idle' });
-    abortRef.current = new AbortController();
-
-    // 并行启动四层动画
-    runPipelineAnimation();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const sequence = ++generation.current;
+    const current = () => alive.current && sequence === generation.current && !controller.signal.aborted;
 
     // CR-01: 四层Prompt工程 — 卖点→痛点→平台钩子→CTA
     const systemPrompt = `你是专业的电商带货视频脚本策划师，精通抖音/TikTok短视频「四层结构」创作：
@@ -445,63 +445,67 @@ export default function ScriptPage() {
           { role: 'user', content: userPrompt },
         ],
         (chunk) => {
+          if (!current()) return;
           fullText += chunk;
           setStreamingText(fullText);
         },
-        abortRef.current.signal,
+        controller.signal,
         knowledgeJobId || undefined,
       );
+      if (!current()) return;
 
       const jsonMatch = fullText.match(/```json\s*([\s\S]*?)```/);
       const promptMatch = fullText.match(/```prompt\s*([\s\S]*?)```/);
 
       if (!jsonMatch) throw new Error('模型未返回分镜JSON，请调整要求后重试');
-      const parsed = JSON.parse(jsonMatch[1].trim()) as ScriptScene[];
-      if (!Array.isArray(parsed) || !parsed.length || parsed.length > 50 || parsed.some(scene =>
-        !scene || typeof scene.dialogue !== 'string' || typeof scene.visual !== 'string' || !Number.isFinite(scene.duration) || scene.duration <= 0)) {
-        throw new Error('模型分镜格式不正确，请重试');
-      }
+      const parsed = parseScenes(jsonMatch[1].trim());
+      const returnedPrompt = promptMatch?.[1].trim() || fullText.split('## AIGC Prompt')[1]?.replace(/```.*?```/gs, '').trim();
+      if (!returnedPrompt) throw new Error('模型未返回完整视频Prompt，请重试');
       setScenes(parsed);
-      if (promptMatch) {
-        setPromptText(promptMatch[1].trim());
-      } else {
-        const promptSection = fullText.split('## AIGC Prompt')[1];
-        if (promptSection) setPromptText(promptSection.replace(/```.*?```/gs, '').trim());
-      }
-
+      setPromptText(returnedPrompt);
+      setSavedScriptId(null);
+      setLayerStatuses(Object.fromEntries(FOUR_LAYER_STEPS.map(step =>
+        [step.key, parsed.some(scene => (scene as ScriptScene & { layer?: string }).layer === step.key) ? 'done' : 'idle'])) as LayerStatuses);
       setGenerated(true);
       setStreamingText('');
-      clearDraft(); // 生成成功后清除草稿
       setDraftRestored(false);
       setChatMessages([
         { role: 'user', content: userPrompt },
         { role: 'assistant', content: fullText },
       ]);
-      toast.success('脚本生成完成！四层Prompt工程已全部执行');
+      toast.success('脚本生成完成，请检查画面、台词和未标注的结构');
     } catch (err) {
-      if (!abortRef.current.signal.aborted) toast.error(err instanceof Error ? err.message : '生成失败，请重试');
+      if (current()) toast.error(err instanceof Error ? err.message : '生成失败，请重试');
     } finally {
-      setGenerating(false);
+      if (alive.current && sequence === generation.current) { setGenerating(false); setStreamingText(''); }
     }
   };
 
   const handleStopGenerate = () => {
+    generation.current++;
     abortRef.current?.abort();
     setGenerating(false);
-    setGenerated(false); setStreamingText('');
+    setStreamingText('');
   };
 
   // ── 场景编辑 ───────────────────────────────────────────────────────────
-  const updateScene = (idx: number, patch: Partial<ScriptScene>) =>
+  const updateScene = (idx: number, patch: Partial<ScriptScene>) => {
+    setSavedScriptId(null);
     setScenes(s => s.map((sc, i) => i === idx ? { ...sc, ...patch } : sc));
+  };
 
-  const deleteScene = (idx: number) =>
+  const deleteScene = (idx: number) => {
+    setSavedScriptId(null);
     setScenes(s => s.filter((_, i) => i !== idx).map((sc, i) => ({ ...sc, order: i + 1 })));
+  };
 
-  const addScene = () => setScenes(s => [...s, {
-    order: s.length + 1, scene: `场景 ${s.length + 1}`,
-    visual: '', dialogue: '', duration: 5, prompt: '',
-  }]);
+  const addScene = () => {
+    setSavedScriptId(null);
+    setScenes(s => [...s, {
+      order: s.length + 1, scene: `场景 ${s.length + 1}`,
+      visual: '', dialogue: '', duration: 5, prompt: '',
+    }]);
+  };
 
   // ── P1-N02 多轮对话优化 ─────────────────────────────────────────────────
   const handleChatSend = async () => {
@@ -513,7 +517,9 @@ export default function ScriptPage() {
     const newHistory: ChatMessage[] = [...chatMessages, { role: 'user', content: msg }];
     setChatMessages([...newHistory, { role: 'assistant', content: '', streaming: true }]);
 
-    chatAbortRef.current = new AbortController();
+    const controller = new AbortController();
+    chatAbortRef.current = controller;
+    const current = () => alive.current && !controller.signal.aborted;
     let assistantText = '';
 
     try {
@@ -523,6 +529,7 @@ export default function ScriptPage() {
           ...newHistory.map(m => ({ role: m.role, content: m.content })),
         ],
         (chunk) => {
+          if (!current()) return;
           assistantText += chunk;
           setChatMessages(prev => {
             const updated = [...prev];
@@ -530,8 +537,9 @@ export default function ScriptPage() {
             return updated;
           });
         },
-        chatAbortRef.current.signal,
+        controller.signal,
       );
+      if (!current()) return;
 
       setChatMessages(prev => {
         const updated = [...prev];
@@ -543,23 +551,29 @@ export default function ScriptPage() {
       const jsonMatch = assistantText.match(/```json\s*([\s\S]*?)```/);
       if (jsonMatch) {
         try {
-          const parsed = JSON.parse(jsonMatch[1].trim()) as ScriptScene[];
+          const parsed = parseScenes(jsonMatch[1].trim());
           setScenes(parsed);
+          setSavedScriptId(null);
           toast.success('脚本已根据对话更新！');
-        } catch { /* ignore */ }
+        } catch { toast.error('回复分镜格式无效，保留当前脚本'); }
       }
     } catch (err) {
-      if (!chatAbortRef.current.signal.aborted) toast.error('优化失败，请重试');
+      if (current()) {
+        setChatInput(msg); setChatMessages(newHistory.slice(0, -1));
+        toast.error(err instanceof Error ? err.message : '优化失败，请重试');
+      }
     } finally {
-      setChatStreaming(false);
+      if (alive.current) {
+        setChatStreaming(false);
+        setChatMessages(prev => prev.map(item => ({ ...item, streaming: false })));
+      }
     }
   };
 
   // ── 保存脚本（内部通用） ────────────────────────────────────────────────
   const saveScript = async (): Promise<Script | null> => {
     if (!user || !generated) return null;
-    const { data: script, error } = await supabase.from('scripts').insert({
-      user_id:         user.id,
+    const script = await saveScriptDraft(user.id, {
       product_name:    productName,
       selling_points:  sellingPoints,
       target_audience: audience,
@@ -569,8 +583,8 @@ export default function ScriptPage() {
       edited_scenes:   null,
       edited_prompt:   null,
       status:          'done',
-    }).select().maybeSingle();
-    if (error || !script) return null;
+    });
+    if (!alive.current) return null;
     setSavedScriptId((script as Script).id);
     return script as Script;
   };
@@ -580,41 +594,43 @@ export default function ScriptPage() {
     if (!user || !generated) return;
     setSaving(true);
     try {
-      let scriptId = savedScriptId;
-      if (!scriptId) {
-        const script = await saveScript();
-        if (!script) { toast.error('保存失败，请重试'); return; }
-        scriptId = script.id;
-      }
-      const knowledge = await supabase.from('knowledge_entries').insert({
-        user_id:       user.id,
+      const script = await saveScript();
+      if (!script) { toast.error('保存失败，请重试'); return; }
+      const scriptId = script.id;
+      if (!alive.current) return;
+      await saveScriptKnowledge(user.id, {
         source_type:   'script_edit',
         source_id:     scriptId,
         title:         `${productName} 脚本`,
         content:       { scenes, prompt_text: promptText, selling_points: sellingPoints },
         quality_score: 3,
       });
-      if (knowledge.error) throw new Error(knowledge.error.message);
+      if (!alive.current) return;
       toast.success('脚本已保存到知识库，请前往知识库建立语义索引');
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : '知识保存失败');
+      if (alive.current) toast.error(cause instanceof Error ? cause.message : '知识保存失败');
     } finally {
-      setSaving(false);
+      if (alive.current) { setSaving(false); setPendingWrites(pendingScriptWrites(user.id)); }
     }
   };
 
   // ── 应用到视频生成 ───────────────────────────────────────────────────────
   const handleApplyToVideo = async () => {
-    if (!generated) return;
-    let scriptId = savedScriptId;
-    if (!scriptId) {
+    if (!generated || saving) return;
+    setSaving(true);
+    try {
       const script = await saveScript();
-      scriptId = script?.id ?? null;
+      if (!alive.current) return;
+      if (!script) throw new Error('脚本保存失败，请重试后应用到视频');
+      navigate('/video/create', {
+        state: { from: 'script', scriptId: script.id, productName, sellingPoints, platform, promptText, scenes },
+      });
+      toast.success('脚本Prompt已传入视频工作台，请确认模型与生成规格');
+    } catch (cause) {
+      if (alive.current) toast.error(cause instanceof Error ? cause.message : '脚本保存失败');
+    } finally {
+      if (alive.current && user) { setSaving(false); setPendingWrites(pendingScriptWrites(user.id)); }
     }
-    navigate('/video/create', {
-      state: { from: 'script', scriptId, productName, sellingPoints, platform, promptText, scenes },
-    });
-    toast.success('已跳转至视频生成，脚本数据已预填');
   };
 
   // ── 复制 Prompt ────────────────────────────────────────────────────────
@@ -629,13 +645,27 @@ export default function ScriptPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-6">
+      {pendingWrites > 0 && <div role="alert" className="rounded-lg border p-4 text-sm space-y-2">
+        <p>有 {pendingWrites} 份脚本或知识保存结果待确认，可恢复原UUID与原内容。</p>
+        <Button variant="outline" disabled={saving} onClick={async () => {
+          if (!user) return;
+          setSaving(true);
+          try {
+            const result = await recoverScriptWrites(user.id);
+            if (!alive.current) return;
+            if (result.errors.length) toast.error(`仍有${result.errors.length}份保存待确认：${result.errors[0]}`);
+            else toast.success(`已恢复${result.restored}份原保存`);
+          } catch (cause) { if (alive.current) toast.error(cause instanceof Error ? cause.message : '恢复失败'); }
+          finally { if (alive.current) { setSaving(false); setPendingWrites(pendingScriptWrites(user.id)); } }
+        }}>恢复原脚本保存</Button>
+      </div>}
       {/* ── 草稿恢复提示 ── */}
       {draftRestored && (
         <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-warning/10 border border-warning/30 text-sm">
           <Info className="w-4 h-4 text-warning shrink-0" />
           <span className="flex-1 text-warning">已恢复上次未完成的草稿</span>
           <button
-            onClick={() => { clearDraft(); setDraftRestored(false); setProductName(''); setCategory(''); setPriceRange(''); setSellingPoints([]); setAudience(''); setPlatform('douyin'); setVideoLength(25); }}
+            onClick={() => { clearDraft(); setDraftRestored(false); setProductName(''); setCategory(''); setPriceRange(''); setSellingPoints([]); setAudience(''); setPlatform('douyin'); setVideoLength(25); setScenes([]); setPromptText(''); setGenerated(false); }}
             className="text-warning hover:text-warning/70 shrink-0"
           >
             <X className="w-4 h-4" />
@@ -910,7 +940,7 @@ export default function ScriptPage() {
                 <div className="p-4">
                   <Textarea
                     value={promptText}
-                    onChange={e => setPromptText(e.target.value)}
+                    onChange={e => { setPromptText(e.target.value); setSavedScriptId(null); }}
                     rows={8}
                     className="text-sm font-mono resize-none bg-muted/30"
                     placeholder="Prompt 文案..."
@@ -987,8 +1017,17 @@ export default function ScriptPage() {
                   }
                   {saving ? '保存中...' : '保存并回写知识库'}
                 </Button>
-                <Button variant="outline" className="w-full h-11" onClick={handleApplyToVideo}>
+                <Button variant="outline" className="w-full h-11" disabled={saving || generating} onClick={handleApplyToVideo}>
                   <Video className="w-4 h-4 mr-2" />应用到视频生成
+                </Button>
+                <Button variant="outline" className="w-full h-11" disabled={saving || generating || scenes.length < 2 || scenes.length > 6}
+                  onClick={() => {
+                    if (scenes.some(scene => !scene.prompt.trim() || !scene.dialogue.trim() || scene.duration < 2 || scene.duration > 15)) {
+                      toast.error('多镜头任务需要完整画面Prompt与台词，每镜头2至15秒'); return;
+                    }
+                    navigate('/batch-create', { state: { from: 'script', productName, scenes, platform } });
+                  }}>
+                  生成多镜头配音成片
                 </Button>
               </div>
             </>

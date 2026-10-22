@@ -27,7 +27,8 @@ const context = await browser.newContext({ viewport: { width: 390, height: 844 }
 await context.addInitScript(value => localStorage.setItem('sb-ui-fixture-auth-token', JSON.stringify(value)), session);
 await context.route(`${backend}/**`, async route => {
   const req = route.request(), parsed = new URL(req.url()), path = parsed.pathname, auth = req.headers().authorization || '';
-  const currentId = auth.includes(sessionFor(second).access_token) ? second : uid;
+  let currentId = uid;
+  try { currentId = JSON.parse(Buffer.from(auth.split('.')[1], 'base64url')).sub || uid; } catch {}
   let body = {}; try { body = req.postDataJSON() || {}; } catch {}
   let data = [], status = 200, type = 'application/json', count;
   if (req.method() === 'OPTIONS') data = {};

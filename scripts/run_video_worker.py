@@ -84,10 +84,10 @@ def call_worker(config, action="run"):
             data = json.loads(raw)
         if action == "probe":
             production = config.endpoint.endswith("/production-worker")
-            expected_version = 18 if production else 1
+            expected_version = 19 if production else 1
             if data.get("ready") is not True or data.get("version") != expected_version:
                 raise WorkerError("worker_not_ready")
-            if production and (data.get("required_migration") != "00058" or data.get("render_version") != 4 or data.get("edit_version") != 2):
+            if production and (data.get("required_migration") != "00059" or data.get("render_version") != 4 or data.get("edit_version") != 2):
                 raise WorkerError("worker_not_ready")
             return 0
         processed = data.get("processed")
