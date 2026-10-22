@@ -1,6 +1,7 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/db/supabase';
-import { storedMedia } from '@/api/media';
+import { mediaPreview } from '@/api/media';
+import { listMaterialAssets, uploadMaterialAsset, recoverMaterialUploads } from '@/api/materialAssets';
 import { deleteMaterial } from '@/api/accessControl';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -69,7 +70,7 @@ function MaterialCard({
             <div className="w-14 h-14 rounded-2xl bg-muted-foreground/10 flex items-center justify-center">
               <FileVideo className="w-7 h-7 text-muted-foreground/50" />
             </div>
-            <span className="text-xs text-muted-foreground">点击预览视频</span>
+            <span className="text-xs text-muted-foreground">点击预览{material.type === 'audio' ? '音频' : '视频'}</span>
           </div>
         )}
 
@@ -93,7 +94,7 @@ function MaterialCard({
               ? 'bg-info/15 text-info'
               : 'bg-primary/15 text-primary',
           )}>
-            {isImage ? '图片' : '视频'}
+            {isImage ? '图片' : material.type === 'audio' ? '音频' : '视频'}
           </span>
           <span className="text-xs text-muted-foreground">{formatSize(material.size)}</span>
         </div>
@@ -124,12 +125,13 @@ function MaterialCard({
 }
 
 // ── 主页面 ────────────────────────────────────────────────────────────────
-type TabType = 'all' | 'image' | 'video';
+type TabType = 'all' | 'image' | 'video' | 'audio';
 
 const TYPE_TABS: { value: TabType; label: string }[] = [
   { value: 'all',   label: '全部' },
   { value: 'image', label: '图片' },
   { value: 'video', label: '视频' },
+  { value: 'audio', label: '音频' },
 ];
 
 export default function MaterialsPage() {
@@ -144,58 +146,37 @@ export default function MaterialsPage() {
   const [deleteId,  setDeleteId]  = useState<string | null>(null);
   const [deleting,  setDeleting]  = useState(false);
   const [preview,   setPreview]   = useState<Material | null>(null);
+  const [consent, setConsent] = useState(false), [offset, setOffset] = useState(0), [total, setTotal] = useState(0);
+  const [loadError, setLoadError] = useState('');
+  const uploadLock = useRef(false), loadRevision = useRef(0);
 
-  // ── 加载 ────────────────────────────────────────────────────────────────
   const loadMaterials = async () => {
-    setLoading(true);
-    const { data } = await supabase
-      .from('materials')
-      .select('*')
-      .order('created_at', { ascending: false });
-    setMaterials((data ?? []) as Material[]);
-    setLoading(false);
+    const revision = ++loadRevision.current;
+    setLoading(true); setLoadError('');
+    try {
+      if (!user) { setMaterials([]); setTotal(0); return; }
+      const result = await listMaterialAssets(offset, 30);
+      if (revision === loadRevision.current) { setMaterials(result.materials); setTotal(result.total); }
+    } catch (cause) { if (revision === loadRevision.current) setLoadError(cause instanceof Error ? cause.message : '素材读取失败'); }
+    finally { if (revision === loadRevision.current) setLoading(false); }
   };
-
-  useEffect(() => { loadMaterials(); }, []);
-
-  // ── 上传 ────────────────────────────────────────────────────────────────
-  const uploadFile = async (file: File) => {
-    if (!user) return;
-    if (file.size > 50 * 1024 * 1024) { toast.error(`文件过大（最大50MB）：${file.name}`); return; }
-    const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
-    const isImage = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext);
-    const isVideo = ['mp4', 'mov', 'avi', 'webm'].includes(ext);
-    if (!isImage && !isVideo) { toast.error(`不支持的格式：${ext}`); return; }
-    const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
-    const { data: up, error } = await supabase.storage.from('materials').upload(path, file);
-    if (error) { toast.error(`上传失败：${file.name}`); return; }
-    const urlData = { publicUrl: storedMedia('materials', up.path) };
-    const { data: mat } = await supabase.from('materials').insert({
-      user_id: user.id, name: file.name, type: isImage ? 'image' : 'video',
-      url: urlData.publicUrl, size: file.size,
-    }).select().maybeSingle();
-    if (mat) setMaterials(prev => [mat as Material, ...prev]);
-  };
-
+  useEffect(() => { void loadMaterials(); return () => { loadRevision.current++; }; }, [user?.id, offset]);
   const handleFiles = async (files: FileList | null) => {
-    if (!files?.length) return;
-    setUploading(true);
-    const total = files.length;
-    for (let i = 0; i < total; i++) {
-      const f = files[i];
-      setUploadProgress({ current: i + 1, total, name: f.name });
-      await uploadFile(f);
-    }
-    setUploading(false);
-    setUploadProgress(null);
-    toast.success(`已上传 ${total} 个素材`);
+    if (!files?.length || uploadLock.current) return;
+    if (!user || !consent) { toast.error('请先登录并确认素材使用权'); return; }
+    uploadLock.current = true; setUploading(true); let succeeded = 0;
+    try {
+      for (const [index, file] of Array.from(files).entries()) {
+        setUploadProgress({ current: index + 1, total: files.length, name: file.name });
+        try { await uploadMaterialAsset(file, user.id, consent); succeeded++; }
+        catch (cause) { toast.error(cause instanceof Error ? cause.message : '素材上传待确认'); }
+      }
+      if (succeeded) { toast.success('已保存 ' + succeeded + ' 个素材'); await loadMaterials(); }
+    } finally { uploadLock.current = false; setUploading(false); setUploadProgress(null); }
   };
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setDragging(false);
-    handleFiles(e.dataTransfer.files);
-  }, []);
+  const handleDrop = (event: React.DragEvent) => {
+    event.preventDefault(); setDragging(false); void handleFiles(event.dataTransfer.files);
+  };
 
   // ── 删除 ────────────────────────────────────────────────────────────────
   const handleDelete = async () => {
@@ -214,9 +195,9 @@ export default function MaterialsPage() {
   };
 
   // ── 下载 ────────────────────────────────────────────────────────────────
-  const handleDownload = (m: Material) => {
+  const handleDownload = async (m: Material) => {
     const a = document.createElement('a');
-    a.href = m.url;
+    try { a.href = await mediaPreview(m.url); } catch (cause) { toast.error(cause instanceof Error ? cause.message : '下载失败'); return; }
     a.download = m.name;
     a.target = '_blank';
     a.rel = 'noopener noreferrer';
@@ -234,10 +215,11 @@ export default function MaterialsPage() {
     total:  materials.length,
     images: materials.filter(m => m.type === 'image').length,
     videos: materials.filter(m => m.type === 'video').length,
+    audio: materials.filter(m => m.type === 'audio').length,
   };
 
   const tabCount = (t: TabType) =>
-    t === 'all' ? stats.total : t === 'image' ? stats.images : stats.videos;
+    t === 'all' ? stats.total : t === 'image' ? stats.images : t === 'audio' ? stats.audio : stats.videos;
 
   return (
     <div className="p-4 md:p-6 space-y-5">
@@ -251,7 +233,7 @@ export default function MaterialsPage() {
         </div>
         <label className="shrink-0 cursor-pointer">
           <input
-            type="file" multiple accept="image/*,video/*"
+            type="file" multiple accept="image/*,video/*,audio/*" disabled={!consent || uploading}
             className="hidden"
             onChange={e => handleFiles(e.target.files)}
           />
@@ -263,6 +245,24 @@ export default function MaterialsPage() {
         </label>
       </div>
 
+      <div className="flex flex-wrap items-center gap-3 text-sm">
+        <label className="flex items-center gap-2"><input type="checkbox" checked={consent} disabled={uploading}
+          onChange={event => setConsent(event.target.checked)} />我已获得这些素材的使用权</label>
+        <Button variant="outline" size="sm" disabled={loading || uploading} onClick={async () => {
+          if (!user) return;
+          const result = await recoverMaterialUploads(user.id);
+          if (result.pending) toast.error(result.errors[0]);
+          if (result.deleted) toast.info(`${result.deleted}个原素材已删除，已核对回执`);
+          if (result.restored) toast.success('已恢复' + result.restored + '个素材登记');
+          await loadMaterials();
+        }}>恢复原素材上传</Button>
+      </div>
+      {loadError && <div role="alert" className="text-sm text-destructive">{loadError}<Button variant="ghost" onClick={loadMaterials}>重试读取</Button></div>}
+      <div className="flex items-center justify-between text-sm">
+        <Button variant="ghost" disabled={loading || offset === 0} onClick={() => setOffset(value => Math.max(0, value - 30))}>上一页</Button>
+        <span>当前页 {materials.length} 个 / 共 {total} 个素材</span>
+        <Button variant="ghost" disabled={loading || offset + 30 >= total} onClick={() => setOffset(value => value + 30)}>下一页</Button>
+      </div>
       {/* ── 拖拽上传区 ── */}
       <label
         onDragOver={e => { e.preventDefault(); setDragging(true); }}
@@ -275,7 +275,7 @@ export default function MaterialsPage() {
             : 'border-border hover:border-primary/50 hover:bg-muted/30',
         )}
       >
-        <input type="file" multiple accept="image/*,video/*" className="hidden" onChange={e => handleFiles(e.target.files)} />
+        <input type="file" multiple accept="image/*,video/*,audio/*" disabled={!consent || uploading} className="hidden" onChange={e => handleFiles(e.target.files)} />
         <div className={cn(
           'w-11 h-11 rounded-xl flex items-center justify-center transition-colors',
           uploading ? 'bg-primary/20' : 'bg-muted',
@@ -287,7 +287,7 @@ export default function MaterialsPage() {
             ? `正在上传 ${uploadProgress.current}/${uploadProgress.total}：${uploadProgress.name.slice(0, 20)}`
             : uploading ? '上传中，请稍候...' : '拖拽素材至此，或点击选择文件'}
         </p>
-        <p className="text-xs text-muted-foreground/70">支持 JPG / PNG / MP4 / MOV，单文件最大 50MB</p>
+        <p className="text-xs text-muted-foreground/70">支持图片 / 视频 / 音频，单文件最大 50MB</p>
         {uploading && uploadProgress && (
           <div className="w-full max-w-xs">
             <div className="h-1.5 rounded-full bg-muted overflow-hidden">
@@ -383,7 +383,7 @@ export default function MaterialsPage() {
           </p>
           {!search && tab === 'all' && (
             <label className="cursor-pointer mt-1">
-              <input type="file" multiple accept="image/*,video/*" className="hidden" onChange={e => handleFiles(e.target.files)} />
+              <input type="file" multiple accept="image/*,video/*,audio/*" disabled={!consent || uploading} className="hidden" onChange={e => handleFiles(e.target.files)} />
               <Button asChild size="sm" className="pointer-events-none">
                 <span><Plus className="w-4 h-4 mr-1" />上传素材</span>
               </Button>
@@ -405,7 +405,7 @@ export default function MaterialsPage() {
                 alt={preview.name}
                 className="w-full max-h-[65vh] object-contain"
               />
-            ) : preview ? (
+            ) : preview?.type === 'audio' ? <audio aria-label="素材音频预览" src={preview.url} controls autoPlay className="w-full" /> : preview ? (
               <video src={preview.url} controls autoPlay className="w-full max-h-[65vh]" />
             ) : null}
           </div>
@@ -415,7 +415,7 @@ export default function MaterialsPage() {
                 'text-xs font-medium px-2 py-0.5 rounded',
                 preview.type === 'image' ? 'bg-info/15 text-info' : 'bg-primary/15 text-primary',
               )}>
-                {preview.type === 'image' ? '图片' : '视频'}
+                {preview.type === 'image' ? '图片' : preview.type === 'audio' ? '音频' : '视频'}
               </span>
               {preview.size && <span>大小：{formatSize(preview.size)}</span>}
               <span className="ml-auto">{formatDate(preview.created_at)}</span>

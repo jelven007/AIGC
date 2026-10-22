@@ -318,6 +318,22 @@ def build_command(spec, media_files, directory):
                     audio_filter += ["highpass=f=80", f"afftdn=nf={-25 if denoise=='轻度去噪' else -20}"]
                 elif denoise not in ("无降噪", ""):
                     raise RenderError("降噪档位不支持")
+                equalizer = item.get("eqBands", {})
+                if not isinstance(equalizer, dict) or set(equalizer) - {"32", "64", "125", "250", "500", "1000", "2000", "4000", "8000", "16000"}:
+                    raise RenderError("均衡器频段不支持")
+                for frequency, gain in equalizer.items():
+                    gain = numeric(gain, 0, -12, 12)
+                    if gain:
+                        audio_filter.append(f"equalizer=f={int(frequency)}:t=q:w=1:g={gain}")
+                voice = item.get("voiceEffect", "none")
+                if voice not in ("none", "robot"):
+                    raise RenderError("音频调制不支持")
+                if voice == "robot":
+                    audio_filter += ["aformat=channel_layouts=stereo",
+                                     "aeval=exprs='val(0)*sin(2*PI*40*t)|val(1)*sin(2*PI*40*t)'"]
+                echo = numeric(item.get("echo"), 0, 0, 100)
+                if echo:
+                    audio_filter.append(f"aecho=1:1:180:{echo/200}")
                 reverb = item.get("reverb", "")
                 if reverb and reverb != "原声纯净":
                     echoes = {"录音棚": "aecho=.8:.9:60:.16", "KTV沉浸": "aecho=.8:.9:180:.3",

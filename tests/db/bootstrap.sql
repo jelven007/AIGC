@@ -14,7 +14,7 @@ CREATE FUNCTION auth.role() RETURNS text LANGUAGE sql STABLE AS $$
 $$;
 CREATE TABLE storage.buckets(id text PRIMARY KEY, name text, public boolean);
 CREATE TABLE storage.objects(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), bucket_id text, name text,
-  created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now());
+  metadata jsonb, created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now());
 CREATE FUNCTION storage.foldername(name text) RETURNS text[] LANGUAGE sql IMMUTABLE AS $$
   SELECT string_to_array(name, '/');
 $$;

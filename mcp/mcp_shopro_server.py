@@ -45,6 +45,17 @@ class PublishTarget(BaseModel):
     options: PublishOptions
 
 
+class EditSource(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: Annotated[str, Field(min_length=1, max_length=200)]
+    type: Literal["audio", "video"]
+    url: Annotated[str, Field(min_length=1, max_length=4096)]
+    start: Annotated[float, Field(strict=True, ge=0, le=600)]
+    duration: Annotated[float, Field(strict=True, ge=0.1, le=600)]
+    sourceStart: Annotated[float, Field(strict=True, ge=0, le=36000)] = 0
+    speed: Annotated[float, Field(strict=True, ge=0.25, le=4)] = 1
+
+
 def identifier(value: str) -> str:
     return str(uuid.UUID(value))
 
@@ -151,6 +162,27 @@ async def list_video_jobs():
 async def get_media_prices():
     """读取tts/asr/voice_clone/avatar/lipsync当前积分价格；创建前传入确认价格。"""
     return await call_backend("production-jobs", {"action": "media-prices"})
+
+
+@mcp.tool()
+async def get_edit_prices():
+    """读取真实节拍beats/时间分段字幕subtitles价格；使用jobs:read权限，创建需render:create。"""
+    return await call_backend("production-jobs", {"action": "edit-prices"})
+
+
+@mcp.tool()
+async def submit_edit_analysis(mode: Literal["beats", "subtitles"], title: str, source: EditSource,
+                               request_key: str, confirmed_credit_cost: Cost,
+                               project_id: Optional[str] = None):
+    """创建后台剪辑分析。保留片段id、裁剪、速度和原UUID；先get_edit_prices确认价格。
+    query_production_status读取结果，unknown需核对原请求；使用render:create权限。
+    """
+    if not title.strip() or len(title) > 80 or not source.url.startswith("https://") or source.start + source.duration > 600:
+        raise ValueError("剪辑片段、标题或时长无效")
+    return await production("edit_analysis", request_key, {
+        "mode": mode, "title": title, "source": source.model_dump(),
+        "confirmed_credit_cost": confirmed_credit_cost,
+    }, project_id)
 
 
 @mcp.tool()

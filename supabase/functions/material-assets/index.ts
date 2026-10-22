@@ -2,6 +2,9 @@ import { authenticateRequest, createServiceClient } from '../_shared/auth.ts';
 import { getCorsHeaders, handleCorsPreflight } from '../_shared/cors.ts';
 import { mediaObject, ownsMedia, signMediaTree } from '../_shared/private-media.ts';
 
+const uuid = (value: unknown): value is string => typeof value === 'string'
+  && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+
 export async function handleMaterialAssets(req: Request): Promise<Response> {
   const preflight = handleCorsPreflight(req); if (preflight) return preflight;
   const headers = { ...getCorsHeaders(req), 'Content-Type': 'application/json' };
@@ -11,11 +14,51 @@ export async function handleMaterialAssets(req: Request): Promise<Response> {
     const auth = await authenticateRequest(req);
     if (auth.error || !auth.user || auth.isServiceRole) return reply({ error: '请先登录' }, 401);
     const db = createServiceClient(), body = await req.json(), user = auth.user.id;
+    if (body.action === 'register') {
+      const input = body.input, root = Deno.env.get('SUPABASE_URL')!;
+      if (!uuid(body.request_key) || !input || typeof input !== 'object' || Array.isArray(input)
+        || typeof input.name !== 'string' || !input.name.trim() || input.name.length > 200
+        || !['image', 'video', 'audio'].includes(input.type) || input.rights_confirmed !== true
+        || !Number.isInteger(input.size) || input.size < 1 || input.size > 50 * 1024 * 1024
+        || !/^[a-f0-9]{64}$/.test(input.content_hash || '')
+        || !['jpg', 'jpeg', 'png', 'webp', 'gif', 'mp4', 'mov', 'webm', 'mp3', 'wav', 'ogg', 'm4a', 'opus'].includes(input.extension)
+        || typeof input.mime !== 'string' || !input.mime.startsWith(`${input.type}/`)
+        || !['upload', 'recording'].includes(input.source)
+        || input.source === 'recording' && input.type !== 'audio'
+        || input.type !== 'image' && (typeof input.duration_sec !== 'number' || !Number.isFinite(input.duration_sec)
+          || input.duration_sec < .1 || input.duration_sec > 36000)) return reply({ error: '素材参数或使用权确认无效' }, 400);
+      const path = `${user}/uploads/${body.request_key.toLowerCase()}.${input.extension}`;
+      const normalized = { name: input.name.trim(), type: input.type, size: input.size, mime: input.mime,
+        content_hash: input.content_hash, extension: input.extension, source: input.source,
+        rights_confirmed: true, duration_sec: input.type === 'image' ? null : input.duration_sec,
+        path, url: `${root}/storage/v1/object/authenticated/materials/${path}` };
+      const saved = await db.rpc('register_material_upload', { p_user: user, p_key: body.request_key, p_request: normalized });
+      if (saved.error) {
+        const message = saved.error.message;
+        if (/尚未上传/.test(message)) return reply({ error: '原素材尚未上传，请重新选择原文件' }, 404);
+        if (/同一请求标识|清理|不一致/.test(message)) return reply({ error: message }, 409);
+        if (/参数|使用权/.test(message)) return reply({ error: '素材登记参数无效' }, 400);
+        throw new Error('素材登记结果待确认，请恢复原请求');
+      }
+      return reply(await signMediaTree(db, saved.data, user));
+    }
+    if (body.action === 'list') {
+      const offset = body.offset ?? 0, limit = body.limit ?? 30;
+      if (!Number.isInteger(offset) || offset < 0 || offset > 10000 || !Number.isInteger(limit)
+        || limit < 1 || limit > 100 || body.type && !['image', 'video', 'audio'].includes(body.type)) {
+        return reply({ error: '素材分页或类型无效' }, 400);
+      }
+      let query = db.from('materials').select('*', { count: 'exact' }).eq('user_id', user);
+      if (body.type) query = query.eq('type', body.type);
+      const items = await query.order('created_at', { ascending: false }).order('id').range(offset, offset + limit - 1);
+      if (items.error) throw new Error('素材列表读取失败');
+      return reply({ materials: await signMediaTree(db, items.data || [], user), total: items.count || 0 });
+    }
     if (body.action === 'shared') {
       const member = await db.from('team_members').select('team_id').eq('user_id', user).eq('status', 'active').maybeSingle();
       if (member.error) throw new Error('团队读取失败');
       if (!member.data) return reply({ materials: [] });
-      const shares = await db.from('team_asset_shares').select('material_id').eq('team_id', member.data.team_id);
+      const shares = await db.from('team_asset_shares').select('material_id').eq('team_id', member.data.team_id).limit(100);
       if (shares.error) throw new Error('共享列表读取失败');
       if (!shares.data?.length) return reply({ materials: [] });
       const items = await db.from('materials').select('*').in('id', shares.data.map(item => item.material_id));

@@ -1,5 +1,7 @@
 # Shopro AI 技术架构
 
+最新 [迭代26](ITERATION_26_EDITOR_ASSETS.md)把资源、上传、录音、音频编辑和时间轴媒体预览拆成独立组件；素材与原请求回执在service-only事务中核对本人Storage证据，删除墓碑阻止复活。缓存按页面/账号有界128MB并合并重复请求；render4对音频EQ/回声/机器人分别校验，MCP58复用render:create。00054/probe15/render4/edit1全栈待发布；自动编排、规模与目标设备仍继续验收。
+
 最新 [迭代25](ITERATION_25_EDIT_ANALYSIS.md)将音轨裁剪/变速/节拍与ASR模型拆成有租约、原文件hash和checkpoint的两个后台阶段，复用原价格/账户锁/退款与任务中心。人物分割固定模型/摘要/许可证，逐帧FFV1/BGRA蒙版与原音轨分别进入FFmpeg；运行期不下载模型，空间/时限和实际成片时长有界。00053/probe14/render3/edit1与匹配全栈待发布，长素材CPU/质量及真实Whisper待验收。
 
 最新 [迭代24](ITERATION_24_WECHAT_TRANSACTIONS.md)以服务端wechat_transactions保存原商户/支付期限/独立租约及查单退避，替换未固定版本的微信插件为WebCrypto官方v3签名/原文验签/AES。两渠道共用cash-trade-ops权限与原申请、账户→订单→退款锁和内部权益事务；调度只核对原现金退款。00052/probe13/render2与匹配全栈待发布，真实支付、规模化对账及备份恢复仍待验收。

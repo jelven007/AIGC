@@ -1,5 +1,7 @@
 # 运维运行手册
 
+最新 [迭代26](ITERATION_26_EDITOR_ASSETS.md)：必须匹配00054/material-assets/production API、probe15/render4/edit1、常驻调度、前端/MCP58与FFmpeg镜像。上传失联恢复本人原UUID，404重新选择原文件，不覆盖原对象；正式素材受引用保护，删除墓碑与回执必须进入备份。检查Storage大小/MIME元数据、录音失败与有界缓存；render3旧镜像领取前426。自动编排、正式告警/备份恢复与真实目标验收继续执行。
+
 最新 [迭代25](ITERATION_25_EDIT_ANALYSIS.md)：probe14/00053/render3/edit1与production-jobs/production-worker、常驻调度/前端及重建FFmpeg镜像同窗。检查/opt/shopro-models固定摘要/许可证、edit_prepare与字幕模型阶段积压、unknown用量和临时空间；单蒙版512MB/工程768MB/成片1GB，空间少于128MB或时长不符停止，不接受截断成片。原字幕请求待核对时禁止重新提交；真实Whisper、长素材CPU/质量及备份恢复仍待目标验收。
 
 最新 [迭代24](ITERATION_24_WECHAT_TRANSACTIONS.md)：probe13/00052/render2与微信创建/支付通知/新增交易和退款通知、支付宝交易/operations/production-worker/调度及前端同窗。监控微信订单/退款needs_attention、next_query_at、原商户失配、ABNORMAL及长期pending；后台只查询原退款，禁止删回执或盲目重发。恢复保留原商户/期限/关闭记录、请求/供应商退款ID及现金/权益台账，先停资金受理核对渠道；真实账单、告警与备份恢复仍待交付验收。

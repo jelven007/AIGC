@@ -1,5 +1,7 @@
 # 接口与数据契约
 
+新增 [迭代26](ITERATION_26_EDITOR_ASSETS.md)：material-assets POST list(offset/limit/type)/register(request_key/input)，只接受用户JWT，服务端生成本人路径/稳定引用；Storage大小/MIME核对、material_upload_receipts原请求/使用权时间与删除墓碑。render4新增eqBands(十频段/-12至12dB)、echo(0–100)、voiceEffect(none/robot)。MCP新增get_edit_prices/submit_edit_analysis，保留原片段/价格/UUID/本人工程，创建使用render:create、价格读取使用jobs:read；目录58工具/18权限，probe15/00054/render4/edit1。以下迭代描述为历史时点。
+
 新增 [迭代25](ITERATION_25_EDIT_ANALYSIS.md)：production-jobs/edit-prices与create(kind=edit_analysis)，原UUID/确认价格/mode/source{id,type,url,start,duration,sourceStart,speed}/可选本人工程；JWT或render:create Key，query/list沿jobs:read。原回执返回edit_request，字幕结果segments/asr_version，节拍beats/bpm/confidence/algorithm/source_hash。render3新增personMask固定版本/阈值/平滑与色键互斥，edit_prepare须edit_version=1；probe14/00053/render3/edit1同窗。MCP未增加独立音轨创建工具。
 
 新增 [迭代24微信契约](ITERATION_24_WECHAT_TRANSACTIONS.md)：wechat-trade-ops POST query/close（本人或客户范围内财务）和refund/refundQuery/receipt（可信财务、原UUID/原申请）；8KB/30次每分钟，微信浏览器核对55秒超时。wechat-refund-webhook使用原文RSA/AES-GCM鉴权，非JWT。00052新增原商户/订单租约/支付截止、渠道退款ID和统一权益函数；PROCESSING/ABNORMAL/unknown保留预占，签名SUCCESS才入账、CLOSED结案。probe13/00052/render2，两个新入口与匹配全栈同窗发布。

@@ -14,7 +14,8 @@ import {
   Settings2, ShoppingBag, ShoppingCart, SkipBack, SkipForward, SlidersHorizontal, Smile, Sparkles, Star, 
   Tag, ToggleLeft, ToggleRight, Trash2, TrendingUp, Truck, Type, Undo, Upload, Volume2, VolumeX, Wand2, Waypoints, X, Zap, ZoomIn, ZoomOut 
 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { MediaBlobCache } from '@/lib/mediaBlobCache';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -25,7 +26,13 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Slider } from '@/components/ui/slider';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
-import { storedMedia, stableMedia } from '@/api/media';
+import { stableMedia } from '@/api/media';
+import { listMaterialAssets, materialDuration, uploadMaterialAsset, type EditorMaterial } from '@/api/materialAssets';
+import { EditorAssetsPanel } from '@/components/production/EditorAssetsPanel';
+import { RecordingDialog } from '@/components/production/RecordingDialog';
+import { MaterialUploadControl } from '@/components/production/MaterialUploadControl';
+import { EditorAudioPanel, EQ_FREQUENCIES } from '@/components/production/EditorAudioPanel';
+import { TimelineMediaPreview } from '@/components/production/TimelineMediaPreview';
 import { deleteMaterial } from '@/api/accessControl';
 import { canonicalMediaTree, hydrateMediaTree } from '@/lib/privateMedia';
 import { backendAnonKey } from '@/lib/backendConfig';
@@ -81,7 +88,7 @@ const makeReverbImpulse = (ctx: AudioContext, seconds: number, decay: number) =>
   return buffer;
 };
 
-interface TrackItem {
+export interface TrackItem {
   id: string;
   trackId: string;
   name: string;
@@ -94,6 +101,8 @@ interface TrackItem {
   volume?: number;
   speed?: number;
   sourceStart?: number;
+  hidden?: boolean;
+  locked?: boolean;
   fontStyle?: any;
   keyframes?: { time: number; property: string; value: number }[];
   // ── 专业视频画面属性 ──
@@ -114,6 +123,9 @@ interface TrackItem {
   denoise?: string;
   reverb?: string;
   pitch?: number;
+  eqBands?: Record<string, number>;
+  echo?: number;
+  voiceEffect?: 'none' | 'robot';
   // ── 专业文案/字幕属性 ──
   text?: string;
   fontSize?: number;
@@ -148,15 +160,6 @@ export interface PipLayer {
   locked: boolean;
 }
 
-export interface AudioSettings {
-  volume: number;
-  fadeIn: number;
-  fadeOut: number;
-  pitch: number;
-  speed: number;
-  eqBands: Record<string, number>;
-  enabledEffects: Set<string>;
-}
 
 export const getCssFilter = (filterId: string | null, intensity: number = 80, beautyEnabled: boolean = false) => {
   const parts: string[] = [];
@@ -197,37 +200,25 @@ const TRANSITIONS = RENDER_TRANSITIONS;
 
 // 滤镜数据
 const FILTERS = [
-  { id: 'f1', name: '电影感', category: 'LUT', intensity: 80, cover: 'https://images.unsplash.com/photo-1440404653325-ab127d49abc1?w=200&h=150&fit=crop&auto=format' },
-  { id: 'f2', name: '暖阳', category: 'LUT', intensity: 70, cover: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=200&h=150&fit=crop&auto=format' },
-  { id: 'f3', name: '冷蓝调', category: 'LUT', intensity: 75, cover: 'https://images.unsplash.com/photo-1542831371-29b0f74f9713?w=200&h=150&fit=crop&auto=format' },
-  { id: 'f4', name: '复古胶片', category: 'LUT', intensity: 65, cover: 'https://images.unsplash.com/photo-1495434942214-9b525bba74e9?w=200&h=150&fit=crop&auto=format' },
-  { id: 'f5', name: '黑白', category: '经典', intensity: 100, cover: 'https://images.unsplash.com/photo-1528360983277-13d401cdc186?w=200&h=150&fit=crop&auto=format&grayscale' },
-  { id: 'f6', name: '反色', category: '特殊', intensity: 100, cover: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=200&h=150&fit=crop&auto=format' },
-  { id: 'f7', name: '高饱和', category: '调色', intensity: 60, cover: 'https://images.unsplash.com/photo-1490750967868-88df5691cc8e?w=200&h=150&fit=crop&auto=format' },
-  { id: 'f8', name: '低饱和', category: '调色', intensity: 50, cover: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=200&h=150&fit=crop&auto=format' },
+  { id: 'f1', name: '电影感', category: 'LUT', intensity: 80 },
+  { id: 'f2', name: '暖阳', category: 'LUT', intensity: 70 },
+  { id: 'f3', name: '冷蓝调', category: 'LUT', intensity: 75 },
+  { id: 'f4', name: '复古胶片', category: 'LUT', intensity: 65 },
+  { id: 'f5', name: '黑白', category: '经典', intensity: 100 },
+  { id: 'f6', name: '反色', category: '特殊', intensity: 100 },
+  { id: 'f7', name: '高饱和', category: '调色', intensity: 60 },
+  { id: 'f8', name: '低饱和', category: '调色', intensity: 50 },
 ];
 
-// 特效与贴纸
+// 内置文字贴纸，预览与导出均使用文字轨道。
 const STICKERS = [
-  { id: 's1', name: '粒子光效', category: '动态特效', emoji: '✨', cover: 'https://miaoda-site-img.cdn.bcebos.com/images/baidu_image_search_7146a0e6-d817-4261-9423-35d4d58110ea.jpg' },
-  { id: 's2', name: '烟花爆炸', category: '动态特效', emoji: '🎆', cover: 'https://images.unsplash.com/photo-1467810563316-b5476525c0f9?w=200&h=150&fit=crop&auto=format' },
-  { id: 's3', name: '心形粒子', category: '动态特效', emoji: '💫', cover: 'https://images.unsplash.com/photo-1516541196182-6bdb0516ed27?w=200&h=150&fit=crop&auto=format' },
-  { id: 's4', name: '闪光星', category: '动态特效', emoji: '⭐', cover: 'https://images.unsplash.com/photo-1534796636912-3b95b3ab5986?w=200&h=150&fit=crop&auto=format' },
-  { id: 's5', name: '爱心贴纸', category: '静态贴纸', emoji: '❤️', cover: 'https://images.unsplash.com/photo-1518199266791-5375a83190b7?w=200&h=150&fit=crop&auto=format' },
-  { id: 's6', name: '笑脸', category: '静态贴纸', emoji: '😊', cover: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=150&fit=crop&auto=format' },
-  { id: 's7', name: '话题标签', category: '文字模板', emoji: '#️⃣', cover: 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=200&h=150&fit=crop&auto=format' },
-  { id: 's8', name: '促销角标', category: '文字模板', emoji: '🏷️', cover: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=200&h=150&fit=crop&auto=format' },
+  { id: 's1', name: '星标', category: '静态贴纸', emoji: '★' },
+  { id: 's2', name: '爱心', category: '静态贴纸', emoji: '♥' },
+  { id: 's3', name: '强调符号', category: '静态贴纸', emoji: '+' },
+  { id: 's7', name: '话题标签', category: '文字模板', emoji: '#话题' },
+  { id: 's8', name: '自定义角标', category: '文字模板', emoji: '自定义标签' },
 ];
 
-// 音频素材
-const AUDIO_TRACKS = [
-  { id: 'a1', name: '动感电子', duration: '2:30', mood: '活力', genre: '电子', cover: 'https://miaoda-site-img.cdn.bcebos.com/images/baidu_image_search_42fbe1e8-bcc5-4527-8e83-abdd212429af.jpg' },
-  { id: 'a2', name: '温馨钢琴', duration: '3:15', mood: '治愈', genre: '古典', cover: 'https://images.unsplash.com/photo-1520523839897-bd0b52f945a0?w=200&h=150&fit=crop&auto=format' },
-  { id: 'a3', name: '爵士轻快', duration: '2:45', mood: '轻松', genre: '爵士', cover: 'https://images.unsplash.com/photo-1415201364774-f6f0bb35f28f?w=200&h=150&fit=crop&auto=format' },
-  { id: 'a4', name: '史诗配乐', duration: '4:00', mood: '激昂', genre: '交响', cover: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=200&h=150&fit=crop&auto=format' },
-  { id: 'a5', name: '环境音·咖啡厅', duration: '5:00', mood: '安静', genre: '环境音', cover: 'https://images.unsplash.com/photo-1445116572660-236099ec97a0?w=200&h=150&fit=crop&auto=format' },
-  { id: 'a6', name: '点击音效', duration: '0:01', mood: '功能', genre: '音效', cover: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=200&h=150&fit=crop&auto=format' },
-];
 
 // 字体样式
 const FONT_STYLES = [
@@ -252,15 +243,6 @@ const TEXT_ANIMATIONS = [
 // 混合模式
 const BLEND_MODES = RENDER_BLENDS.map(mode => mode.name);
 
-// 音频效果器
-const AUDIO_EFFECTS = [
-  { id: 'ae1', name: '降噪', icon: '🎚️' },
-  { id: 'ae2', name: '均衡器', icon: '📊' },
-  { id: 'ae3', name: '变声·机器人', icon: '🤖' },
-  { id: 'ae4', name: '变声·儿童', icon: '🎠' },
-  { id: 'ae5', name: '混响', icon: '🌊' },
-  { id: 'ae6', name: '回声', icon: '🔊' },
-];
 
 // 关键帧属性
 const KF_PROPERTIES = ['位置X', '位置Y', '缩放', '旋转', '不透明度'];
@@ -277,95 +259,6 @@ const AI_TOOLS = [
   { id: 'ai6', name: '分镜规划', desc: '打开脚本工作台生成结构化分镜', icon: Grid3x3, color: 'text-indigo-400', badge: '脚本' },
 ];
 
-// ── 子组件：悬停预览卡片 ──────────────────────────────────────────────────
-function EffectCard({ name, gradient, applied, onClick, onFavorite, cover }: {
-  name: string;
-  gradient: string;
-  applied?: boolean;
-  onClick: () => void;
-  onFavorite?: () => void;
-  cover?: string;
-}) {
-  const [hovered, setHovered] = useState(false);
-  const [favored, setFavored] = useState(false);
-  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
-
-  const handleCtx = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setCtxMenu({ x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY });
-  };
-
-  useEffect(() => {
-    if (!ctxMenu) return;
-    const close = () => setCtxMenu(null);
-    window.addEventListener('click', close);
-    return () => window.removeEventListener('click', close);
-  }, [ctxMenu]);
-
-  return (
-    <div
-      className={`group relative aspect-[4/3] rounded border overflow-hidden cursor-pointer select-none transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/40 ${applied ? 'border-indigo-500 ring-1 ring-indigo-500/50' : 'border-zinc-700 hover:border-zinc-500'}`}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => { setHovered(false); setCtxMenu(null); }}
-      onClick={onClick}
-      onContextMenu={handleCtx}
-    >
-      {cover
-        ? <img
-            src={cover}
-            alt={name}
-            className="absolute inset-0 w-full h-full object-cover"
-            onError={(e) => {
-              (e.currentTarget as HTMLImageElement).src = 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=200&h=150&fit=crop&auto=format';
-            }}
-          />
-        : <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-80`} />
-      }
-      {/* 封面遮罩，增强文字可读性 */}
-      <div className="absolute inset-0 bg-black/30" />
-      {/* 已应用标识 */}
-      {applied && (
-        <div className="absolute top-1 left-1 bg-indigo-500 rounded-full p-0.5 z-10">
-          <Check className="w-2.5 h-2.5 text-white" />
-        </div>
-      )}
-      {/* 悬停波纹 */}
-      {hovered && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-          <div className="w-7 h-7 rounded-full border-2 border-white/60 animate-ping opacity-50" />
-        </div>
-      )}
-      <div className="absolute bottom-0 left-0 right-0 bg-black/55 px-1.5 py-1 z-10">
-        <p className="text-[10px] text-zinc-200 truncate">{name}</p>
-      </div>
-      {/* 收藏按钮 */}
-      <button
-        className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-        onClick={e => { e.stopPropagation(); setFavored(v => !v); onFavorite?.(); toast.success(favored ? '已取消收藏' : '已收藏'); }}
-      >
-        <Heart className={`w-3.5 h-3.5 drop-shadow ${favored ? 'fill-red-400 text-red-400' : 'text-white/80'}`} />
-      </button>
-      {/* 右键菜单 */}
-      {ctxMenu && (
-        <div
-          className="absolute z-50 bg-zinc-800 border border-zinc-600 rounded shadow-xl py-1 min-w-[130px] text-xs"
-          style={{ top: Math.min(ctxMenu.y, 60), left: Math.min(ctxMenu.x, 60) }}
-          onClick={e => e.stopPropagation()}
-        >
-          <button className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-zinc-700 text-zinc-200" onClick={() => { onClick(); setCtxMenu(null); }}>
-            <Plus className="w-3.5 h-3.5" />添加到时间轴
-          </button>
-          <button className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-zinc-700 text-zinc-200" onClick={() => { setFavored(true); setCtxMenu(null); toast.success('已添加到常用'); }}>
-            <Star className="w-3.5 h-3.5" />添加到常用
-          </button>
-          <button className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-zinc-700 text-zinc-200" onClick={() => { toast.info(`${name}：专业级效果`); setCtxMenu(null); }}>
-            <Info className="w-3.5 h-3.5" />查看详情
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── 子组件：折叠区块 ─────────────────────────────────────────────────────
 function CollapsibleSection({ title, defaultOpen = true, children, badge }: {
@@ -475,11 +368,11 @@ function MaterialItemCard({ m, onAdd, onDelete }: {
 
 // ── 面板1：媒体库 ────────────────────────────────────────────────────────
 function MediaLibraryPanel({ materials, onAdd, importedVideos, onImportVideo, onUpload, onDelete }: {
-  materials: { id: string; name: string; url: string; type: string }[];
-  onAdd: (m: { id: string; name: string; url: string; type: string }) => void;
+  materials: EditorMaterial[];
+  onAdd: (m: EditorMaterial) => void | Promise<void>;
   importedVideos: { id: string; title: string; video_url: string; thumbnail_url: string | null }[];
   onImportVideo: (v: { id: string; title: string; video_url: string; thumbnail_url: string | null }) => void;
-  onUpload: (file: File) => Promise<void>;
+  onUpload: (file: File, rightsConfirmed: boolean) => Promise<void>;
   onDelete: (id: string) => void;
 }) {
   const [search, setSearch] = useState('');
@@ -533,24 +426,7 @@ function MediaLibraryPanel({ materials, onAdd, importedVideos, onImportVideo, on
           <div className="space-y-4 py-2">
             {/* 上传本地视频区域 */}
             <div className="space-y-2">
-              <p className="text-[11px] text-zinc-400">上传本地视频或图片作为素材：</p>
-              <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-zinc-700 hover:border-indigo-500 rounded-lg py-5 cursor-pointer bg-zinc-800/30 hover:bg-indigo-600/5 transition-all">
-                <input
-                  type="file"
-                  accept="video/*,image/*,audio/*"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      setPickerOpen(false);
-                      await onUpload(file);
-                    }
-                  }}
-                />
-                <Upload className="w-5 h-5 text-zinc-500" />
-                <span className="text-xs text-zinc-300">点击选择本地视频/图片</span>
-                <span className="text-[10px] text-zinc-500">支持 MP4, MOV, WebM, JPG, PNG 等 (最大50MB)</span>
-              </label>
+              <MaterialUploadControl onUpload={onUpload} />
             </div>
 
             {/* 选择已生成的视频 */}
@@ -624,8 +500,9 @@ function EffectsPanel({
   setAppliedTrans,
   tracks,
   setTracks,
-  currentTime,
+  currentTime, userId, onAdd,
 }: {
+  userId?: string; onAdd: (material: EditorMaterial) => void | Promise<void>;
   appliedFilter: string | null;
   setAppliedFilter: (f: string | null) => void;
   filterIntensity: Record<string, number>;
@@ -638,17 +515,9 @@ function EffectsPanel({
 }) {
   const [activeTab, setActiveTab] = useState<'transition' | 'filter' | 'sticker' | 'audio'>('transition');
   const [transCategory, setTransCategory] = useState('全部');
-  const [playingAudio, setPlayingAudio] = useState<string | null>(null);
-  const [moodFilter, setMoodFilter] = useState('全部');
-  const [audioSearch, setAudioSearch] = useState('');
 
   const transCategories = ['全部', '基础', '创意'];
   const filteredTrans = transCategory === '全部' ? TRANSITIONS : TRANSITIONS.filter(t => t.category === transCategory);
-  const filteredAudio = AUDIO_TRACKS.filter(a => {
-    const matchMood = moodFilter === '全部' || a.mood === moodFilter || a.genre === moodFilter;
-    const matchSearch = a.name.toLowerCase().includes(audioSearch.toLowerCase());
-    return matchMood && matchSearch;
-  });
 
   const applyTransition = (id: string, name: string) => {
     if (appliedTrans === id) {
@@ -689,35 +558,14 @@ function EffectsPanel({
         name: stickerItem.name,
         start: Number(currentTime.toFixed(1)),
         duration: 5,
-        type: 'image',
-        url: stickerItem.cover,
+        type: 'text', text: stickerItem.emoji, fontSize: 64, x: 80, y: 20,
+        fontColor: '#ffffff', bgColor: 'transparent',
       };
       setTracks(prev => [...prev, newItem].sort((a, b) => a.start - b.start));
-      toast.success(`已添加「${name}」动态特效到时间轴 (当前播放头 ${currentTime.toFixed(1)}s 处)`);
+toast.success(`已添加「${name}」文字贴纸到时间轴`);
     }
   };
 
-  const handleToggleAudioTrack = (a: typeof AUDIO_TRACKS[0]) => {
-    const trackItemId = `audio-${a.id}`;
-    const exists = tracks.some(t => t.id === trackItemId);
-
-    if (exists) {
-      setTracks(prev => prev.filter(t => t.id !== trackItemId));
-      toast.info(`已从时间轴移除音频：${a.name}`);
-    } else {
-      const newItem: TrackItem = {
-        id: trackItemId,
-        trackId: 'audio',
-        name: a.name,
-        start: Number(currentTime.toFixed(1)),
-        duration: 15,
-        type: 'audio',
-        url: '/Video/CreatOK_2.mp4',
-      };
-      setTracks(prev => [...prev, newItem].sort((a, b) => a.start - b.start));
-      toast.success(`已添加背景音频「${a.name}」到时间轴`);
-    }
-  };
 
   const appliedStickersCount = tracks.filter(t => t.trackId === 'effects').length;
 
@@ -736,7 +584,7 @@ function EffectsPanel({
         ))}
       </div>
 
-      <ScrollArea className="flex-1">
+      {activeTab === 'audio' ? <EditorAssetsPanel userId={userId} audioOnly onAdd={onAdd} /> : <ScrollArea className="flex-1">
         {/* ── 转场效果 ── */}
         {activeTab === 'transition' && (
           <div>
@@ -786,10 +634,7 @@ function EffectsPanel({
               {FILTERS.map(f => (
                 <div key={f.id} className={`rounded border overflow-hidden bg-zinc-800 transition-all cursor-pointer hover:-translate-y-0.5 ${appliedFilter === f.id ? 'border-indigo-500 ring-1 ring-indigo-500/40 shadow-lg shadow-indigo-500/20' : 'border-zinc-700 hover:border-zinc-500'}`}>
                   <div className="aspect-video relative overflow-hidden" onClick={() => applyFilter(f.id, f.name)}>
-                    {f.cover
-                      ? <img src={f.cover} alt={f.name} className="w-full h-full object-cover" />
-                      : <div className="w-full h-full bg-gradient-to-br from-zinc-700 to-zinc-600 flex items-center justify-center"><Palette className="w-6 h-6 text-zinc-400" /></div>
-                    }
+                    <div className="w-full h-full flex items-center justify-center bg-zinc-700" style={{ filter: getCssFilter(f.id, filterIntensity[f.id] ?? f.intensity) }}><Palette className="w-6 h-6 text-zinc-200" /></div>
                     <div className="absolute inset-0 bg-black/20" />
                     <div className="absolute bottom-1 right-1 text-[9px] text-zinc-300 bg-black/60 px-1 rounded">{f.category}</div>
                     {appliedFilter === f.id && (
@@ -820,12 +665,6 @@ function EffectsPanel({
                 </div>
               ))}
             </div>
-            <button
-              className="w-full py-1.5 text-[11px] text-zinc-400 hover:text-zinc-200 border border-dashed border-zinc-700 rounded hover:border-zinc-500 transition-colors"
-              onClick={() => { toast.success('当前调色参数已成功保存为自定义预设'); }}
-            >
-              + 保存当前为自定义预设
-            </button>
           </div>
         )}
 
@@ -846,16 +685,6 @@ function EffectsPanel({
                 </button>
               </div>
             )}
-            <CollapsibleSection title="动态特效">
-              <div className="pt-2 grid grid-cols-3 gap-2">
-                {STICKERS.filter(s => s.category === '动态特效').map(s => {
-                  const applied = tracks.some(t => t.id === `sticker-${s.id}`);
-                  return (
-                    <EffectCard key={s.id} name={s.name} gradient="from-purple-900 to-purple-700" cover={s.cover} applied={applied} onClick={() => toggleSticker(s.id, s.name)} />
-                  );
-                })}
-              </div>
-            </CollapsibleSection>
             <CollapsibleSection title="贴纸库">
               <div className="pt-2 grid grid-cols-3 gap-2">
                 {STICKERS.filter(s => s.category === '静态贴纸').map(s => {
@@ -878,7 +707,7 @@ function EffectsPanel({
                 {STICKERS.filter(s => s.category === '文字模板').map(s => {
                   const applied = tracks.some(t => t.id === `sticker-${s.id}`);
                   return (
-                    <EffectCard key={s.id} name={s.name} gradient="from-amber-900 to-amber-700" cover={s.cover} applied={applied} onClick={() => toggleSticker(s.id, s.name)} />
+<Button variant="outline" aria-pressed={applied} onClick={() => toggleSticker(s.id, s.name)}>{s.emoji}</Button>
                   );
                 })}
               </div>
@@ -886,74 +715,7 @@ function EffectsPanel({
           </div>
         )}
 
-        {/* ── 音频素材 ── */}
-        {activeTab === 'audio' && (
-          <div className="pt-2">
-            <SearchBar placeholder="按名称、情绪、流派搜索…" onSearch={setAudioSearch} />
-            <div className="px-3 pt-2 flex items-center gap-1 flex-wrap pb-2">
-              {['全部', '活力', '治愈', '激昂', '音效'].map(mood => (
-                <button
-                  key={mood}
-                  className={`px-2 py-0.5 text-[10px] rounded transition-colors ${moodFilter === mood ? 'bg-indigo-600 text-white font-medium' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}
-                  onClick={() => setMoodFilter(mood)}
-                >
-                  {mood}
-                </button>
-              ))}
-            </div>
-            <div className="px-3 space-y-1.5">
-              {filteredAudio.map(a => {
-                const added = tracks.some(t => t.id === `audio-${a.id}`);
-                return (
-                  <div key={a.id} className={`flex items-center gap-2 p-2 rounded border transition-colors group ${added ? 'bg-indigo-600/10 border-indigo-600/40' : 'bg-zinc-800/50 border-zinc-800 hover:bg-zinc-800 hover:border-zinc-700'}`}>
-                    {/* 封面缩略图 + 播放按钮 */}
-                    <button
-                      className="relative w-10 h-10 rounded overflow-hidden shrink-0 flex items-center justify-center"
-                      onClick={() => {
-                        if (playingAudio === a.id) { setPlayingAudio(null); toast.info('已停止试听'); }
-                        else { setPlayingAudio(a.id); toast.info(`试听：${a.name}`); }
-                      }}
-                    >
-                      {a.cover
-                        ? <img src={a.cover} alt={a.name} className="absolute inset-0 w-full h-full object-cover" />
-                        : <div className={`absolute inset-0 ${playingAudio === a.id ? 'bg-indigo-600' : 'bg-zinc-700'}`} />
-                      }
-                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                        {playingAudio === a.id
-                          ? <Pause className="w-3.5 h-3.5 text-white fill-current" />
-                          : <Play className="w-3.5 h-3.5 text-white fill-current" />}
-                      </div>
-                    </button>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[11px] text-zinc-200 truncate font-medium">{a.name}</p>
-                      <p className="text-[10px] text-zinc-500">{a.duration} · {a.mood} · {a.genre}</p>
-                      {playingAudio === a.id && (
-                        <div className="flex gap-0.5 mt-1">
-                          {Array.from({ length: 12 }).map((_, i) => (
-                            <div key={i} className="w-1 bg-indigo-400 rounded-full animate-bounce" style={{ height: `${4 + Math.random() * 8}px`, animationDelay: `${i * 60}ms` }} />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <button
-                      className="shrink-0 transition-all p-1 hover:scale-110"
-                      onClick={() => handleToggleAudioTrack(a)}
-                      title={added ? '从时间轴移除' : '添加到时间轴'}
-                    >
-                      {added
-                        ? <Check className="w-4 h-4 text-emerald-400" />
-                        : <Plus className="w-4 h-4 text-zinc-400 hover:text-white" />}
-                    </button>
-                  </div>
-                );
-              })}
-              {filteredAudio.length === 0 && (
-                <div className="py-8 text-center text-[11px] text-zinc-500">无匹配音频素材</div>
-              )}
-            </div>
-          </div>
-        )}
-      </ScrollArea>
+      </ScrollArea>}
     </div>
   );
 }
@@ -1260,7 +1022,7 @@ function PipPanel({
   tracks: TrackItem[];
   setTracks: React.Dispatch<React.SetStateAction<TrackItem[]>>;
   currentTime: number;
-  materials: { id: string; name: string; url: string; type: string }[];
+  materials: EditorMaterial[];
   pipSettings: PipSettings;
   setPipSettings: React.Dispatch<React.SetStateAction<PipSettings>>;
   pipLayers: PipLayer[];
@@ -1270,6 +1032,9 @@ function PipPanel({
 
   const toggleLayerProp = (id: string, prop: 'visible' | 'locked') => {
     setPipLayers(prev => prev.map(l => l.id === id ? { ...l, [prop]: !l[prop] } : l));
+    setTracks(previous => previous.map(track => track.id === id ? {
+      ...track, ...(prop === 'visible' ? { hidden: !track.hidden } : { locked: !track.locked }),
+    } : track));
     toast.success(prop === 'visible' ? '已切换画中画图层显示状态' : '已切换锁定状态');
   };
 
@@ -1279,8 +1044,13 @@ function PipPanel({
     toast.success(`已删除画中画图层：${name}`);
   };
 
-  const handleSelectPipItem = (name: string, url: string, isVideo: boolean) => {
-    const newId = `pip-${Date.now()}`;
+  const handleSelectPipItem = async (material: EditorMaterial) => {
+    if (tracks.length >= 80 || currentTime >= 599.9) { toast.error('工程已达到时长或元素上限'); return; }
+    const { name, url } = material; const isVideo = material.type === 'video';
+    let length: number;
+    try { length = Math.min(await materialDuration(material), 600 - currentTime); }
+    catch (cause) { toast.error(cause instanceof Error ? cause.message : '素材时长读取失败'); return; }
+    const newId = 'pip-' + crypto.randomUUID();
     const newLayer: PipLayer = {
       id: newId,
       name: `画中画 · ${name}`,
@@ -1296,28 +1066,13 @@ function PipPanel({
       trackId: 'pip',
       name: `画中画 · ${name}`,
       start: Number(currentTime.toFixed(1)),
-      duration: 6,
+      duration: length,
       type: isVideo ? 'video' : 'image',
       url,
     };
     setTracks(prev => [...prev, newTrack].sort((a, b) => a.start - b.start));
     setAddModalOpen(false);
     toast.success(`已添加画中画「${name}」到当前播放头 (${currentTime.toFixed(1)}s) 处！`);
-  };
-
-  const handleApplyTemplate = (templateName: string) => {
-    const templateTracks: TrackItem[] = [
-      { id: `v-tmpl-${Date.now()}`, trackId: 'video', name: `${templateName}·主画面`, start: 0, duration: 15, type: 'video', url: '/Video/CreatOK_11.mp4' },
-      { id: `pip-tmpl-${Date.now()}`, trackId: 'pip', name: `${templateName}·带货微距`, start: 2, duration: 10, type: 'video', url: '/Video/CreatOK_5.mp4' },
-      { id: `t-tmpl-${Date.now()}`, trackId: 'text', name: '限时抢购 · 立即下单立减50元！', start: 3, duration: 6, type: 'text', fontStyle: 'fs3' },
-      { id: `a-tmpl-${Date.now()}`, trackId: 'audio', name: '动感节奏BGM', start: 0, duration: 15, type: 'audio', url: '/Video/CreatOK_2.mp4' },
-    ];
-    setTracks(templateTracks);
-    setPipSettings({ x: 75, y: 25, scale: 100, rotation: 0, opacity: 100, blendMode: '正常' });
-    setPipLayers([
-      { id: `pip-tmpl-${Date.now()}`, name: `${templateName}·带货微距`, url: '/Video/CreatOK_5.mp4', type: 'video', visible: true, locked: false }
-    ]);
-    toast.success(`🎉「${templateName}」全套工程预设已加载至时间轴！`);
   };
 
   return (
@@ -1420,27 +1175,10 @@ function PipPanel({
           </div>
         </CollapsibleSection>
 
-        {/* 工程模板 */}
-        <CollapsibleSection title="带货工程模板包" badge="HOT">
-          <div className="px-3 pt-1 space-y-2">
-            {[
-              { name: '爆款带货模板包', desc: '主播口播 + 商品特写画中画 + 促销字幕' },
-              { name: '节日促销素材包', desc: '限时折扣 + 倒计时画中画 + 喜庆BGM' },
-              { name: '国潮风格模板', desc: '国风美学底图 + 现代剪辑节奏' },
-            ].map(({ name, desc }) => (
-              <button
-                key={name}
-                className="w-full flex items-center gap-2 p-2.5 bg-zinc-800/50 border border-zinc-700 rounded hover:border-indigo-500 hover:bg-indigo-600/10 transition-colors text-left group"
-                onClick={() => handleApplyTemplate(name)}
-              >
-                <Download className="w-4 h-4 text-indigo-400 shrink-0 group-hover:scale-110 transition-transform" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-[11px] text-zinc-200 font-medium truncate">{name}</p>
-                  <p className="text-[10px] text-zinc-500 truncate">{desc}</p>
-                </div>
-                <ChevronRight className="w-3.5 h-3.5 text-zinc-500 ml-auto shrink-0" />
-              </button>
-            ))}
+        <CollapsibleSection title="画中画位置预设">
+          <div className="flex flex-wrap gap-2 px-3">
+            <Button variant="outline" onClick={() => setPipSettings(previous => ({ ...previous, x: 75, y: 25, scale: 100 }))}>右上角</Button>
+            <Button variant="outline" onClick={() => setPipSettings(previous => ({ ...previous, x: 25, y: 25, scale: 100 }))}>左上角</Button>
           </div>
         </CollapsibleSection>
       </ScrollArea>
@@ -1455,27 +1193,7 @@ function PipPanel({
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div>
-              <p className="text-[11px] text-zinc-400 mb-2 font-medium">推荐带货画中画素材预设：</p>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { name: '真人主播讲解', url: '/Video/CreatOK_2.mp4', isVid: true, desc: '真实主播出镜讲解' },
-                  { name: '商品细节微距', url: '/Video/CreatOK_5.mp4', isVid: true, desc: '手表旋转展示特写' },
-                  { name: '促销角标贴图', url: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=200&h=150&fit=crop', isVid: false, desc: '限时秒杀打折角标' },
-                  { name: '品牌防伪水印', url: '/shopro.png', isVid: false, desc: 'Shopro高清品牌Logo' },
-                ].map(item => (
-                  <button
-                    key={item.name}
-                    className="p-2.5 rounded bg-zinc-800/80 border border-zinc-700 hover:border-indigo-500 hover:bg-indigo-600/10 transition-colors text-left flex flex-col gap-1"
-                    onClick={() => handleSelectPipItem(item.name, item.url, item.isVid)}
-                  >
-                    <span className="text-[11px] font-medium text-white">{item.name}</span>
-                    <span className="text-[10px] text-zinc-400">{item.desc}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
+            {!materials.some(material => material.type !== 'audio') && <p className="text-sm text-zinc-400">请先从媒体库上传或生成自己的图片、视频。</p>}
             {materials.length > 0 && (
               <div>
                 <p className="text-[11px] text-zinc-400 mb-2 font-medium">从媒体库选择：</p>
@@ -1484,7 +1202,7 @@ function PipPanel({
                     <button
                       key={m.id}
                       className="w-full flex items-center justify-between p-2 rounded bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700 text-left text-xs"
-                      onClick={() => handleSelectPipItem(m.name, m.url, m.type === 'video')}
+                      onClick={() => void handleSelectPipItem(m)}
                     >
                       <span className="truncate flex-1">{m.name}</span>
                       <span className="text-[10px] text-indigo-400 shrink-0 ml-2">选择添加 +</span>
@@ -1505,245 +1223,6 @@ function PipPanel({
   );
 }
 
-// ── 面板5：音频编辑 ───────────────────────────────────────────────────────
-interface AudioEditPanelProps {
-  audioSettings: AudioSettings;
-  setAudioSettings: React.Dispatch<React.SetStateAction<AudioSettings>>;
-  videoRef: React.RefObject<HTMLVideoElement>;
-  tracks: TrackItem[];
-  setTracks: React.Dispatch<React.SetStateAction<TrackItem[]>>;
-  currentTime: number;
-  selectedTrackItem: string | null;
-}
-
-function AudioEditPanel({
-  audioSettings,
-  setAudioSettings,
-  videoRef,
-  tracks,
-  setTracks,
-  currentTime,
-  selectedTrackItem,
-}: AudioEditPanelProps) {
-  const [volume, setVolume] = useState([audioSettings.volume]);
-  const [fadeIn, setFadeIn] = useState([Math.round(audioSettings.fadeIn * 10)]);
-  const [fadeOut, setFadeOut] = useState([Math.round(audioSettings.fadeOut * 10)]);
-  const [pitch, setPitch] = useState([audioSettings.pitch]);
-  const [speed, setSpeed] = useState([audioSettings.speed]);
-  const [enabledEffects, setEnabledEffects] = useState<Set<string>>(new Set());
-  const [effectParams, setEffectParams] = useState<Record<string, number>>({});
-  const [eqBands, setEqBands] = useState<Record<string, number>>({
-    '32': 2, '64': 3, '125': 4, '250': 2, '500': 0, '1k': -1, '2k': 2, '4k': 3, '8k': 4, '16k': 2,
-  });
-
-  // 同步外部 audioSettings 变化
-  useEffect(() => {
-    setVolume([audioSettings.volume]);
-    setSpeed([audioSettings.speed]);
-  }, [audioSettings.volume, audioSettings.speed]);
-
-  const handleVolumeChange = (val: number[]) => {
-    setVolume(val);
-    setAudioSettings(prev => ({ ...prev, volume: val[0] }));
-    if (videoRef.current) {
-      videoRef.current.volume = Math.max(0, Math.min(1, val[0] / 100));
-      videoRef.current.muted = false;
-      videoRef.current.removeAttribute('muted');
-    }
-    if (selectedTrackItem) {
-      setTracks(prev => prev.map(t => t.id === selectedTrackItem ? { ...t, volume: val[0] } : t));
-    }
-  };
-
-  const handleSpeedChange = (val: number[]) => {
-    setSpeed(val);
-    setAudioSettings(prev => ({ ...prev, speed: val[0] }));
-    if (videoRef.current) {
-      videoRef.current.playbackRate = Math.max(0.25, Math.min(4, val[0] / 100));
-    }
-    if (selectedTrackItem) {
-      setTracks(prev => prev.map(t => t.id === selectedTrackItem ? { ...t, speed: val[0] / 100 } : t));
-    }
-  };
-
-  const toggleEffect = (id: string, name: string) => {
-    setEnabledEffects(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) { next.delete(id); toast.info(`已关闭：${name}`); }
-      else { next.add(id); toast.success(`已启用：${name}`); }
-      return next;
-    });
-  };
-
-  const handleAddVolumeKeyframe = () => {
-    const selected = tracks.find(track => track.id === selectedTrackItem);
-    const kfTime = Number(Math.max(0, Math.min(selected?.duration || 0, currentTime - (selected?.start || 0))).toFixed(2));
-    if (selectedTrackItem) {
-      setTracks(prev => prev.map(t => {
-        if (t.id === selectedTrackItem) {
-          const curKfs = t.keyframes || [];
-          return {
-            ...t,
-            keyframes: [...curKfs.filter(k => k.property !== 'volume' || Math.abs(k.time - kfTime) > 0.1), { time: kfTime, property: 'volume', value: volume[0] }].sort((a, b) => a.time - b.time),
-          };
-        }
-        return t;
-      }));
-      toast.success(`已在 ${currentTime.toFixed(1)}s 为选中片段添加音量关键帧 (${volume[0]}%)`);
-    } else {
-      toast.success(`已在播放头位置 (${currentTime.toFixed(1)}s) 标记音量节点 (${volume[0]}%)`);
-    }
-  };
-
-  const handleApplyAudio = () => {
-    if (videoRef.current) {
-      videoRef.current.volume = Math.max(0, Math.min(1, volume[0] / 100));
-      videoRef.current.playbackRate = speed[0] / 100;
-    }
-    setTracks(prev => prev.map(t => {
-      if (t.type === 'audio' || t.id === selectedTrackItem) {
-        return { ...t, volume: volume[0], speed: speed[0] / 100 };
-      }
-      return t;
-    }));
-    toast.success('音频参数已全面应用至时间轴音轨与实时预览');
-  };
-
-  const eqBandKeys = Object.keys(eqBands);
-
-  return (
-    <div className="flex flex-col h-full">
-      <ScrollArea className="flex-1">
-        {/* 波形可视化 */}
-        <CollapsibleSection title="音轨波形">
-          <div className="px-3 pt-1">
-            <div className="h-16 bg-zinc-800 border border-zinc-700 rounded overflow-hidden relative cursor-pointer" onClick={() => toast.info('已对齐音频波形当前位置')}>
-              <div className="absolute inset-0 flex items-center px-2 gap-[1px]">
-                {Array.from({ length: 48 }).map((_, i) => {
-                  const h = Math.max(4, 20 + Math.sin(i * 0.8) * 14 + Math.sin(i * 1.5) * 8);
-                  return <div key={i} className="flex-1 rounded-sm bg-emerald-500/60" style={{ height: `${h}px` }} />;
-                })}
-              </div>
-              <div className="absolute inset-0 bg-gradient-to-r from-zinc-800 via-transparent to-zinc-800 pointer-events-none" />
-              <div className="absolute top-1/2 -translate-y-1/2 w-px h-full bg-indigo-400/70" style={{ left: '35%' }} />
-              <p className="absolute bottom-1 right-2 text-[9px] text-zinc-500">主音轨 · 实时电平</p>
-            </div>
-          </div>
-        </CollapsibleSection>
-
-        {/* 音量与淡化 */}
-        <CollapsibleSection title="音量 & 速度控制">
-          <div className="px-3 pt-1 space-y-3">
-            {[
-              { label: '主音量', Icon: Volume2, value: volume, set: handleVolumeChange, min: 0, max: 200, display: `${volume[0]}%` },
-              { label: '淡入时长', Icon: Music, value: fadeIn, set: setFadeIn, min: 0, max: 50, display: `${(fadeIn[0] / 10).toFixed(1)}s` },
-              { label: '淡出时长', Icon: Music, value: fadeOut, set: setFadeOut, min: 0, max: 50, display: `${(fadeOut[0] / 10).toFixed(1)}s` },
-              { label: '音调偏移', Icon: BarChart2, value: pitch, set: setPitch, min: -12, max: 12, display: `${pitch[0] > 0 ? '+' : ''}${pitch[0]}` },
-              { label: '播放变速', Icon: RefreshCw, value: speed, set: handleSpeedChange, min: 25, max: 200, display: `${(speed[0] / 100).toFixed(2)}x` },
-            ].map(({ label, Icon, value, set, min, max, display }) => (
-              <div key={label} className="space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-[11px] text-zinc-400 flex items-center gap-1"><Icon className="w-3 h-3 text-indigo-400" />{label}</span>
-                  <span className="text-[10px] text-zinc-400 font-mono">{display}</span>
-                </div>
-                <Slider value={value} onValueChange={set} min={min} max={max} className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3" />
-              </div>
-            ))}
-            <Button size="sm" className="w-full h-8 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-[11px]" onClick={handleAddVolumeKeyframe}>
-              <Plus className="w-3.5 h-3.5 mr-1.5 text-indigo-400" />在当前播放头添加音量关键帧
-            </Button>
-          </div>
-        </CollapsibleSection>
-
-        {/* 均衡器 */}
-        <CollapsibleSection title="均衡器 EQ">
-          <div className="px-3 pt-2">
-            <div className="flex items-end justify-between gap-0.5 h-20 bg-zinc-800/50 border border-zinc-700 rounded px-2 py-2">
-              {eqBandKeys.map(band => (
-                <div key={band} className="flex flex-col items-center gap-0.5 flex-1">
-                  <div className="w-full cursor-pointer relative" style={{ height: '52px' }}
-                    onClick={() => setEqBands(prev => ({ ...prev, [band]: prev[band] >= 6 ? -6 : prev[band] + 2 }))}>
-                    <div
-                      className={`absolute bottom-0 w-2 rounded-t transition-all mx-auto inset-x-0 ${eqBands[band] >= 0 ? 'bg-emerald-500' : 'bg-red-500/70'}`}
-                      style={{ height: `${((eqBands[band] + 6) / 12) * 100}%` }}
-                    />
-                  </div>
-                  <span className="text-[8px] text-zinc-600">{band}</span>
-                </div>
-              ))}
-            </div>
-            <div className="flex gap-1.5 mt-2">
-              <button className="flex-1 py-1 text-[10px] bg-zinc-800 border border-zinc-700 rounded text-zinc-400 hover:text-zinc-200 transition-colors"
-                onClick={() => { setEqBands({ '32': 2, '64': 3, '125': 4, '250': 2, '500': 0, '1k': -1, '2k': 2, '4k': 3, '8k': 4, '16k': 2 }); toast.success('已切换为人声增强预设'); }}>
-                人声增强
-              </button>
-              <button className="flex-1 py-1 text-[10px] bg-zinc-800 border border-zinc-700 rounded text-zinc-400 hover:text-zinc-200 transition-colors"
-                onClick={() => { setEqBands(Object.fromEntries(eqBandKeys.map(b => [b, 0]))); toast.info('EQ已重置'); }}>
-                平直重置
-              </button>
-              <button className="flex-1 py-1 text-[10px] bg-zinc-800 border border-zinc-700 rounded text-zinc-400 hover:text-zinc-200 transition-colors"
-                onClick={() => { setEqBands({ '32': 5, '64': 4, '125': 2, '250': 0, '500': 0, '1k': 0, '2k': 0, '4k': 1, '8k': 2, '16k': 2 }); toast.success('已切换为低音加强预设'); }}>
-                低音加强
-              </button>
-            </div>
-          </div>
-        </CollapsibleSection>
-
-        {/* 音频效果器 */}
-        <CollapsibleSection title="效果器插件">
-          <div className="px-3 pt-1 space-y-2">
-            {AUDIO_EFFECTS.map(ae => (
-              <div key={ae.id} className={`border rounded p-2.5 transition-colors ${enabledEffects.has(ae.id) ? 'border-indigo-600/50 bg-indigo-600/5' : 'border-zinc-700 bg-zinc-800/30'}`}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">{ae.icon}</span>
-                    <span className="text-[12px] text-zinc-200 font-medium">{ae.name}</span>
-                  </div>
-                  <button
-                    className={`w-9 h-5 rounded-full transition-colors relative ${enabledEffects.has(ae.id) ? 'bg-indigo-600' : 'bg-zinc-700'}`}
-                    onClick={() => toggleEffect(ae.id, ae.name)}
-                  >
-                    <div className={`absolute top-1 w-3.5 h-3.5 rounded-full bg-white shadow transition-all ${enabledEffects.has(ae.id) ? 'left-4.5' : 'left-0.5'}`} style={{ left: enabledEffects.has(ae.id) ? '18px' : '2px' }} />
-                  </button>
-                </div>
-                {enabledEffects.has(ae.id) && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-zinc-500 w-8">强度</span>
-                    <Slider
-                      value={[effectParams[ae.id] ?? 50]}
-                      onValueChange={([v]) => setEffectParams(prev => ({ ...prev, [ae.id]: v }))}
-                      max={100}
-                      className="flex-1 [&_[role=slider]]:h-2.5 [&_[role=slider]]:w-2.5"
-                    />
-                    <span className="text-[10px] text-zinc-500 w-6 text-right">{effectParams[ae.id] ?? 50}</span>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </CollapsibleSection>
-
-        {/* 操作区 */}
-        <div className="px-3 py-3 flex gap-2 border-t border-zinc-800">
-          <Button size="sm" className="flex-1 h-8 bg-indigo-600 hover:bg-indigo-700 text-white text-[11px]" onClick={handleApplyAudio}>
-            <Check className="w-3.5 h-3.5 mr-1.5" />应用修改
-          </Button>
-          <Button size="sm" variant="ghost" className="flex-1 h-8 border border-zinc-700 text-zinc-400 hover:text-zinc-200 text-[11px]"
-            onClick={() => {
-              handleVolumeChange([100]);
-              setFadeIn([10]);
-              setFadeOut([10]);
-              setPitch([0]);
-              handleSpeedChange([100]);
-              toast.info('已恢复默认音频参数');
-            }}>
-            <RotateCcw className="w-3.5 h-3.5 mr-1.5" />重置
-          </Button>
-        </div>
-      </ScrollArea>
-    </div>
-  );
-}
 
 // ── 面板6：动画与关键帧 ──────────────────────────────────────────────────
 interface KeyframePanelProps {
@@ -2205,347 +1684,6 @@ function AiToolsPanel({ onApplyAiTool, tracks, setTracks, currentTime, chromaSet
     </div>
   );
 }
-// ── 面板8：资源商城 ──────────────────────────────────────────────────────
-
-// 商城商品数据
-const SHOP_PRODUCTS = [
-  { id: 'p1', name: '电影感LUT合集', desc: '100+专业调色预设', category: 'LUT', price: 29, originalPrice: 59, rating: 4.9, sales: 2341, tag: '热销', tagColor: 'bg-red-500/20 text-red-400', preview: 'from-amber-900 to-orange-700' },
-  { id: 'p2', name: '节日特效包', desc: '春节/双11/618烟花粒子', category: '特效', price: 19, originalPrice: 39, rating: 4.8, sales: 1876, tag: '新品', tagColor: 'bg-indigo-500/20 text-indigo-400', preview: 'from-red-900 to-pink-700' },
-  { id: 'p3', name: '国风贴纸库', desc: '200+国潮风格贴纸', category: '贴纸', price: 9, originalPrice: 19, rating: 4.7, sales: 3102, tag: '限免', tagColor: 'bg-emerald-500/20 text-emerald-400', preview: 'from-red-900 to-rose-700' },
-  { id: 'p4', name: '抖音爆款转场包', desc: '50款热门转场效果', category: '转场', price: 39, originalPrice: 79, rating: 4.9, sales: 5678, tag: '爆款', tagColor: 'bg-orange-500/20 text-orange-400', preview: 'from-purple-900 to-indigo-700' },
-  { id: 'p5', name: '版权BGM合集', desc: '300首无版权音乐', category: '音乐', price: 49, originalPrice: 99, rating: 4.8, sales: 4210, tag: '推荐', tagColor: 'bg-blue-500/20 text-blue-400', preview: 'from-emerald-900 to-teal-700' },
-  { id: 'p6', name: '带货视频模板包', desc: '20套完整视频模板', category: '模板', price: 89, originalPrice: 199, rating: 5.0, sales: 892, tag: 'VIP', tagColor: 'bg-amber-500/20 text-amber-400', preview: 'from-yellow-900 to-amber-700' },
-  { id: 'p7', name: '字幕花字包', desc: '150款动态花字效果', category: '字幕', price: 15, originalPrice: 29, rating: 4.6, sales: 2109, tag: '优惠', tagColor: 'bg-cyan-500/20 text-cyan-400', preview: 'from-cyan-900 to-sky-700' },
-  { id: 'p8', name: '美颜滤镜合集', desc: '50款美颜调色滤镜', category: 'LUT', price: 25, originalPrice: 49, rating: 4.7, sales: 1543, tag: '热销', tagColor: 'bg-red-500/20 text-red-400', preview: 'from-pink-900 to-rose-700' },
-];
-
-const SHOP_CATEGORIES = ['全部', 'LUT', '特效', '贴纸', '转场', '音乐', '模板', '字幕'];
-
-interface ShopPanelProps {
-  onApplyShopProduct: (product: typeof SHOP_PRODUCTS[0]) => void;
-}
-
-function ShopPanel({ onApplyShopProduct }: ShopPanelProps) {
-  const [activeCategory, setActiveCategory] = useState('全部');
-  const [searchText, setSearchText] = useState('');
-  const [cart, setCart] = useState<Set<string>>(new Set());
-  const [purchased, setPurchased] = useState<Set<string>>(new Set(['p1'])); // 默认已解锁热门电影感LUT
-  const [cartOpen, setCartOpen] = useState(false);
-  const [sortBy, setSortBy] = useState<'hot' | 'new' | 'price'>('hot');
-  const [confirmItem, setConfirmItem] = useState<typeof SHOP_PRODUCTS[0] | null>(null);
-
-  const filtered = SHOP_PRODUCTS.filter(p => {
-    const matchCat = activeCategory === '全部' || p.category === activeCategory;
-    const matchSearch = p.name.includes(searchText) || p.desc.includes(searchText);
-    return matchCat && matchSearch;
-  }).sort((a, b) => {
-    if (sortBy === 'hot') return b.sales - a.sales;
-    if (sortBy === 'price') return a.price - b.price;
-    return b.id.localeCompare(a.id);
-  });
-
-  const cartTotal = Array.from(cart).reduce((sum, id) => {
-    const p = SHOP_PRODUCTS.find(x => x.id === id);
-    return sum + (p?.price ?? 0);
-  }, 0);
-
-  const addToCart = (id: string, name: string) => {
-    if (purchased.has(id)) {
-      toast.info(`「${name}」已拥有，可直接点击【载入项目】`);
-      return;
-    }
-    setCart(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) { next.delete(id); toast.info(`已从购物车移除：${name}`); }
-      else { next.add(id); toast.success(`已加入购物车：${name}`); }
-      return next;
-    });
-  };
-
-  const buyNow = (item: typeof SHOP_PRODUCTS[0]) => {
-    if (purchased.has(item.id)) {
-      onApplyShopProduct(item);
-      return;
-    }
-    setConfirmItem(item);
-  };
-
-  const confirmPurchase = () => {
-    if (!confirmItem) return;
-    const purchasedItem = confirmItem;
-    setPurchased(prev => new Set(prev).add(purchasedItem.id));
-    setCart(prev => { const next = new Set(prev); next.delete(purchasedItem.id); return next; });
-    setConfirmItem(null);
-    toast.success(`「${purchasedItem.name}」购买成功！已自动应用到当前时间轴`);
-    onApplyShopProduct(purchasedItem);
-  };
-
-  const checkoutCart = () => {
-    if (cart.size === 0) { toast.info('购物车为空'); return; }
-    const items = Array.from(cart).map(id => SHOP_PRODUCTS.find(p => p.id === id)).filter(Boolean) as typeof SHOP_PRODUCTS;
-    setPurchased(prev => new Set([...prev, ...cart]));
-    setCart(new Set());
-    setCartOpen(false);
-    toast.success(`已购买 ${items.length} 件商品，共 ¥${cartTotal}，已解锁至素材库`);
-    if (items.length > 0) {
-      onApplyShopProduct(items[0]);
-    }
-  };
-
-  return (
-    <div className="flex flex-col h-full relative">
-      {/* 购买确认弹窗 */}
-      <Dialog open={!!confirmItem} onOpenChange={v => { if (!v) setConfirmItem(null); }}>
-        <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-sm max-h-[85vh] overflow-y-auto bg-zinc-900 border-zinc-700 text-zinc-100">
-          <DialogHeader>
-            <DialogTitle className="text-sm flex items-center gap-2">
-              <CreditCard className="w-4 h-4 text-amber-400" />确认购买并载入
-            </DialogTitle>
-          </DialogHeader>
-          {confirmItem && (
-            <div className="py-2 space-y-3">
-              <div className="flex items-center gap-3 p-3 bg-zinc-800 rounded border border-zinc-700">
-                <div className={`w-12 h-12 rounded bg-gradient-to-br ${confirmItem.preview} shrink-0`} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-medium text-zinc-200">{confirmItem.name}</p>
-                  <p className="text-[11px] text-zinc-400">{confirmItem.desc}</p>
-                </div>
-              </div>
-              <div className="flex items-center justify-between px-1">
-                <span className="text-[12px] text-zinc-400">应付金额</span>
-                <span className="text-lg font-bold text-amber-400">¥{confirmItem.price}</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <button className="flex items-center justify-center gap-1.5 py-2.5 rounded border border-zinc-700 bg-zinc-800 text-[12px] text-zinc-300 hover:border-zinc-500 transition-colors"
-                  onClick={confirmPurchase}>
-                  <Package className="w-4 h-4 text-emerald-400" />微信支付
-                </button>
-                <button className="flex items-center justify-center gap-1.5 py-2.5 rounded border border-zinc-700 bg-zinc-800 text-[12px] text-zinc-300 hover:border-zinc-500 transition-colors"
-                  onClick={confirmPurchase}>
-                  <CreditCard className="w-4 h-4 text-blue-400" />支付宝
-                </button>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="ghost" size="sm" className="border border-zinc-700 text-zinc-400 hover:text-zinc-200" onClick={() => setConfirmItem(null)}>取消</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* 购物车侧栏 */}
-      {cartOpen && (
-        <div className="absolute inset-0 z-40 bg-zinc-900 flex flex-col">
-          <div className="flex items-center justify-between px-3 py-2.5 border-b border-zinc-800">
-            <span className="text-sm font-medium text-zinc-200 flex items-center gap-2">
-              <ShoppingCart className="w-4 h-4 text-amber-400" />购物车
-              {cart.size > 0 && <span className="w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] flex items-center justify-center">{cart.size}</span>}
-            </span>
-            <button onClick={() => setCartOpen(false)}><X className="w-4 h-4 text-zinc-400 hover:text-zinc-200" /></button>
-          </div>
-          <ScrollArea className="flex-1">
-            <div className="p-3 space-y-2">
-              {cart.size === 0 ? (
-                <div className="py-12 text-center space-y-2">
-                  <ShoppingCart className="w-10 h-10 text-zinc-600 mx-auto" />
-                  <p className="text-[12px] text-zinc-500">购物车为空</p>
-                </div>
-              ) : (
-                Array.from(cart).map(id => {
-                  const p = SHOP_PRODUCTS.find(x => x.id === id);
-                  if (!p) return null;
-                  return (
-                    <div key={id} className="flex items-center gap-2 p-2 bg-zinc-800 rounded border border-zinc-700">
-                      <div className={`w-10 h-10 rounded bg-gradient-to-br ${p.preview} shrink-0`} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[11px] text-zinc-200 truncate">{p.name}</p>
-                        <p className="text-[10px] text-amber-400 font-medium">¥{p.price}</p>
-                      </div>
-                      <button onClick={() => addToCart(p.id, p.name)}>
-                        <X className="w-3.5 h-3.5 text-zinc-500 hover:text-red-400 transition-colors" />
-                      </button>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </ScrollArea>
-          {cart.size > 0 && (
-            <div className="p-3 border-t border-zinc-800 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[12px] text-zinc-400">合计</span>
-                <span className="text-base font-bold text-amber-400">¥{cartTotal}</span>
-              </div>
-              <Button className="w-full h-9 bg-amber-600 hover:bg-amber-700 text-white text-[12px]" onClick={checkoutCart}>
-                <CreditCard className="w-3.5 h-3.5 mr-1.5" />立即结算
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 顶部搜索 + 购物车入口 */}
-      <div className="px-3 pt-2.5 pb-2 border-b border-zinc-800 shrink-0">
-        <div className="flex items-center gap-2 mb-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
-            <input
-              type="text"
-              placeholder="搜索素材包…"
-              className="w-full bg-zinc-800 border border-zinc-700 rounded text-[11px] text-zinc-200 pl-7 pr-3 py-1.5 placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
-              value={searchText}
-              onChange={e => setSearchText(e.target.value)}
-            />
-          </div>
-          <button
-            className="relative w-8 h-8 bg-zinc-800 border border-zinc-700 rounded flex items-center justify-center shrink-0 hover:border-amber-500/50 hover:bg-amber-500/10 transition-colors"
-            onClick={() => setCartOpen(true)}
-          >
-            <ShoppingCart className="w-4 h-4 text-zinc-400" />
-            {cart.size > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full text-[9px] text-white flex items-center justify-center">{cart.size}</span>
-            )}
-          </button>
-        </div>
-        {/* 分类标签 */}
-        <div className="flex gap-1 overflow-x-auto scrollbar-none">
-          {SHOP_CATEGORIES.map(cat => (
-            <button
-              key={cat}
-              className={`px-2 py-0.5 text-[10px] rounded whitespace-nowrap transition-colors shrink-0 ${activeCategory === cat ? 'bg-amber-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}
-              onClick={() => setActiveCategory(cat)}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* 排序 + 统计 */}
-      <div className="px-3 py-1.5 flex items-center justify-between shrink-0">
-        <span className="text-[10px] text-zinc-500">{filtered.length} 件精选资源</span>
-        <div className="flex items-center gap-0.5">
-          {([['hot', '热销'], ['new', '最新'], ['price', '价格']] as const).map(([v, l]) => (
-            <button
-              key={v}
-              className={`px-2 py-0.5 text-[10px] rounded transition-colors ${sortBy === v ? 'bg-zinc-700 text-zinc-200' : 'text-zinc-500 hover:text-zinc-300'}`}
-              onClick={() => setSortBy(v)}
-            >
-              {l}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* 商品列表 */}
-      <ScrollArea className="flex-1">
-        {/* 限时活动横幅 */}
-        <div className="mx-3 mb-3 rounded-lg bg-gradient-to-r from-amber-600/30 to-orange-600/20 border border-amber-500/30 p-3 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
-            <Flame className="w-4 h-4 text-amber-400" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[12px] font-medium text-amber-300">限时福利合集</p>
-            <p className="text-[10px] text-zinc-400">已购资源支持一键直接插入当前视频时间轴</p>
-          </div>
-          <span className="text-[10px] text-amber-400 font-mono shrink-0">限时畅享</span>
-        </div>
-
-        <div className="px-3 space-y-2 pb-4">
-          {filtered.map(p => (
-            <div key={p.id} className={`rounded-lg border transition-colors ${purchased.has(p.id) ? 'border-emerald-600/30 bg-emerald-600/5' : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600'}`}>
-              <div className="flex gap-3 p-2.5">
-                {/* 预览缩略图 */}
-                <div className={`w-14 h-14 rounded bg-gradient-to-br ${p.preview} shrink-0 flex items-center justify-center relative overflow-hidden`}>
-                  {purchased.has(p.id) && (
-                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                      <BadgeCheck className="w-5 h-5 text-emerald-400" />
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-1">
-                    <p className="text-[12px] font-medium text-zinc-200 leading-tight">{p.name}</p>
-                    <span className={`shrink-0 px-1.5 py-0.5 text-[9px] rounded ${p.tagColor}`}>{p.tag}</span>
-                  </div>
-                  <p className="text-[10px] text-zinc-500 mt-0.5">{p.desc}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <div className="flex items-center gap-0.5">
-                      <Star className="w-2.5 h-2.5 text-amber-400 fill-current" />
-                      <span className="text-[10px] text-zinc-400">{p.rating}</span>
-                    </div>
-                    <span className="text-[10px] text-zinc-600">{p.sales.toLocaleString()}已拥有</span>
-                  </div>
-                  <div className="flex items-center justify-between mt-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-sm font-bold text-amber-400">¥{p.price}</span>
-                      <span className="text-[10px] text-zinc-600 line-through">¥{p.originalPrice}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {purchased.has(p.id) ? (
-                        <button
-                          className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] rounded flex items-center gap-1 transition-colors"
-                          onClick={() => onApplyShopProduct(p)}
-                        >
-                          <Check className="w-3 h-3" />载入项目
-                        </button>
-                      ) : (
-                        <>
-                          <button
-                            className={`p-1 rounded transition-colors ${cart.has(p.id) ? 'text-amber-400' : 'text-zinc-500 hover:text-zinc-300'}`}
-                            onClick={() => addToCart(p.id, p.name)}
-                            title={cart.has(p.id) ? '从购物车移除' : '加入购物车'}
-                          >
-                            <ShoppingCart className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            className="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[10px] rounded transition-colors"
-                            onClick={() => buyNow(p)}
-                          >
-                            立即购买
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-
-          {filtered.length === 0 && (
-            <div className="py-12 text-center space-y-2">
-              <ShoppingBag className="w-10 h-10 text-zinc-600 mx-auto" />
-              <p className="text-[12px] text-zinc-500">未找到相关商品</p>
-            </div>
-          )}
-        </div>
-
-        {/* 已购买素材 */}
-        {purchased.size > 0 && (
-          <div className="mx-3 mb-4 rounded border border-emerald-600/30 bg-emerald-600/5 p-3">
-            <p className="text-[11px] text-emerald-400 font-medium mb-2 flex items-center gap-1.5">
-              <BadgeCheck className="w-3.5 h-3.5" />已拥有资源 ({purchased.size} 件) · 点击快捷载入
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {Array.from(purchased).map(id => {
-                const p = SHOP_PRODUCTS.find(x => x.id === id);
-                if (!p) return null;
-                return (
-                  <button key={id}
-                    className="px-2 py-1 bg-emerald-600/20 border border-emerald-600/30 rounded text-[10px] text-emerald-300 hover:bg-emerald-600/30 transition-colors flex items-center gap-1"
-                    onClick={() => onApplyShopProduct(p)}>
-                    <span>+</span>{p.name}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </ScrollArea>
-    </div>
-  );
-}
 
 // ── 左侧边栏主组件 ────────────────────────────────────────────────────────
 const PANEL_ITEMS: { id: PanelId; icon: React.ElementType; label: string; shortLabel: string; shortcut: string }[] = [
@@ -2556,16 +1694,16 @@ const PANEL_ITEMS: { id: PanelId; icon: React.ElementType; label: string; shortL
   { id: 'audio', icon: Music2, label: '音频编辑', shortLabel: '音频', shortcut: 'A' },
   { id: 'keyframe', icon: Waypoints, label: '关键帧', shortLabel: '关键帧', shortcut: 'K' },
   { id: 'ai', icon: Wand2, label: 'AI工具', shortLabel: 'AI工具', shortcut: 'I' },
-  { id: 'shop', icon: ShoppingBag, label: '资源商城', shortLabel: '商城', shortcut: 'S' },
+  { id: 'shop', icon: FolderOpen, label: '资源库', shortLabel: '资源库', shortcut: 'S' },
 ];
 
 interface LeftSidebarProps {
   chromaSettings: ChromaSettings;
-  materials: { id: string; name: string; url: string; type: string }[];
-  onAdd: (m: { id: string; name: string; url: string; type: string }) => void;
+  materials: EditorMaterial[];
+  onAdd: (m: EditorMaterial) => void | Promise<void>;
   importedVideos: { id: string; title: string; video_url: string; thumbnail_url: string | null }[];
   onImportVideo: (v: { id: string; title: string; video_url: string; thumbnail_url: string | null }) => void;
-  onUpload: (file: File) => Promise<void>;
+  onUpload: (file: File, rightsConfirmed: boolean) => Promise<void>;
   onDelete: (id: string) => void;
   // Panel 2 Effects
   appliedFilter: string;
@@ -2583,8 +1721,6 @@ interface LeftSidebarProps {
   pipLayers: PipLayer[];
   setPipLayers: React.Dispatch<React.SetStateAction<PipLayer[]>>;
   // Panel 5 Audio
-  audioSettings: AudioSettings;
-  setAudioSettings: React.Dispatch<React.SetStateAction<AudioSettings>>;
   videoRef: React.RefObject<HTMLVideoElement>;
   // Panel 6 Keyframes
   selectedTrackItem: string | null;
@@ -2595,7 +1731,7 @@ interface LeftSidebarProps {
   setOpacity: (v: number[]) => void;
   // Panel 7 AI & Panel 8 Shop
   onApplyAiTool: (toolId: string, chroma?: ChromaSettings) => void;
-  onApplyShopProduct: (p: typeof SHOP_PRODUCTS[0]) => void;
+  userId?: string; onRecord: () => void;
   // Shared
   tracks: TrackItem[];
   setTracks: React.Dispatch<React.SetStateAction<TrackItem[]>>;
@@ -2621,8 +1757,6 @@ function LeftSidebar({
   setPipSettings,
   pipLayers,
   setPipLayers,
-  audioSettings,
-  setAudioSettings,
   videoRef,
   selectedTrackItem,
   duration,
@@ -2631,7 +1765,7 @@ function LeftSidebar({
   opacity,
   setOpacity,
   onApplyAiTool,
-  onApplyShopProduct,
+  userId, onRecord,
   tracks,
   setTracks,
   currentTime,
@@ -2642,7 +1776,7 @@ function LeftSidebar({
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.ctrlKey || e.metaKey || e.altKey || (e.target as HTMLElement)?.closest('input,textarea,select,[contenteditable],button,[role=dialog]')) return;
       const item = PANEL_ITEMS.find(p => p.shortcut.toLowerCase() === e.key.toLowerCase());
       if (item) { setActivePanel(item.id); setCollapsed(false); }
     };
@@ -2712,7 +1846,7 @@ function LeftSidebar({
               />
             )}
             {activePanel === 'effects' && (
-              <EffectsPanel
+              <EffectsPanel userId={userId} onAdd={onAdd}
                 appliedFilter={appliedFilter}
                 setAppliedFilter={setAppliedFilter}
                 filterIntensity={filterIntensity}
@@ -2747,17 +1881,8 @@ function LeftSidebar({
                 materials={materials}
               />
             )}
-            {activePanel === 'audio' && (
-              <AudioEditPanel
-                audioSettings={audioSettings}
-                setAudioSettings={setAudioSettings}
-                videoRef={videoRef}
-                tracks={tracks}
-                setTracks={setTracks}
-                currentTime={currentTime}
-                selectedTrackItem={selectedTrackItem}
-              />
-            )}
+            {activePanel === 'audio' && <EditorAudioPanel tracks={tracks} setTracks={setTracks}
+              selectedId={selectedTrackItem} currentTime={currentTime} onRecord={onRecord} />}
             {activePanel === 'keyframe' && (
               <KeyframePanel
                 selectedTrackItem={selectedTrackItem}
@@ -2780,11 +1905,7 @@ function LeftSidebar({
                 currentTime={currentTime}
               />
             )}
-            {activePanel === 'shop' && (
-              <ShopPanel
-                onApplyShopProduct={onApplyShopProduct}
-              />
-            )}
+            {activePanel === 'shop' && <EditorAssetsPanel userId={userId} onAdd={onAdd} />}
           </div>
         </div>
       )}
@@ -2793,7 +1914,6 @@ function LeftSidebar({
 }
 
 // ── 视频预加载与内存 Blob 缓存系统 ───────────────────────────────────────
-const globalVideoBlobCache = new Map<string, string>();
 
 // ── 主页面组件 ───────────────────────────────────────────────────────────
 const DEFAULT_TRACKS: TrackItem[] = [];
@@ -2816,7 +1936,8 @@ export default function VideoEditPage() {
   });
   const [projectTitle, setProjectTitle] = useState('未命名项目');
   const [saving, setSaving] = useState(false);
-  const [materials, setMaterials] = useState<{ id: string; name: string; url: string; type: string }[]>([]);
+  const [recordingOpen, setRecordingOpen] = useState(false);
+  const [materials, setMaterials] = useState<EditorMaterial[]>([]);
   const [tracks, setTracks] = useState<TrackItem[]>(DEFAULT_TRACKS);
   const [tracksHistory, setTracksHistory] = useState<TrackItem[][]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -2902,61 +2023,23 @@ export default function VideoEditPage() {
     return () => el.removeEventListener('scroll', onScroll);
   }, []);
 
-  // 视频全量预加载与内存 Blob 缓存：在播放前把所有轨道视频以及预览视频彻底载入内存，消除网络 Range 请求延迟与播放卡顿
+  const pageMediaCache = useMemo(() => new MediaBlobCache(), [user?.id]);
+  useEffect(() => { setCachedUrls({}); return () => pageMediaCache.dispose(); }, [pageMediaCache]);
   useEffect(() => {
-    const urlsToCache = Array.from(new Set(
-      tracks.filter(t => t.type === 'video' && t.url).map(t => t.url!)
-        .concat(previewVideoUrl ? [previewVideoUrl] : [])
-    )).filter(Boolean);
-
-    if (urlsToCache.length === 0) return;
-
-    let isMounted = true;
-    const preloadAll = async () => {
-      const missing = urlsToCache.filter(url => !globalVideoBlobCache.has(url));
-      if (missing.length === 0) {
-        const cacheMap: Record<string, string> = {};
-        urlsToCache.forEach(u => cacheMap[u] = globalVideoBlobCache.get(u)!);
-        setCachedUrls(prev => ({ ...prev, ...cacheMap }));
-        setPreloadProgress(100);
-        return;
+    const urls = [...new Set(tracks.filter(track => track.type === 'video' && track.url).map(track => track.url!)
+      .concat(previewVideoUrl ? [previewVideoUrl] : []))];
+    let stopped = false;
+    const load = async () => {
+      setIsPreloading(!!urls.length); const result: Record<string, string> = {};
+      for (const [index, url] of urls.entries()) {
+        if (stopped) return;
+        try { result[url] = await pageMediaCache.get(url); } catch { result[url] = url; }
+        if (!stopped) setPreloadProgress(Math.round((index + 1) / urls.length * 100));
       }
-
-      setIsPreloading(true);
-      setPreloadProgress(40);
-
-      const newCacheMap: Record<string, string> = {};
-      for (const url of urlsToCache) {
-        if (globalVideoBlobCache.has(url)) {
-          newCacheMap[url] = globalVideoBlobCache.get(url)!;
-        } else {
-          try {
-            const res = await fetch(url);
-            if (res.ok) {
-              const blob = await res.blob();
-              const blobUrl = URL.createObjectURL(blob);
-              globalVideoBlobCache.set(url, blobUrl);
-              newCacheMap[url] = blobUrl;
-            } else {
-              newCacheMap[url] = url;
-            }
-          } catch (e) {
-            console.warn('Preload video fallback to direct url:', e);
-            newCacheMap[url] = url;
-          }
-        }
-      }
-
-      if (isMounted) {
-        setCachedUrls(prev => ({ ...prev, ...newCacheMap }));
-        setIsPreloading(false);
-        setPreloadProgress(100);
-      }
+      if (!stopped) { setCachedUrls(result); setIsPreloading(false); }
     };
-
-    preloadAll();
-    return () => { isMounted = false; };
-  }, [tracks, previewVideoUrl]);
+    void load(); return () => { stopped = true; };
+  }, [tracks, previewVideoUrl, pageMediaCache]);
 
   // 工程时长保持用户值，轨道增长时才扩展，短视频不强制补到30秒。
   useEffect(() => {
@@ -2998,6 +2081,7 @@ export default function VideoEditPage() {
     e.preventDefault();
     e.stopPropagation();
     setSelectedTrackItem(item.id);
+    if (item.locked) return;
     setDragInfo({
       id: item.id,
       startX: e.clientX,
@@ -3101,7 +2185,7 @@ export default function VideoEditPage() {
 
   // Find active video/image clip under the playhead (prioritize selected and newest clips)
   const activeVideoClip = (() => {
-    const selectedClip = tracks.find(t => t.id === selectedTrackItem && t.type === 'video');
+    const selectedClip = tracks.find(t => t.id === selectedTrackItem && t.type === 'video' && t.trackId !== 'pip' && !t.hidden);
     if (selectedClip) {
       const end = selectedClip.start + selectedClip.duration;
       if (currentTime >= selectedClip.start && currentTime <= end) {
@@ -3110,7 +2194,7 @@ export default function VideoEditPage() {
     }
     return tracks.slice().reverse().find(track => {
       const end = track.start + track.duration;
-      return currentTime >= track.start && currentTime <= end && track.type === 'video';
+      return currentTime >= track.start && currentTime < end && track.type === 'video' && track.trackId !== 'pip' && !track.hidden;
     });
   })();
   activeVideoClipRef.current = activeVideoClip;
@@ -3131,10 +2215,10 @@ export default function VideoEditPage() {
   })();
 
   // 播放头下方激活的字幕片段
-  const activeTextClip = (() => {
-    return tracks.find(track => {
+  const activeTextClips = (() => {
+    return tracks.filter(track => {
       const end = track.start + track.duration;
-      return currentTime >= track.start && currentTime <= end && track.type === 'text';
+      return currentTime >= track.start && currentTime < end && !track.hidden && track.type === 'text';
     });
   })();
 
@@ -3142,7 +2226,7 @@ export default function VideoEditPage() {
   const activePipClip = (() => {
     return tracks.find(track => {
       const end = track.start + track.duration;
-      return currentTime >= track.start && currentTime <= end && (track.trackId === 'pip' || track.id.startsWith('pip-'));
+      return currentTime >= track.start && currentTime < end && !track.hidden && (track.trackId === 'pip' || track.id.startsWith('pip-'));
     });
   })();
 
@@ -3150,7 +2234,8 @@ export default function VideoEditPage() {
   const activeStickerClip = (() => {
     return tracks.find(track => {
       const end = track.start + track.duration;
-      return currentTime >= track.start && currentTime <= end && (track.trackId === 'sticker' || track.id.startsWith('sticker-') || (track.type === 'image' && track.trackId === 'effects'));
+      return currentTime >= track.start && currentTime < end && !track.hidden && track.type === 'image'
+        && (track.trackId === 'sticker' || track.id.startsWith('sticker-') || track.trackId === 'effects');
     });
   })();
 
@@ -3177,15 +2262,11 @@ export default function VideoEditPage() {
     blendMode: '正常',
   });
   const [pipLayers, setPipLayers] = useState<PipLayer[]>([]);
-  const [audioSettings, setAudioSettings] = useState<AudioSettings>({
-    volume: 80,
-    fadeIn: 1.0,
-    fadeOut: 1.0,
-    pitch: 0,
-    speed: 100,
-    eqBands: {},
-    enabledEffects: new Set<string>(),
-  });
+  useEffect(() => {
+    setPipLayers(tracks.filter(track => track.trackId === 'pip' && ['video', 'image'].includes(track.type)).map(track => ({
+      id: track.id, name: track.name, url: track.url, type: track.type as 'video' | 'image', visible: !track.hidden, locked: !!track.locked,
+    })));
+  }, [tracks]);
   const [aiBeautyEnabled, setAiBeautyEnabled] = useState(false);
   const [aiCutoutEnabled, setAiCutoutEnabled] = useState(false);
   const [personCutoutEnabled, setPersonCutoutEnabled] = useState(false);
@@ -3216,73 +2297,8 @@ export default function VideoEditPage() {
     }
   }, [navigate]);
 
-  // 资源商城商品应用
-  const handleApplyShopProduct = useCallback((product: (typeof SHOP_PRODUCTS)[0]) => {
-    if (product.category === 'LUT') {
-      setAppliedFilter('电影质感');
-      setFilterIntensity(prev => ({ ...prev, '电影质感': 85 }));
-      toast.success(`已将「${product.name}」专业调色预设应用到视频！`);
-    } else if (product.category === '特效' || product.category === '贴纸') {
-      const stickerItem: TrackItem = {
-        id: `shop-sticker-${Date.now()}`,
-        trackId: 'sticker',
-        name: product.name,
-        start: currentTime,
-        duration: 5,
-        type: 'image',
-        url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=200&h=150&fit=crop',
-        scale: 100,
-        opacity: 100,
-      };
-      setTracks(prev => [...prev, stickerItem]);
-      toast.success(`已将「${product.name}」贴纸特效添加至时间轴`);
-    } else if (product.category === '转场') {
-      setAppliedTrans('t6');
-      toast.success(`已将转场效果切换为「光晕爆炸」热门转场`);
-    } else if (product.category === '音乐') {
-      const audioItem: TrackItem = {
-        id: `shop-bgm-${Date.now()}`,
-        trackId: 'audio',
-        name: `【BGM】${product.name}`,
-        start: currentTime,
-        duration: 15,
-        type: 'audio',
-        volume: 80,
-      };
-      setTracks(prev => [...prev, audioItem]);
-      toast.success(`已将无版权背景音乐「${product.name}」加入音频轨`);
-    } else if (product.category === '模板') {
-      const templateTracks: TrackItem[] = [
-        { id: `tpl-v1-${Date.now()}`, trackId: 'video', name: '产品展示主镜头', start: 0, duration: 6, type: 'video', url: '/Video/CreatOK_11.mp4' },
-        { id: `tpl-v2-${Date.now() + 1}`, trackId: 'video', name: '模特上身效果', start: 6, duration: 6, type: 'video', url: '/Video/CreatOK_2.mp4' },
-        { id: `tpl-t1-${Date.now() + 2}`, trackId: 'text', name: '新品上市 · 抢先体验', start: 0.5, duration: 5, type: 'text' },
-        { id: `tpl-t2-${Date.now() + 3}`, trackId: 'text', name: '限时直降 ¥99 包邮到手', start: 6.5, duration: 5, type: 'text' },
-      ];
-      setTracks(templateTracks);
-      setDuration(12);
-      toast.success(`已载入「${product.name}」完整带货工程模板！`);
-    } else if (product.category === '字幕') {
-      const fontItem: TrackItem = {
-        id: `shop-sub-${Date.now()}`,
-        trackId: 'text',
-        name: '🔥 爆款热卖中 · 手慢无！',
-        start: currentTime,
-        duration: 4,
-        type: 'text',
-        fontStyle: { fontFamily: '默认黑体', color: '#ffea00', bg: 'rgba(255,0,80,0.8)' },
-      };
-      setTracks(prev => [...prev, fontItem]);
-      toast.success(`已将动态花字「${product.name}」加入字幕轨`);
-    }
 
-    // 同时录入 materials 素材库
-    setMaterials(prev => {
-      if (prev.some(m => m.name === product.name)) return prev;
-      return [...prev, { id: `shop-mat-${Date.now()}`, name: product.name, url: '/Video/CreatOK_2.mp4', type: product.category === '音乐' ? 'audio' : 'video' }];
-    });
-  }, [currentTime]);
-
-  const hasVideoClips = tracks.some(t => t.type === 'video');
+  const hasVideoClips = tracks.some(t => t.type === 'video' && t.trackId !== 'pip' && !t.hidden);
   const rawVideoSrc = activeVideoClip?.url
     ? activeVideoClip.url
     : hasVideoClips
@@ -3338,6 +2354,7 @@ export default function VideoEditPage() {
     hp: BiquadFilterNode;
     lp: BiquadFilterNode;
     notch: BiquadFilterNode;
+    equalizers: BiquadFilterNode[];
     panner: StereoAudioPannerNodeCompat;
     dry: GainNode;
     convolver: ConvolverNode;
@@ -3393,12 +2410,18 @@ export default function VideoEditPage() {
       source.connect(hp);
       hp.connect(lp);
       lp.connect(notch);
-      notch.connect(dry);
+      const equalizers = EQ_FREQUENCIES.map(frequency => {
+        const node = ctx.createBiquadFilter(); node.type = 'peaking';
+        node.frequency.value = frequency; node.Q.value = 1; return node;
+      });
+      notch.connect(equalizers[0]);
+      equalizers.forEach((node, index) => node.connect(equalizers[index + 1] || panner));
+      panner.connect(dry);
       dry.connect(ctx.destination);
-      notch.connect(convolver);
+      panner.connect(convolver);
       convolver.connect(wetGain);
       wetGain.connect(ctx.destination);
-      const nodes: AudioFxNodes = { ctx, source, hp, lp, notch, panner, dry, convolver, wetGain, reverbName: '' };
+      const nodes: AudioFxNodes = { ctx, source, hp, lp, notch, equalizers, panner, dry, convolver, wetGain, reverbName: '' };
       audioGraphRef.current[clipId] = nodes;
       return nodes;
     } catch {
@@ -3408,7 +2431,7 @@ export default function VideoEditPage() {
 
   // 将片段当前属性实时写入效果链节点（降噪分频/声像/混响湿声比例与脉冲响应）
   const applyAudioClipFxParams = (clip: TrackItem, nodes: AudioFxNodes) => {
-    const level = DENOISE_LEVELS[clip.denoise || '轻度去噪'] || DENOISE_LEVELS['无降噪'];
+    const level = DENOISE_LEVELS[clip.denoise || '无降噪'] || DENOISE_LEVELS['无降噪'];
     let hpHz = level.hp;
     let lpHz = level.lp;
     if (clip.reverb === '广播电台') {
@@ -3418,6 +2441,7 @@ export default function VideoEditPage() {
     nodes.hp.frequency.setTargetAtTime(hpHz, nodes.ctx.currentTime, 0.03);
     nodes.lp.frequency.setTargetAtTime(lpHz, nodes.ctx.currentTime, 0.03);
     nodes.notch.frequency.setTargetAtTime(level.notch, nodes.ctx.currentTime, 0.03);
+    nodes.equalizers.forEach((node, index) => node.gain.setTargetAtTime(clip.eqBands?.[EQ_FREQUENCIES[index]] || 0, nodes.ctx.currentTime, .03));
     nodes.panner.pan.setTargetAtTime(Math.max(-1, Math.min(1, (clip.pan ?? 0) / 100)), nodes.ctx.currentTime, 0.03);
     const preset = REVERB_PRESETS[clip.reverb || ''] || null;
     nodes.wetGain.gain.setTargetAtTime(preset ? preset.wet : 0, nodes.ctx.currentTime, 0.05);
@@ -3573,18 +2597,13 @@ export default function VideoEditPage() {
       const blobUrl = audioBlobCacheRef.current[rawUrl];
       if (!blobUrl && !audioBlobPendingRef.current.has(rawUrl) && !audioBlobFailedRef.current.has(rawUrl)) {
         audioBlobPendingRef.current.add(rawUrl);
-        fetch(rawUrl)
-          .then(res => (res.ok ? res.blob() : Promise.reject(new Error(`audio proxy http ${res.status}`))))
-          .then(blob => {
-            const burl = URL.createObjectURL(blob);
-            audioBlobCacheRef.current[rawUrl] = burl;
-            const cur = audioElsRef.current.get(clip.id);
-            if (cur) cur.src = burl;
+        pageMediaCache.get(rawUrl)
+          .then(url => {
+            if (!url.startsWith('blob:')) { audioBlobFailedRef.current.add(rawUrl); return; }
+            audioBlobCacheRef.current[rawUrl] = url;
+            const current = audioElsRef.current.get(clip.id); if (current) current.src = url;
           })
-          .catch(err => {
-            audioBlobFailedRef.current.add(rawUrl);
-            console.warn('Audio blob proxy unavailable (声像/降噪/混响降级，音量/淡变/变速仍真实生效):', rawUrl, err?.message);
-          })
+          .catch(() => audioBlobFailedRef.current.add(rawUrl))
           .finally(() => audioBlobPendingRef.current.delete(rawUrl));
       } else if (blobUrl && el.src !== blobUrl && !el.src.startsWith('blob:')) {
         el.src = blobUrl;
@@ -3594,8 +2613,8 @@ export default function VideoEditPage() {
       const local = currentTime - clip.start;
       const sourceTime = (clip.sourceStart || 0) + local * (clip.speed || 1);
       const within = local >= 0 && local <= clip.duration;
-      const fi = clip.fadeIn ?? 1.0;
-      const fo = clip.fadeOut ?? 1.5;
+      const fi = clip.fadeIn ?? 0;
+      const fo = clip.fadeOut ?? 0;
       let env = 1;
       if (fi > 0) env = Math.min(env, Math.max(0, local / fi));
       if (fo > 0) env = Math.min(env, Math.max(0, (clip.duration - local) / fo));
@@ -3619,10 +2638,11 @@ export default function VideoEditPage() {
       }
 
       // 3) Web Audio 效果链（与面板默认展示一致：降噪默认“轻度去噪”、混响默认“原声纯净”）
-      const curDenoise = clip.denoise || '轻度去噪';
+      const curDenoise = clip.denoise || '无降噪';
       const curReverb = clip.reverb || '原声纯净';
       const needsFx =
         (clip.pan ?? 0) !== 0 ||
+        Object.values(clip.eqBands || {}).some(gain => gain !== 0) ||
         curReverb !== '原声纯净' ||
         curDenoise !== '无降噪';
       const graphReady = el.src.startsWith('blob:');
@@ -3793,37 +2813,10 @@ export default function VideoEditPage() {
     setImportedVideos(mapped);
   }, [user]);
 
-  // 加载素材库（媒体库默认展示作品素材库中的 2 条视频，不再展示历史无关默认素材）
   const loadMaterials = useCallback(async () => {
-    if (!user) {
-      setMaterials([]);
-      return;
-    }
-    const { data } = await supabase
-      .from('materials')
-      .select('id,name,url,type')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(30);
-    const list = (data ?? []) as any[];
-    // 历史分类仅影响当前面板，不在加载时删除用户资产。
-    const cleanList = list;
-    if (cleanList.length > 0) {
-      setMaterials(cleanList);
-      return;
-    }
-    // 无自有素材时，默认展示作品素材库中最近的 2 条已完成视频
-    const { data: works } = await supabase
-      .from('video_projects')
-      .select('id,title,video_url')
-      .eq('user_id', user.id)
-      .eq('status', 'completed')
-      .order('created_at', { ascending: false })
-      .limit(2);
-    const workMaterials = (works ?? [])
-      .filter(w => w.video_url)
-      .map(w => ({ id: `work-${w.id}`, name: w.title, url: w.video_url as string, type: 'video' }));
-    setMaterials(workMaterials);
+    if (!user) { setMaterials([]); return; }
+    try { setMaterials((await listMaterialAssets()).materials); }
+    catch (cause) { toast.error(cause instanceof Error ? cause.message : '素材读取失败'); }
   }, [user]);
 
   // 智能提取封面：真实首帧优先，绝不使用占位网图
@@ -4317,71 +3310,33 @@ export default function VideoEditPage() {
     }
   };
 
-  // 添加素材到时间轴
-  const addToTimeline = (material: { id: string; name: string; url: string; type: string }) => {
-    const trackType = material.type === 'audio' ? 'audio' : material.type === 'image' ? 'image' : 'video';
-    setTracks(prev => [...prev, {
-      id: `item-${Date.now()}`,
-      trackId: trackType,
-      name: material.name,
-      start: currentTime,
-      duration: 5,
-      type: trackType as any,
-      url: material.url,
-    }]);
-    toast.success(`已添加「${material.name}」到时间轴`);
+  const addingMaterial = useRef(false);
+  const makeMaterialTrack = async (material: EditorMaterial): Promise<TrackItem> => {
+    const start = currentTimeRef.current;
+    if (start >= 600 || tracks.length >= 80) throw new Error('工程最多10分钟、80个元素，请先精简时间轴');
+    const length = Math.min(await materialDuration(material), 600 - start);
+    if (length < .1) throw new Error('剩余时间不足，请移动播放头后添加');
+    return { id: crypto.randomUUID(), trackId: material.type, type: material.type, name: material.name,
+      start, duration: length, url: material.url, sourceStart: 0, speed: 1, fadeIn: 0, fadeOut: 0, denoise: '无降噪' };
   };
-
-  // 一键导入生成视频到素材库
-  const handleImportVideo = async (v: { id: string; title: string; video_url: string; thumbnail_url: string | null }) => {
-    if (!user) { toast.error('请先登录'); return; }
-    // 先在预览区加载该视频
-    setPreviewVideoUrl(v.video_url);
-    setIsPlaying(false);
-    // 写入 materials 表
-    const { error } = await supabase.from('materials').insert({
-      user_id: user.id,
-      name: v.title,
-      url: v.video_url,
-      type: 'video',
-    });
-    if (error && !error.message.includes('duplicate')) {
-      toast.error('导入失败：' + error.message);
-    } else {
-      toast.success(`「${v.title}」已导入素材库，可在预览区播放`);
-      loadMaterials();
-    }
-  };
-
-  // 上传本地文件到素材库
-  const handleUpload = async (file: File) => {
-    if (!user) { toast.error('请先登录'); return; }
-    if (file.size > 50 * 1024 * 1024) { toast.error(`文件过大（最大50MB）：${file.name}`); return; }
-    const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
-    const isImage = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext);
-    const isVideo = ['mp4', 'mov', 'avi', 'webm'].includes(ext);
-    const isAudio = ['mp3', 'wav', 'ogg', 'm4a'].includes(ext);
-    if (!isImage && !isVideo && !isAudio) { toast.error(`不支持的格式：${ext}`); return; }
-
-    const toastId = toast.loading(`正在上传 ${file.name}...`);
+  const addToTimeline = async (material: EditorMaterial) => {
+    if (addingMaterial.current) return;
+    addingMaterial.current = true;
     try {
-      const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
-      const { data: up, error } = await supabase.storage.from('materials').upload(path, file);
-      if (error) throw error;
-      const urlData = { publicUrl: storedMedia('materials', up.path) };
-      const { data: mat, error: insertError } = await supabase.from('materials').insert({
-        user_id: user.id,
-        name: file.name,
-        type: isImage ? 'image' : isVideo ? 'video' : 'audio',
-        url: urlData.publicUrl,
-        size: file.size,
-      }).select().maybeSingle();
-      if (insertError) throw insertError;
-      toast.success(`上传成功：${file.name}`, { id: toastId });
-      loadMaterials();
-    } catch (e: any) {
-      toast.error(`上传失败: ${e.message || e}`, { id: toastId });
-    }
+      const item = await makeMaterialTrack(material);
+      setTracks(previous => [...previous, item]); setSelectedTrackItem(item.id);
+      toast.success(`已添加「${material.name}」到时间轴`);
+    } catch (cause) { toast.error(cause instanceof Error ? cause.message : '素材添加失败'); }
+    finally { addingMaterial.current = false; }
+  };
+  const handleImportVideo = async (video: { id: string; title: string; video_url: string; thumbnail_url: string | null }) => {
+    await addToTimeline({ id: video.id, name: video.title, url: video.video_url, type: 'video' });
+  };
+  const handleUpload = async (file: File, rightsConfirmed: boolean) => {
+    if (!user) throw new Error('请先登录');
+    const material = await uploadMaterialAsset(file, user.id, rightsConfirmed);
+    setMaterials(previous => [material, ...previous.filter(item => item.id !== material.id)]);
+    toast.success(`素材已保存：${material.name}`);
   };
 
   // 导出视频 - 开启参数确认与全阶段渲染弹窗
@@ -4423,6 +3378,7 @@ export default function VideoEditPage() {
       setExportStatusText('正在上传工程中的本地素材');
       const renderTracks: Array<Record<string, unknown>> = [];
       for (const [index, track] of tracks.entries()) {
+        if (track.hidden) continue;
         const pip = track.trackId === 'pip';
         const bounds = videoRef.current?.parentElement?.getBoundingClientRect();
         const visualOffset = track.type === 'video' && !pip;
@@ -4508,6 +3464,13 @@ export default function VideoEditPage() {
   return (
     // 移动端：MainLayout 对本页隐藏顶部 header 且底部 Tab 栏已移除，直接占满动态视口高度
     <div className="flex flex-col h-screen max-lg:h-[100dvh] w-full bg-zinc-950 text-zinc-300 overflow-hidden">
+      <RecordingDialog open={recordingOpen} onClose={() => setRecordingOpen(false)} onSave={async file => {
+        if (!user) throw new Error('请先登录');
+        const material = await uploadMaterialAsset(file, user.id, true, 'recording');
+        const item = await makeMaterialTrack(material), next = [...tracks, item];
+        if (!await saveProjectInternal({ customTracks: next, silent: true })) throw new Error('工程保存失败，录音已入库，可从资源库添加');
+        setTracks(next); setSelectedTrackItem(item.id); await loadMaterials(); toast.success('录音已入库并保存到工程');
+      }} />
       <EditAnalysisDialog mode={editMode} onClose={() => setEditMode(null)} userId={user?.id}
         projectKey={importId || 'draft'} tracks={tracks} selectedId={selectedTrackItem}
         restoreJobId={searchParams.get('editJob')} onRestoreMode={setEditMode}
@@ -4583,8 +3546,6 @@ export default function VideoEditPage() {
           setPipSettings={setPipSettings}
           pipLayers={pipLayers}
           setPipLayers={setPipLayers}
-          audioSettings={audioSettings}
-          setAudioSettings={setAudioSettings}
           videoRef={videoRef}
           selectedTrackItem={selectedTrackItem}
           duration={duration}
@@ -4593,7 +3554,7 @@ export default function VideoEditPage() {
           opacity={opacity}
           setOpacity={setOpacity}
           onApplyAiTool={handleApplyAiTool}
-          onApplyShopProduct={handleApplyShopProduct}
+          userId={user?.id} onRecord={() => { setIsPlaying(false); setRecordingOpen(true); }}
           tracks={tracks}
           setTracks={setTracks}
           currentTime={currentTime}
@@ -4773,23 +3734,16 @@ export default function VideoEditPage() {
                 <div
                   className="absolute z-20 overflow-hidden shadow-2xl rounded border border-indigo-500/60 transition-all pointer-events-none"
                   style={{
-                    left: `${pipSettings.x}%`,
-                    top: `${pipSettings.y}%`,
-                    transform: `translate(-50%, -50%) scale(${pipSettings.scale / 100}) rotate(${pipSettings.rotation}deg)`,
-                    opacity: pipSettings.opacity / 100,
+                    left: `${activePipClip.x ?? pipSettings.x}%`,
+                    top: `${activePipClip.y ?? pipSettings.y}%`,
+                    transform: `translate(-50%, -50%) rotate(${activePipClip.rotation ?? pipSettings.rotation}deg)`,
+                    opacity: (activePipClip.opacity ?? pipSettings.opacity) / 100,
                     mixBlendMode: RENDER_BLENDS.find(mode => mode.name === pipSettings.blendMode)?.css || 'normal',
-                    width: '32%',
+                    width: `${activePipClip.scale ?? pipSettings.scale * .35}%`,
                     aspectRatio: '16/9',
                   }}
                 >
-                  <video
-                    src={activePipClip.url}
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
-                    className="w-full h-full object-cover"
-                  />
+                  <TimelineMediaPreview track={activePipClip} currentTime={currentTime} playing={isPlaying} />
                 </div>
               )}
 
@@ -4807,14 +3761,15 @@ export default function VideoEditPage() {
                   <img
                     src={activeStickerClip.url}
                     alt={activeStickerClip.name}
-                    className="w-full h-auto drop-shadow-2xl animate-pulse"
+                    className="w-full h-auto drop-shadow-2xl"
                   />
                 </div>
               )}
 
               {/* 实时字幕浮层 */}
-              {activeTextClip && (
-                <div className="absolute bottom-16 inset-x-4 flex justify-center pointer-events-none z-30 transition-all">
+              {activeTextClips.map(activeTextClip => (
+                <div key={activeTextClip.id} className="absolute flex justify-center pointer-events-none z-30 transition-all max-w-[85%]"
+                  style={{ left: `${activeTextClip.x ?? 50}%`, top: `${activeTextClip.y ?? 85}%`, transform: 'translate(-50%, -50%)' }}>
                   <span
                     className="px-4 py-1.5 rounded-lg max-w-[85%] leading-relaxed select-none shadow-2xl transition-all"
                     style={{
@@ -4834,7 +3789,7 @@ export default function VideoEditPage() {
                     {activeTextClip.text || activeTextClip.name}
                   </span>
                 </div>
-              )}
+              ))}
 
               {/* 音频轨隐藏播放器：为属性面板的音量/声像/淡入淡出/降噪/混响/变速提供真实媒体载体 */}
               {audioMediaClips.map(clip => (
