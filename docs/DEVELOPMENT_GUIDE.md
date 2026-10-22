@@ -1,6 +1,6 @@
 # 开发指南
 
-最新 [迭代32](ITERATION_32_REWARDS_AUTH.md)：新增00060接管快照邀请触发器但不补发历史。资格与领取共用数据库函数，先保存本人原UUID，未知响应复用回执；敏感写入使用accountRequest固定原账号令牌。禁止注册后浏览器upsert档案或直接写奖励/错误表。test:rewards/test:rewards-ui覆盖真实PG及开发/压缩操作；probe20/00060/render4/edit2同窗更新。下文为历史规则演进。
+最新 [迭代33](ITERATION_33_CREDITS_SMS.md)：useCredits共用['credits',uid]查询；CreditsSync只挂AccountScope一次，accountRequest支持取消与原令牌。不得用套餐名称或读取失败的零余额授予/拒绝权益。SMS独立SDK不自动写全局会话，注册需正式VITE_TERMS_URL/VITE_PRIVACY_URL。test:account-credits及两类UI专项验证，所有历史浏览器夹具匹配新RPC。probe21/00061/render4/edit2同窗更新。
 
 当前 [迭代30](ITERATION_30_WORKS_LIBRARY.md)复用materialAssets上传/原回执/身份核对和useRecentWorks限40条只读入口；作品分页每页24项，服务端搜索做字面匹配。公开演示媒体不进入生产资源；测试MP4/WAV只生成在.volcengine-build。
 

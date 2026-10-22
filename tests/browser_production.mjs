@@ -1,5 +1,6 @@
 /** 隔离 API 夹具验证真实页面交互，不连接生产资源。PLAYWRIGHT_MODULE 可指向临时安装的模块。 */
 import assert from 'node:assert/strict';
+import { creditSnapshot } from './browser_credit_fixture.mjs';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const uid = '11111111-1111-4111-8111-111111111111', projectId = crypto.randomUUID();
 const base = process.env.UI_TEST_URL || 'http://127.0.0.1:5197';
@@ -44,7 +45,7 @@ try {
     else if (url.pathname.includes('/rest/v1/profiles')) reply = { id: uid, username: '本地测试', invite_code: 'LOCALTEST', role: 'admin' };
     else if (url.pathname.includes('/rest/v1/video_projects')) reply = [project];
     else if (url.pathname.includes('/rest/v1/credit_costs')) reply = [{ action: 'generate_image', cost: 10 }, { action: 'generate_video', cost: 10 }];
-    else if (url.pathname.includes('/rest/v1/user_plans')) reply = { credits_total: 100, credits_used: 0, plans: { name: '专业版', level: 1 } };
+    else if (url.pathname.endsWith('/rpc/get_my_credits')) reply = creditSnapshot(uid, { credits_total: 100, credits_left: 100 });
     else if (url.pathname.includes('/rest/v1/rpc/')) reply = {};
     await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(reply),
       headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*' } });

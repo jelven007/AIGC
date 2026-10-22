@@ -1,5 +1,6 @@
 /** 在真实 React 页面验证多账号确认与断线恢复，仅使用隔离API夹具。 */
 import assert from 'node:assert/strict';
+import { creditSnapshot } from './browser_credit_fixture.mjs';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const uid = '11111111-1111-4111-8111-111111111111', projectId = crypto.randomUUID();
 const backend = 'https://ui-fixture.example', base = process.env.UI_TEST_URL || 'http://127.0.0.1:5197';
@@ -50,7 +51,7 @@ try {
       }
     } else if (url.pathname.includes('/rest/v1/profiles')) reply = { id: uid, username: '本地测试', role: 'user' };
     else if (url.pathname.includes('/rest/v1/video_projects')) reply = [{ id: projectId, user_id: uid, title: '确认成片', status: 'completed', duration: 2, video_url: source }];
-    else if (url.pathname.includes('/rest/v1/user_plans')) reply = { credits_total: 100, credits_used: 0, plans: { name: '专业版', level: 1 } };
+    else if (url.pathname.endsWith('/rpc/get_my_credits')) reply = creditSnapshot(uid, { credits_total: 100, credits_left: 100 });
     else if (url.pathname.includes('/rest/v1/rpc/')) reply = {};
     await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(reply),
       headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*' } });

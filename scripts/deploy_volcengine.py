@@ -86,6 +86,17 @@ def public_config(args):
     return url, key
 
 
+def legal_config(args):
+    result = {}
+    for name in ("terms", "privacy"):
+        value = getattr(args, f"{name}_url", None) or os.environ.get(f"VITE_{name.upper()}_URL", "")
+        parsed = urlparse(value)
+        if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+            raise ValueError(f"注册发布必须提供正式 HTTPS --{name}-url 或 VITE_{name.upper()}_URL")
+        result[name] = value
+    return result
+
+
 def strings(data):
     if isinstance(data, str):
         yield data
@@ -147,11 +158,14 @@ def prepare(args):
     (OUTPUT / "manifest.json").write_text(json.dumps(receipt, ensure_ascii=False, indent=2))
     if not args.skip_build:
         url, key = public_config(args)
-        env = dict(os.environ, VITE_SUPABASE_URL=url, VITE_SUPABASE_ANON_KEY=key)
+        legal = legal_config(args)
+        env = dict(os.environ, VITE_SUPABASE_URL=url, VITE_SUPABASE_ANON_KEY=key,
+                   VITE_TERMS_URL=legal["terms"], VITE_PRIVACY_URL=legal["privacy"])
         run_local(["npm", "run", "typecheck"])
         run_local(["npm", "run", "build"], env=env)
         receipt["frontend"] = {
             "backend_url": url, "anon_key_sha256": hashlib.sha256(key.encode()).hexdigest(),
+            "legal_urls": legal,
         }
         with zipfile.ZipFile(OUTPUT / "frontend.zip", "w", zipfile.ZIP_DEFLATED) as archive:
             for path in sorted((ROOT / "dist").rglob("*")):
@@ -226,6 +240,8 @@ def pages(args):
     if receipt.get("backend_url") != url or receipt.get("anon_key_sha256") != hashlib.sha256(key.encode()).hexdigest() \
       or receipt.get("archive_sha256") != checksum(archive):
         raise RuntimeError("前端构建配置或归档校验值不匹配，请重新 prepare")
+    if receipt.get("legal_urls") != legal_config(args):
+        raise RuntimeError("正式协议配置与构建回执不匹配，请重新 prepare")
     endpoints = json.loads(cli(args, ["endpoints", "list", "-o", "json"]))
     if not any(value.rstrip("/") == url or value == urlparse(url).hostname for value in strings(endpoints)):
         raise RuntimeError("构建地址不匹配目标 workspace endpoint，禁止发布")
@@ -255,7 +271,7 @@ def verify(args):
     try:
         with urlopen(request, timeout=30) as response:
             result = json.load(response)
-        if result.get("ready") is not True or result.get("version") != 20 or result.get("required_migration") != "00060" \
+        if result.get("ready") is not True or result.get("version") != 21 or result.get("required_migration") != "00061" \
                 or result.get("render_version") != 4 or result.get("edit_version") != 2:
             raise ValueError("not ready")
     except Exception:
@@ -273,6 +289,8 @@ def main():
     parser.add_argument("--pages-project-id")
     parser.add_argument("--backend-url")
     parser.add_argument("--anon-key-file")
+    parser.add_argument("--terms-url")
+    parser.add_argument("--privacy-url")
     parser.add_argument("--worker-secret-file")
     parser.add_argument("--skip-build", action="store_true")
     args = parser.parse_args()

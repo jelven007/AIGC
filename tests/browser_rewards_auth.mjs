@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { creditSnapshot } from './browser_credit_fixture.mjs';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const base = process.env.UI_TEST_URL || 'http://127.0.0.1:5197', backend = 'https://ui-fixture.example';
 const first = '11111111-1111-4111-8111-111111111111', second = '99999999-9999-4999-8999-999999999999';
@@ -46,7 +47,7 @@ await context.route(`${backend}/**`, async route => {
   else if (path.endsWith('/rest/v1/profiles')) {
     if (req.method() !== 'GET') { state.writes.push(body); status = 403; data = {}; }
     else data = { id, username: id === first ? '第一位用户' : '第二位用户', role: 'user', notification_enabled: false };
-  } else if (path.endsWith('/rest/v1/user_plans')) data = { credits_total: 1000, credits_used: 0, plan: { name: '专业版' } };
+  } else if (path.endsWith('/rpc/get_my_credits')) data = creditSnapshot(id);
   else if (path.endsWith('/rpc/get_my_invitations')) {
     state.inviteReads.push({ id, body });
     if (state.holdInvite && id === first) { state.heldInvite = true; await inviteGate; }

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { creditSnapshot } from './browser_credit_fixture.mjs';
 import { readFile, writeFile } from 'node:fs/promises';
 import * as XLSX from 'xlsx';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
@@ -48,7 +49,7 @@ try {
       else throw new Error('Unexpected measurement action ' + body.action);
     } else if (path.includes('/ai-assistant')) { adviceCalls++; status = 503; data = { code: 1, message: '真实模型暂不可用' }; }
     else if (path.includes('/rest/v1/profiles')) data = { id: uid, username: '测试', invite_code: 'TEST' };
-    else if (path.includes('/rest/v1/user_plans')) data = { credits_total: 100, credits_used: 0, plans: { name: '专业版' } };
+    else if (path.endsWith('/rpc/get_my_credits')) data = creditSnapshot(uid, { credits_total: 100, credits_left: 100 });
     await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data),
       headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*' } });
   });

@@ -1,6 +1,6 @@
 # 视频任务后台调度
 
-最新 [迭代32](ITERATION_32_REWARDS_AUTH.md)：production严格probe20/00060/render4/edit2，新增奖励/异常RPC与注册验证触发器预检。重建调度镜像并匹配production-worker/全部函数/00032–00060/前端，monitor持久卷要求保持；官方旧Cron不提供这套轮转，下文为历史协议。
+最新 [迭代33](ITERATION_33_CREDITS_SMS.md)：production严格probe21/00061/render4/edit2，新增本人权威积分RPC权限预检。重建调度镜像并匹配production-worker/全部函数/00032–00061/前端；旧probe20拒绝，monitor持久卷要求保持。官方旧Cron不提供这套轮转，下文为历史协议。
 
 当前 [迭代31](ITERATION_31_ACCOUNT_STORYBOARD.md)：production严格probe19/00059/render4/edit2，预检新增profile概览/头像引用触发器核对；重建调度镜像并匹配production-worker/operations/00032–00059及前端。常驻每分钟monitor独立于任务执行，最近三分钟采集成功才健康，连续三次失败及恢复同卷保存。宿主完全停机仍需外部监控；官方旧视频Cron不提供新production/monitor轮转。
 

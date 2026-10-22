@@ -69,6 +69,7 @@ const DataDashboardPage      = lazy(() => import("@/pages/DataDashboardPage"));
 
 import { supabase } from "@/db/supabase";
 import { accountRequest } from "@/api/accountSession";
+import { CreditsSync } from "@/hooks/useCredits";
 import PlanGate from "@/components/PlanGate";
 import ForbiddenPage from "@/components/ForbiddenPage";
 import { Send, CheckCircle2 } from "lucide-react";
@@ -205,7 +206,7 @@ const queryClient = new QueryClient();
 function AccountScope({ children }: { children: ReactNode }) {
   const [client] = useState(() => new QueryClient());
   useEffect(() => () => { void client.cancelQueries(); client.clear(); }, [client]);
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  return <QueryClientProvider client={client}><CreditsSync />{children}</QueryClientProvider>;
 }
 
 function AppRoutes() {

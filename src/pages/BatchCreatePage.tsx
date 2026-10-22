@@ -293,7 +293,7 @@ export default function BatchCreatePage() {
           <p className="text-sm text-muted-foreground">模型可能调整时长与分辨率；不支持的规格或商品图片将整批拒绝，不扣积分。</p>
           <div className="flex flex-wrap justify-between items-center gap-3 pt-4 border-t">
             <div className="text-sm"><p>单个商品 {unitCost ?? '—'} 积分 · 本批预占 <strong>{total ?? '—'}</strong> 积分</p>
-              <p className="text-muted-foreground">当前余额 {credits.loading ? '读取中…' : credits.creditsLeft} 积分</p></div>
+              <p className="text-muted-foreground">当前余额 {credits.loading ? '读取中…' : credits.error ? '暂不可用' : credits.creditsLeft} 积分</p></div>
             <Button onClick={() => void submit()} disabled={!!pending || !!busy || !products.length || !provider || unitCost == null || !name.trim() || !pipelineValid
               || !settings.style.trim() || !Number.isInteger(settings.duration) || settings.duration < 2 || settings.duration > 15}>
               {busy === 'create' && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}确认预算并创建批次</Button>

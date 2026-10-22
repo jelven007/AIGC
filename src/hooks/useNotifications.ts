@@ -8,12 +8,12 @@ export function useNotifications(category: NotificationCategory = 'all', offset 
   const client = useQueryClient();
   const query = useQuery({
     queryKey: ['notifications', uid, category, offset],
-    queryFn: () => readNotifications(category, offset),
+    queryFn: ({ signal }) => readNotifications(uid!, category, offset, signal),
     enabled: !!uid, staleTime: 15000, refetchInterval: 20000, retry: 1,
   });
   const mutation = useMutation({
     mutationKey: ['notifications', uid],
-    mutationFn: mutateNotifications,
+    mutationFn: (input: Parameters<typeof mutateNotifications>[1]) => mutateNotifications(uid!, input),
     onSettled: () => client.invalidateQueries({ queryKey: ['notifications', uid] }),
   });
   const mutating = useIsMutating({ mutationKey: ['notifications', uid] }) > 0;

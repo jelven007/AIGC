@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { creditSnapshot } from './browser_credit_fixture.mjs';
 import { readFile } from 'node:fs/promises';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const backend = 'https://ui-fixture.example', base = process.env.UI_TEST_URL || 'http://127.0.0.1:5197';
@@ -83,7 +84,7 @@ await context.route(`${backend}/**`, async route => {
     }
   } else if (path.includes('/rest/v1/materials') && req.method() === 'POST') { state.forbidden.push('seed-material'); status = 403; data = {}; }
   else if (path.includes('/rest/v1/profiles')) data = { id: currentId, username: '测试', invite_code: 'TEST' };
-  else if (path.includes('/rest/v1/user_plans')) data = { credits_total: 100, credits_used: 0, plans: { name: '专业版' } };
+  else if (path.endsWith('/rpc/get_my_credits')) data = creditSnapshot(currentId, { credits_total: 100, credits_left: 100 });
   else if (path.endsWith('/model-settings')) data = { configs: [] };
   else if (path.endsWith('/video-jobs') || path.endsWith('/production-jobs')) data = { jobs: [] };
   await route.fulfill({ status, contentType: type, body: type === 'application/json' ? JSON.stringify(data) : data,

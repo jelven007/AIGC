@@ -1,6 +1,6 @@
 # Shopro AI 产品需求
 
-新增REQ-REWARD-RECEIPT-01/AUTH-RECOVERY-01/ERROR-RECEIPT-01，见 [迭代32](../ITERATION_32_REWARDS_AUTH.md)：新邀请验证后双方实际赠分且保留旧账不补发、完整本人分页与遮蔽身份；共用服务端资格/UTC日/原请求恢复，查询或上报失败不假成功；会话固定敏感写入与真实密码恢复。00060/probe20/render4/edit2本地交付，社区凭证、真实身份服务与全栈目标验收继续执行。
+新增REQ-CREDITS-AUTHORITY-01/AUTH-SMS-01/LEGAL-RESOURCE-01/NOTIFICATION-IDENTITY-01，见 [迭代33](../ITERATION_33_CREDITS_SMS.md)：本人权威余额/有效等级、共享账号缓存/取消、失败重试不降级、过期保留积分；SMS原手机/独立回执/未知冷却/明确注册与登录、正式协议资源缺失禁注册、通知原身份与离页保护。00061/probe21/render4/edit2本地交付，真实法务文档/身份服务与目标验收继续执行。
 
 新增REQ-ACCOUNT-ISOLATION-01/PROFILE-OVERVIEW-01/STORYBOARD-FLOW-01，见 [迭代31](../ITERATION_31_ACCOUNT_STORYBOARD.md)：切换账号隔离页面/缓存/路由输入与迟到资料；本人完整统计、真实发布、30天时区活跃、私有头像登记与引用保护；真实脚本SSE、失败保留、原UUID保存恢复，并把确认分镜/台词传入后台合成。00059/probe19/render4/edit2本地交付，目标身份/模型/平台与运行验收继续执行。
 

@@ -1,268 +1,53 @@
-/**
- * useCredits - 积分余额实时查询与原子扣减 Hook（P0-核心闭环）
- *
- * 规则口径：新用户注册默认 20 积分；视频生成固定消耗 10 积分/次（见 creditGuard.ts 与迁移 00025）
- */
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/db/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import type { CreditLog } from '@/types/types';
-import { insufficientCreditsMessage, openCreditsDialog } from '@/lib/creditGuard';
-import { toast } from 'sonner';
+import { hasCurrentEntitlement, readUserCredits } from '@/api/credits';
 
-export interface CreditsState {
-  creditsTotal: number;
-  creditsUsed: number;
-  creditsLeft: number;
-  usagePercent: number;
-  loading: boolean;
-  planName: string;
-  error?: string;
-}
-
-// ── 模块级余额缓存：供 creditGuard 零网络请求前置校验使用 ────────────────────
-let _latestCreditsLeft: number | null = null;
-let _creditsOwner: string | null = null;
-/** 读取最近一次已知的积分余额；尚未获取过时返回 null（调用方自行回源） */
-export function peekCreditsLeft(userId: string): number | null {
-  return _creditsOwner === userId ? _latestCreditsLeft : null;
-}
-
+/** 同一账号的顶栏、个人中心、套餐门禁与计费页共享查询；注销销毁整个账号缓存。 */
 export function useCredits() {
   const { user } = useAuth();
-  const [state, setState] = useState<CreditsState>({
-    creditsTotal: 0, creditsUsed: 0, creditsLeft: 0,
-    usagePercent: 0, loading: true, planName: '免费版',
+  const query = useQuery({
+    queryKey: ['credits', user?.id], enabled: !!user,
+    queryFn: ({ signal }) => readUserCredits(user!.id, signal),
+    staleTime: 15000, retry: 1,
   });
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
-  const ownerRef = useRef(user?.id);
-  ownerRef.current = user?.id;
-  const [stateOwner, setStateOwner] = useState(user?.id);
-  const fetchSequence = useRef(0);
-
-  const fetch = useCallback(async () => {
-    const sequence = ++fetchSequence.current;
-    if (!user) {
-      _creditsOwner = null;
-      _latestCreditsLeft = null;
-      setState({ creditsTotal: 0, creditsUsed: 0, creditsLeft: 0, usagePercent: 0, loading: false, planName: '免费版' });
-      return;
-    }
-    const uid = user.id;
-    setState(s => ({ ...s, loading: true, error: undefined }));
-    try {
-      const { data, error } = await supabase
-        .from('user_plans')
-        .select('credits_total, credits_used, plans(name)')
-        .eq('user_id', user.id)
-        .abortSignal(AbortSignal.timeout(15000))
-        .maybeSingle();
-      if (error) throw error;
-      if (ownerRef.current !== uid || sequence !== fetchSequence.current) return;
-      setStateOwner(uid);
-      _creditsOwner = uid;
-      if (data) {
-        const total = data.credits_total ?? 0;
-        const used = data.credits_used ?? 0;
-        const left = Math.max(0, total - used);
-        _latestCreditsLeft = left;
-        setState({
-          creditsTotal: total,
-          creditsUsed: used,
-          creditsLeft: left,
-          usagePercent: total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0,
-          loading: false,
-          planName: (data.plans as { name?: string } | null)?.name ?? '免费版',
-        });
-      } else {
-        _latestCreditsLeft = 0;
-        setState({
-          creditsTotal: 0,
-          creditsUsed: 0,
-          creditsLeft: 0,
-          usagePercent: 0,
-          loading: false,
-          planName: '免费版',
-        });
-      }
-    } catch {
-      if (ownerRef.current !== uid || sequence !== fetchSequence.current) return;
-      setStateOwner(uid);
-      _creditsOwner = uid;
-      _latestCreditsLeft = null;
-      setState({ creditsTotal: 0, creditsUsed: 0, creditsLeft: 0, usagePercent: 0, loading: false, planName: '免费版',
-        error: '积分余额读取失败，请重试' });
-    }
-  }, [user]);
-
-  useEffect(() => { fetch(); }, [fetch]);
-
-  // 1. Supabase Realtime 跨端/多标签页实时监听 (user_plans & credit_logs)
+  const [, tick] = useState(0);
+  const data = user && query.data?.userId === user.id ? query.data : undefined;
+  const active = data ? hasCurrentEntitlement(data) : false;
   useEffect(() => {
-    if (!user?.id) return;
-
-    try {
-      const channel = supabase
-        .channel(`user-credits-sync-${user.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'user_plans',
-            filter: `user_id=eq.${user.id}`,
-          },
-          () => {
-            fetch();
-          }
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'credit_logs',
-            filter: `user_id=eq.${user.id}`,
-          },
-          () => {
-            fetch();
-          }
-        )
-        .subscribe();
-
-      channelRef.current = channel;
-    } catch (e) {
-      console.warn('[useCredits] Realtime 订阅初始化跳过:', e);
-    }
-
-    return () => {
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-      }
-    };
-  }, [user?.id, fetch]);
-
-  // 2. 监听本地自定义事件（保留兼容本地迅速响应）
-  useEffect(() => {
-    const handleChanged = () => { fetch(); };
-    window.addEventListener('credits_changed', handleChanged);
-    return () => window.removeEventListener('credits_changed', handleChanged);
-  }, [fetch]);
-
-  return { ...(stateOwner === user?.id ? state : {
-    creditsTotal: 0, creditsUsed: 0, creditsLeft: 0, usagePercent: 0, loading: !!user, planName: '',
-  }), refresh: fetch };
+    if (!data?.entitlementActive || !data.expiresAt) return;
+    const delay = Date.parse(data.expiresAt) - Date.parse(data.serverTime) - (performance.now() - data.receivedAt);
+    if (delay <= 0) return;
+    const timer = setTimeout(() => tick(value => value + 1), Math.min(delay + 1, 2147483647));
+    return () => clearTimeout(timer);
+  }, [data]);
+  return {
+    data, creditsTotal: data?.total ?? 0, creditsUsed: data?.used ?? 0, creditsLeft: data?.left ?? 0,
+    usagePercent: data && data.total > 0 ? Math.min(100, Math.round(data.used / data.total * 100)) : 0,
+    planName: data?.planName ?? '', planLevel: active ? data?.planLevel ?? 0 : 0,
+    entitlementActive: active, loading: !!user && query.isPending, refreshing: query.isFetching,
+    error: query.error ? '积分与套餐读取失败，请重试' : undefined,
+    refresh: query.refetch,
+  };
 }
 
-/**
- * deductUserCredits - 扣除用户积分
- * 唯一原子路径：数据库 SECURITY DEFINER RPC deduct_credits（FOR UPDATE 行锁 + 余额校验 + 流水写入，杜绝并发双扣）
- */
-export async function deductUserCredits(
-  userId: string,
-  amount: number,
-  description: string,
-  type: CreditLog['type'] = 'video_generate'
-): Promise<{ success: boolean; creditsLeft: number; chargeId?: string; message?: string; insufficientCredits?: boolean }> {
-  if (!userId) {
-    return { success: false, creditsLeft: 0, message: '请先登录账号' };
-  }
-  if (!Number.isSafeInteger(amount) || amount <= 0) {
-    return { success: false, creditsLeft: 0, message: '扣费积分必须为正整数' };
-  }
-
-  try {
-    // 唯一原子路径：执行数据库 RPC deduct_credits（返回 jsonb: { ok, credits_left }）
-    const { data: rpcData, error: rpcError } = await supabase.rpc('deduct_credits', {
-      p_user_id: userId,
-      p_amount: amount,
-      p_action: description || type,
-    });
-
-    if (rpcError) {
-      console.warn('[useCredits] deduct_credits RPC 失败:', rpcError.message);
-      const isInsufficient = rpcError.message?.includes('积分不足') || rpcError.message?.includes('insufficient');
-      if (isInsufficient) {
-        // 余额不足：标准文案 + 自动弹出积分管理与充值弹窗
-        let left = peekCreditsLeft(userId) ?? 0;
-        if (left <= 0) {
-          const { data: plan } = await supabase
-            .from('user_plans')
-            .select('credits_total, credits_used')
-            .eq('user_id', userId)
-            .maybeSingle();
-          left = Math.max(0, (plan?.credits_total ?? 0) - (plan?.credits_used ?? 0));
-        }
-        toast.error(insufficientCreditsMessage(left, amount), { duration: 6000 });
-        openCreditsDialog();
-        return { success: false, creditsLeft: left, insufficientCredits: true, message: insufficientCreditsMessage(left, amount) };
-      }
-      return {
-        success: false,
-        creditsLeft: 0,
-        message: `扣除积分失败：${rpcError.message || '系统繁忙，请稍后重试'}`,
-      };
-    }
-    if (!rpcData?.ok || !rpcData?.charge_id) {
-      return { success: false, creditsLeft: 0, message: '计费服务版本不兼容，请先部署资金安全迁移 00028' };
-    }
-
-    const left = Number(rpcData.credits_left);
-    if (!Number.isSafeInteger(left) || left < 0) {
-      return { success: false, creditsLeft: 0, message: '计费结果异常，请联系客服核对扣费流水' };
-    }
-    _latestCreditsLeft = left;
-    _creditsOwner = userId;
-
-    // 广播本地事件 & 跨标签页
-    window.dispatchEvent(new CustomEvent('credits_changed', { detail: { creditsLeft: left } }));
-
-    return {
-      success: true,
-      creditsLeft: left,
-      chargeId: rpcData.charge_id,
-    };
-  } catch (err: any) {
-    console.error('扣除积分过程产生错误:', err);
-    return {
-      success: false,
-      creditsLeft: 0,
-      message: '扣除积分过程产生错误',
-    };
-  }
-}
-
-/**
- * 兼容旧页面入口；服务端任务补偿接入前，不允许浏览器凭金额自行退款。
- */
-export async function refundGenerationCredits(
-  userId: string,
-  amount: number = 10,
-  reason: string = '视频生成失败，自动退还积分'
-): Promise<{ success: boolean; balance: number; message?: string }> {
-  if (!userId) return { success: false, balance: 0, message: '请先登录账号' };
-  try {
-    const { data, error } = await supabase.functions.invoke('ai-assistant', {
-      body: { action: 'refund_generation_credits', amount, reason },
-    });
-    if (error) {
-      let message = '自动退款需由服务端确认任务失败，当前请联系客服核对';
-      try {
-        const response = await error.context?.json?.();
-        message = response?.message || message;
-      } catch { /* 保留标准失败提示 */ }
-      return { success: false, balance: 0, message };
-    }
-    if (data?.code !== 0 || !data?.data) {
-      return { success: false, balance: 0, message: data?.message || '退款未完成，请联系客服核对' };
-    }
-    const balance = Math.max(0, Number(data?.data?.balance ?? data?.balance ?? 0));
-    if (Number.isFinite(balance) && data) { _latestCreditsLeft = balance; _creditsOwner = userId; }
-    window.dispatchEvent(new CustomEvent('credits_changed', { detail: { creditsLeft: balance } }));
-    return { success: true, balance };
-  } catch (err: any) {
-    console.error('[useCredits] 退款过程产生错误:', err);
-    return { success: false, balance: 0, message: err?.message || '退款请求失败' };
-  }
+/** AccountScope只挂载一次。实时断线仍有有界轮询与窗口恢复回源。 */
+export function CreditsSync() {
+  const { user } = useAuth();
+  const client = useQueryClient();
+  useCredits();
+  useEffect(() => {
+    if (!user) return;
+    const refresh = () => { void client.invalidateQueries({ queryKey: ['credits', user.id] }); };
+    const channel = supabase.channel(`account-credits-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_plans', filter: `user_id=eq.${user.id}` }, refresh)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'credit_logs', filter: `user_id=eq.${user.id}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'plans' }, refresh)
+      .subscribe();
+    const timer = setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 30000);
+    window.addEventListener('credits_changed', refresh);
+    return () => { clearInterval(timer); window.removeEventListener('credits_changed', refresh); void supabase.removeChannel(channel); };
+  }, [user?.id, client]);
+  return null;
 }
