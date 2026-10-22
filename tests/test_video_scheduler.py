@@ -84,11 +84,11 @@ class SchedulerTest(unittest.TestCase):
     def test_production_probe_requires_current_schema_and_protocol(self):
         config = scheduler.Config("https://project.example/functions/v1/production-worker",
             self.secret, 4, 10, 150, self.config.state_path)
-        good = {"ready": True, "version": 17, "required_migration": "00056", "render_version": 4, "edit_version": 2}
+        good = {"ready": True, "version": 18, "required_migration": "00058", "render_version": 4, "edit_version": 2}
         with patch.object(scheduler.urllib.request, "build_opener") as mock:
             mock.return_value.open.return_value = Response(good)
             self.assertEqual(scheduler.call_worker(config, "probe"), 0)
-            for override in ({"version": 1}, {"version": 15}, {"required_migration": "00054"}, {"render_version": 2}, {"edit_version": 1}, {"ready": False}):
+            for override in ({"version": 1}, {"version": 17}, {"required_migration": "00056"}, {"render_version": 2}, {"edit_version": 1}, {"ready": False}):
                 mock.return_value.open.return_value = Response({**good, **override})
                 with self.assertRaises(scheduler.WorkerError):
                     scheduler.call_worker(config, "probe")
@@ -180,8 +180,11 @@ class SchedulerTest(unittest.TestCase):
                 self.stopped = True
         class Opener:
             def open(inner, request, timeout):
-                self.assertEqual(json.loads(request.data), {"action": "metrics"})
                 self.assertEqual(request.headers["Authorization"], "Bearer " + self.secret)
+                if json.loads(request.data)["action"] == "monitor":
+                    self.assertTrue(json.loads(request.data)["scheduler_healthy"])
+                    return Response({"active": 1, "opened": 1, "resolved": 0})
+                self.assertEqual(json.loads(request.data), {"action": "metrics"})
                 return Response({"collected": 1})
         with patch.object(scheduler, "call_worker", return_value=0), \
              patch.object(scheduler, "run_cycle", return_value={"processed": 1, "errors": 0, "error_codes": []}), \
@@ -190,7 +193,44 @@ class SchedulerTest(unittest.TestCase):
             scheduler.serve(config, Stop())
         state = json.loads(config.state_path.read_text())
         self.assertGreater(state["last_metrics"], 0)
+        self.assertGreater(state["last_monitor"], 0)
         self.assertTrue(scheduler.healthy(config))
+
+    def test_persistent_outage_recovery_and_restart_do_not_duplicate_alerts(self):
+        state = {"failures": 3, "monitor_failures": 3}
+        with patch.object(scheduler, "log"):
+            scheduler.persist_local_alerts(self.config, state)
+            scheduler.persist_local_alerts(self.config, state)
+        path = self.config.state_path.with_name("scheduler-alerts.json")
+        saved = json.loads(path.read_text())
+        self.assertEqual(len(saved["events"]), 2)
+        self.assertEqual(set(saved["active"]), {"scheduler_unhealthy", "monitor_unavailable"})
+        self.assertNotIn(self.secret, path.read_text())
+        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+        class Stop:
+            stopped = False
+            def is_set(self):
+                return self.stopped
+            def wait(self, _):
+                self.stopped = True
+        with patch.object(scheduler, "call_worker", side_effect=scheduler.WorkerError("http_503")), patch.object(scheduler, "log"):
+            scheduler.serve(self.config, Stop())
+        self.assertEqual(json.loads(path.read_text())["failures"], 4)
+        with patch.object(scheduler, "log"):
+            scheduler.persist_local_alerts(self.config, {"failures": 0, "monitor_failures": 0})
+        saved = json.loads(path.read_text())
+        self.assertEqual(saved["active"], [])
+        self.assertEqual(len(saved["events"]), 4)
+        self.assertEqual(saved["events"][-1]["event"], "resolved")
+
+    def test_monitor_requires_safe_response_and_stale_monitor_fails_health(self):
+        self.config.endpoint = "https://project.example/functions/v1/production-worker"
+        with patch.object(scheduler.urllib.request, "build_opener") as mock:
+            mock.return_value.open.return_value = Response({"active": True})
+            with self.assertRaises(scheduler.WorkerError):
+                scheduler.monitor(self.config, False)
+        scheduler.write_state(self.config, {"ready": True, "last_ok": scheduler.time.time(), "last_monitor": 0, "failures": 0})
+        self.assertFalse(scheduler.healthy(self.config))
 
 
 if __name__ == "__main__":

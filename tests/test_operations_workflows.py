@@ -1,6 +1,7 @@
 """隔离真实PG：工单身份/冲突、租户共享与预算、风险限制、现金成本原流水。"""
 import concurrent.futures
 import json
+import time
 import unittest
 import uuid
 import test_finance as finance
@@ -120,6 +121,38 @@ class OperationsWorkflowTest(unittest.TestCase):
         sql(f"UPDATE team_members SET status='removed' WHERE team_id='{team['id']}' AND user_id='{self.other}'")
         self.assertEqual(sql(f"SELECT sum(amount) FROM team_credit_reservations WHERE team_id='{team['id']}'").stdout.strip(), "6")
         self.assertNotEqual(sql(self.as_user(f"SELECT deduct_credits('{self.user}',6,'still-budgeted')"), fail=False).returncode, 0)
+
+    def test_video_creation_and_direct_charge_share_plan_first_lock_order(self):
+        team = self.team()
+        key = str(uuid.uuid4())
+        label = "lock-order-" + uuid.uuid4().hex
+        # 实际创建入口先锁套餐；观察到持锁后的PgSleep，再启动直接扣费。
+        creator = f"""SET application_name='{label}'; BEGIN;
+          SELECT 1 FROM user_plans WHERE user_id='{self.user}' FOR UPDATE;
+          SELECT pg_sleep(0.8);
+          {self.create_job_sql(key)}
+          COMMIT;"""
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            first = pool.submit(sql, creator, False)
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                sleeping = sql(f"SELECT count(*) FROM pg_stat_activity WHERE application_name='{label}' AND wait_event='PgSleep'").stdout.strip()
+                if sleeping == "1":
+                    break
+                time.sleep(0.02)
+            else:
+                self.fail("未观察到套餐行持锁，不能证明并发锁顺序")
+            second = pool.submit(sql, self.as_service(f"SELECT deduct_credits('{self.user}',1,'parallel-direct')"), False)
+            results = [first.result(), second.result()]
+        for result in results:
+            self.assertEqual(result.returncode, 0, result.stderr)
+        job = json.loads(sql(self.create_job_sql(key)).stdout)
+        self.assertEqual(sql(f"SELECT count(*) FROM video_jobs WHERE user_id='{self.user}'").stdout.strip(), "1")
+        self.assertEqual(sql(f"SELECT count(*) FROM team_credit_reservations WHERE team_id='{team['id']}'").stdout.strip(), "2")
+        self.assertEqual(sql(f"SELECT sum(amount) FROM team_credit_reservations WHERE team_id='{team['id']}'").stdout.strip(),
+                         str(job["credit_cost"] + 1))
+        self.assertEqual(sql(f"SELECT credits_used FROM user_plans WHERE user_id='{self.user}'").stdout.strip(),
+                         str(job["credit_cost"] + 1))
 
     def test_risk_disposition_and_restriction_separate_refund_preserved(self):
         event = str(uuid.uuid4())

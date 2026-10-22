@@ -16,6 +16,7 @@ const fields: Partial<Record<OperatorOperation, Field[]>> = {
     { key: 'related_type', label: '关联对象类型（可选）', optional: true, options: [['', '不关联'], ['video', '视频任务'], ['production', '生产任务'], ['order', '订单']] },
     { key: 'related_id', label: '关联对象编号（可选）', optional: true }],
   ticket_reply: [{ key: 'body', label: '回复正文', max: 2000, multiline: true }],
+  alert_ack: [],
   ticket_update: [{ key: 'status', label: '工单状态', options: statusOptions },
     { key: 'priority', label: '优先级', options: [['normal', '普通 · 24小时'], ['high', '紧急 · 4小时'], ['low', '低 · 72小时']] },
     { key: 'assignee_id', label: '处理人账号 UUID（留空取消分配）', optional: true }],
@@ -31,7 +32,7 @@ const fields: Partial<Record<OperatorOperation, Field[]>> = {
     { key: 'currency', label: '账单币种', options: [['CNY', '人民币 CNY'], ['USD', '美元 USD'], ['EUR', '欧元 EUR']] }],
 };
 const titles: Partial<Record<OperatorOperation, string>> = { ticket_create: '新建工单', ticket_reply: '回复工单', ticket_update: '处理工单',
-  tenant_update: '调整租户策略', tenant_member: '处理租户成员', risk_review: '核对风险事件', restriction: '调整新计费任务权限', cost_record: '登记供应商现金成本', cost_reverse: '冲销原成本流水' };
+  tenant_update: '调整租户策略', tenant_member: '处理租户成员', risk_review: '核对风险事件', restriction: '调整新计费任务权限', cost_record: '登记供应商现金成本', cost_reverse: '冲销原成本流水', alert_ack: '确认接手告警' };
 
 export default function OperationsWorkflowDialog({ edit, disabled, onClose, onSubmit }: {
   edit: WorkflowEdit; disabled: boolean; onClose: () => void; onSubmit: (request: PendingOperatorRequest) => Promise<void>;
@@ -88,6 +89,7 @@ export default function OperationsWorkflowDialog({ edit, disabled, onClose, onSu
       payload.team_id = edit.row.id; payload.expected = edit.row.ops_version;
     }
     if (edit.operation === 'risk_review') { payload.event_id = edit.row.id; payload.expected = edit.row.ops_version; }
+    if (edit.operation === 'alert_ack') { payload.alert_id = edit.row.id; payload.expected = edit.row.version; }
     if (edit.operation === 'tenant_member') { payload.team_id = edit.row.team_id; payload.member_id = edit.row.id; payload.expected = edit.row.ops_version; }
     if (edit.operation === 'restriction') { payload.user_id = edit.row.id; payload.expected = edit.row.restriction_version; payload.restricted = values.restricted === 'true'; }
     if (cost) {
@@ -111,6 +113,7 @@ export default function OperationsWorkflowDialog({ edit, disabled, onClose, onSu
       <DialogDescription>{cost ? '按已核对账单登记实际现金，包括有凭证的零成本。账单编号须包含供应商和账号，原件由企业归档。冲销不改变应用积分。'
         : edit.operation === 'tenant_update' ? '暂停阻止新的计费任务和共享访问；已签发链接在有效期内仍可能访问，原受理任务继续恢复。'
           : edit.operation === 'restriction' ? '限制只作用于新的计费任务。原任务查询、退款和工单申诉继续可用。'
+            : edit.operation === 'alert_ack' ? '确认代表接手处理。原问题消除后由后台记录恢复；再次发生会重新打开告警。'
             : '按当前记录版本提交，回复和处置保留原请求回执。'}</DialogDescription></DialogHeader>
       <form className="space-y-4" onSubmit={event => { event.preventDefault(); if (!disabled && !hashing) void submit(); }}>
         <fieldset disabled={disabled || hashing} className="space-y-4 min-w-0">

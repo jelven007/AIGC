@@ -1,11 +1,12 @@
 import { supabase } from '@/db/supabase';
 import { alipayTradeOps } from './alipay';
 import { wechatTradeOps } from './wechat';
-export type OperatorDomain = 'orders' | 'refunds' | 'customers' | 'jobs' | 'risk' | 'audit' | 'operators' | 'tickets' | 'tenants' | 'costs' | 'cost_missing';
+export type OperatorDomain = 'orders' | 'refunds' | 'customers' | 'jobs' | 'risk' | 'audit' | 'operators' | 'tickets' | 'tenants' | 'costs' | 'cost_missing' | 'alerts';
 export interface OperatorAccess { root: boolean; permissions: string[]; grants: { id: string; role: string; scope_user_id: string | null }[] }
-export interface OperatorPage { items: Record<string, unknown>[]; total: number; page: number; page_size: number; observed_at: string }
+export interface OperatorPage { items: Record<string, unknown>[]; total: number; page: number; page_size: number; observed_at: string;
+  monitor?: { last_scan_at: string; stale: boolean } }
 export type OperatorOperation = 'budget' | 'grant' | 'revoke' | 'ticket_create' | 'ticket_reply' | 'ticket_update'
-  | 'tenant_update' | 'tenant_member' | 'risk_review' | 'restriction' | 'cost_record' | 'cost_reverse';
+  | 'tenant_update' | 'tenant_member' | 'risk_review' | 'restriction' | 'cost_record' | 'cost_reverse' | 'alert_ack';
 export type OperatorRequest = { action: 'mutate'; operation: OperatorOperation; request_key: string; payload: Record<string, unknown> };
 export interface SupportDetail { ticket: Record<string, unknown>; items: Record<string, unknown>[]; total: number; page: number; page_size: number; staff: boolean }
 export function supportPage(page: number): Promise<OperatorPage> { return operationsRequest({ action: 'support', page }); }

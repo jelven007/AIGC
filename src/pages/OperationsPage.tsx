@@ -18,6 +18,7 @@ const DOMAINS: { id: OperatorDomain; name: string; permission: string; columns: 
   { id: 'refunds', name: '退款核对', permission: 'orders:read', columns: [['order_no', '订单编号'], ['pay_channel', '渠道'], ['out_request_no', '原退款编号'], ['refund_amount', '退款 ¥'], ['status', '状态'], ['revoked_credits', '回收积分'], ['needs_attention', '待核对']] },
   { id: 'customers', name: '客户与预算', permission: 'customers:read', columns: [['username', '客户'], ['email', '邮箱'], ['credit_balance', '积分余额'], ['daily_credit_budget', '日预算'], ['restricted', '新任务受限'], ['plan_status', '套餐状态']] },
   { id: 'jobs', name: '生产队列', permission: 'jobs:read', columns: [['kind', '类型'], ['status', '状态'], ['billing_state', '计费状态'], ['needs_attention', '待核对'], ['created_at', '创建时间']] },
+  { id: 'alerts', name: '运行告警', permission: 'alerts:read', columns: [['title', '问题'], ['severity', '级别'], ['status', '处置状态'], ['source_id', '原对象编号'], ['occurrences', '发生次数'], ['opened_at', '本次发生'], ['last_seen_at', '最近观察'], ['note', '接手记录']] },
   { id: 'tickets', name: '运营工单', permission: 'tickets:read', columns: [['title', '标题'], ['status', '状态'], ['priority', '优先级'], ['assignee_id', '处理人'], ['due_at', '响应期限']] },
   { id: 'tenants', name: '租户管理', permission: 'tenants:read', columns: [['name', '租户'], ['state', '状态'], ['active_members', '有效成员'], ['max_members', '成员上限'], ['daily_reserved', '今日预占'], ['daily_credit_budget', '团队日预算']] },
   { id: 'costs', name: '供应商现金成本', permission: 'costs:read', columns: [['statement_ref', '账单编号'], ['line_ref', '行号'], ['provider', '原供应商'], ['currency', '币种'], ['amount_minor', '现金金额'], ['job_id', '原调用编号']] },
@@ -31,7 +32,8 @@ const STATUS: Record<string, string> = { paid: '已支付', pending: '待支付'
   alipay: '支付宝', wechat: '微信',
   active: '生效', failed: '失败', completed: '完成', processing: '执行中', queued: '排队中', reserved: '预占', settled: '已结算',
   open: '待处理', in_progress: '处理中', waiting_customer: '等待客户', resolved: '已解决', suspended: '暂停',
-  high: '紧急', normal: '普通', low: '低', unreviewed: '未核对', reviewing: '核查中', dismissed: '排除', confirmed: '确认风险' };
+  high: '紧急', normal: '普通', low: '低', unreviewed: '未核对', reviewing: '核查中', dismissed: '排除', confirmed: '确认风险',
+  critical: '严重', warning: '提醒', acknowledged: '已接手' };
 function cell(value: unknown, key: string) {
   if (value === null || value === undefined) return key === 'scope_user_id' ? '全部客户' : '—';
   if (typeof value === 'boolean') return value ? '是' : '否';
@@ -176,6 +178,10 @@ export default function OperationsPage() {
       </>}
     </div>}
     {listed.error && <p role="alert" className="text-destructive">{listed.error.message}</p>}
+    {selected.id === 'alerts' && listed.data?.monitor && <div className="rounded-lg border p-4 text-sm space-y-1" role={listed.data.monitor.stale ? 'alert' : 'status'}>
+      <p>{listed.data.monitor.stale ? '告警采集超过三分钟未更新，请检查后台调度。' : '后台告警采集正常'}</p>
+      <p className="text-muted-foreground">最近采集 {new Date(listed.data.monitor.last_scan_at).toLocaleString('zh-CN')} · 已接手的问题仍会持续监测，恢复后保留记录。</p>
+    </div>}
     {listed.isFetching ? <p role="status">正在读取运营数据…</p> : listed.data && <>
       <p className="text-xs text-muted-foreground">共 {listed.data.total} 条 · 读取时间 {new Date(listed.data.observed_at).toLocaleString('zh-CN')}</p>
       {!listed.data.items.length ? <p className="border rounded-lg p-8 text-center text-muted-foreground">当前范围内没有记录</p> :
@@ -200,6 +206,8 @@ export default function OperationsPage() {
               {selected.id === 'customers' && access.data?.permissions.includes('risk:write') && <Button size="sm" variant="outline" disabled={!!pending || busy || !!localError}
                 onClick={() => setWorkflow({ operation: 'restriction', row })}>{row.restricted ? '解除任务限制' : '限制新计费任务'}</Button>}
               {selected.id === 'tickets' && <Button size="sm" variant="outline" onClick={() => setDetail({ type: 'ticket', id: String(row.id) })}>查看工单</Button>}
+              {selected.id === 'alerts' && row.status === 'open' && !!row.can_ack && <Button size="sm" variant="outline"
+                disabled={!!pending || busy || !!localError} onClick={() => setWorkflow({ operation: 'alert_ack', row })}>确认接手</Button>}
               {selected.id === 'tenants' && <><Button size="sm" variant="outline" onClick={() => setDetail({ type: 'tenant', id: String(row.id) })}>查看成员</Button>
                 {canTenantWrite && <Button size="sm" variant="outline" disabled={!!pending || busy || !!localError}
                   onClick={() => setWorkflow({ operation: 'tenant_update', row })}>调整租户策略</Button>}</>}

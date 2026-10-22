@@ -36,6 +36,7 @@ const valid = {
   restriction: { user_id: id, expected: 0, restricted: true, reason: '暂停新计费任务' },
   cost_record: { job_type: 'video', job_id: id, amount_minor: 123, currency: 'USD', statement_ref: 'provider/account/invoice', line_ref: '1', evidence_sha256: 'a'.repeat(64), reason: '原供应商账单核对' },
   cost_reverse: { entry_id: id, statement_ref: 'provider/account/correction', line_ref: '2', evidence_sha256: 'b'.repeat(64), reason: '原账单撤销' },
+  alert_ack: { alert_id: id, expected: 1, reason: '值班已接手核对原任务' },
 };
 for (const [operation, payload] of Object.entries(valid)) {
   const response = await handleOperations(request({ action: 'mutate', operation, payload, request_key: key, actor: id }));
@@ -48,6 +49,7 @@ for (const [operation, payload] of [
   ['tenant_update', { ...valid.tenant_update, max_members: 0 }], ['restriction', { ...valid.restriction, restricted: 1 }],
   ['cost_record', { ...valid.cost_record, amount_minor: 1.23 }], ['cost_record', { ...valid.cost_record, evidence_sha256: 'bad' }],
   ['tenant_member', { ...valid.tenant_member, role: 'owner' }], ['risk_review', { ...valid.risk_review, reason: '' }],
+  ['alert_ack', { ...valid.alert_ack, expected: undefined }], ['alert_ack', { ...valid.alert_ack, alert_id: 'bad' }],
 ]) {
   const before = calls.length;
   const response = await handleOperations(request({ action: 'mutate', operation, payload, request_key: key }));

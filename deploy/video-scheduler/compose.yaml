@@ -13,7 +13,10 @@ services:
       VIDEO_WORKER_CONCURRENCY: ${VIDEO_WORKER_CONCURRENCY:-4}
       VIDEO_WORKER_TIMEOUT_SECONDS: 150
       VIDEO_WORKER_STATE_FILE: /tmp/video-scheduler.json
+      VIDEO_WORKER_ALERT_FILE: /var/lib/shopro/scheduler-alerts.json
       PRODUCTION_WORKER_ENABLED: ${PRODUCTION_WORKER_ENABLED:-false}
+    volumes:
+      - scheduler-alerts:/var/lib/shopro
     secrets:
       - video_worker_secret
     tmpfs:
@@ -38,3 +41,6 @@ services:
 secrets:
   video_worker_secret:
     file: ./video_worker_secret
+
+volumes:
+  scheduler-alerts:

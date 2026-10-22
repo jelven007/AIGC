@@ -24,7 +24,7 @@ export async function handleOperations(req: Request): Promise<Response> {
     let result;
     if (body.action === 'access') result = await db.rpc('operator_access', { p_actor: auth.user.id });
     else if (body.action === 'list') {
-      if (!['orders', 'refunds', 'customers', 'jobs', 'risk', 'audit', 'operators', 'tickets', 'tenants', 'costs', 'cost_missing'].includes(body.domain)
+      if (!['orders', 'refunds', 'customers', 'jobs', 'risk', 'audit', 'operators', 'tickets', 'tenants', 'costs', 'cost_missing', 'alerts'].includes(body.domain)
         || body.user_id && !uuid(body.user_id) || body.page !== undefined && (!Number.isInteger(body.page) || body.page < 1 || body.page > 1000)
         || body.keyword !== undefined && (typeof body.keyword !== 'string' || body.keyword.length > 64)) return reply({ error: '列表筛选非法' }, 400);
       result = await db.rpc('operator_list', { p_actor: auth.user.id, p_domain: body.domain,
@@ -42,7 +42,7 @@ export async function handleOperations(req: Request): Promise<Response> {
       result = await db.rpc('support_read', { p_actor: auth.user.id, p_ticket: body.ticket_id || null, p_page: body.page ?? 1 });
     } else {
       if (!uuid(body.request_key) || !['budget', 'grant', 'revoke', 'ticket_create', 'ticket_reply', 'ticket_update',
-        'tenant_update', 'tenant_member', 'risk_review', 'restriction', 'cost_record', 'cost_reverse'].includes(body.operation)
+        'tenant_update', 'tenant_member', 'risk_review', 'restriction', 'cost_record', 'cost_reverse', 'alert_ack'].includes(body.operation)
         || !body.payload || typeof body.payload !== 'object' || Array.isArray(body.payload)) return reply({ error: '运营申请非法', outcome: 'rejected' }, 400);
       const payload = body.payload;
       if (body.operation === 'budget' && (!uuid(payload.user_id) || !Number.isInteger(payload.amount)
@@ -71,6 +71,7 @@ export async function handleOperations(req: Request): Promise<Response> {
         || body.operation === 'risk_review' && (!uuid(payload.event_id) || !expected || !boundedText(payload.reason, 2000)
           || !['reviewing', 'dismissed', 'confirmed'].includes(payload.disposition))
         || body.operation === 'restriction' && (!uuid(payload.user_id) || !expected || typeof payload.restricted !== 'boolean' || !boundedText(payload.reason, 2000))
+        || body.operation === 'alert_ack' && (!uuid(payload.alert_id) || !expected || !boundedText(payload.reason, 2000))
         || ['cost_record', 'cost_reverse'].includes(body.operation) && (!boundedText(payload.reason, 2000)
           || !boundedText(payload.statement_ref, 120) || !boundedText(payload.line_ref, 120)
           || typeof payload.evidence_sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(payload.evidence_sha256)

@@ -54,3 +54,9 @@ __pycache__/
 supabase/.temp/
 deploy/render-worker/render_worker_secret
 deploy/render-worker/.env
+
+# 加密备份及隔离恢复材料
+/backups/
+/restore-results/
+deploy/backup/config.json
+deploy/backup/secrets/

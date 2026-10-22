@@ -13,6 +13,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass(repr=False)
@@ -23,6 +24,7 @@ class Config:
     interval: int
     timeout: int
     state_path: Path
+    alert_path: Optional[Path] = None
 
 
 class WorkerError(Exception):
@@ -63,6 +65,7 @@ def load_config():
         number("VIDEO_WORKER_INTERVAL_SECONDS", 10, 5, 300),
         number("VIDEO_WORKER_TIMEOUT_SECONDS", 150, 10, 150),
         Path(os.environ.get("VIDEO_WORKER_STATE_FILE", "/tmp/shopro-video-scheduler.json")),
+        Path(os.environ["VIDEO_WORKER_ALERT_FILE"]) if os.environ.get("VIDEO_WORKER_ALERT_FILE") else None,
     )
 
 
@@ -81,10 +84,10 @@ def call_worker(config, action="run"):
             data = json.loads(raw)
         if action == "probe":
             production = config.endpoint.endswith("/production-worker")
-            expected_version = 17 if production else 1
+            expected_version = 18 if production else 1
             if data.get("ready") is not True or data.get("version") != expected_version:
                 raise WorkerError("worker_not_ready")
-            if production and (data.get("required_migration") != "00056" or data.get("render_version") != 4 or data.get("edit_version") != 2):
+            if production and (data.get("required_migration") != "00058" or data.get("render_version") != 4 or data.get("edit_version") != 2):
                 raise WorkerError("worker_not_ready")
             return 0
         processed = data.get("processed")
@@ -118,6 +121,55 @@ def write_state(config, value):
     temporary.write_text(json.dumps(value))
     os.replace(temporary, config.state_path)
 
+def monitor(config, scheduler_healthy):
+    request = urllib.request.Request(config.endpoint, method="POST",
+        data=json.dumps({"action": "monitor", "scheduler_healthy": scheduler_healthy}).encode(),
+        headers={"Authorization": "Bearer " + config.secret, "Content-Type": "application/json"})
+    try:
+        with urllib.request.build_opener(NoRedirect).open(request, timeout=min(30, config.timeout)) as response:
+            raw = response.read(16385)
+            data = json.loads(raw)
+            if len(raw) > 16384 or not isinstance(data, dict) or not (
+                data.get("skipped") is True or type(data.get("active")) is int and data["active"] >= 0
+            ):
+                raise WorkerError("invalid_monitor_response")
+    except urllib.error.HTTPError as cause:
+        raise WorkerError(f"http_{cause.code}") from None
+    except (urllib.error.URLError, TimeoutError, socket.timeout):
+        raise WorkerError("network_error") from None
+    except (ValueError, AttributeError):
+        raise WorkerError("invalid_monitor_response") from None
+
+
+def persist_local_alerts(config, state):
+    # Worker或数据库完全不可达时仍保留故障/恢复事件。命名卷独立于临时健康文件。
+    path = config.alert_path or config.state_path.with_name("scheduler-alerts.json")
+    if path.exists():
+        value = json.loads(path.read_text())
+        if not isinstance(value, dict) or not isinstance(value.get("events"), list):
+            raise ValueError("本地告警记录损坏，请核对持久卷")
+    else:
+        value = {"endpoint": config.endpoint, "active": [], "events": []}
+    if value.get("endpoint") != config.endpoint:
+        value = {"endpoint": config.endpoint, "active": [], "events": []}
+    desired = []
+    if state["failures"] >= 3:
+        desired.append("scheduler_unhealthy")
+    if state.get("monitor_failures", 0) >= 3:
+        desired.append("monitor_unavailable")
+    previous = set(value["active"])
+    for code in sorted(previous ^ set(desired)):
+        event = {"rule": code, "event": "opened" if code in desired else "resolved", "at": time.time()}
+        value["events"].append(event)
+        log("local_alert", **event)
+    value.update(active=desired, failures=state["failures"], monitor_failures=state.get("monitor_failures", 0),
+                 events=value["events"][-100:], observed_at=time.time())
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(json.dumps(value))
+    temporary.chmod(0o600)
+    os.replace(temporary, path)
+
 
 def log(event, **values):
     print(json.dumps({"event": event, **values}, ensure_ascii=False), flush=True)
@@ -126,14 +178,23 @@ def log(event, **values):
 def healthy(config):
     try:
         state = json.loads(config.state_path.read_text())
-        return state.get("ready") is True and time.time() - state["last_ok"] < max(
-            90, config.timeout + config.interval * 3)
+        return state.get("ready") is True and state.get("failures", 0) < 3 and time.time() - state["last_ok"] < max(
+            90, config.timeout + config.interval * 3) and (not config.endpoint.endswith('/production-worker')
+            or time.time() - state.get("last_monitor", 0) < 180)
     except (OSError, KeyError, ValueError, TypeError):
         return False
 
 
 def serve(config, stop):
     state = {"ready": False, "last_ok": 0, "failures": 0}
+    alert_path = config.alert_path or config.state_path.with_name("scheduler-alerts.json")
+    if alert_path.exists():
+        saved = json.loads(alert_path.read_text())
+        if saved.get("endpoint") == config.endpoint:
+            for field in ("failures", "monitor_failures"):
+                value = saved.get(field, 0)
+                if type(value) is int and value >= 0:
+                    state[field] = value
     while not stop.is_set():
         started = time.monotonic()
         try:
@@ -167,6 +228,15 @@ def serve(config, stop):
         except WorkerError as cause:
             state.update(ready=False, failures=state["failures"] + 1)
             log("probe_failed", code=cause.code)
+        if config.endpoint.endswith('/production-worker') and time.time() - state.get("last_monitor_attempt", 0) >= 60:
+            state["last_monitor_attempt"] = time.time()
+            try:
+                monitor(config, state["failures"] < 3)
+                state.update(last_monitor=time.time(), monitor_failures=0)
+            except WorkerError as cause:
+                state["monitor_failures"] = state.get("monitor_failures", 0) + 1
+                log("monitor_failed", code=cause.code)
+        persist_local_alerts(config, state)
         write_state(config, state)
         delay = min(300, config.interval * 2 ** min(state["failures"], 5))
         # 一批结束后再进入下一批，无本地重叠；信号可立即打断等待。
