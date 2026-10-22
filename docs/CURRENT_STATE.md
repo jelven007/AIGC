@@ -13,7 +13,7 @@
 | 当前协议 | production probe22、required_migration=00062、render4、edit2 |
 | MCP | 59个实际SDK工具、19种业务权限；公网TLS、匹配云端和真实供应商尚未验收 |
 | 火山部署 | 发布工具与镜像已适配，资源创建、数据迁移与实际运行验收未完成 |
-| 用户仓库发布 | 用户最新指定GitHub jelven007/AIGC master；本地文档da7b9de已由9c1ffae合并，两历史标签d7e3d38/79afcfb，完整祖先保留；实际指向按远端回执核验，见版本管理 |
+| 用户仓库发布 | GitHub jelven007/AIGC已原子推送内容提交3e1eacf（含文档da7b9de与合并9c1ffae）；远端两历史标签核验为d7e3d38/79afcfb，完整祖先保留；发布回执随后同步，见版本管理 |
 
 不能只发布前端。当前前端依赖model-settings及新业务函数，云端旧基线不具备完整新链路。
 
