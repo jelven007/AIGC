@@ -1,5 +1,7 @@
 # 测试与验收计划
 
+新增 [迭代25专项](ITERATION_25_EDIT_ANALYSIS.md)：test:edit执行真实PG7项原请求/价格/模型/配额/工程归属/RLS/阶段/租约/未知保护/单退款及协议6组，含源素材清理后终态回执；实际PCM/FFT/固定人物模型/FFmpeg5项验证120→240 BPM/裁剪hash/静音、人物alpha/原音轨/手机旋转、取消和字幕边界。browser_edit_analysis覆盖503刷新同UUID、真实字幕偏移/重复应用拒绝、节拍切分/人物设置恢复、无回执任务链接/390px与压缩页面；原FFmpeg12项、任务中心、情报PG/调度/部署回归。目标补真实Whisper、分割质量、多语言、长素材CPU/临时空间与关页验收；probe14/00053/render3/edit1与匹配全栈。
+
 新增 [迭代24专项](ITERATION_24_WECHAT_TRANSACTIONS.md)：test:wechat覆盖13项真实PG单租约/原商户/期限/关闭与迟到支付、原退款/通知竞争/额度/比例欠额/365天/50次/一分钟限制/已验签不存在才恢复，真实RSA/AES协议8组及基础验签。回归cash/checkout，390px订单与微信/支付宝运营恢复和压缩页面；目标补真实Native付款/回调/丢通知/原路退款到账/异常退款/历史绑定/账单对账。probe13/00052/render2与全部匹配函数同窗发布。
 
 新增 [迭代23专项](ITERATION_23_DATA_LIFECYCLE.md)：test:lifecycle验证17项真实PG媒体引用/TTL竞争/墓碑/清理租约、声纹撤销与单退款/未知受理保护、知识正文/向量/检索副本和晚到回执、终态证据/正式文件；清理协议4组、媒体/知识/权限/MCP及既有访问回归。browser_data_lifecycle在390px开发与minified服务验证503同UUID撤销恢复、供应商状态及知识删除结果/引用按钮；目标补真实Storage/供应商删除、容量和备份恢复。

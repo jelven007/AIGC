@@ -13,12 +13,15 @@ export interface ProductionJob {
   credit_cost: number; created_at: string;
 }
 export async function publicProductionJob(db: SupabaseClient, job: ProductionJob) {
-  return signMediaTree(db, { id: job.id, request_key: job.request_key, kind: job.kind, project_id: job.project_id,
+  const result = await signMediaTree(db, { id: job.id, request_key: job.request_key, kind: job.kind, project_id: job.project_id,
     ...(job.kind === 'analysis' ? { mode: job.payload.mode } : {}),
     ...(job.kind.startsWith('intelligence_') ? { target_id: job.payload.request.target_id } : {}),
     ...(job.kind === 'product_translate' ? { product_id: job.payload.request.product_id } : {}),
     status: job.status, phase: job.phase, progress: job.progress, result: job.result,
     error_message: job.error_message, credit_cost: job.credit_cost, created_at: job.created_at }, job.user_id);
+  // 原请求保留稳定引用；已清理源素材的终态回执仍可读取，不为历史输入续签。
+  return job.kind === 'edit_analysis' ? { ...result, edit_mode: job.payload.mode,
+    edit_source: job.payload.source, edit_request: job.payload } : result;
 }
 export async function jobEvent(db: SupabaseClient, job: ProductionJob, event: string, data: unknown = {}) {
   if (['completed', 'failed'].includes(event)) {

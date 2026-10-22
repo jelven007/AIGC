@@ -31,6 +31,7 @@
     "test:access": "python3 tests/test_access_control.py && node tests/access_control.test.mjs",
     "test:mcp": "node tests/mcp_scopes.test.mjs && docker run --rm -v \"$PWD:/workspace\" -w /workspace shoproai-mcp:local python tests/test_mcp_backend.py && docker run --rm -v \"$PWD:/workspace\" -w /workspace shoproai-mcp:local python mcp/export_tools.py --check",
     "test:render": "node tests/render_effects.test.mjs && docker run --rm -v \"$PWD:/app\" -w /app shoproai-render-worker:local python tests/test_render.py",
+    "test:edit": "python3 tests/test_edit_jobs.py && node tests/edit_jobs.test.mjs && docker run --rm -v \"$PWD:/workspace:ro\" -w /workspace shoproai-render-worker:local python tests/test_edit_media.py",
     "test:exports": "python3 tests/test_render_exports.py && node tests/render_exports.test.mjs",
     "deploy:prepare": "python3 scripts/deploy_volcengine.py prepare",
     "scheduler:start": "python3 scripts/manage_video_scheduler.py start",

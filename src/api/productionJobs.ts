@@ -1,5 +1,6 @@
 import { authenticatedEdgeRequest } from '@/lib/edgeRequest';
 import { canonicalMediaTree } from '@/lib/privateMedia';
+import type { EditSource, EditRequest } from '../../supabase/functions/_shared/edit-contract';
 export interface VideoHighlight {
   type: string; start_sec: number; end_sec: number; title: string; score: number; keyword: string;
   suggested_title: string; reason: string; transcript: string; peak_viewers: null;
@@ -19,12 +20,14 @@ export interface ProductionJob {
   mode?: 'live' | 'style';
   target_id?: string;
   product_id?: string;
+  edit_mode?: 'beats' | 'subtitles'; edit_source?: EditSource; edit_request?: EditRequest;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'unknown' | 'cancelled';
   progress: number; phase: string; result: { url?: string; thumbnail_url?: string; size?: number; duration?: number; resolution?: string;
     text?: string; segments?: { start: number; end: number; text: string }[]; voice_clone_id?: string; requires_verification?: boolean; media_deleted?: boolean;
-    mode?: 'live' | 'style'; source_url?: string; source_hash?: string; score_basis?: string; transcript_summary?: string;
+    mode?: 'live' | 'style' | 'beats' | 'subtitles'; source_url?: string; source_hash?: string; score_basis?: string; transcript_summary?: string;
     highlights?: VideoHighlight[]; report?: VideoStyleReport;
     competitor_reference?: CompetitorAnalysisReference;
+    source?: EditSource; beats?: number[]; bpm?: number | null; confidence?: number; algorithm?: string; asr_version?: string;
     model_versions?: { text: string; asr: string }; evidence?: { frame_times: number[]; has_audio: boolean } } | null;
   error_message: string | null; credit_cost: number; created_at: string;
 }

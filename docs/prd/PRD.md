@@ -1,5 +1,7 @@
 # Shopro AI 产品需求
 
+新增REQ-EDIT-BEATS-01/EDIT-SUBTITLES-01/PERSON-MASK-01，见 [迭代25](../ITERATION_25_EDIT_ANALYSIS.md)：真实裁剪音轨节拍/位置切分、确认价格后原Whisper时间分段/任务恢复/重复应用拒绝、固定人物模型透明蒙版写入实际成片。无节拍或时间戳不模拟结果，人物边缘需实际验收。00053/probe14/render3/edit1，本地交付不等于供应商/长素材质量/全栈上线；多镜头配音混剪发布编排及完整运营仍继续交付。
+
 新增REQ-WECHAT-TRANSACTION-01/WECHAT-CASH-REFUND-01，见 [迭代24](../ITERATION_24_WECHAT_TRANSACTIONS.md)：原二维码30分钟期限/到期隐藏/签名查单和关闭、竞争付款正确入账；财务按原UUID/渠道申请原路退款，处理中/异常保留预占，真实成功才回收权益，关闭退款标记未到账。00052/probe13/render2；用户截图与本地夹具不能证明渠道付款/退款已验收，异常退款/完整对账及其余系统功能继续交付。
 
 新增REQ-MEDIA-LIFECYCLE-01/VOICE-REVOKE-01/KNOWLEDGE-ERASE-01，见 [迭代23](../ITERATION_23_DATA_LIFECYCLE.md)：正式引用保护/24小时孤立上传清理、可恢复声纹撤销/未提交单退款/供应商实际删除状态，知识正文/索引/任务副本清除与晚到过滤。未知受理保留原用量，正式生成文件及单独保存脚本由用户管理；七天终态原始证据清理。00051、MCP56/18权限、probe12/render2，目标删除/容量/备份恢复仍待验收。

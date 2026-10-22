@@ -1,5 +1,7 @@
 # 视频任务后台调度
 
+最新 [迭代25](ITERATION_25_EDIT_ANALYSIS.md)增加edit_analysis字幕结案/原版本识别轮转；FFmpeg按render/analysis_prepare/edit_prepare三队列轮转处理，页面关闭不影响音轨分析。专用渲染密钥不能结案字幕模型阶段，上传与结果绑定原租约。production预检严格要求version14/required_migration=00053/render_version=3/edit_version=1，重建镜像及匹配数据库/API/调度/前端；长素材吞吐与真实Whisper待验收。
+
 最新 [迭代24](ITERATION_24_WECHAT_TRANSACTIONS.md)将微信原订单/退款核对加入生产轮转，支付到期与关闭按原商户和签名查单处理，退款只查询已发出的原编号，不自动现金出账。订单/退款独立UUID租约/退避；production严格要求version13/required_migration=00052/render_version=2，数据库/所有匹配函数和调度同窗发布，真实渠道/吞吐仍需验收。
 
 最新 [迭代23](ITERATION_23_DATA_LIFECYCLE.md)加入有界媒体TTL/七天终态证据清理与声纹删除轮转；删除使用原模型版本/独立租约，未知配音受理延迟声纹删除。production模式严格要求version12/required_migration=00051/render_version=2，旧video-job-worker仍version1。迁移、API/Worker、常驻调度、MCP56及页面同窗；实际清理、队列吞吐和恢复仍待目标验收。
