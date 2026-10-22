@@ -1,145 +1,141 @@
-import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/db/supabase';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { assertRewardSession, fetchActivities, claimReward, clearRewardRequest, readPendingRewards,
+  reserveRewardRequest, eligibilityLabels, type RewardActivity } from '@/api/rewards';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Sparkles, CheckCircle2, Gift, Play, Zap, UserPlus } from 'lucide-react';
+import { Sparkles, CheckCircle2, Gift, Play, Zap, UserPlus, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-interface Activity {
-  id: string;
-  title: string;
-  description: string;
-  type: string;
-  reward_credits: number;
-  max_times: number;
-}
-
-interface UserActivity {
-  activity_id: string;
-  completed_times: number;
-  status: string;
-}
 
 export default function ActivitiesPage() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [userActivities, setUserActivities] = useState<Record<string, UserActivity>>({});
+  const [activities, setActivities] = useState<RewardActivity[]>([]);
+  const [error, setError] = useState('');
   const [processing, setProcessing] = useState<string | null>(null);
-
+  const [pending, setPending] = useState(() => user ? readPendingRewards(user.id) : []);
+  const mounted = useRef(false);
+  const busy = useRef(false);
+  const request = useRef<AbortController | null>(null);
   const loadData = useCallback(async () => {
     if (!user) return;
+    request.current?.abort();
+    const controller = new AbortController();
+    request.current = controller;
     setLoading(true);
     try {
-      const [{ data: actData }, { data: userActData }] = await Promise.all([
-        supabase.from('activities').select('*').eq('status', 'active').order('created_at'),
-        supabase.from('user_activities').select('*').eq('user_id', user.id)
-      ]);
-      
-      setActivities((actData || []) as Activity[]);
-      
-      const uaMap: Record<string, UserActivity> = {};
-      (userActData || []).forEach((ua: any) => {
-        uaMap[ua.activity_id] = ua;
-      });
-      setUserActivities(uaMap);
-    } catch (err: any) {
-      toast.error('加载活动数据失败');
-      console.error(err);
+      await assertRewardSession(user.id);
+      const rows = await fetchActivities(AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]));
+      if (!mounted.current || controller.signal.aborted) return;
+      setActivities(rows); setError('');
+    } catch (cause) {
+      if (!mounted.current || controller.signal.aborted) return;
+      setError(cause instanceof Error ? cause.message : '活动数据读取失败，请重试');
     } finally {
-      setLoading(false);
+      if (mounted.current && !controller.signal.aborted) setLoading(false);
     }
   }, [user]);
+  useEffect(() => {
+    mounted.current = true;
+    void loadData();
+    return () => { mounted.current = false; request.current?.abort(); };
+  }, [loadData]);
 
-  useEffect(() => { loadData(); }, [loadData]);
-
-  const handleClaim = async (activity: Activity) => {
-    if (!user) {
-      toast.error('请先登录');
-      return;
-    }
-    setProcessing(activity.id);
+  const handleClaim = async (activity: RewardActivity) => {
+    if (!user || busy.current) return;
+    busy.current = true; setProcessing(activity.id);
     try {
-      const { data, error } = await supabase.rpc('claim_activity_reward', {
-        p_activity_id: activity.id,
-      });
-      if (error) throw error;
-      if (!data?.ok) throw new Error('领奖失败');
+      await assertRewardSession(user.id);
+      if (!mounted.current) return;
+      const original = reserveRewardRequest(user.id, activity);
+      setPending(readPendingRewards(user.id));
+      const receipt = await claimReward(user.id, activity.id, original.key);
+      if (!mounted.current) return;
+      await assertRewardSession(user.id);
+      if (!mounted.current) return;
+      // 本地存储失败不改变已经确认的数据库结果；留存同一回执仍可安全重试。
+      try { clearRewardRequest(user.id, original.key); } catch {}
+      setPending(readPendingRewards(user.id));
+      setActivities(rows => rows.map(row => row.id === activity.id ? { ...row,
+        eligibility: row.type === 'daily_checkin' ? 'claimed_today' : 'completed' } : row));
       window.dispatchEvent(new CustomEvent('credits_changed'));
-      toast.success(`恭喜！获得 ${data.reward} 积分奖励`);
+      toast.success(receipt.already_claimed ? `原领取已确认：${receipt.reward} 积分已入账` : `已获得 ${receipt.reward} 积分奖励`);
       await loadData();
-    } catch (err: any) {
-      toast.error('领取失败：' + (err.message || '请稍后重试'));
-      console.error('活动领取错误:', err);
+    } catch (cause) {
+      if (mounted.current) toast.error(cause instanceof Error ? cause.message : '领取结果尚未确认，请恢复原请求');
     } finally {
-      setProcessing(null);
+      busy.current = false;
+      if (mounted.current) setProcessing(null);
     }
   };
-
-  const getIcon = (type: string) => {
-    switch(type) {
-      case 'login_first': return <Sparkles className="w-5 h-5" />;
-      case 'video_first': return <Play className="w-5 h-5" />;
-      case 'daily_checkin': return <CheckCircle2 className="w-5 h-5" />;
-      case 'join_community': return <UserPlus className="w-5 h-5" />;
-      default: return <Gift className="w-5 h-5" />;
-    }
-  };
-
-  if (loading) {
-    return <div className="p-8 text-center text-muted-foreground">加载中...</div>;
-  }
-
+  const iconFor = (type: string) => type === 'login_first' ? Sparkles : type === 'video_first' ? Play
+    : type === 'daily_checkin' ? CheckCircle2 : type === 'join_community' ? UserPlus : Gift;
+  const missing = pending.filter(item => !activities.some(row => row.id === item.activityId));
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-5xl mx-auto">
-      <div>
-        <h1 className="text-xl font-bold flex items-center gap-2 text-balance">
-          <Sparkles className="w-5 h-5 text-primary" />活动奖励
-        </h1>
-        <p className="text-sm text-muted-foreground mt-0.5">完成专属任务，免费获取更多视频生成积分</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold flex items-center gap-2"><Sparkles className="w-5 h-5 text-primary" />活动奖励</h1>
+          <p className="text-sm text-muted-foreground mt-1">完成任务后领取积分。每日签到按 UTC 零点更新。</p>
+        </div>
+        <Button variant="outline" size="sm" disabled={loading || !!processing} onClick={() => void loadData()}>
+          <RefreshCw className="w-4 h-4 mr-1" />刷新活动
+        </Button>
       </div>
-
+      {error && <div role="alert" className="rounded-lg border border-destructive/30 p-4 text-sm text-destructive">
+        {error} {activities.length > 0 && '当前显示上次成功读取的数据。'}
+      </div>}
+      {loading && <p role="status" className="text-sm text-muted-foreground">正在读取活动资格…</p>}
+      {!loading && !error && !activities.length && <Card><CardContent className="p-8 text-center text-muted-foreground">
+        当前没有开放的活动，请稍后再来。
+      </CardContent></Card>}
+      {missing.map(item => <div key={item.key} className="rounded-lg border p-4 text-sm flex flex-wrap items-center gap-3">
+        <span className="break-words">待确认领取：{item.title}</span>
+        <Button variant="outline" disabled={!!processing} onClick={() => void handleClaim({
+          id: item.activityId, title: item.title, description: null, type: '', reward_credits: 0,
+          max_times: 1, completed_times: 0, eligibility: '', next_claim_at: null,
+        })}>恢复原领取</Button>
+      </div>)}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {activities.map(act => {
-          const ua = userActivities[act.id];
-          const isCompleted = ua?.status === 'completed' && (act.max_times === 1 || (ua.completed_times >= act.max_times && act.max_times > 0));
-          
-          return (
-            <Card key={act.id} className={cn("overflow-hidden transition-all", isCompleted ? "opacity-70 bg-muted/30" : "hover:shadow-md hover:border-primary/40")}>
-              <CardContent className="p-5 flex flex-col h-full">
-                <div className="flex items-start justify-between gap-4 mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", 
-                      isCompleted ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary")}>
-                      {getIcon(act.type)}
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-base line-clamp-1">{act.title}</h3>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <Zap className="w-3.5 h-3.5 text-warning" />
-                        <span className="text-sm font-semibold text-warning">+{act.reward_credits} 积分</span>
-                      </div>
+        {activities.map(activity => {
+          const Icon = iconFor(activity.type);
+          const completed = ['completed', 'claimed_today'].includes(activity.eligibility);
+          const recovering = pending.some(item => item.activityId === activity.id);
+          const eligible = activity.eligibility === 'eligible';
+          return <Card key={activity.id} className={cn("min-w-0", completed && "bg-muted/30")}>
+            <CardContent className="p-5 flex flex-col h-full">
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0"><Icon className="w-5 h-5" /></div>
+                  <div className="min-w-0">
+                    <h2 className="font-bold text-base break-words">{activity.title}</h2>
+                    <div className="flex items-center gap-1.5 mt-1 text-warning">
+                      <Zap className="w-3.5 h-3.5" /><span className="text-sm font-semibold">+{activity.reward_credits} 积分</span>
                     </div>
                   </div>
-                  {isCompleted && <Badge variant="secondary">已完成</Badge>}
                 </div>
-                
-                <p className="text-sm text-muted-foreground flex-1 mb-6 text-pretty">{act.description}</p>
-                
-                <Button 
-                  className={cn("w-full h-10", isCompleted ? "" : "bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground border-0")}
-                  variant={isCompleted ? "outline" : "outline"}
-                  disabled={isCompleted || processing === act.id}
-                  onClick={() => handleClaim(act)}
-                >
-                  {processing === act.id ? "领取中..." : isCompleted ? "已领取" : "去完成并领取"}
-                </Button>
-              </CardContent>
-            </Card>
-          );
+                {completed && <Badge variant="secondary" className="shrink-0">已领取</Badge>}
+              </div>
+              <p className="text-sm text-muted-foreground flex-1 mb-3 break-words">{activity.description}</p>
+              <p className="text-xs text-muted-foreground mb-4">
+                已领取 {activity.completed_times} 次{activity.max_times && activity.max_times > 0 ? ` / ${activity.max_times} 次` : ''}
+                {activity.type === 'daily_checkin' && activity.eligibility === 'claimed_today' && activity.next_claim_at &&
+                  ` · 下次 ${new Date(activity.next_claim_at).toLocaleString()}（本地时间）`}
+              </p>
+              {activity.eligibility === 'video_required' && <Button asChild variant="outline" className="mb-2"><Link to="/video/create">去生成视频</Link></Button>}
+              {['evidence_required', 'legacy_review', 'missing_plan'].includes(activity.eligibility) &&
+                <Link to="/support" className="text-sm text-primary underline mb-3">联系支持核对</Link>}
+              <Button variant="outline" className="w-full h-auto min-h-10 whitespace-normal"
+                disabled={loading || !!error || !!processing || (!recovering && !eligible)}
+                onClick={() => void handleClaim(activity)}>
+                {processing === activity.id ? '领取中…' : recovering ? '恢复原领取'
+                  : eligibilityLabels[activity.eligibility] || '活动暂不可领取'}
+              </Button>
+            </CardContent>
+          </Card>;
         })}
       </div>
     </div>

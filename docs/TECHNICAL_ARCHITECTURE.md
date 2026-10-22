@@ -1,5 +1,7 @@
 # Shopro AI 技术架构
 
+最新 [迭代32](ITERATION_32_REWARDS_AUTH.md)：一个原子注册事务接管快照触发器；新邀请按双账号UUID锁序/邀请行/唯一流水在验证后赠分，旧记录不重发。资格函数复用于列表/领取；原请求回执与UTC期唯一账本独立于可变汇总。本人数据库聚合分页替代浏览器拉全表，POST/PUT固定发起账号令牌；异常上报最小路径/固定码与回执限流。00060/probe20/render4/edit2，下文为历史演进。
+
 当前 [迭代31](ITERATION_31_ACCOUNT_STORYBOARD.md)：账号作为布局与React Query缓存边界，切换后清除继承的路由输入；Auth资料请求按身份/代次核对，SDK回调延后读取。本人概览在数据库完整聚合并用owner/created索引计算时区日期，头像加入生命周期引用。首页分镜复用Script/Works/Batch组件，原UUID保存恢复与真实SSE解析替代重复实现及模拟阶段；00059/probe19/render4/edit2。
 
 前一轮 [迭代30](ITERATION_30_WORKS_LIBRARY.md)将作品库与首页统一到原素材登记协议；首页作品列表限40条且提供全库入口，随机统计和公开模拟互动移除。

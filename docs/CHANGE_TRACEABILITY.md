@@ -1,5 +1,7 @@
 # 变更、需求与文档追踪矩阵
 
+迭代32 [奖励与账号恢复](ITERATION_32_REWARDS_AUTH.md)对应REQ-REWARD-RECEIPT-01/AUTH-RECOVERY-01/ERROR-RECEIPT-01：00060正式邀请接管/验证赠分/历史不补发、服务端资格/原领取UUID、完整分页/真实复制海报、固定会话密码恢复与异常回执。PRD/API/架构/开发/运营/运行/部署同步probe20/00060/render4/edit2；真实PG/浏览器与旧流程回归独立于目标验收。
+
 迭代31 [账号与分镜](ITERATION_31_ACCOUNT_STORYBOARD.md)对应REQ-ACCOUNT-ISOLATION-01/PROFILE-OVERVIEW-01/STORYBOARD-FLOW-01：Auth当前身份/请求代次、账号布局/缓存/路由隔离，00059本人完整概览/时区/头像引用，原脚本保存UUID/内容核对与分镜组件复用真实合成。PRD/API/架构/运行/开发/部署同步probe19/00059/render4/edit2；真实PG/浏览器与合成/调度/发布检查独立于目标验收。
 
 迭代30 [作品与真实素材入口](ITERATION_30_WORKS_LIBRARY.md)对应REQ-WORK-LIBRARY-01：作品每页24项/当前用户搜索、上传登记原UUID/使用权/实际时长/回执恢复、私有预览下载、首页最近40真实作品、完整文本流与失败原输入。公开虚构评价/直播与旧媒体删除，原数据库历史记录保持；00058/probe18/render4/edit2，官方管理401待恢复有效访问。

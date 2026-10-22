@@ -46,6 +46,8 @@ class FinanceTest(unittest.TestCase):
             # 样例数据引用线上固定 UID，不属于 schema；其余迁移均真实执行。
             if migration.name.startswith(("00018_", "00019_")):
                 continue
+            if hasattr(cls, "before_migration"):
+                cls.before_migration(migration)
             try:
                 sql("BEGIN;\n" + migration.read_text() + "\nCOMMIT;")
             except AssertionError as exc:
@@ -202,6 +204,12 @@ class FinanceTest(unittest.TestCase):
         sql(claim)
         self.assertNotEqual(sql(claim, fail=False).returncode, 0)
         sql(f"UPDATE user_activities SET last_claimed_at=now()-interval '1 day' WHERE user_id='{self.user}'")
+        # 独立账本拒绝仅回拨汇总时间的重复领款；模拟昨日完整回执后才能验证下一日。
+        self.assertNotEqual(sql(claim, fail=False).returncode, 0)
+        sql(f"""UPDATE activity_reward_receipts SET period=to_char(now()-interval '1 day','YYYY-MM-DD')
+          WHERE user_id='{self.user}';
+          UPDATE credit_logs SET reward_key='{activity}:'||to_char(now()-interval '1 day','YYYY-MM-DD')
+          WHERE user_id='{self.user}' AND reward_source='activity';""")
         sql(claim)
         self.assertEqual(sql(f"SELECT credits_total FROM user_plans WHERE user_id='{self.user}'").stdout.strip(), "30")
 

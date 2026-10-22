@@ -131,10 +131,10 @@ function PhoneSmsPanel() {
 }
 
 const BRAND_FEATURES = [
-  { icon: Zap, title: 'AI一键生成', desc: '秒出带货视频脚本，效率提升10倍' },
+  { icon: Zap, title: 'AI脚本生成', desc: '确认商品信息与分镜台词后创作' },
   { icon: Video, title: '可视化编辑', desc: '分镜时间轴，拖拽式流畅操作' },
-  { icon: TrendingUp, title: '流量预测', desc: '智能分析爆款潜力，精准投放' },
-  { icon: Sparkles, title: '竞品监控', desc: '实时追踪竞争对手，快速跟进' },
+  { icon: TrendingUp, title: '效果分析', desc: '查看已采集指标与实验结果' },
+  { icon: Sparkles, title: '竞品情报', desc: '按已配置来源采集和分析' },
 ];
 
 // 浮动粒子组件
@@ -226,12 +226,12 @@ function BrandPanel() {
             让 AI 替你完成从脚本到成片的全部创作
           </p>
 
-          {/* 数据指标 */}
+          {/* 实际创作流程 */}
           <div className="flex gap-8 pt-2">
             {[
-              { num: '10x', label: '效率提升' },
-              { num: '8k+', label: '商家使用' },
-              { num: '20min', label: '平均出片' },
+              { num: '01', label: '确认脚本' },
+              { num: '02', label: '后台生成' },
+              { num: '03', label: '预览发布' },
             ].map(({ num, label }) => (
               <div key={label}>
                 <p className="text-3xl font-black text-white leading-none">{num}</p>
@@ -271,12 +271,17 @@ export default function LoginPage() {
   const destination = searchParams.get('redirect') === '/credits?tab=plans' ? '/credits?tab=plans' : '/';
 
   // F-04: 默认直接进入“立即注册”界面
-  const initialMode = (searchParams.get('mode') as Mode) || 'register';
+  const requestedMode = searchParams.get('mode');
+  const initialMode: Mode = requestedMode && ['login', 'register', 'forgot', 'phone'].includes(requestedMode)
+    ? requestedMode as Mode : 'register';
   const [mode, setMode] = useState<Mode>(initialMode);
 
   useEffect(() => {
     if (initialMode) setMode(initialMode);
   }, [initialMode]);
+  useEffect(() => {
+    if (requestedMode === 'reset') navigate('/auth/reset', { replace: true });
+  }, [requestedMode, navigate]);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [agreed, setAgreed] = useState(false);
@@ -316,6 +321,7 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     if (!validate()) return;
     setLoading(true);
 
@@ -323,7 +329,7 @@ export default function LoginPage() {
       if (mode === 'forgot') {
         const resetEmail = form.email.trim();
         const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
-          redirectTo: `${window.location.origin}/login?mode=reset`,
+          redirectTo: `${window.location.origin}/auth/reset`,
         });
         if (error) throw error;
         setForgotSent(true);
@@ -331,8 +337,9 @@ export default function LoginPage() {
       } else {
         const email = form.username.trim();
         if (mode === 'login') {
-          const { error } = await supabase.auth.signInWithPassword({ email, password: form.password });
+          const { data, error } = await supabase.auth.signInWithPassword({ email, password: form.password });
           if (error) throw error;
+          if (!data.session || !data.user) throw new Error('登录会话未建立，请重试');
           toast.success('登录成功，欢迎回来！');
           navigate(destination);
         } else {
@@ -340,33 +347,19 @@ export default function LoginPage() {
             email,
             password: form.password,
             options: {
+              emailRedirectTo: `${window.location.origin}/login?mode=login`,
               data: {
-                invited_by_code: inviteCodeParam || null
+                invited_by_code: inviteCodeParam?.trim().toUpperCase() || null
               }
             }
           });
           if (error) throw error;
 
-          if (data?.session && data.user) {
-            try {
-              const username = email.split('@')[0];
-              await supabase.from('profiles').upsert({
-                id: data.user.id,
-                email: data.user.email,
-                username,
-                role: 'user',
-              }, { onConflict: 'id' });
-
-            } catch (setupErr) {
-              console.error('注册后初始化数据失败:', setupErr);
-            }
-          }
-
           if (data.session) {
             toast.success('注册成功，欢迎加入！');
             navigate(destination);
           } else {
-            toast.info('注册成功，请查收验证邮件后登录');
+            toast.info('请查收验证邮件后登录；若邮箱已注册，请直接登录');
             setMode('login');
           }
         }
@@ -398,7 +391,7 @@ export default function LoginPage() {
   const subtitleMap: Record<Mode, string> = {
     login: '使用您的账号登录 Shopro-电商AIGC带货视频平台',
     register: '填写信息，开启 AI 视频创作之旅',
-    forgot: '输入邮箱或用户名，我们将发送重置链接',
+    forgot: '输入注册邮箱，我们将发送重置链接',
     phone: '验证手机号，安全绑定或快速登录',
   };
 
@@ -435,6 +428,9 @@ export default function LoginPage() {
             <h2 className="text-2xl font-black text-foreground tracking-tight">{titleMap[mode]}</h2>
             <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{subtitleMap[mode]}</p>
           </div>
+          {mode === 'register' && inviteCodeParam && <p className="mb-4 rounded-md border p-3 text-sm text-muted-foreground">
+            已携带邀请码。有效邀请在账号验证后，双方各获 50 积分；注册另赠 20 积分。
+          </p>}
 
           {/* 找回密码成功状态 / 手机号验证面板 / 普通表单 */}
           {mode === 'phone' ? (

@@ -11,6 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useCredits } from '@/hooks/useCredits';
 import { uploadMaterialAsset } from '@/api/materialAssets';
+import { accountRequest } from '@/api/accountSession';
 import { canonicalMedia } from '@/lib/privateMedia';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -225,9 +226,9 @@ export default function ProfilePage() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!alive.current || session?.user.id !== user.id) return;
-      const { data, error } = await supabase.auth.updateUser({ password: pwForm.next });
+      const updated = await accountRequest(user.id, '/auth/v1/user', 'PUT', { password: pwForm.next });
       if (!alive.current) return;
-      if (error || data.user?.id !== user.id) throw new Error(error?.message || '密码修改结果未确认');
+      if (updated?.id !== user.id) throw new Error('密码修改结果未确认');
       toast.success('密码已修改');
       setPwForm({ next: '', confirm: '' }); setPwOpen(false);
     } catch (cause) { if (alive.current) toast.error(cause instanceof Error ? cause.message : '密码修改失败'); }
