@@ -26,6 +26,10 @@ import { ProductImage } from '@/components/ProductFields';
 import { productPrice } from '@/lib/productDisplay';
 import { listProducts } from '@/api/products';
 import { useRecentWorks } from '@/hooks/useRecentWorks';
+import ImageEditCanvas, { type PreparedImageEdit } from '@/components/ImageEditCanvas';
+import type { ImageMode } from '../../supabase/functions/_shared/image-contract';
+import { supabase } from '@/db/supabase';
+import { useCredits } from '@/hooks/useCredits';
 
 
 
@@ -33,17 +37,17 @@ import { useRecentWorks } from '@/hooks/useRecentWorks';
 // ── 工具卡片数据 ────────────────────────────────────────────────────────
 const QUICK_TOOLS = [
   {
-    id: 'script', label: 'AI智能脚本', sub: '智能生成短视频爆款带货脚本',
+    id: 'script', label: 'AI智能脚本', sub: '生成分镜后确认台词与商品事实',
     gradient: 'from-rose-800/80 to-pink-900/80',
     path: '/script',
   },
   {
-    id: 'style-copy', label: '爆款风格复刻', sub: '一键复刻高转化内容风格',
+    id: 'style-copy', label: '爆款风格复刻', sub: '分析授权视频并提取风格建议',
     gradient: 'from-violet-800/80 to-indigo-900/80',
     path: '/style-copy',
   },
   {
-    id: 'competitor', label: '竞品爆款分析', sub: '抓取竞品爆款视频策略',
+    id: 'competitor', label: '竞品爆款分析', sub: '采集已授权样本并分析内容策略',
     gradient: 'from-sky-800/80 to-blue-900/80',
     path: '/competitor',
   },
@@ -53,7 +57,7 @@ const QUICK_TOOLS = [
     path: '/analytics',
   },
   {
-    id: 'live-highlight', label: '直播高光切片', sub: 'AI自动识别直播精华',
+    id: 'live-highlight', label: '直播高光切片', sub: '分析实际画面与台词，确认候选片段',
     gradient: 'from-teal-800/80 to-emerald-900/80',
     path: '/live-highlight',
   },
@@ -131,7 +135,7 @@ function HomeWorkspace() {
     finally { referenceBusyRef.current = false; if (workspaceActive.current) { setReferenceBusy(false); setPendingReferences(pendingMaterialUploads(user.id)); } }
   };
 
-  const [mainTab, setMainTab] = useState(projectId ? '分镜编辑' : '视频生成');
+  const [mainTab, setMainTab] = useState(projectId ? '分镜编辑' : new URLSearchParams(location.search).get('tab') === 'image' ? '图片生成' : '视频生成');
   const [inputTab, setInputTab] = useState(location.state?.inputTab || '参考');
   const [selectedAvatar, setSelectedAvatar] = useState<{ id?: string; name: string; preview_image?: string } | null>(
     location.state?.selectedAvatar ?? null
@@ -322,10 +326,11 @@ function HomeWorkspace() {
   const [modelCatalogError, setModelCatalogError] = useState('');
   useEffect(() => {
     modelSettingsRequest<{ configs: ModelCatalogEntry[] }>({ action: 'catalog' }).then(result => {
+      if (!workspaceActive.current) return;
       setModelCatalog(result.configs);
       const video = result.configs.find(item => item.category === 'video' && item.enabled);
       if (video) setModel({ label: video.name, id: video.provider! });
-    }).catch(e => setModelCatalogError(e.message));
+    }).catch(e => { if (workspaceActive.current) setModelCatalogError(e.message); });
     // 清除旧版本遗留的浏览器模型密钥。
     localStorage.removeItem('custom_models_video');
     localStorage.removeItem('custom_models_image');
@@ -379,6 +384,16 @@ function HomeWorkspace() {
 
   // 图片生成相关新状态与 ref
   const [imgRefImage, setImgRefImage] = useState<string | null>(null);
+  const [imgMode, setImgMode] = useState<ImageMode>('generate');
+  const [preparedImageEdit, setPreparedImageEdit] = useState<PreparedImageEdit | null>(null);
+  const [imageCost, setImageCost] = useState<number | null>(null);
+  const [imageSettingsBusy, setImageSettingsBusy] = useState(false);
+  const { refresh: refreshImageCredits } = useCredits();
+  useEffect(() => {
+    void supabase.from('credit_costs').select('cost').eq('action', 'generate_image').maybeSingle().then(({ data, error }) => {
+      if (workspaceActive.current && !error && data && Number.isInteger(data.cost) && data.cost >= 0) setImageCost(data.cost);
+    });
+  }, []);
   const [enhancingImg, setEnhancingImg] = useState(false);
   const [imgRecording, setImgRecording] = useState(false);
   const imgUploadInputRef = useRef<HTMLInputElement>(null);
@@ -544,9 +559,31 @@ function HomeWorkspace() {
   const handleImageGenerate = async () => {
     if (!imgPrompt.trim()) { toast.error('请输入图片描述'); return; }
     if (!modelCatalog.some(item => item.slot === 'image.primary' && item.enabled)) { toast.error(modelCatalogError || '请先在模型设置中启用图片接口'); return; }
-    setResultImage(null);
-    await imageTask.start({ prompt: imgPrompt, size: imgResolutionType,
-      quality: imgQuality === '低' ? 'low' : imgQuality === '高' ? 'high' : 'medium', reference_image: imgRefImage });
+    const masked = imgMode === 'inpaint' || imgMode === 'outpaint';
+    if (masked && (!preparedImageEdit || imageCost === null || !imgConfig?.image_capabilities?.mask || !imgConfig.version_id)) {
+      toast.error('请先准备编辑素材并确认价格与模型'); return;
+    }
+    const balance = await refreshImageCredits();
+    if (!workspaceActive.current) return;
+    if (balance.error || !balance.data) { toast.error('积分读取失败，请重试'); return; }
+    if (imageCost !== null && balance.data.left < imageCost) { toast.error('积分不足'); return; }
+    const started = await imageTask.start({ prompt: imgPrompt, size: imgResolutionType,
+      quality: imgQuality === '低' ? 'low' : imgQuality === '高' ? 'high' : 'medium',
+      ...(masked ? { mode: imgMode, ...preparedImageEdit, confirmed_model_version: imgConfig?.version_id,
+        confirmed_credit_cost: imageCost } : { reference_image: imgRefImage }) });
+    if (started && workspaceActive.current) setResultImage(null);
+  };
+  const imgConfig = modelCatalog.find(item => item.slot === 'image.primary');
+  const refreshImageSettings = async () => {
+    setImageSettingsBusy(true);
+    try {
+      const catalog = await modelSettingsRequest<{ configs: ModelCatalogEntry[] }>({ action: 'catalog' });
+      const price = await supabase.from('credit_costs').select('cost').eq('action', 'generate_image').maybeSingle();
+      if (!workspaceActive.current) return;
+      if (price.error || !price.data || !Number.isInteger(price.data.cost) || price.data.cost < 0) throw new Error('图片价格读取失败');
+      setModelCatalog(catalog.configs); setModelCatalogError(''); setImageCost(price.data.cost);
+    } catch (cause) { if (workspaceActive.current) toast.error(cause instanceof Error ? cause.message : '图片配置读取失败'); }
+    finally { if (workspaceActive.current) setImageSettingsBusy(false); }
   };
 
   // 视频生成统一使用持久化服务端任务。
@@ -623,7 +660,7 @@ function HomeWorkspace() {
           {/* 主 Tab */}
           <div className="inline-flex items-center gap-1 p-1 rounded-full border border-white/10 bg-white/5 backdrop-blur">
             {MAIN_TABS.map(t => (
-              <button key={t} onClick={() => setMainTab(t)}
+              <button key={t} aria-pressed={mainTab === t} onClick={() => setMainTab(t)}
                 className={cn('px-3 sm:px-5 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all duration-200',
                   mainTab === t ? 'bg-white text-black shadow' : 'text-white/60 hover:text-white/90')}
               >{t}</button>
@@ -1261,16 +1298,32 @@ function HomeWorkspace() {
               {/* 顶部 Tab（移动端缩小字号与内边距） */}
               <div className="flex items-center justify-between px-2.5 md:px-4 pt-2.5 md:pt-3 pb-1">
                 <div className="flex items-center gap-0.5 overflow-x-auto no-scrollbar">
-                  <span className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm bg-white/10 text-white"><ImageIcon className="w-3.5 h-3.5" />智能绘图</span>
+                  {([{ id: 'generate', label: '智能绘图' }, { id: 'outpaint', label: '扩图' }, { id: 'inpaint', label: '局部重绘' }] as const).map(item =>
+                    <button key={item.id} type="button" aria-pressed={imgMode === item.id}
+                      disabled={imgGenerating || referenceBusy || item.id !== 'generate' && !imgConfig?.image_capabilities?.mask}
+                      onClick={() => { setImgMode(item.id); setPreparedImageEdit(null); setImgRefImage(null); }}
+                      className={cn('px-3 py-2 rounded-lg text-sm whitespace-nowrap disabled:opacity-40',
+                        imgMode === item.id ? 'bg-white/10 text-white' : 'text-white/60')}>{item.label}</button>)}
                 </div>
               </div>
+              <div className="flex flex-wrap gap-2 px-4 py-2 text-xs text-white/60">
+                {!imgConfig?.image_capabilities?.mask && <p>扩图与局部重绘需配置支持编辑的GPT Image模型。</p>}
+                <button type="button" disabled={imgGenerating || imageSettingsBusy} onClick={() => void refreshImageSettings()} className="underline disabled:opacity-40">
+                  {imageSettingsBusy ? '正在读取图片配置…' : '刷新图片配置与价格'}
+                </button>
+              </div>
+              {(imgMode === 'inpaint' || imgMode === 'outpaint') && user && <>
+                <ImageEditCanvas mode={imgMode} size={imgResolutionType} userId={user.id} rights={referenceRights}
+                  disabled={imgGenerating || referenceBusy} onPrepared={setPreparedImageEdit} />
+                <p className="px-4 pb-2 text-xs text-white/60">每次编辑：{imageCost === null ? '价格读取中，请刷新页面重试' : `${imageCost} 积分`} · {imgModel.label}。提交时按已确认价格创建任务。</p>
+              </>}
 
               {/* 隐藏的图片生成参考图输入 */}
               <input
                 type="file"
                 ref={imgUploadInputRef}
                 aria-label="上传绘图参考图片"
-                disabled={!referenceRights || referenceBusy}
+                disabled={!referenceRights || referenceBusy || !imgConfig?.image_capabilities?.reference}
                 onChange={handleImgRefImageUpload}
                 accept="image/*"
                 className="hidden"
@@ -1281,6 +1334,8 @@ function HomeWorkspace() {
                 <div className="flex gap-1.5 pt-1 shrink-0">
                   <button
                     type="button"
+                    aria-label="选择绘图参考图"
+                    disabled={imgMode !== 'generate' || !imgConfig?.image_capabilities?.reference || imgGenerating}
                     onClick={() => imgUploadInputRef.current?.click()}
                     className="w-8 h-8 rounded-lg bg-white/6 hover:bg-white/10 flex items-center justify-center transition-colors"
                   >
@@ -1289,6 +1344,8 @@ function HomeWorkspace() {
                 </div>
                 <textarea
                   rows={2}
+                  aria-label="图片描述"
+                  maxLength={8000}
                   value={imgPrompt}
                   onChange={e => {
                     setImgPrompt(e.target.value);
@@ -1540,15 +1597,18 @@ function HomeWorkspace() {
                     </button>
                   )}
                   {imgGenerating ? (
-                    <button onClick={() => void imageTask.refresh()}
+                    <button aria-label="刷新进度" onClick={() => void imageTask.refresh()}
                       className="flex items-center justify-center gap-1.5 w-8 h-8 md:w-9 md:h-9 sm:w-auto sm:h-auto sm:px-3 sm:py-2 rounded-xl text-sm font-semibold transition-all shrink-0"
                       style={{ background: 'rgba(239,68,68,0.2)', border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444' }}>
                       <RefreshCcw className="w-3.5 h-3.5" />
                       <span className="hidden sm:inline">刷新进度</span>
                     </button>
                   ) : (
-                    <button onClick={handleImageGenerate}
-                      className="flex items-center justify-center gap-1 px-2.5 py-1.5 md:px-4 md:py-2 rounded-xl text-[11px] sm:text-sm font-semibold transition-all duration-200 hover:scale-105 active:scale-95 shrink-0"
+                    <button aria-label="生成图片" onClick={handleImageGenerate}
+                      disabled={referenceBusy || !imgPrompt.trim() || !referenceRights && imgMode !== 'generate'
+                        || imageSettingsBusy || imgMode !== 'generate' && (!preparedImageEdit || imageCost === null
+                          || !imgConfig?.image_capabilities?.mask || !imgConfig?.version_id)}
+                      className="flex items-center justify-center gap-1 px-2.5 py-1.5 md:px-4 md:py-2 rounded-xl text-[11px] sm:text-sm font-semibold transition-all duration-200 enabled:hover:scale-105 enabled:active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                       style={{ background: 'linear-gradient(135deg,#ec4899,#8b5cf6)', color: '#fff', boxShadow: '0 0 20px rgba(236,72,153,0.35)' }}>
                       <ImageIcon className="w-3.5 h-3.5" />
                       <span className="sm:hidden">生成</span>

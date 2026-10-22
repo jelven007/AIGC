@@ -4,6 +4,8 @@ import { signMediaTree } from './private-media.ts';
 import { validateMediaTree } from './private-media.ts';
 import { resolveModel } from './model-registry.ts';
 import { workloadPolicy } from './workload-policy.ts';
+import { requireImageCapability, validateImageInput } from './image-contract.ts';
+import { readImageEditInput } from './image-edit-input.ts';
 
 export interface ProductionJob {
   id: string; user_id: string; request_key: string; kind: string; project_id: string | null;
@@ -37,13 +39,14 @@ export async function jobEvent(db: SupabaseClient, job: ProductionJob, event: st
 export async function createImageJob(db: SupabaseClient, userId: string, requestKey: string, input: unknown, projectId?: string) {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestKey)) throw new Error('请提供有效的 request_key 幂等标识');
   const payload = await validateMediaTree(db, input, userId);
-  if (typeof payload?.prompt !== 'string' || !payload.prompt.trim() || payload.prompt.length > 8000
-    || !['1024x1024', '1024x1536', '1536x1024'].includes(payload.size || '1024x1024')
-    || !['auto', 'low', 'medium', 'high'].includes(payload.quality || 'auto')) throw new Error('图片参数非法');
+  const mode = validateImageInput(payload);
   const prior = await db.from('production_jobs').select('id').eq('user_id', userId).eq('request_key', requestKey).maybeSingle();
   if (prior.error) throw new Error('图片任务核对失败');
   const config = prior.data ? null : await resolveModel('image.primary', db);
-  if (payload.reference_image && config && config.settings.protocol !== 'chat-image') throw new Error('当前模型不支持参考图');
+  if (config) {
+    requireImageCapability(payload, config.settings);
+    if (mode !== 'generate' && config.settings.protocol === 'openai-images') await readImageEditInput(db, userId, payload);
+  }
   const { data, error } = await db.rpc('create_production_job', {
     p_user_id: userId, p_request_key: requestKey, p_kind: 'image', p_payload: payload,
     p_project_id: projectId || null, p_version: config?.version_id || null,

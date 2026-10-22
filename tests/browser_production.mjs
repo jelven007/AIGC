@@ -16,6 +16,13 @@ try {
   const errors = [];
   const project = { id: projectId, user_id: uid, title: '真实成片夹具', video_url: `${backend}/storage/v1/object/authenticated/materials/${uid}/video.mp4`,
     duration: 2, status: 'completed', storyboard: [], materials: [], created_at: new Date().toISOString() };
+  const natural = [{ id: 'metric', project_id: projectId, title: '指标作品', platform: 'douyin', video_id: 'real-id',
+    view_count: 123, like_count: null, comment_count: 5, share_count: 0, collected_at: new Date().toISOString() }];
+  const report = { project_count: 1, completed_count: 1, natural_count: 1, projects: [project], natural,
+    natural_totals: Object.fromEntries(['view_count', 'like_count', 'comment_count', 'share_count'].map(field => [field,
+      { value: natural[0][field], observed: natural[0][field] === null ? 0 : 1, total: 1 }])),
+    delivery: [], creation_trend: [], style_distribution: [], duration_distribution: [],
+    sync_issues: [{ id: 'task', title: '指标作品', platform: 'douyin', error: '等待授权指标权限' }], generated_at: new Date().toISOString() };
   await context.route('https://ui-fixture.example/**', async route => {
     const request = route.request(), url = new URL(request.url());
     let body;
@@ -32,7 +39,8 @@ try {
         view_count: 123, like_count: null, comment_count: 5, share_count: 0, collected_at: new Date().toISOString() }] }
         : body.action === 'sync' ? { collected: 1 }
         : { tasks: [{ id: 'task', project_id: projectId, platform: 'douyin', title: '指标作品', status: 'published', metrics_error: '等待授权指标权限' }] };
-    } else if (url.pathname.endsWith('/production-jobs')) {
+    } else if (url.pathname.endsWith('/measurements')) reply = body.action === 'report' ? { report } : { projects: [project] };
+    else if (url.pathname.endsWith('/production-jobs')) {
       if (body.action === 'create') {
         created++; job = { id: crypto.randomUUID(), request_key: body.request_key, kind: body.kind, project_id: body.project_id || null,
           status: 'pending', progress: 5, phase: 'ready', created_at: new Date().toISOString(), result: null };
@@ -54,6 +62,7 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(`${base}/publish`);
   await page.getByRole('heading', { name: '跨平台发布', exact: true }).waitFor();
+  await page.getByRole('button', { name: '待管理员配置' }).first().waitFor();
   assert.equal(await page.getByRole('button', { name: '待管理员配置' }).count(), 2);
   assert.equal(await page.getByRole('button', { name: '待管理员配置' }).first().isEnabled(), false);
   await page.getByRole('combobox').filter({ has: page.locator('option[value="' + projectId + '"]') }).selectOption(projectId);

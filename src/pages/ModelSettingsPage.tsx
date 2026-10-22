@@ -14,7 +14,7 @@ const categories = [
   { id: 'embedding', label: '知识检索', description: 'OpenAI兼容的Embeddings接口，浮点向量维度2–1536。更新后需按新版本重新建索引。' },
   { id: 'intelligence', label: '市场情报', description: 'YouTube用Google API Key；eBay用Base64编码的应用ID:应用密钥。其他平台需已获授权的数据商及intelligence-v1契约。' },
   { id: 'video', label: '视频', description: '选择供应商协议，提交与查询地址分别配置。' },
-  { id: 'image', label: '图片', description: '工作台绘图与视频封面共用此模型。' },
+  { id: 'image', label: '图片', description: '绘图与封面共用此模型。GPT Image配置编辑地址后可使用参考图、扩图和局部重绘；其他协议以实际能力为准。' },
   { id: 'audio', label: '音频', description: '语音合成与识别分别设置模型和接口。' },
   { id: 'avatar', label: '数字人', description: '照片口播与视频口型同步使用独立供应商，音频需先上传或生成。' },
   { id: 'reader', label: '网页读取', description: '读取商品网页后交给文本模型提炼卖点。' },
@@ -136,6 +136,10 @@ export function ModelSettingsEditor({ request = modelSettingsRequest }: { reques
             </div>
             <label className="block space-y-2 text-sm">完整调用地址<Input type="url" required={draft.enabled} value={draft.settings.endpoint} onChange={event => patch('endpoint', event.target.value)} placeholder="https://供应商域名/v1/chat/completions" />
               <p className="text-xs text-muted-foreground">填写完整 HTTPS 接口路径。请选择与供应商文档一致的协议。</p></label>
+            {slot === 'image.primary' && draft.settings.protocol === 'openai-images' && <label className="block space-y-2 text-sm">图片编辑地址（可选）
+              <Input type="url" value={draft.settings.edit_endpoint || ''} onChange={event => patch('edit_endpoint', event.target.value)} placeholder="https://api.openai.com/v1/images/edits" />
+              <p className="text-xs text-muted-foreground">仅已开通的GPT Image模型可用；生成地址需为同域的images/generations。留空时仅提供文本绘图。</p>
+            </label>}
             {['video', 'avatar'].includes(category) && <label className="block space-y-2 text-sm">任务查询地址<Input type="url" required={draft.enabled} value={draft.settings.query_endpoint} onChange={event => patch('query_endpoint', event.target.value)} /><p className="text-xs text-muted-foreground">填写任务查询基础路径，服务端按协议追加任务 ID。</p></label>}
             {!['reader', 'intelligence'].includes(category) && <label className="block space-y-2 text-sm">模型 ID<Input required={draft.enabled && !['video.Kling', 'avatar.photo'].includes(slot)} value={draft.settings.model} onChange={event => patch('model', event.target.value)} placeholder="账号已开通的 Model ID 或 Endpoint ID" /></label>}
             {slot === 'audio.tts' && <label className="block space-y-2 text-sm">默认音色<Input value={draft.settings.voice} onChange={event => patch('voice', event.target.value)} /></label>}

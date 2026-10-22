@@ -22,6 +22,9 @@ export async function handleImageGeneration(req: Request): Promise<Response> {
     }
     return Response.json({ job: await createImageJob(db, auth.user.id, input.request_key, {
       prompt: input.prompt, size: input.size || '1024x1024', quality: input.quality || 'auto', reference_image: input.reference_image,
+      ...(input.mode ? { mode: input.mode } : {}), ...(input.mask_image ? { mask_image: input.mask_image } : {}),
+      ...(input.confirmed_credit_cost !== undefined ? { confirmed_credit_cost: input.confirmed_credit_cost } : {}),
+      ...(input.confirmed_model_version ? { confirmed_model_version: input.confirmed_model_version } : {}),
     }) }, { status: 202, headers });
   } catch (cause) {
     return Response.json({ error: cause instanceof Error ? cause.message : '图片服务暂时不可用' }, { status: 503, headers });

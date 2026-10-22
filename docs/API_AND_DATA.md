@@ -1,6 +1,8 @@
 # 接口与数据契约
 
-最新 [迭代33](ITERATION_33_CREDITS_SMS.md)：00061新增get_my_credits()，固定auth.uid返回余额、有效/配置等级、状态、到期/周期、服务端时间；缺账号报错，管理员仍查本人。account_credits_schema_ready为service-only。页面共用账号查询，生成前回源；通知POST固定原账号，SMS独立验证回执后登录。probe21/00061，render4/edit2保持；下文按历史时点阅读。
+最新 [迭代34](ITERATION_34_IMAGE_EDITING.md)：image请求新增mode、mask_image、confirmed_credit_cost/confirmed_model_version；00062在扣费前校验原价/原配置/私有存储对象，同UUID恢复原任务。image.primary增加可选同域edit_endpoint，catalog只提供image_capabilities/version_id。编辑发送官方images/mask JSON数据URL；PNG实际解压有界校验，非法原图和掩码拒绝。image_editing_schema_ready为service-only，probe22/00062，render4/edit2保持；下文按历史时点阅读。
+
+上一轮 [迭代33](ITERATION_33_CREDITS_SMS.md)：00061新增get_my_credits()，固定auth.uid返回余额、有效/配置等级、状态、到期/周期、服务端时间；缺账号报错，管理员仍查本人。account_credits_schema_ready为service-only。页面共用账号查询，生成前回源；通知POST固定原账号，SMS独立验证回执后登录。
 
 当前 [迭代31](ITERATION_31_ACCOUNT_STORYBOARD.md)：00059新增authenticated-only `get_my_profile_overview(p_timezone)`，无用户ID参数，返回本人videos/completed/materials/products/published和30个日期/计数；已发布按publish_tasks实际published计数。service-only `profile_overview_schema_ready()`供probe19核对头像引用触发器。脚本与知识写入持久原UUID并核对原内容，资料读取不创建账号。render4/edit2保持。
 

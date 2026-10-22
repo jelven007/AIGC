@@ -1,6 +1,7 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { createServiceClient } from './auth.ts';
 import { MODEL_SLOTS, defaultSettings, type ModelSettings } from './model-catalog.ts';
+import { GPT_IMAGE_EDIT_MODELS } from './image-contract.ts';
 
 export class ConfigError extends Error {}
 export function publicHttpsUrl(value: string): URL {
@@ -60,6 +61,21 @@ export async function validateSettings(slot: string, raw: unknown, enabled: bool
     || (['video', 'avatar', 'intelligence'].includes(definition.category) && result.timeout_ms > 30000)) throw new ConfigError('超时应为 1–120 秒，视频及情报请求最多 30 秒');
   for (const key of ['endpoint', 'query_endpoint', 'test_endpoint'] as const) {
     if (result[key]) result[key] = await validateEndpoint(result[key]);
+  }
+  if (slot === 'image.primary') {
+    if (input.edit_endpoint != null && (typeof input.edit_endpoint !== 'string' || input.edit_endpoint.length > 2048)) {
+      throw new ConfigError('图片编辑地址格式不正确');
+    }
+    result.edit_endpoint = typeof input.edit_endpoint === 'string' ? input.edit_endpoint.trim() : '';
+    if (result.edit_endpoint) {
+      result.edit_endpoint = await validateEndpoint(result.edit_endpoint);
+      const generation = new URL(result.endpoint), edit = new URL(result.edit_endpoint);
+      if (result.protocol !== 'openai-images' || !(GPT_IMAGE_EDIT_MODELS as readonly string[]).includes(result.model)
+        || !generation.pathname.endsWith('/images/generations') || edit.origin !== generation.origin
+        || edit.pathname !== generation.pathname.replace(/\/generations$/, '/edits')) {
+        throw new ConfigError('图片编辑须使用受支持GPT Image模型，编辑地址应为生成地址同域同路径的images/edits');
+      }
+    }
   }
   if (slot === 'intelligence.youtube' && (result.endpoint !== 'https://www.googleapis.com/youtube/v3'
     || result.auth_header !== 'x-goog-api-key' || result.auth_scheme !== 'raw')) {
