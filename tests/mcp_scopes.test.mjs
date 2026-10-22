@@ -62,7 +62,7 @@ const actions = [
   [handlePlatformPublish, ['sync'], 'metrics:sync'],
   [handlePlatformAccounts, ['list', 'creator'], 'publish:read'],
 ];
-assert.equal(new Set(permissions.API_SCOPES).size, 18);
+assert.equal(new Set(permissions.API_SCOPES).size, 19);
 for (const [handle, cases, scope] of actions) {
   for (const action of cases) {
     consumed = []; reads = []; rpcs = [];

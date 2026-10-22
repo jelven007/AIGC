@@ -1102,6 +1102,132 @@
       }
     },
     {
+      "name": "submit_batch_pipeline",
+      "description": "创建2–6镜头、真实配音测量、可选Whisper字幕与合成批次，需要batch:create权限。先读取报价；单品价格=镜头数×video+tts+可选subtitles。台词须为用户确认的目标语言文本。publish交付在成片完成后等待预览，使用快照中publish阶段原UUID和batch_item_id调用submit_publish_group。",
+      "inputSchema": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "product_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Product Ids",
+            "type": "array"
+          },
+          "provider": {
+            "enum": [
+              "ArkSeedance",
+              "MiniMax",
+              "SeedanceMini",
+              "Wan3",
+              "HappyHorse",
+              "Kling",
+              "Seedance"
+            ],
+            "title": "Provider",
+            "type": "string"
+          },
+          "shots": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Shots",
+            "type": "array"
+          },
+          "narrations": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Narrations",
+            "type": "object"
+          },
+          "voice": {
+            "title": "Voice",
+            "type": "string"
+          },
+          "style": {
+            "title": "Style",
+            "type": "string"
+          },
+          "language": {
+            "enum": [
+              "zh",
+              "en",
+              "ja",
+              "ko",
+              "th",
+              "vi"
+            ],
+            "title": "Language",
+            "type": "string"
+          },
+          "expected_unit_cost": {
+            "maximum": 100000,
+            "minimum": 0,
+            "title": "Expected Unit Cost",
+            "type": "integer"
+          },
+          "budget": {
+            "maximum": 100000,
+            "minimum": 0,
+            "title": "Budget",
+            "type": "integer"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          },
+          "duration": {
+            "default": 5,
+            "title": "Duration",
+            "type": "integer"
+          },
+          "ratio": {
+            "default": "9:16",
+            "title": "Ratio",
+            "type": "string"
+          },
+          "resolution": {
+            "default": "720P",
+            "title": "Resolution",
+            "type": "string"
+          },
+          "subtitles": {
+            "default": true,
+            "title": "Subtitles",
+            "type": "boolean"
+          },
+          "delivery": {
+            "default": "render",
+            "enum": [
+              "render",
+              "publish"
+            ],
+            "title": "Delivery",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "product_ids",
+          "provider",
+          "shots",
+          "narrations",
+          "voice",
+          "style",
+          "language",
+          "expected_unit_cost",
+          "budget",
+          "request_key"
+        ],
+        "title": "submit_batch_pipelineArguments",
+        "type": "object"
+      }
+    },
+    {
       "name": "query_video_batch",
       "description": "读取当前用户批次、逐项状态及退款结果。",
       "inputSchema": {
@@ -1434,6 +1560,18 @@
             ],
             "default": null,
             "title": "Scheduled At"
+          },
+          "batch_item_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Batch Item Id"
           }
         },
         "required": [

@@ -112,7 +112,7 @@ const request = body => new Request('https://db.example/functions/v1/production-
   headers: { Authorization: `Bearer ${env.RENDER_WORKER_SECRET}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 reset(); job.payload.mode = 'beats'; job.evidence = null;
 assert.equal((await worker.handleProductionWorker(request({ action: 'claim', kind: 'edit_prepare', render_version: 2 }))).status, 426);
-const claim = await (await worker.handleProductionWorker(request({ action: 'claim', kind: 'edit_prepare', render_version: 4, edit_version: 1 }))).json();
+const claim = await (await worker.handleProductionWorker(request({ action: 'claim', kind: 'edit_prepare', render_version: 4, edit_version: 2 }))).json();
 assert.equal(claim.outputs.length, 0);
 assert.equal((await worker.handleProductionWorker(request({ action: 'completed', job_id: job.id, lease_token: job.lease_token, data: beats }))).status, 200);
 assert.deepEqual(events.at(-1).data.source, source);

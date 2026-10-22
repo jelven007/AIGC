@@ -1,5 +1,7 @@
 # 测试与验收计划
 
+新增 [迭代27专项](ITERATION_27_BATCH_PIPELINE.md)：test:pipeline验证真实PG8项整批预算/原阶段/模型/流水/依赖/共享配额、退款故障回滚、未知保护、跨账户不变、测量/字幕/合成/发布及无字幕免费测量，实际PCM/FFmpeg2项验证完整配音和多镜头。浏览器覆盖390px必填/预算、503刷新原UUID、原发布入口、逐账号确认和旧回执兼容；旧批次/发布/剪辑、MCP16项/59目录/19权限、Deno、lint/build、调度9/部署9回归。目标补真实供应商/账号、多语言质量、长任务容量与probe16/00055/render4/edit2全栈验收。
+
 新增 [迭代26专项](ITERATION_26_EDITOR_ASSETS.md)：test:assets覆盖真实PG5项原登记并发/Storage证据/权属/声明/墓碑/RLS、素材接口3组和音频协议，实际PCM/FFmpeg3项频段比例/机器人边带/淡变回声。browser_editor_assets覆盖真实播放/团队503/原2.5秒时长、上传503刷新原UUID、音频工程恢复、实际MediaRecorder/390px；开发与独立压缩页面及原剪辑、MCP16项/58目录/18权限、调度9/部署9通过。目标补真实设备、长素材内存、Storage元数据、共享撤销、供应商及probe15/00054/render4/edit1全栈验收。
 
 新增 [迭代25专项](ITERATION_25_EDIT_ANALYSIS.md)：test:edit执行真实PG7项原请求/价格/模型/配额/工程归属/RLS/阶段/租约/未知保护/单退款及协议6组，含源素材清理后终态回执；实际PCM/FFT/固定人物模型/FFmpeg5项验证120→240 BPM/裁剪hash/静音、人物alpha/原音轨/手机旋转、取消和字幕边界。browser_edit_analysis覆盖503刷新同UUID、真实字幕偏移/重复应用拒绝、节拍切分/人物设置恢复、无回执任务链接/390px与压缩页面；原FFmpeg12项、任务中心、情报PG/调度/部署回归。目标补真实Whisper、分割质量、多语言、长素材CPU/临时空间与关页验收；probe14/00053/render3/edit1与匹配全栈。

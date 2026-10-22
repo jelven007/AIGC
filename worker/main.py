@@ -67,7 +67,7 @@ def main():
             kinds = (None, "analysis_prepare", "edit_prepare")
             for offset in range(len(kinds)):
                 kind = kinds[(turn + offset) % len(kinds)]
-                reply = api({"action": "claim", "render_version": 4, "edit_version": 1,
+                reply = api({"action": "claim", "render_version": 4, "edit_version": 2,
                              **({"kind": kind} if kind else {})})
                 job = reply.get("job")
                 if job:

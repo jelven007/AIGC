@@ -16,6 +16,7 @@ import { processWechatOrder } from '../_shared/wechat-transactions.ts';
 import { processWechatRefund } from '../_shared/wechat-refunds.ts';
 import { editEvidence, type EditRequest } from '../_shared/edit-contract.ts';
 import { processEditJob } from '../_shared/edit-jobs.ts';
+import { processBatchPipeline } from '../_shared/batch-pipeline.ts';
 
 export async function handleProductionWorker(req: Request): Promise<Response> {
   if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
@@ -59,6 +60,7 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
       const erased = await db.from('production_jobs').select('source_erased_at').limit(0);
       const editCosts = await db.from('credit_costs').select('action,cost').in('action', ['generate_edit_beats', 'generate_edit_subtitles']);
       const materialReceipts = await db.from('material_upload_receipts').select('request_key,material_id,rights_confirmed_at').limit(0);
+      const pipeline = await db.from('batch_pipeline_stages').select('id,request_key,charge_id,depends_on,publish_group_id').limit(0);
       const ready = !error && !voices.error && !costs.error && costs.data?.length === Object.keys(MEDIA_JOB_SLOTS).length
         && !analysis.error && !!analysis.data && !measurements.error && !experiments.error && !knowledge.error && !chunks.error
         && !knowledgeCosts.error && knowledgeCosts.data?.length === 2 && knowledgeCosts.data.every(row => Number.isInteger(row.cost) && row.cost >= 0)
@@ -66,9 +68,9 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
         && !publishGroups.error && !publishTasks.error && !products.error && !receipts.error && !cash.error && !operators.error
         && !checkout.error && !notifications.error && !references.error && !translations.error && Number.isInteger(translations.data?.cost) && translations.data!.cost >= 0
         && !retention.error && !mediaReferences.error && !revocations.error && !revocationReceipts.error && !voiceState.error && !erased.error
-        && !wechat.error && !wechatOrders.error && !wechatRefunds.error && !editCosts.error && !materialReceipts.error
+        && !wechat.error && !wechatOrders.error && !wechatRefunds.error && !editCosts.error && !materialReceipts.error && !pipeline.error
         && editCosts.data?.length === 2 && editCosts.data.every(row => Number.isInteger(row.cost) && row.cost >= 0);
-      return Response.json({ ready, version: 15, render_version: 4, edit_version: 1, required_migration: '00054' }, { status: ready ? 200 : 503 });
+      return Response.json({ ready, version: 16, render_version: 4, edit_version: 2, required_migration: '00055' }, { status: ready ? 200 : 503 });
     }
     if (general && body.action === 'run') {
       const scheduled = await db.rpc('enqueue_intelligence_schedule');
@@ -86,7 +88,7 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
       let voicesDeleted = 0;
       // 以轮转顺序避免长视频队列使图片或发布饿死。
       const runners = [() => processVideoJob(db), () => processImageJob(db), () => processPublishJob(db), () => processAnalysisJob(db),
-        () => processEditJob(db),
+        () => processEditJob(db), () => processBatchPipeline(db),
         () => processProductImport(db),
         () => processProductTranslation(db),
         () => processCashRefund(db),
@@ -106,8 +108,8 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
       const preparing = body.kind === 'analysis_prepare';
       const editing = body.kind === 'edit_prepare';
       if (body.kind && !preparing && !editing) return Response.json({ error: '领取类型不支持' }, { status: 400 });
-      if (!preparing && (body.render_version !== 4 || editing && body.edit_version !== 1)) {
-        return Response.json({ error: '请更新FFmpeg Worker镜像，当前工程要求render_version=4及edit_version=1' }, { status: 426 });
+      if (!preparing && (body.render_version !== 4 || editing && body.edit_version !== 2)) {
+        return Response.json({ error: '请更新FFmpeg Worker镜像，当前工程要求render_version=4及edit_version=2' }, { status: 426 });
       }
       const { data, error } = await db.rpc('claim_production_job', { p_kind: preparing ? 'analysis_prepare' : editing ? 'edit_prepare' : 'render', p_job_id: null });
       if (error) throw new Error('领取失败');
@@ -148,8 +150,13 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
           return Response.json({ error: '字幕模型阶段由后台调度维护' }, { status: 409 });
         }
         if (['prepared', 'completed'].includes(body.action)) {
-          details = editEvidence(details, job.payload as EditRequest);
-          if (job.payload.mode === 'beats') details = { ...details, mode: 'beats', source: job.payload.source };
+          const input = job.payload as EditRequest;
+          if (job.payload.pipeline_audio && (!Number.isFinite(details.duration) || details.duration < .1
+            || details.duration > input.source.duration)) throw new Error('配音长度超过批次时长');
+          details = editEvidence(details, job.payload.pipeline_audio
+            ? { ...input, source: { ...input.source, duration: details.duration } } : input);
+          if (job.payload.mode === 'beats') details = { ...details, mode: 'beats',
+            source: { ...input.source, ...(job.payload.pipeline_audio ? { duration: details.duration } : {}) } };
           else {
             const base = `${job.user_id}/edits/${job.id}/${job.lease_token}`;
             const files = await db.storage.from('materials').list(base);

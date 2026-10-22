@@ -80,6 +80,10 @@ def prepare_edit(source, payload, directory, cancelled=lambda: False):
     if not any(stream.get("codec_type") == "audio" for stream in metadata["streams"]):
         raise RenderError("所选素材没有音轨，请选择音乐或带声音的视频")
     source_duration = float(metadata.get("format", {}).get("duration", 0))
+    if payload.get("pipeline_audio") is True:
+        if start != 0 or speed != 1 or not math.isfinite(source_duration) or not .1 <= source_duration <= duration:
+            raise RenderError("实际配音长度超过批次镜头总时长，请缩短正文或增加镜头")
+        duration = source_duration
     if not math.isfinite(source_duration) or start + duration * speed > source_duration + .05:
         raise RenderError("源音轨长度不足，请调整裁剪与速度")
     digest = hashlib.sha256()

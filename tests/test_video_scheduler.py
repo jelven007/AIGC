@@ -84,11 +84,11 @@ class SchedulerTest(unittest.TestCase):
     def test_production_probe_requires_current_schema_and_protocol(self):
         config = scheduler.Config("https://project.example/functions/v1/production-worker",
             self.secret, 4, 10, 150, self.config.state_path)
-        good = {"ready": True, "version": 15, "required_migration": "00054", "render_version": 4, "edit_version": 1}
+        good = {"ready": True, "version": 16, "required_migration": "00055", "render_version": 4, "edit_version": 2}
         with patch.object(scheduler.urllib.request, "build_opener") as mock:
             mock.return_value.open.return_value = Response(good)
             self.assertEqual(scheduler.call_worker(config, "probe"), 0)
-            for override in ({"version": 1}, {"version": 13}, {"required_migration": "00052"}, {"render_version": 2}, {"edit_version": 0}, {"ready": False}):
+            for override in ({"version": 1}, {"version": 15}, {"required_migration": "00054"}, {"render_version": 2}, {"edit_version": 1}, {"ready": False}):
                 mock.return_value.open.return_value = Response({**good, **override})
                 with self.assertRaises(scheduler.WorkerError):
                     scheduler.call_worker(config, "probe")

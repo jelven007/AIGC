@@ -14,6 +14,7 @@
     "test:wechat": "python3 tests/test_wechat_transactions.py && node tests/wechat_transactions.test.mjs && node tests/run_wechat.mjs",
     "test:video": "node tests/video_jobs.test.mjs",
     "test:batch": "python3 tests/test_batch_video.py && node tests/batch_video.test.mjs",
+    "test:pipeline": "python3 tests/test_batch_pipeline.py && node tests/batch_pipeline.test.mjs && docker run --rm -v \"$PWD:/workspace:ro\" -w /workspace shoproai-render-worker:local python tests/test_batch_pipeline_media.py",
     "test:models": "node tests/model_settings.test.mjs && node tests/audio_models.test.mjs",
     "test:media": "python3 tests/test_media_jobs.py && node tests/media_jobs.test.mjs",
     "test:lifecycle": "python3 tests/test_data_lifecycle.py && node tests/data_lifecycle.test.mjs",

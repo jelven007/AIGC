@@ -327,6 +327,24 @@ async def submit_batch_videos(name: str, product_ids: list[str], provider: Video
 
 
 @mcp.tool()
+async def submit_batch_pipeline(name: str, product_ids: list[str], provider: VideoProvider,
+                                shots: list[str], narrations: dict[str, str], voice: str,
+                                style: str, language: Literal["zh", "en", "ja", "ko", "th", "vi"],
+                                expected_unit_cost: Cost, budget: Cost, request_key: str,
+                                duration: int = 5, ratio: str = "9:16", resolution: str = "720P",
+                                subtitles: bool = True, delivery: Literal["render", "publish"] = "render"):
+    """创建2–6镜头、真实配音测量、可选Whisper字幕与合成批次，需要batch:create权限。先读取报价；单品价格=镜头数×video+tts+可选subtitles。台词须为用户确认的目标语言文本。publish交付在成片完成后等待预览，使用快照中publish阶段原UUID和batch_item_id调用submit_publish_group。"""
+    normalized = {identifier(key): {"narration": value} for key, value in narrations.items()}
+    return (await call_backend("batch-video-jobs", {"action": "create", "name": name,
+            "product_ids": [identifier(value) for value in product_ids], "provider": provider,
+            "settings": {"style": style, "language": language, "duration": duration, "ratio": ratio, "resolution": resolution},
+            "overrides": normalized, "pipeline": {"shots": shots, "voice": voice, "subtitles": subtitles,
+                                                  "transition": "none", "delivery": delivery},
+            "expected_unit_cost": expected_unit_cost, "budget": budget,
+            "request_key": identifier(request_key)}))["batch"]
+
+
+@mcp.tool()
 async def query_video_batch(batch_id: Optional[str] = None, request_key: Optional[str] = None):
     """读取当前用户批次、逐项状态及退款结果。"""
     return (await call_backend("batch-video-jobs", {"action": "query",
@@ -371,7 +389,7 @@ async def submit_platform_publish(project_id: str, connection_id: str, title: st
 @mcp.tool()
 async def submit_publish_group(project_id: str, source_url: str, duration: float, title: str,
                                description: str, tags: list[str], targets: list[PublishTarget],
-                               request_key: str, scheduled_at: Optional[str] = None):
+                               request_key: str, scheduled_at: Optional[str] = None, batch_item_id: Optional[str] = None):
     """发布同一成片到1至10个账号。逐账号get_publish_options并取得用户确认；source_url用预览成片的稳定私有地址，duration为真实秒数。整组事务创建，失败/未知复用原UUID核对，平台进度各自更新。"""
     if not 1 <= len(targets) <= 10:
         raise ValueError("一次选择1至10个账号")
@@ -382,6 +400,7 @@ async def submit_publish_group(project_id: str, source_url: str, duration: float
     return (await call_backend("platform-publish", {"action": "create_group",
             "project_id": identifier(project_id), "source_url": source_url, "duration": duration,
             "title": title, "description": description, "tags": tags, "targets": normalized,
+            **({"batch_item_id": identifier(batch_item_id)} if batch_item_id else {}),
             "request_key": identifier(request_key), "scheduled_at": scheduled_at}))["group"]
 
 
