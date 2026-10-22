@@ -5,6 +5,7 @@ import { resolveModel } from './model-registry.ts';
 import { asrModel, safeMediaDownload } from './audio-provider.ts';
 import { jobEvent, publicProductionJob, type ProductionJob } from './production-jobs.ts';
 import { timedTranscript } from './structured-analysis.ts';
+import { workloadPolicy } from './workload-policy.ts';
 
 export async function createEditJob(db: SupabaseClient, uid: string, key: string, raw: any, projectId?: string) {
   const input = canonicalMediaTree(editInput(raw), uid) as EditRequest;
@@ -25,7 +26,7 @@ export async function createEditJob(db: SupabaseClient, uid: string, key: string
   }
   const created = await db.rpc('create_production_job', { p_user_id: uid, p_request_key: key, p_kind: 'edit_analysis',
     p_payload: input, p_project_id: projectId || null, p_version: config?.version_id || null });
-  if (created.error) throw new Error(/积分不足|队列|价格已更新|配置已更新|同一请求标识|工程不存在|无权/.test(created.error.message)
+  if (created.error) throw workloadPolicy(created.error) || new Error(/积分不足|队列|价格已更新|配置已更新|同一请求标识|工程不存在|无权/.test(created.error.message)
     ? created.error.message : '剪辑分析创建结果待确认，请恢复原请求');
   return publicProductionJob(db, created.data);
 }

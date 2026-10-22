@@ -90,7 +90,7 @@ export function EditAnalysisDialog({ mode, onClose, userId, projectKey, tracks, 
     } catch (cause) {
       if (revision !== generation.current) return;
       setError(cause instanceof Error ? cause.message : '创建结果待确认，正在恢复原请求');
-      if (cause instanceof ProductionJobError && [400, 401, 402, 409, 424, 429].includes(cause.status)) write(null);
+      if (cause instanceof ProductionJobError && [400, 401, 402, 403, 409, 424, 429].includes(cause.status)) write(null);
     } finally { if (revision === generation.current) { locked.current = false; setBusy(false); } }
   };
   const apply = async () => {

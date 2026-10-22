@@ -11,6 +11,7 @@ import { KNOWLEDGE_KINDS } from '../_shared/knowledge.ts';
 import { INTELLIGENCE_KINDS } from '../_shared/intelligence-provider.ts';
 import { editInput } from '../_shared/edit-contract.ts';
 import { createEditJob } from '../_shared/edit-jobs.ts';
+import { workloadPolicy } from '../_shared/workload-policy.ts';
 
 const uuid = (value: unknown) => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 export async function handleProductionJobs(req: Request): Promise<Response> {
@@ -118,6 +119,8 @@ export async function handleProductionJobs(req: Request): Promise<Response> {
         catch (cause) { return reply({ error: cause instanceof Error ? cause.message : '剪辑分析参数非法' }, 400); }
         try { return reply({ job: await createEditJob(db, auth.user.id, body.request_key, body.input, body.project_id) }, 202); }
         catch (cause) {
+          const policy = workloadPolicy(cause);
+          if (policy) return reply({ error: policy.message, outcome: 'rejected' }, policy.status);
           const message = cause instanceof Error ? cause.message : '剪辑分析创建失败';
           return reply({ error: message }, cause instanceof ConfigError || message.includes('Whisper') ? 424
             : message.includes('积分不足') ? 402 : message.includes('队列') ? 429
@@ -130,6 +133,8 @@ export async function handleProductionJobs(req: Request): Promise<Response> {
         catch (cause) { return reply({ error: cause instanceof Error ? cause.message : '分析参数非法' }, 400); }
         try { return reply({ job: await createAnalysisJob(db, auth.user.id, body.request_key, body.input) }, 202); }
         catch (cause) {
+          const policy = workloadPolicy(cause);
+          if (policy) return reply({ error: policy.message, outcome: 'rejected' }, policy.status);
           const message = cause instanceof Error ? cause.message : '分析任务创建失败';
           return reply({ error: message }, cause instanceof ConfigError || message.includes('Whisper') ? 424
             : message.includes('积分不足') ? 402 : message.includes('队列') ? 429
@@ -143,6 +148,8 @@ export async function handleProductionJobs(req: Request): Promise<Response> {
         try {
           return reply({ job: await createMediaJob(db, auth.user.id, body.kind, body.request_key, body.input, body.project_id) }, 202);
         } catch (cause) {
+          const policy = workloadPolicy(cause);
+          if (policy) return reply({ error: policy.message, outcome: 'rejected' }, policy.status);
           const message = cause instanceof Error ? cause.message : '任务创建失败';
           return reply({ error: message }, cause instanceof ConfigError ? 424 : message.includes('积分不足') ? 402 : message.includes('队列') ? 429
             : /同一请求标识|价格已更新|配置已更新/.test(message) ? 409 : /素材|无权|声纹|语速|音色|WAV/.test(message) ? 400 : 503);
@@ -174,6 +181,8 @@ export async function handleProductionJobs(req: Request): Promise<Response> {
         p_user_id: auth.user.id, p_request_key: body.request_key, p_kind: body.kind,
         p_payload: input, p_project_id: projectId, p_version: version,
       });
+      const policy = workloadPolicy(error);
+      if (policy) return reply({ error: policy.message, outcome: 'rejected' }, policy.status);
       if (error?.message.includes('渲染队列')) return reply({ error: error.message }, 429);
       if (error) return reply({ error: error.message.includes('积分不足') ? '积分不足'
         : error.message.includes('同一请求标识') ? '同一请求标识不能用于不同任务' : '任务创建失败，请保留原请求标识重试' },

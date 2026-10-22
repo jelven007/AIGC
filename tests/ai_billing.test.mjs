@@ -28,7 +28,7 @@ const admin = {
   async rpc(name, parameters) {
     state.calls.push({ name, parameters });
     if (name === 'upsert_rate_limit') return { data: state.allowed };
-    if (name === 'deduct_credits') return { data: { ok: true, charge_id: chargeId, credits_left: 15 } };
+    if (name === 'deduct_credits') return state.policy ? { error: { message: state.policy } } : { data: { ok: true, charge_id: chargeId, credits_left: 15 } };
     if (name === 'refund_credit_charge') return { data: { ok: true, refunded: 5, balance: 20 } };
     return { data: 0 };
   },
@@ -85,4 +85,12 @@ user = '33333333-3333-4333-8333-333333333333';
 response = await request('generate_selling_points', { cached: true, body: { product: { name: 'A' } } });
 assert.notEqual(calls('record_model_call')[0].parameters.p_cache_key, keyA);
 console.log('PASS 缓存按用户隔离且保留嵌套请求参数');
-console.log('6 tests passed');
+for (const [policy, status] of [['账号的新计费任务已受限，可通过工单申诉', 403], ['团队日积分预算不足', 429]]) {
+  response = await request('generate_selling_points', { policy });
+  assert.equal(response.status, status);
+  assert.equal(calls('deduct_credits').length, 1);
+  assert.equal(calls('refund_credit_charge').length, 0);
+  assert.equal((await response.json()).message, policy);
+}
+console.log('PASS 同步文本账号/团队策略拒绝不调用模型、不造退款，403/429保留真实原因');
+console.log('7 tests passed');

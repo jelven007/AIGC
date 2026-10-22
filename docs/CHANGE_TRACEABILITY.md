@@ -1,5 +1,7 @@
 # 变更、需求与文档追踪矩阵
 
+迭代28 [运营持久流程](ITERATION_28_OPERATIONS_WORKFLOWS.md)对应REQ-SUPPORT-01/TENANT-OPS-01/RISK-DISPOSITION-01/SUPPLIER-CASH-01：00056工单/内部备注/关联/版本、租户所有权/成员/启停/并发团队预算、人工风险/计费限制、原账单/币种/指纹/冲销；复用operations与统一扣费事务、原UUID及审计，拆出共享表单/记录组件。PRD/当前状态/架构/运营/测试/部署同步，probe17/00056/render4/edit2；企业统一账套、自动账单与目标环境不列为本地已验收。
+
 迭代26 [资源/录音/音频/MCP](ITERATION_26_EDITOR_ASSETS.md)对应REQ-MATERIAL-REGISTER-01/RECORDING-01/AUDIO-EDIT-01/MCP-EDIT-01：00054原登记/存储证据/声明/墓碑，独立资源组件/录音/真实EQ与调制、有界缓存，MCP58/18权限和probe15/render4/edit1。同步PRD、接口/架构、开发、测试、运营运维/部署及当前状态；PG5/实际FFmpeg3/SDK16/浏览器/调度9/部署9本地验证，目标经营和全栈部署不以夹具替代。
 
 迭代24 [微信交易链](ITERATION_24_WECHAT_TRANSACTIONS.md)对应REQ-WECHAT-TRANSACTION-01/WECHAT-CASH-REFUND-01：00052、签名查单/到期关单/迟到入账、原退款/通知/租约和共用权益事务、运营原渠道恢复。同步PRD/支付/API/架构/开发/测试/运营运维/发布；13项微信PG与原现金/收银回归、RSA/AES和页面验证，probe13/00052/render2。真实商户/异常退款/渠道对账/目标部署仍待验收或开发。

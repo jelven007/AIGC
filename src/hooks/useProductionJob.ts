@@ -43,7 +43,7 @@ export function useProductionJob(kind: 'image' | 'render', userId?: string, proj
       } catch (e) {
         if (!stopped) {
           setError(e instanceof Error ? e.message : '任务恢复失败');
-          if (e instanceof ProductionJobError && [400, 401, 402, 409].includes(e.status)) saveReceipt(null);
+          if (e instanceof ProductionJobError && [400, 401, 402, 403, 409, 429].includes(e.status)) saveReceipt(null);
         }
       }
       if (!stopped) timer = setTimeout(restore, 10000);
@@ -64,7 +64,7 @@ export function useProductionJob(kind: 'image' | 'render', userId?: string, proj
       return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : '提交结果待确认');
-      if (e instanceof ProductionJobError && [400, 401, 402, 409].includes(e.status)) saveReceipt(null);
+      if (e instanceof ProductionJobError && [400, 401, 402, 403, 409, 429].includes(e.status)) saveReceipt(null);
       return false;
     }
     finally { setSubmitting(false); }

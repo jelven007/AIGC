@@ -3,6 +3,7 @@ import { generateImage } from './image-provider.ts';
 import { signMediaTree } from './private-media.ts';
 import { validateMediaTree } from './private-media.ts';
 import { resolveModel } from './model-registry.ts';
+import { workloadPolicy } from './workload-policy.ts';
 
 export interface ProductionJob {
   id: string; user_id: string; request_key: string; kind: string; project_id: string | null;
@@ -47,7 +48,7 @@ export async function createImageJob(db: SupabaseClient, userId: string, request
     p_user_id: userId, p_request_key: requestKey, p_kind: 'image', p_payload: payload,
     p_project_id: projectId || null, p_version: config?.version_id || null,
   });
-  if (error) throw new Error('图片任务创建失败');
+  if (error) throw workloadPolicy(error) || new Error('图片任务创建失败');
   return publicProductionJob(db, data as ProductionJob);
 }
 export async function processImageJob(db: SupabaseClient, id?: string): Promise<boolean> {

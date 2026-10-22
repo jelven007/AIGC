@@ -8,6 +8,7 @@ import { createImageJob } from '../_shared/production-jobs.ts';
 import { boundedText, emotionSegments, structuredText, textList } from '../_shared/structured-analysis.ts';
 import { responseBytes } from '../_shared/audio-provider.ts';
 import { knowledgeContext, knowledgeMessages } from '../_shared/knowledge.ts';
+import { workloadPolicy } from '../_shared/workload-policy.ts';
 
 // 避免 createClient 的泛型 ReturnType 推导为空 schema。
 function businessClient(url: string, key: string): SupabaseClient {
@@ -145,7 +146,7 @@ async function deductCredits(
   userId: string,
   action: string,
   confirmedCost?: number,
-): Promise<{ allowed: boolean; cost: number; remaining: number; chargeId?: string; error?: string }> {
+): Promise<{ allowed: boolean; cost: number; remaining: number; chargeId?: string; error?: string; policyStatus?: 403 | 429 }> {
   if (!userId) return { allowed: false, cost: 0, remaining: 0, error: '缺少认证用户上下文' };
 
   try {
@@ -188,6 +189,8 @@ async function deductCredits(
     });
 
     if (rpcErr || !charge?.ok || !charge?.charge_id) {
+      const policy = workloadPolicy(rpcErr);
+      if (policy) return { allowed: false, cost, remaining, error: policy.message, policyStatus: policy.status };
       // RPC 报错严格拦截并审计落库，杜绝放行漏洞
       const message = rpcErr?.message || '请先部署资金安全迁移 00028';
       await logError(supabase, action, `扣费 RPC 失败: ${message}`, userId, { cost, remaining });
@@ -428,7 +431,8 @@ Deno.serve(async (req) => {
       }
       const charge = await deductCredits(supabase, userId, action, action === 'analyze_traffic' ? body.confirmed_credit_cost : undefined);
       if (!charge.allowed) {
-        return err(charge.error || `积分不足（需 ${charge.cost} 积分，当前剩余 ${charge.remaining} 积分）`, 4001, 402);
+        return err(charge.error || `积分不足（需 ${charge.cost} 积分，当前剩余 ${charge.remaining} 积分）`,
+          charge.policyStatus === 403 ? 4003 : charge.policyStatus === 429 ? 4002 : 4001, charge.policyStatus || 402);
       }
       billedCost = charge.cost;
       billedChargeId = charge.chargeId;
@@ -485,6 +489,8 @@ Deno.serve(async (req) => {
     await recordModelCall(supabase, { userId, action, status: 'success', latencyMs: Date.now() - start, creditsCost: billedCost, cacheKey: cacheKey || undefined });
     return ok(result);
   } catch (e) {
+    const policy = workloadPolicy(e);
+    if (policy) return err(policy.message, policy.status === 403 ? 4003 : 4002, policy.status);
     const msg = e instanceof Error ? e.message : '服务内部错误';
     console.error(`[ai-assistant][${action}]`, msg);
     if (billedChargeId) {

@@ -4,6 +4,7 @@ import { providerConfig } from '../_shared/video-providers.ts';
 import { signMediaTree } from '../_shared/private-media.ts';
 import { pipelineVersions } from '../_shared/batch-pipeline.ts';
 import { responseBytes } from '../_shared/audio-provider.ts';
+import { workloadPolicy } from '../_shared/workload-policy.ts';
 
 const headers = { 'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -65,6 +66,8 @@ export async function handleBatchVideoJobs(req: Request): Promise<Response> {
         p_request: request, p_items: items, p_config_version: versionId,
         p_expected_unit_cost: request.expected_unit_cost, p_budget: request.budget });
       if (created.error) {
+        const policy = workloadPolicy(created.error);
+        if (policy) return reply({ error: policy.message, outcome: 'rejected' }, policy.status);
         const message = created.error.message;
         if (message.includes('积分不足')) return reply({ error: message }, 402);
         if (/同一请求标识|价格已更新|模型配置/.test(message)) return reply({ error: message }, 409);

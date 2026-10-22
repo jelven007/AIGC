@@ -7,6 +7,7 @@ import { publicProductionJob, type ProductionJob } from '../_shared/production-j
 import { productScope } from '../_shared/api-scopes.ts';
 import { ConfigError } from '../_shared/model-registry.ts';
 import { createProductTranslation } from '../_shared/product-translation.ts';
+import { workloadPolicy } from '../_shared/workload-policy.ts';
 
 export async function handleProductManagement(req: Request): Promise<Response> {
   const preflight = handleCorsPreflight(req); if (preflight) return preflight;
@@ -94,6 +95,8 @@ export async function handleProductManagement(req: Request): Promise<Response> {
     }
     throw new ProductError('商品操作不支持');
   } catch (cause) {
+    const policy = workloadPolicy(cause);
+    if (policy) return reply({ error: policy.message, outcome: 'rejected' }, policy.status);
     const message = cause instanceof Error ? cause.message : '商品服务不可用';
     const conflict = /同一请求标识|已被更新|已导入|更换导入来源|价格已更新|配置已更新/.test(message);
     const rejected = cause instanceof SyntaxError || cause instanceof ProductError || cause instanceof ConfigError || conflict || /积分不足/.test(message)

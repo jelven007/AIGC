@@ -5,6 +5,7 @@ import { createKnowledgeJob, KNOWLEDGE_KINDS, knowledgeContext, knowledgeInput }
 import { publicProductionJob, type ProductionJob } from '../_shared/production-jobs.ts';
 import { responseBytes } from '../_shared/audio-provider.ts';
 import { knowledgeScope } from '../_shared/api-scopes.ts';
+import { workloadPolicy } from '../_shared/workload-policy.ts';
 
 export async function handleKnowledge(req: Request): Promise<Response> {
   const preflight = handleCorsPreflight(req); if (preflight) return preflight;
@@ -54,6 +55,8 @@ export async function handleKnowledge(req: Request): Promise<Response> {
     if (body.action === 'context') return reply({ context: await knowledgeContext(db, uid, body.job_id) });
     return reply({ error: '知识操作不支持' }, 400);
   } catch (cause) {
+    const policy = workloadPolicy(cause);
+    if (policy) return reply({ error: policy.message, outcome: 'rejected' }, policy.status);
     const message = cause instanceof Error ? cause.message : '知识服务暂不可用';
     return reply({ error: cause instanceof SyntaxError ? '请求JSON非法' : message },
       cause instanceof ConfigError ? 424 : cause instanceof SyntaxError ? 400
