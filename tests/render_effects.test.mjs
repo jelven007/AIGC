@@ -19,6 +19,16 @@ for (const mode of RENDER_BLENDS) {
   assert.equal(validateRender(input), input);
 }
 console.log('PASS 十二转场、八混合、色键工程协议可提交');
+const person = structuredClone(spec);
+person.tracks[0].personMask = { model: 'pphumanseg-2023mar', threshold: .5, feather: 1 };
+assert.equal(validateRender(person), person);
+for (const mask of [{ model: 'untrusted-model', threshold: .5, feather: 1 }, { model: 'pphumanseg-2023mar', threshold: NaN, feather: 1 },
+  { model: 'pphumanseg-2023mar', threshold: .5, feather: 8 }]) {
+  assert.throws(() => validateRender({ ...spec, tracks: [{ ...spec.tracks[0], personMask: mask }] }));
+}
+person.tracks[0].chromaKey = { color: '#00ff00', similarity: .2, smoothness: .1 };
+assert.throws(() => validateRender(person), /人物分割/);
+console.log('PASS 固定人物模型参数与色键互斥，未知模型/错误阈值/边缘范围拒绝');
 for (const change of [{ transition: 'unknown' }, { transition: null }, { transitionDuration: NaN }, { transitionDuration: 3 }]) {
   assert.throws(() => validateRender({ ...spec, ...change }));
 }
@@ -47,7 +57,8 @@ const request = body => new Request('https://db.example/functions/v1/production-
   headers: { Authorization: 'Bearer render-secret', 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 assert.equal((await handleProductionWorker(request({ action: 'claim' }))).status, 426);
 assert.equal(claims, 0);
-assert.equal((await handleProductionWorker(request({ action: 'claim', render_version: 2 }))).status, 200);
+assert.equal((await handleProductionWorker(request({ action: 'claim', render_version: 2 }))).status, 426);
+assert.equal((await handleProductionWorker(request({ action: 'claim', render_version: 3 }))).status, 200);
 assert.equal(claims, 1);
 assert.equal((await handleProductionWorker(request({ action: 'claim', kind: 'analysis_prepare' }))).status, 200);
 console.log('PASS 旧Worker领取前426，不消耗租约，新版本渲染与原分析预处理可领取');

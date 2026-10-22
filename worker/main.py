@@ -13,6 +13,7 @@ import ipaddress
 import requests
 from render import render, RenderError
 from analyze import prepare_video
+from edit_analysis import prepare_edit
 
 
 def safe_url(value):
@@ -58,16 +59,20 @@ def main():
             raise RenderError("Worker租约接口失败")
         return response.json()
 
+    turn = 0
     while not stop.is_set():
         job = None
         try:
-            # 两种本地任务轮转，分析预处理不被渲染队列饿死。
-            prepare_first = int(time.time()) % 2 == 0
-            reply = api({"action": "claim", "render_version": 2, **({"kind": "analysis_prepare"} if prepare_first else {})})
-            job = reply.get("job")
-            if not job:
-                reply = api({"action": "claim", "render_version": 2, **({} if prepare_first else {"kind": "analysis_prepare"})})
+            # 三种本地任务轮转，音轨预处理不依赖编辑器页面存活。
+            kinds = (None, "analysis_prepare", "edit_prepare")
+            for offset in range(len(kinds)):
+                kind = kinds[(turn + offset) % len(kinds)]
+                reply = api({"action": "claim", "render_version": 3, "edit_version": 1,
+                             **({"kind": kind} if kind else {})})
                 job = reply.get("job")
+                if job:
+                    break
+            turn = (turn + 1) % len(kinds)
             if not job:
                 stop.wait(10)
                 continue
@@ -92,6 +97,7 @@ def main():
                     files = {}
                     total_bytes = 0
                     preparing = job.get("kind") == "analysis"
+                    editing = job.get("kind") == "edit_analysis"
                     if preparing:
                         source = directory / "source"
                         download(job["payload"]["source_url"], source, 100 * 1024 * 1024)
@@ -99,7 +105,13 @@ def main():
                         files = {f"frame-{index}.jpg": frame["file"] for index, frame in enumerate(result["frames"])}
                         if result["audio"]:
                             files["audio.wav"] = result["audio"]
-                    for index, track in enumerate([] if preparing else job["payload"]["tracks"]):
+                    if editing:
+                        source = directory / "source"
+                        download(job["payload"]["source"]["url"], source)
+                        result = prepare_edit(source, job["payload"], directory,
+                                              cancelled=lambda: stop.is_set() or heartbeat_failure.is_set())
+                        files["audio.wav"] = result["audio"]
+                    for index, track in enumerate([] if preparing or editing else job["payload"]["tracks"]):
                         if track["type"] == "text":
                             continue
                         path = directory / f"input-{index}"
@@ -107,13 +119,13 @@ def main():
                         if total_bytes > 2 * 1024 * 1024 * 1024:
                             raise RenderError("工程素材总量超过2GB")
                         files[track["id"]] = path
-                    if not preparing:
+                    if not preparing and not editing:
                         result = render(job["payload"], files, directory, lambda value: progress.__setitem__(0, value),
                                         cancelled=lambda: stop.is_set() or heartbeat_failure.is_set())
                     if heartbeat_failure.is_set():
                         raise RenderError("任务租约连接失效")
                     for index, output in enumerate(reply["outputs"]):
-                        file = files.get(output["name"]) if preparing else result[("file", "thumbnail")[index]]
+                        file = files.get(output["name"]) if preparing or editing else result[("file", "thumbnail")[index]]
                         if not file:
                             continue
                         safe_url(output["url"])
@@ -125,17 +137,20 @@ def main():
                     # 网络丢失时重用同一租约结案，避免已上传成片被误标失败。
                     for attempt in range(3):
                         try:
-                            details = {key: result[key] for key in (("duration", "source_hash", "has_audio") if preparing
-                                       else ("size", "duration", "resolution"))}
+                            fields = ("duration", "source_hash", "has_audio") if preparing else (
+                                ("duration", "source_hash", "beats", "bpm", "confidence", "algorithm") if editing and job["payload"]["mode"] == "beats"
+                                else ("duration", "source_hash") if editing else ("size", "duration", "resolution"))
+                            details = {key: result[key] for key in fields}
                             if preparing:
                                 details["frame_times"] = [frame["time"] for frame in result["frames"]]
-                            api({"action": "prepared" if preparing else "completed", **lease, "data": details})
+                            event = "prepared" if preparing or editing and job["payload"]["mode"] == "subtitles" else "completed"
+                            api({"action": event, **lease, "data": details})
                             break
                         except RenderError:
                             if attempt == 2:
                                 raise
                             stop.wait(2)
-                    print(json.dumps({"job_id": job["id"], "status": "prepared" if preparing else "completed"}), flush=True)
+                    print(json.dumps({"job_id": job["id"], "status": event}), flush=True)
             finally:
                 heart_stop.set()
                 heart_thread.join(timeout=2)

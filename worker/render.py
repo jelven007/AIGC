@@ -4,6 +4,7 @@ import math
 from pathlib import Path
 import subprocess
 import selectors
+import shutil
 import time
 from render_effects import TRANSITIONS, BLENDS, composite, transition_filters
 
@@ -148,6 +149,11 @@ def validate(spec):
                 raise RenderError("色键参数不正确")
             numeric(key.get("similarity"), None, .01, 1)
             numeric(key.get("smoothness"), None, 0, 1)
+        if item.get("personMask") is not None:
+            from person_mask import validate_mask
+            if item["type"] not in ("video", "image") or item.get("chromaKey") is not None:
+                raise RenderError("人物分割轨道不支持或与色键冲突")
+            validate_mask(item["personMask"])
     main = sorted([item for item in spec["tracks"] if item["type"] in ("video", "image") and item.get("trackId", "video") == "video"], key=lambda item: item["start"])
     if spec.get("transition", "none") != "none" and any(a["start"] + a["duration"] > b["start"] + .001 for a, b in zip(main, main[1:])):
         raise RenderError("转场主轨不可重叠，请将叠加素材放入画中画轨")
@@ -167,18 +173,28 @@ def build_command(spec, media_files, directory):
             "-f", "lavfi", "-i", f"color=c=black:s={width}x{height}:r={fps}:d={duration}",
             "-f", "lavfi", "-i", f"anullsrc=r=48000:cl=stereo:d={duration}"]
     inputs = {}
+    visual_inputs = {}
+    input_count = 2
     for item in spec["tracks"]:
         if item["type"] == "text":
             continue
         path = Path(media_files[item["id"]]).resolve()
         if not path.is_file():
             raise RenderError("轨道素材不存在")
-        index = len(inputs) + 2
+        index = input_count
+        input_count += 1
         inputs[item["id"]] = (index, probe(path))
         if item["type"] == "image":
             args += ["-loop", "1", "-framerate", str(fps), "-t", str(item["duration"]), "-protocol_whitelist", "file,pipe", "-i", str(path)]
         else:
             args += ["-protocol_whitelist", "file,pipe", "-i", str(path)]
+        if item.get("personMask"):
+            mask_file = Path(media_files[f"{item['id']}:person-mask"])
+            if not mask_file.is_file():
+                raise RenderError("人物分割蒙版缺失")
+            visual_inputs[item["id"]] = input_count
+            input_count += 1
+            args += ["-protocol_whitelist", "file,pipe", "-i", str(mask_file)]
     filters = ["[0:v]format=rgba[canvas]"]
     current = "canvas"
     audio = ["1:a"]
@@ -213,7 +229,10 @@ def build_command(spec, media_files, directory):
             transition = spec.get("transition", "none") if is_main(item) else "none"
             seconds = boundaries.get(item["id"], 0)
             tail = boundaries.get(f"tail:{item['id']}", 0) if transition not in ("none", "t1") else 0
-            visual = [f"trim=start={source_start}:duration={length*speed}", f"setpts=(PTS-STARTPTS)/{speed}", f"fps={fps}",
+            masked = item.get("personMask") is not None
+            visual_index = visual_inputs.get(item["id"], index)
+            visual = [f"trim=start={0 if masked else source_start}:duration={length if masked else length*speed}",
+                      f"setpts=(PTS-STARTPTS)/{1 if masked else speed}", f"fps={fps}",
                       "format=rgba"]
             if item.get("chromaKey"):
                 key = item["chromaKey"]
@@ -261,7 +280,7 @@ def build_command(spec, media_files, directory):
             if seconds:
                 visual += transition_filters(transition, seconds)
             visual.append(f"setpts=PTS+{start}/TB")
-            filters.append(f"[{index}:v]{','.join(visual)}[{track}]")
+            filters.append(f"[{visual_index}:v]{','.join(visual)}[{track}]")
             x = expression(item, "x", 50, -100, 200, f"(t-{start})")
             y = expression(item, "y", 50, -100, 200, f"(t-{start})")
             target = f"composite{order}"
@@ -351,7 +370,7 @@ def build_command(spec, media_files, directory):
                            f"box=1:boxborderw=10:boxcolor=0x{background(item.get('bgColor'))}:"
                            f"x='w*({x})/100-{'0' if align=='left' else 'text_w' if align=='right' else 'text_w/2'}':"
                            f"y='h*({y})/100-text_h/2':alpha='({alpha})/100':"
-                           f"enable='between(t,{start},{start+length})'[{target}]")
+                           f"enable='gte(t,{start})*lt(t,{start+length})'[{target}]")
             current = target
     filters.append(f"[{current}]format=yuv420p[outv]")
     filters.append("".join(f"[{name}]" for name in audio) + f"amix=inputs={len(audio)}:normalize=0,alimiter=limit=.95[outa]")
@@ -360,17 +379,37 @@ def build_command(spec, media_files, directory):
     args += ["-filter_complex_threads", "1", "-filter_complex_script", str(graph), "-map", "[outv]", "-map", "[outa]",
              "-t", str(duration), "-r", str(fps), "-c:v", "libx264", "-preset", "medium", "-crf", "20",
              "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart",
-             "-progress", "pipe:1", str(directory / "output.mp4")]
+             "-progress", "pipe:1", "-fs", str(1024 * 1024 * 1024), str(directory / "output.mp4")]
     return args, (width, height)
 
 
 def render(spec, media_files, directory, progress=None, cancelled=None, timeout=3600):
+    validate(spec)
+    started = time.monotonic()
+    masked_tracks = [item for item in spec["tracks"] if item.get("personMask")]
+    if masked_tracks:
+        from person_mask import PersonModel, create_person_mask
+        model = PersonModel()
+        media_files = dict(media_files)
+        mask_bytes = 0
+        Path(directory).mkdir(parents=True, exist_ok=True)
+        for index, item in enumerate(masked_tracks):
+            remaining = timeout - (time.monotonic() - started)
+            if remaining <= 0:
+                raise RenderError("人物分割超过工程执行时限")
+            media_files[f"{item['id']}:person-mask"] = create_person_mask(
+                media_files[item["id"]], item, spec["fps"], Path(directory) / f"person-{index}.mkv",
+                model, cancelled or (lambda: False), remaining)
+            mask_bytes += Path(media_files[f"{item['id']}:person-mask"]).stat().st_size
+            if mask_bytes > 768 * 1024 * 1024:
+                raise RenderError("工程人物蒙版总量超过768MB，请减少人物片段")
+            if progress:
+                progress(round(25 * (index + 1) / len(masked_tracks)))
     args, dimensions = build_command(spec, media_files, directory)
     stderr = Path(directory) / "ffmpeg.log"
     with stderr.open("wb") as log:
         process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=log, text=True)
         try:
-            started = time.monotonic()
             with selectors.DefaultSelector() as selector:
                 selector.register(process.stdout, selectors.EVENT_READ)
                 while process.poll() is None:
@@ -378,6 +417,8 @@ def render(spec, media_files, directory, progress=None, cancelled=None, timeout=
                         raise RenderError("任务已停止或租约失效")
                     if time.monotonic() - started > timeout:
                         raise RenderError("渲染超过最大执行时长")
+                    if shutil.disk_usage(directory).free < 128 * 1024 * 1024:
+                        raise RenderError("渲染临时空间不足，请缩短工程")
                     for key, _ in selector.select(timeout=.5):
                         line = key.fileobj.readline()
                         if line.startswith("out_time_us=") and progress:
@@ -390,9 +431,12 @@ def render(spec, media_files, directory, progress=None, cancelled=None, timeout=
                 process.wait()
             process.stdout.close()
     output = Path(directory) / "output.mp4"
+    metadata = probe(output)
+    actual_duration = float(metadata["format"].get("duration", 0))
+    if output.stat().st_size >= 1024 * 1024 * 1024 or not math.isfinite(actual_duration) or abs(actual_duration - spec["duration"]) > .1 + 1 / spec["fps"]:
+        raise RenderError("成片超过1GB或时长与工程不符，请缩短工程")
     thumbnail = Path(directory) / "thumbnail.jpg"
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(output), "-frames:v", "1", str(thumbnail)],
                    check=True, capture_output=True, timeout=30)
-    metadata = probe(output)
     return {"file": output, "thumbnail": thumbnail, "size": output.stat().st_size,
-            "duration": float(metadata["format"]["duration"]), "resolution": f"{dimensions[0]}x{dimensions[1]}"}
+            "duration": actual_duration, "resolution": f"{dimensions[0]}x{dimensions[1]}"}

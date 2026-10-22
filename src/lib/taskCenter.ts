@@ -4,7 +4,7 @@ import type { PlatformPublishTask } from '@/api/platforms';
 
 export type TaskSource = 'video' | 'production' | 'publish';
 export type TaskStatus = 'pending' | 'running' | 'review' | 'completed' | 'failed' | 'unknown' | 'cancelled';
-export type TaskKind = 'video' | 'image' | 'cover' | 'render' | 'publish' | 'metrics' | 'tts' | 'asr' | 'voice_clone' | 'avatar' | 'lipsync' | 'analysis' | 'knowledge_index' | 'knowledge_search' | 'intelligence_competitor' | 'intelligence_products' | 'product_import' | 'product_translate';
+export type TaskKind = 'video' | 'image' | 'cover' | 'render' | 'publish' | 'metrics' | 'tts' | 'asr' | 'voice_clone' | 'avatar' | 'lipsync' | 'analysis' | 'edit_analysis' | 'knowledge_index' | 'knowledge_search' | 'intelligence_competitor' | 'intelligence_products' | 'product_import' | 'product_translate';
 export interface CenterTask {
   key: string;
   id: string;
@@ -32,6 +32,7 @@ export const TASK_KINDS: Record<TaskKind, string> = {
   video: '视频生成', image: '图片生成', cover: '封面生成', render: '剪辑渲染', publish: '平台发布', metrics: '指标采集',
   tts: '语音合成', asr: '语音识别', voice_clone: '声纹克隆', avatar: '照片口播', lipsync: '口型同步',
   analysis: '素材分析',
+  edit_analysis: '剪辑音轨分析',
   knowledge_index: '知识索引', knowledge_search: '语义检索',
   intelligence_competitor: '竞品采集', intelligence_products: '商品搜索',
   product_import: '商品资料提取',
@@ -45,6 +46,8 @@ const percent = (value: number): number | null => Number.isFinite(value) ? Math.
 const projectQuery = (id: string | null) => id ? `?projectId=${encodeURIComponent(id)}` : '';
 
 export function taskDestination(task: CenterTask): { href: string; label: string } {
+  if (task.kind === 'edit_analysis') return { href: `/video/edit?editJob=${encodeURIComponent(task.id)}${
+    task.projectId ? `&importId=${encodeURIComponent(task.projectId)}` : ''}`, label: '恢复原剪辑音轨结果' };
   if (task.kind === 'product_import') return { href: '/products', label: '核对并导入商品' };
   if (task.kind === 'product_translate') return { href: `/products?translationJob=${encodeURIComponent(task.id)}`, label: '核对商品翻译' };
   if (task.kind === 'intelligence_competitor') return { href: '/competitor', label: '查看竞品快照' };
@@ -83,7 +86,7 @@ export function videoCenterTask(job: ServerVideoJob): CenterTask {
 
 export function productionCenterTask(job: ProductionJob): CenterTask {
   const kind: TaskKind = job.kind === 'image' ? job.project_id ? 'cover' : 'image'
-    : ['render', 'publish', 'metrics', 'tts', 'asr', 'voice_clone', 'avatar', 'lipsync', 'analysis', 'knowledge_index', 'knowledge_search', 'intelligence_competitor', 'intelligence_products', 'product_import', 'product_translate'].includes(job.kind) ? job.kind as TaskKind : 'metrics';
+    : ['render', 'publish', 'metrics', 'tts', 'asr', 'voice_clone', 'avatar', 'lipsync', 'analysis', 'edit_analysis', 'knowledge_index', 'knowledge_search', 'intelligence_competitor', 'intelligence_products', 'product_import', 'product_translate'].includes(job.kind) ? job.kind as TaskKind : 'metrics';
   const status: TaskStatus = ['pending', 'running', 'completed', 'failed', 'unknown', 'cancelled'].includes(job.status)
     ? job.status : 'unknown';
   const phases: Record<string, string> = { ready: '等待后台领取', claimed: '后台已领取',

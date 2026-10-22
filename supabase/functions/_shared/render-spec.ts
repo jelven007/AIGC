@@ -36,6 +36,12 @@ export function validateRender(raw: Record<string, any>) {
         || typeof key.color !== 'string' || !/^#?[0-9a-f]{6}$/i.test(key.color)) throw new Error('色键颜色应为六位RGB颜色');
       number(key.similarity, .01, 1, '色键容差'); number(key.smoothness, 0, 1, '色键平滑');
     }
+    if (item.personMask !== undefined) {
+      const mask = item.personMask;
+      if (!['image', 'video'].includes(item.type) || item.chromaKey !== undefined || !mask
+        || mask.model !== 'pphumanseg-2023mar') throw new Error('人物分割模型或轨道不支持');
+      number(mask.threshold, .1, .9, '人物分割阈值'); number(mask.feather, 0, 5, '人物边缘平滑');
+    }
     if (item.keyframes && (!Array.isArray(item.keyframes) || item.keyframes.length > 100)) throw new Error('关键帧数量不支持');
     const ranges: Record<string, [number, number]> = { x: [-100, 200], y: [-100, 200], scale: [1, 400], opacity: [0, 100], rotation: [-360, 360], volume: [0, 200] };
     for (const frame of item.keyframes || []) {

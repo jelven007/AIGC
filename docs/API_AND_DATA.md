@@ -1,5 +1,7 @@
 # 接口与数据契约
 
+新增 [迭代25](ITERATION_25_EDIT_ANALYSIS.md)：production-jobs/edit-prices与create(kind=edit_analysis)，原UUID/确认价格/mode/source{id,type,url,start,duration,sourceStart,speed}/可选本人工程；JWT或render:create Key，query/list沿jobs:read。原回执返回edit_request，字幕结果segments/asr_version，节拍beats/bpm/confidence/algorithm/source_hash。render3新增personMask固定版本/阈值/平滑与色键互斥，edit_prepare须edit_version=1；probe14/00053/render3/edit1同窗。MCP未增加独立音轨创建工具。
+
 新增 [迭代24微信契约](ITERATION_24_WECHAT_TRANSACTIONS.md)：wechat-trade-ops POST query/close（本人或客户范围内财务）和refund/refundQuery/receipt（可信财务、原UUID/原申请）；8KB/30次每分钟，微信浏览器核对55秒超时。wechat-refund-webhook使用原文RSA/AES-GCM鉴权，非JWT。00052新增原商户/订单租约/支付截止、渠道退款ID和统一权益函数；PROCESSING/ABNORMAL/unknown保留预占，签名SUCCESS才入账、CLOSED结案。probe13/00052/render2，两个新入口与匹配全栈同窗发布。
 
 新增 [迭代23](ITERATION_23_DATA_LIFECYCLE.md)：production-jobs/revoke-voice接受voice_clone_id/request_key，当前JWT或audio:create Key绑定用户，503保留原请求、同键换声纹409；voices返回撤销/删除时间。knowledge-base/delete接受entry_id，knowledge:write Key或JWT，撤销浏览器直删权限；重复条目删除可恢复。00051新增引用索引、媒体/声纹租约及清理回执、source_erased_at和晚到知识过滤；probe12/00051/render2，需同窗前后端发布。

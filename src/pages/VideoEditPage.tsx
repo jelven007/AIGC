@@ -30,8 +30,8 @@ import { deleteMaterial } from '@/api/accessControl';
 import { canonicalMediaTree, hydrateMediaTree } from '@/lib/privateMedia';
 import { backendAnonKey } from '@/lib/backendConfig';
 import { useProductionJob } from '@/hooks/useProductionJob';
-import { audioRecorder } from '@/lib/audioRecorder';
-import { sendStepAudioASR } from '@/lib/sse';
+import { EditAnalysisDialog } from '@/components/production/EditAnalysisDialog';
+import { beatCuts, sourceMatches, subtitleItems } from '@/lib/editTimeline';
 import { cn } from '@/lib/utils';
 import { extractVideoFirstFrame, extractVideoMeta, getVideoCoverImage } from '@/lib/videoFrame';
 import { RENDER_TRANSITIONS, RENDER_BLENDS, DEFAULT_CHROMA, type ChromaSettings } from '../../supabase/functions/_shared/render-effects';
@@ -270,8 +270,9 @@ const KF_CURVES = ['线性', '缓入', '缓出', '缓入缓出', '弹性', '自�
 const AI_TOOLS = [
   { id: 'ai1', name: '色键去背景', desc: '绿幕或纯色背景，可调容差', icon: Scan, color: 'text-purple-400', badge: '调色' },
   { id: 'ai2', name: '画面提亮', desc: '亮度、对比度与饱和度调整', icon: Smile, color: 'text-pink-400', badge: '调色' },
-  { id: 'ai3', name: '三秒切分', desc: '将首个主视频在3秒处分段', icon: Zap, color: 'text-yellow-400', badge: '剪辑' },
-  { id: 'ai4', name: '语音工作台', desc: '提交后台识别任务，查看真实分段', icon: Captions, color: 'text-blue-400', badge: '语音' },
+  { id: 'ai3', name: '真实音轨卡点', desc: '后台检测音乐节拍，按实际位置切分', icon: Zap, color: 'text-yellow-400', badge: '剪辑' },
+  { id: 'ai4', name: '时间分段字幕', desc: '按裁剪与速度识别，使用真实时间戳', icon: Captions, color: 'text-blue-400', badge: '语音' },
+  { id: 'ai7', name: '人物去背景', desc: '逐帧人物分割，导出透明蒙版合成', icon: Scan, color: 'text-purple-400', badge: '人物' },
   { id: 'ai5', name: '创作脚本', desc: '打开脚本工作台生成文案', icon: BookOpen, color: 'text-emerald-400', badge: '脚本' },
   { id: 'ai6', name: '分镜规划', desc: '打开脚本工作台生成结构化分镜', icon: Grid3x3, color: 'text-indigo-400', badge: '脚本' },
 ];
@@ -965,6 +966,7 @@ function TextSubtitlePanel({
   duration,
   selectedFont,
   setSelectedFont,
+  onAnalyze,
 }: {
   tracks: TrackItem[];
   setTracks: React.Dispatch<React.SetStateAction<TrackItem[]>>;
@@ -972,6 +974,7 @@ function TextSubtitlePanel({
   duration: number;
   selectedFont: string | null;
   setSelectedFont: (f: string | null) => void;
+  onAnalyze: () => void;
 }) {
   const [fontSearch, setFontSearch] = useState('');
   const [activeEntrance, setActiveEntrance] = useState<string | null>(null);
@@ -981,8 +984,6 @@ function TextSubtitlePanel({
   const [shadowBlur, setShadowBlur] = useState([8]);
   const [strokeWidth, setStrokeWidth] = useState([0]);
   const [bgOpacity, setBgOpacity] = useState([0]);
-  const [recordingSubtitles, setRecordingSubtitles] = useState(false);
-  const [recognizing, setRecognizing] = useState(false);
   const [subtitleText, setSubtitleText] = useState('');
   const [batchEditOpen, setBatchEditOpen] = useState(false);
 
@@ -1005,78 +1006,6 @@ function TextSubtitlePanel({
     setTracks(prev => [...prev, newItem].sort((a, b) => a.start - b.start));
     toast.success(`已添加字幕文本到时间轴：${subtitleText.trim()}`);
     setSubtitleText('');
-  };
-
-  const handleRecognize = async () => {
-    if (recordingSubtitles) {
-      setRecordingSubtitles(false);
-      setRecognizing(true);
-      toast.info('🎙️ 录音已结束，正在通过 TeleAI / TeleSpeechASR 识别并生成字幕...');
-      try {
-        const { base64: base64Wav, recognizedText } = await audioRecorder.stop();
-        let transcript = '';
-        if (recognizedText && recognizedText.trim()) {
-          // 浏览器原生 Web Speech 已给出识别结果，直接成稿，跳过远程 ASR 通道
-          transcript = recognizedText.trim();
-          setSubtitleText(prev => prev ? prev + ' ' + transcript : transcript);
-          setRecognizing(false);
-          const recognizedPhrases = transcript.split(/[，。！？\s]+/).filter(Boolean);
-          const newItems: TrackItem[] = recognizedPhrases.map((phrase, idx) => ({
-            id: `text-asr-${Date.now()}-${idx}`,
-            trackId: 'text',
-            name: phrase,
-            start: Number(Math.min(duration - 2, idx * 3.5).toFixed(1)),
-            duration: 3.2,
-            type: 'text',
-            fontStyle: selectedFont || 'fs6',
-          }));
-          setTracks(prev => [...prev, ...newItems].sort((a, b) => a.start - b.start));
-          toast.success(`🎉 语音识别完成！已自动为时间轴生成 ${newItems.length} 条字幕片段`);
-          return;
-        }
-        await sendStepAudioASR({
-          audioData: base64Wav,
-          onData: (text) => {
-            transcript += text;
-            setSubtitleText(prev => prev ? prev + ' ' + text : text);
-          },
-          onComplete: () => {
-            setRecognizing(false);
-            const recognizedPhrases = transcript.split(/[，。！？\s]+/).filter(Boolean);
-            if (!recognizedPhrases.length) { toast.error('识别结果为空，请重新录音或输入字幕'); return; }
-            const newItems: TrackItem[] = recognizedPhrases.map((phrase, idx) => ({
-              id: `text-asr-${Date.now()}-${idx}`,
-              trackId: 'text',
-              name: phrase,
-              start: Number(Math.min(duration - 2, idx * 3.5).toFixed(1)),
-              duration: 3.2,
-              type: 'text',
-              fontStyle: selectedFont || 'fs6',
-            }));
-            setTracks(prev => [...prev, ...newItems].sort((a, b) => a.start - b.start));
-            toast.success(`🎉 语音识别完成！已自动为时间轴生成 ${newItems.length} 条字幕片段`);
-          },
-          onError: (err) => {
-            setRecognizing(false);
-            console.error('ASR error:', err);
-            toast.error(err.message || '语音识别失败，请到语音工作台核对原任务');
-          }
-        });
-      } catch (err) {
-        setRecognizing(false);
-        console.error('Failed to stop recording:', err);
-        toast.error(err instanceof Error ? err.message : '录音或识别失败，请重试');
-      }
-    } else {
-      try {
-        await audioRecorder.start();
-        setRecordingSubtitles(true);
-        toast.info('🎙️ 正在录音... 请说话，再次点击该按钮以停止并识别', { duration: 5000 });
-      } catch (err) {
-        console.error('Microphone access failed:', err);
-        toast.error('无法启用麦克风，请检查系统权限设置');
-      }
-    }
   };
 
   const handleExportSrt = () => {
@@ -1209,20 +1138,13 @@ function TextSubtitlePanel({
         <CollapsibleSection title="智能字幕与编辑" badge="AI">
           <div className="px-3 pt-1 space-y-2">
             <div className="p-3 bg-indigo-600/10 border border-indigo-600/30 rounded-lg space-y-2">
-              <p className="text-[11px] text-zinc-300">自动识别视频/录音内容，全自动铺设时间轴字幕</p>
+              <p className="text-[11px] text-zinc-300">选择已上传的音频或视频，确认价格后按真实时间分段生成字幕</p>
               <Button
                 size="sm"
                 className="w-full h-8 bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-medium"
-                onClick={handleRecognize}
-                disabled={recognizing}
+                onClick={onAnalyze}
               >
-                {recordingSubtitles ? (
-                  <><span className="w-2 h-2 rounded-full bg-red-500 animate-ping mr-2 shrink-0" />点击停止并智能生成字幕</>
-                ) : recognizing ? (
-                  <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />正在转录生成字幕…</>
-                ) : (
-                  <><Mic className="w-3.5 h-3.5 mr-1.5" />一键录音识别字幕</>
-                )}
+                <Captions className="w-3.5 h-3.5 mr-1.5" />分析片段并生成字幕
               </Button>
             </div>
             <Button
@@ -2164,16 +2086,9 @@ function AiToolDialog({ tool, open, onClose, onApply, currentChroma }: {
               <p className="text-xs text-zinc-300">切换画面提亮预设：亮度106%、对比度103%、饱和度108%。调整会写入成片；精细调整请选中轨道修改参数。</p>
             </div>
           )}
-          {tool.id === 'ai3' && (
-            <div className="space-y-2">
-              <p className="text-xs text-zinc-300">将首个时长超过3秒的主视频切成两段，保留源起点与速度。选中时间轴片段可使用播放头精确切分。</p>
-            </div>
-          )}
-          {tool.id === 'ai4' && (
-            <div className="space-y-2">
-              <p className="text-xs text-zinc-300">打开语音工作台，上传自己的音频并确认价格后提交后台ASR任务。可下载真实识别正文与供应商分段。</p>
-            </div>
-          )}
+          {tool.id === 'ai7' && <p className="text-xs text-zinc-300">
+            使用固定人物分割模型逐帧移除背景，应用到主视频并写入成片。头发、遮挡和快速移动的边缘需检查导出效果。
+          </p>}
           {(tool.id === 'ai5' || tool.id === 'ai6') && (
             <div className="space-y-2">
               <p className="text-xs text-zinc-300">打开脚本工作台，以商品事实和授权知识生成文案或结构化分镜，再选择自己的素材进行剪辑。</p>
@@ -2219,6 +2134,7 @@ function AiToolsPanel({ onApplyAiTool, tracks, setTracks, currentTime, chromaSet
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const openTool = (tool: typeof AI_TOOLS[0]) => {
+    if (tool.id === 'ai3' || tool.id === 'ai4') { onApplyAiTool(tool.id); return; }
     setSelectedTool(tool);
     setDialogOpen(true);
   };
@@ -2816,6 +2732,7 @@ function LeftSidebar({
                 duration={duration}
                 selectedFont={selectedFont}
                 setSelectedFont={setSelectedFont}
+                onAnalyze={() => onApplyAiTool('ai4')}
               />
             )}
             {activePanel === 'pip' && (
@@ -3271,13 +3188,15 @@ export default function VideoEditPage() {
   });
   const [aiBeautyEnabled, setAiBeautyEnabled] = useState(false);
   const [aiCutoutEnabled, setAiCutoutEnabled] = useState(false);
+  const [personCutoutEnabled, setPersonCutoutEnabled] = useState(false);
+  const [editMode, setEditMode] = useState<'beats' | 'subtitles' | null>(searchParams.has('editJob') ? 'subtitles' : null);
   const [chromaSettings, setChromaSettings] = useState<ChromaSettings>({ ...DEFAULT_CHROMA });
 
   // AI 工具执行回调
   const handleApplyAiTool = useCallback((toolId: string, chroma?: ChromaSettings) => {
     if (toolId === 'ai1') {
       if (chroma) {
-        setChromaSettings(chroma); setAiCutoutEnabled(true);
+        setChromaSettings(chroma); setAiCutoutEnabled(true); setPersonCutoutEnabled(false);
         toast.success('色键去背景已启用，导出成片时执行');
       } else { setAiCutoutEnabled(false); toast.info('已关闭色键去背景'); }
     } else if (toolId === 'ai2') {
@@ -3287,24 +3206,11 @@ export default function VideoEditPage() {
         else toast.info('已关闭画面提亮');
         return next;
       });
-    } else if (toolId === 'ai3') {
-      setTracks(prev => {
-        const vidClips = prev.filter(t => t.type === 'video' && t.trackId === 'video' && t.duration > 3
-          && !t.keyframes?.length && !t.fadeIn && !t.fadeOut).sort((a, b) => a.start - b.start);
-        if (vidClips.length === 0) return prev;
-        const target = vidClips[0];
-        if (target.duration > 3) {
-          const split1 = { ...target, duration: 3 };
-          const split2 = { ...target, id: `beat-split-${Date.now()}`, name: `${target.name} [分段2]`, start: target.start + 3,
-            sourceStart: (target.sourceStart || 0) + 3 * (target.speed || 1), duration: Number((target.duration - 3).toFixed(2)),
-            keyframes: undefined };
-          return [...prev.filter(t => t.id !== target.id), split1, split2].sort((a, b) => a.start - b.start);
-        }
-        return prev;
-      });
-      toast.info('已对符合条件的主视频执行三秒切分；带关键帧或淡变的片段请用播放头切分');
-    } else if (toolId === 'ai4') {
-      navigate('/avatars');
+    } else if (toolId === 'ai7') {
+      setPersonCutoutEnabled(prev => !prev); setAiCutoutEnabled(false);
+      toast.info('人物分割设置已切换，导出时逐帧处理');
+    } else if (toolId === 'ai3' || toolId === 'ai4') {
+      setEditMode(toolId === 'ai3' ? 'beats' : 'subtitles');
     } else if (toolId === 'ai5' || toolId === 'ai6') {
       navigate('/script');
     }
@@ -3948,6 +3854,7 @@ export default function VideoEditPage() {
     customStatus?: 'draft' | 'processing' | 'completed' | 'failed';
     customVideoUrl?: string;
     customThumbnailUrl?: string;
+    customTracks?: TrackItem[];
     silent?: boolean;
   }): Promise<string | null> => {
     if (!user) {
@@ -3960,11 +3867,12 @@ export default function VideoEditPage() {
     const validTitle = (options?.customTitle || projectTitle || '未命名剪辑项目').trim();
     const finalStatus = options?.customStatus || 'draft';
     const finalVideoUrl = options?.customVideoUrl ?? previewVideoUrl ?? null;
-    const finalCover = options?.customThumbnailUrl ?? (await resolveProjectThumbnail(tracks, finalVideoUrl));
+    const finalTracks = options?.customTracks ?? tracks;
+    const finalCover = options?.customThumbnailUrl ?? (await resolveProjectThumbnail(finalTracks, finalVideoUrl));
 
     const styleData = {
       duration: Number(duration.toFixed(3)),
-      tracks,
+      tracks: finalTracks,
       zoom,
       scale,
       opacity,
@@ -3975,6 +3883,7 @@ export default function VideoEditPage() {
       beautyEnabled: aiBeautyEnabled,
       aiBeautyEnabled,
       aiCutoutEnabled,
+      personCutoutEnabled,
       chromaSettings, appliedTrans, pipSettings,
       previewVideoUrl: finalVideoUrl,
       currentTime,
@@ -3990,7 +3899,7 @@ export default function VideoEditPage() {
       resolution: editorAspect === 'aspect-[9/16]' ? '1080x1920' : '1920x1080',
       video_url: finalVideoUrl,
       thumbnail_url: finalCover,
-      materials: tracks.map(t => ({
+      materials: finalTracks.map(t => ({
         id: t.id,
         name: t.name,
         type: t.type,
@@ -4097,6 +4006,7 @@ export default function VideoEditPage() {
         if (styleData.pipSettings) setPipSettings(styleData.pipSettings);
         if (styleData.filterIntensity) setFilterIntensity(styleData.filterIntensity);
         if (styleData.chromaSettings) setChromaSettings(styleData.chromaSettings);
+        setPersonCutoutEnabled(Boolean(styleData.personCutoutEnabled));
         if (styleData.aiBeautyEnabled !== undefined || styleData.beautyEnabled !== undefined) {
           setAiBeautyEnabled(Boolean(styleData.aiBeautyEnabled ?? styleData.beautyEnabled));
         }
@@ -4133,6 +4043,7 @@ export default function VideoEditPage() {
           if (parsed.pipSettings) setPipSettings(parsed.pipSettings);
           if (parsed.filterIntensity) setFilterIntensity(parsed.filterIntensity);
           if (parsed.chromaSettings) { setChromaSettings(parsed.chromaSettings); setAiCutoutEnabled(Boolean(parsed.aiCutoutEnabled)); }
+          setPersonCutoutEnabled(Boolean(parsed.personCutoutEnabled));
           if (parsed.aiBeautyEnabled !== undefined) setAiBeautyEnabled(Boolean(parsed.aiBeautyEnabled));
         }
         if (importId) {
@@ -4176,11 +4087,11 @@ export default function VideoEditPage() {
         tracks,
         zoom,
         duration,
-        previewVideoUrl, appliedTrans, pipSettings, filterIntensity, chromaSettings, aiCutoutEnabled, aiBeautyEnabled,
+        previewVideoUrl, appliedTrans, pipSettings, filterIntensity, chromaSettings, aiCutoutEnabled, personCutoutEnabled, aiBeautyEnabled,
       };
       localStorage.setItem(`video-editor-draft-${user.id}`, JSON.stringify(canonicalMediaTree(stateToSave)));
     }
-  }, [tracks, zoom, duration, projectTitle, previewVideoUrl, importId, user, appliedTrans, pipSettings, filterIntensity, chromaSettings, aiCutoutEnabled, aiBeautyEnabled]);
+  }, [tracks, zoom, duration, projectTitle, previewVideoUrl, importId, user, appliedTrans, pipSettings, filterIntensity, chromaSettings, aiCutoutEnabled, personCutoutEnabled, aiBeautyEnabled]);
 
   // Debounced auto-save to database
   useEffect(() => {
@@ -4197,7 +4108,7 @@ export default function VideoEditPage() {
     }, 2500);
 
     return () => clearTimeout(timer);
-  }, [tracks, zoom, duration, projectTitle, importId, user, appliedTrans, pipSettings, filterIntensity, chromaSettings, aiCutoutEnabled, aiBeautyEnabled]);
+  }, [tracks, zoom, duration, projectTitle, importId, user, appliedTrans, pipSettings, filterIntensity, chromaSettings, aiCutoutEnabled, personCutoutEnabled, aiBeautyEnabled]);
 
 
   // 同步播放/暂停到 video 元素（静音态由片段属性决定，不再强制取消静音）
@@ -4533,6 +4444,9 @@ export default function VideoEditPage() {
             rotation: track.rotation ?? pipSettings.rotation,
             blendMode: RENDER_BLENDS.find(mode => mode.name === pipSettings.blendMode)?.id || 'normal' } : {}),
           ...(aiCutoutEnabled && track.type === 'video' && !pip ? { chromaKey: chromaSettings } : {}),
+          ...(personCutoutEnabled && track.type === 'video' && !pip ? {
+            personMask: { model: 'pphumanseg-2023mar', threshold: .5, feather: 1 },
+          } : {}),
           ...(['video', 'image'].includes(track.type) && (track.filter || appliedFilter) !== '无'
             ? { filter: track.filter || appliedFilter, filterIntensity: filterIntensity[track.filter || appliedFilter] ?? 80 } : {}),
           ...(aiBeautyEnabled && track.type === 'video' ? { brightness: 106, contrast: 103, saturation: 108 } : {}),
@@ -4594,7 +4508,23 @@ export default function VideoEditPage() {
   return (
     // 移动端：MainLayout 对本页隐藏顶部 header 且底部 Tab 栏已移除，直接占满动态视口高度
     <div className="flex flex-col h-screen max-lg:h-[100dvh] w-full bg-zinc-950 text-zinc-300 overflow-hidden">
-
+      <EditAnalysisDialog mode={editMode} onClose={() => setEditMode(null)} userId={user?.id}
+        projectKey={importId || 'draft'} tracks={tracks} selectedId={selectedTrackItem}
+        restoreJobId={searchParams.get('editJob')} onRestoreMode={setEditMode}
+        onApply={async (result, jobId) => {
+          if (!sourceMatches(tracks.find(track => track.id === result.source.id), result.source)) {
+            throw new Error('原片段已裁剪、变速或移动，请恢复原片段后应用');
+          }
+          let next: TrackItem[];
+          if (result.mode === 'beats') next = beatCuts(tracks, result).tracks;
+          else {
+            if (tracks.some(track => track.id.startsWith(`subtitle:${jobId}:`))) throw new Error('原任务字幕已应用，无需重复添加');
+            next = [...tracks, ...subtitleItems(result, duration, jobId)];
+            if (next.length > 80) throw new Error('应用后超过80个轨道元素，请先精简时间轴');
+          }
+          if (!await saveProjectInternal({ customTracks: next, silent: true })) throw new Error('工程保存失败，请恢复原任务结果');
+          setTracks(next); return true;
+        }} />
       {/* ─── 顶部工具栏 ──────────────────────────────────────────── */}
       <div className="h-12 border-b border-zinc-800 bg-zinc-900 flex items-center justify-between px-2 md:px-4 shrink-0 gap-2">
         <div className="flex items-center gap-1 shrink-0">
@@ -4698,6 +4628,9 @@ export default function VideoEditPage() {
                     <span>色键去背景 · 导出后生效</span>
                   </div>
                 )}
+                {personCutoutEnabled && <div className="px-2 py-0.5 rounded-full bg-black/70 border border-purple-500/50 text-[10px] text-purple-300">
+                  人物去背景 · 导出后生效
+                </div>}
                 {appliedTrans !== '无' && (
                   <div className="px-2 py-0.5 rounded-full bg-black/70 backdrop-blur border border-amber-500/50 text-[10px] text-amber-300 flex items-center gap-1 shadow-lg">
                     <span>成片转场: {TRANSITIONS.find(t => t.id === appliedTrans)?.name || appliedTrans}</span>

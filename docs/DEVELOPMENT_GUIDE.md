@@ -1,5 +1,7 @@
 # 开发指南
 
+最新 [迭代25](ITERATION_25_EDIT_ANALYSIS.md)：edit-contract/edit-jobs统一原音轨与价格/版本，00053复用队列/租约/原退款，edit_analysis.py读取真实PCM节拍；person_mask.py校验固定模型并生成FFV1透明视频，render.py分别合成原音轨并验证时长/空间。禁止固定间隔铺字幕、未知请求重发或运行期下载任意模型。执行test:edit/真实页面和原render/任务中心/情报/调度/部署；probe14/00053/render3/edit1，重建镜像与匹配全栈。
+
 最新 [迭代24](ITERATION_24_WECHAT_TRANSACTIONS.md)：00052与wechat-transactions/wechat-refunds负责原商户/期限/租约、官方RSA/AES及原路退款，cash-trade-ops共用两渠道权限与原申请，apply_cash_refund只经渠道证据入口。新增test:wechat/浏览器原订单和渠道恢复，回归cash/checkout及调度/部署/Deno/压缩构建；probe13/00052/render2，旧插件不再参与微信支付。
 
 最新 [迭代23](ITERATION_23_DATA_LIFECYCLE.md)：00051统一引用索引/对象锁、清理租约、声纹撤销/原版本DELETE、知识副本和七天证据清理；对应media-cleanup/media-jobs、production/knowledge API、MediaJobsPanel/KnowledgePage及MCP56。禁止直接Storage删除、撤销后重启声纹或重发未知请求。执行test:lifecycle及媒体/知识/访问/MCP、browser_data_lifecycle、Deno/调度/部署/构建；probe12/00051/render2，真实删除与容量仍需目标验收。

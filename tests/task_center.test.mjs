@@ -94,4 +94,10 @@ test('商品翻译保留原任务入口和计费，译文不作为视频下载�
   assert.match(task.detail, /核对后保存/); assert.equal(taskDestination(task).href, '/products?translationJob=original');
   assert.equal(productionCenterTask({ ...production, kind: 'product_translate', status: 'unknown', credit_cost: 2 }).billing, '预占 2 积分');
 });
+test('剪辑音轨分析按原工程和任务恢复，未知字幕保留预占', () => {
+  const task = productionCenterTask({ ...production, id: 'original', project_id: 'editor', kind: 'edit_analysis', status: 'unknown', credit_cost: 3 });
+  assert.equal(task.kind, 'edit_analysis'); assert.equal(task.billing, '预占 3 积分');
+  assert.equal(taskDestination(task).href, '/video/edit?editJob=original&importId=editor');
+  assert.equal(taskDestination({ ...task, projectId: null }).href, '/video/edit?editJob=original');
+});
 console.log(`${passed} tests passed`);

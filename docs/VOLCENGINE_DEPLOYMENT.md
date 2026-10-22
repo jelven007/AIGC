@@ -1,5 +1,7 @@
 # 火山引擎部署指南
 
+最新 [迭代25](ITERATION_25_EDIT_ANALYSIS.md)要求00032–00053与匹配production-jobs/production-worker/共享模块、常驻调度和前端，FFmpeg镜像重新构建包含固定ONNX/许可证。verify严格要求probe14/00053/render3/edit1；旧render2领取前拒绝。目标须验证真实Whisper、人物质量/旋转和长素材CPU/临时空间，火山资源仍无新增部署验收证据。
+
 最新 [迭代24](ITERATION_24_WECHAT_TRANSACTIONS.md)要求00032–00052全栈与新增wechat-trade-ops/wechat-refund-webhook及匹配共享模块、现有支付/运营/production-worker/调度/前端。verify严格要求probe13/00052/render2；退款回调关闭平台JWT，原文微信签名/AES在函数内验证。原商户与退款台账须保留，真实商户和火山部署资源仍无新增验收证据。
 
 最新 [迭代23](ITERATION_23_DATA_LIFECYCLE.md)要求00032–00051与匹配production-jobs/production-worker/knowledge-base、共享模块、调度/MCP56/前端同窗。verify严格要求probe12/00051/render2及迁移回执。撤销旧Storage/知识直接删除策略，验收原UUID撤销、实际对象与供应商删除、未知保护及备份恢复；火山资源仍无新增部署证据。

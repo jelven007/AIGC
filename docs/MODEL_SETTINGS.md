@@ -1,5 +1,7 @@
 # 统一模型接口设置
 
+00053 [剪辑音轨与人物分割](ITERATION_25_EDIT_ANALYSIS.md)不增加供应商槽：字幕固定创建时audio.asr版本，要求openai-asr/whisper-1/verbose_json；无时间段失败退原积分，未知请求不重发。节拍本地FFT不调用供应商；人物PPHumanSeg在镜像构建时固定摘要/许可证并离线推理，不可通过模型设置替换任意ONNX。probe14/00053/render3/edit1，真实供应商及人物边缘/长素材质量仍待验收。
+
 00049 [翻译与图片选品](ITERATION_21_TRANSLATION_NOTIFICATIONS.md)不增加配置槽：翻译固定创建时text.primary版本；勾选主图文字识别须模型支持OpenAI兼容image_url数据URI，真实图片/语言质量另验收，不能仅凭探针判断。eBay图片搜索沿intelligence.ebay应用凭据/Browse官方POST与目标市场，需实际search_by_image权限。执行时私有图读取/魔数/5MB/指纹核对，供应商收到图片字节，不收到Storage签名凭据。probe v10/00049仍待全栈部署。
 
 商品资料提取见 [迭代19](ITERATION_19_PRODUCT_MANAGEMENT.md)：使用实际JSON-LD/用户资料读取，不调用语言模型猜测商品，不需要新的模型槽位或积分价格。商品卖点/翻译创作仍使用既有真实文本模型协议；公开页提取不等于已授权所有电商原生接口。匹配00046和生产调度probe v8仍待目标部署。
