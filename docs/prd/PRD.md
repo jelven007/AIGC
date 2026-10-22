@@ -1,5 +1,7 @@
 # Shopro AI 产品需求
 
+新增REQ-ACCOUNT-ISOLATION-01/PROFILE-OVERVIEW-01/STORYBOARD-FLOW-01，见 [迭代31](../ITERATION_31_ACCOUNT_STORYBOARD.md)：切换账号隔离页面/缓存/路由输入与迟到资料；本人完整统计、真实发布、30天时区活跃、私有头像登记与引用保护；真实脚本SSE、失败保留、原UUID保存恢复，并把确认分镜/台词传入后台合成。00059/probe19/render4/edit2本地交付，目标身份/模型/平台与运行验收继续执行。
+
 新增REQ-WORK-LIBRARY-01，见 [迭代30](../ITERATION_30_WORKS_LIBRARY.md)：作品与素材需真实分页/搜索、当前账号隔离、原上传回执恢复/使用权/实际时长、签名预览下载和真实实验入口；完成记录缺成片禁用消费操作。首页只引用本人真实作品，文本故障保留原输入，公开页面不展示虚构统计和成功。
 
 新增REQ-OPS-ALERT-01/RECOVERY-01，见 [迭代29](../ITERATION_29_ALERTS_RECOVERY.md)：持久未知/积压/工单/现金/清理/调度告警、当前范围/原UUID接手/自动恢复/再次发生与陈旧采集提示；加密DB/Storage/扩展/实际迁移回执/历史密钥及空隔离恢复，内容摘要/对象hash/原unknown/不重复扣费验证。00057锁序修复与00058/probe18/render4/edit2本地交付；目标备份调度/异地保管、官方平台迁移、外部值班通知及真实容量仍需验收。

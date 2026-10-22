@@ -14,7 +14,7 @@ function LoginRedirect() {
   return <Navigate to={to} replace />;
 }
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { lazy, Suspense, Component, type ReactNode } from "react";
+import { lazy, Suspense, Component, useState, useEffect, useRef, type ReactNode } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -23,7 +23,6 @@ const LoginPage       = lazy(() => import("@/pages/LoginPage"));
 const MainLayout = lazy(() => import("@/components/layouts/MainLayout"));
 const LandingPage     = lazy(() => import("@/pages/LandingPage"));
 const HomePage        = lazy(() => import("@/pages/HomePage"));
-const VideoCreatePage = lazy(() => import("@/pages/VideoCreatePage"));
 const WorksPage       = lazy(() => import("@/pages/WorksPage"));
 const AnalyticsPage   = lazy(() => import("@/pages/AnalyticsPage"));
 const ProfilePage     = lazy(() => import("@/pages/ProfilePage"));
@@ -195,8 +194,22 @@ class ErrorBoundary extends Component<{ children: ReactNode; fallback?: ReactNod
 
 const queryClient = new QueryClient();
 
+function AccountScope({ children }: { children: ReactNode }) {
+  const [client] = useState(() => new QueryClient());
+  useEffect(() => () => { void client.cancelQueries(); client.clear(); }, [client]);
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
+
 function AppRoutes() {
   const { session, loading } = useAuth();
+  const location = useLocation();
+  const previousAccount = useRef<string | null>(null);
+  const inheritedStateKey = useRef<string | null>(null);
+  if (session) {
+    if (previousAccount.current && previousAccount.current !== session.user.id) inheritedStateKey.current = location.key;
+    previousAccount.current = session.user.id;
+  }
+  const accountLocation = location.key === inheritedStateKey.current ? { ...location, state: null } : location;
 
   if (loading) {
     return (
@@ -226,10 +239,11 @@ function AppRoutes() {
       <Routes>
         <Route path="/landing" element={<LandingPage />} />
         <Route path="/*" element={
+          <AccountScope key={session.user.id}>
           <MainLayout>
             <ErrorBoundary>
               <Suspense fallback={<PageLoader />}>
-                <Routes>
+                <Routes location={accountLocation}>
                   <Route path="/home" element={<RedirectWithState to="/video/create" />} />
                   <Route path="/" element={<RedirectWithState to="/video/create" />} />
                   <Route path="/video/create" element={<HomePage />} />
@@ -281,6 +295,7 @@ function AppRoutes() {
               </Suspense>
             </ErrorBoundary>
           </MainLayout>
+          </AccountScope>
         } />
       </Routes>
     </Suspense>

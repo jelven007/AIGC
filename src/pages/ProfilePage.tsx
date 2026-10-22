@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/db/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent } from '@/components/ui/card';
@@ -8,6 +8,10 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { useCredits } from '@/hooks/useCredits';
+import { uploadMaterialAsset } from '@/api/materialAssets';
+import { canonicalMedia } from '@/lib/privateMedia';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -44,31 +48,9 @@ function getInitials(name: string | null | undefined, email: string | null | und
   return 'U';
 }
 
-// ─── 10 款内置男生与女生真实头像 ──────────────────────────────────────────────────
-const REAL_AVATARS = {
-  boys: [
-    { name: '活力男神', url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face' },
-    { name: '极客男神', url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop&crop=face' },
-    { name: '阳光男神', url: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&h=150&fit=crop&crop=face' },
-    { name: '酷炫男神', url: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=150&h=150&fit=crop&crop=face' },
-    { name: '商务男神', url: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&h=150&fit=crop&crop=face' },
-  ],
-  girls: [
-    { name: '甜美女神', url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop&crop=face' },
-    { name: '优雅女神', url: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face' },
-    { name: '元气女神', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop&crop=face' },
-    { name: '知性女神', url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&crop=face' },
-    { name: '俏皮女神', url: 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=150&h=150&fit=crop&crop=face' },
-  ]
-};
-
-const DEFAULT_AVATAR = 'https://pica.zhimg.com/v2-d69f515a23964f8fba2ccedb7385de86_1440w.jpg';
-
-function getDisplayAvatar(url: string | null | undefined) {
-  if (!url || url.includes('dicebear.com')) {
-    return DEFAULT_AVATAR;
-  }
-  return url;
+interface Overview {
+  videos: number; completed: number; materials: number; products: number; published: number;
+  timezone: string; activity: { date: string; count: number }[];
 }
 
 // ─── 统计卡片 ─────────────────────────────────────────────────────────────────
@@ -125,132 +107,161 @@ function MenuRow({ icon: Icon, label, desc, onClick, danger = false, badge }: {
 
 // ─── 主页面 ──────────────────────────────────────────────────────────────────
 export default function ProfilePage() {
-  const { user, profile, signOut, refreshProfile } = useAuth();
+  const { user, profile, profileError, signOut, refreshProfile } = useAuth();
   const navigate = useNavigate();
+  const credits = useCredits();
+  const alive = useRef(true);
+  const request = useRef(0);
+  const avatarPreview = useRef('');
+  const registeredAvatar = useRef<{ file: File; url: string } | null>(null);
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; request.current++; URL.revokeObjectURL(avatarPreview.current); };
+  }, []);
 
   const [saving, setSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
   const [username, setUsername] = useState(profile?.username ?? '');
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url ?? '');
-  const [avatarGender, setAvatarGender] = useState<'boys' | 'girls'>('boys');
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarRights, setAvatarRights] = useState(false);
   const [notification, setNotification] = useState(profile?.notification_enabled ?? true);
-  const [stats, setStats] = useState({ videos: 0, materials: 0, products: 0, published: 0 });
-  const [userPlan, setUserPlan] = useState<{
-    credits_total: number; credits_used: number;
-    plan: { name: string; credits: number } | null;
-  } | null>(null);
-  const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
+  const [stats, setStats] = useState<Overview | null>(null);
+  const [statsError, setStatsError] = useState('');
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [notificationSaving, setNotificationSaving] = useState(false);
+  const [securityOpen, setSecurityOpen] = useState(false);
+  const [pwForm, setPwForm] = useState({ next: '', confirm: '' });
   const [pwSaving, setPwSaving] = useState(false);
-  const [activity] = useState(() => {
-    return Array.from({ length: 30 }, (_, i) => ({
-      day: i,
-      count: Math.floor(Math.random() * 6),
-    }));
-  });
+  const activity = stats?.activity ?? [];
 
   useEffect(() => {
-    if (profile) {
+    if (profile && !isEditing) {
       setUsername(profile.username ?? '');
-      setAvatarUrl(getDisplayAvatar(profile.avatar_url));
+      setAvatarUrl(profile.avatar_url ?? '');
       setNotification(profile.notification_enabled ?? true);
     }
-    loadAll();
-    const handleChanged = () => { loadAll(); };
-    window.addEventListener('credits_changed', handleChanged);
-    return () => window.removeEventListener('credits_changed', handleChanged);
-  }, [profile]);
+  }, [profile, isEditing]);
 
-  const loadAll = async () => {
+  const loadAll = useCallback(async () => {
     if (!user) return;
-    const [vRes, mRes, pRes, pubRes, planRes] = await Promise.all([
-      supabase.from('video_projects').select('id', { count: 'exact', head: true }),
-      supabase.from('materials').select('id', { count: 'exact', head: true }),
-      supabase.from('products').select('id', { count: 'exact', head: true }),
-      supabase.from('video_projects').select('id', { count: 'exact', head: true }).eq('status', 'completed'),
-      supabase.from('user_plans').select('credits_total,credits_used,plan:plans(name,credits)').eq('user_id', user.id).maybeSingle(),
-    ]);
-    setStats({
-      videos: vRes.count ?? 0,
-      materials: mRes.count ?? 0,
-      products: pRes.count ?? 0,
-      published: pubRes.count ?? 0,
-    });
-    if (planRes.data) {
-      const d = planRes.data as any;
-      setUserPlan({ credits_total: d.credits_total, credits_used: d.credits_used, plan: d.plan ?? null });
+    const sequence = ++request.current;
+    setStatsLoading(true); setStatsError('');
+    try {
+      const { data, error } = await supabase.rpc('get_my_profile_overview', {
+        p_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+      }).abortSignal(AbortSignal.timeout(15000));
+      if (!alive.current || sequence !== request.current) return;
+      if (error) throw new Error('创作概览读取失败，请重试');
+      if (!data || ['videos', 'completed', 'materials', 'products', 'published'].some(key => !Number.isSafeInteger(data[key]) || data[key] < 0)
+        || !Array.isArray(data.activity) || data.activity.length !== 30
+        || data.activity.some((day: { date: string; count: number }) => !/^\d{4}-\d{2}-\d{2}$/.test(day.date)
+          || !Number.isSafeInteger(day.count) || day.count < 0)) throw new Error('创作概览格式无效，请检查服务版本');
+      setStats(data as Overview);
+    } catch (cause) {
+      if (alive.current && sequence === request.current) setStatsError(cause instanceof Error ? cause.message : '读取失败');
+    } finally {
+      if (alive.current && sequence === request.current) setStatsLoading(false);
     }
-  };
+  }, [user]);
+  useEffect(() => { void loadAll(); }, [loadAll]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error('头像文件不能大于 2MB');
-      return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || !file.size || file.size > 2 * 1024 * 1024) {
+      toast.error('请选择2MB以内的JPG、PNG或WebP头像'); return;
     }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      if (typeof reader.result === 'string') {
-        setAvatarUrl(reader.result);
-        toast.success('本地头像已加载，保存后生效');
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      const decoded = await createImageBitmap(file);
+      const valid = decoded.width > 0 && decoded.height > 0 && decoded.width <= 8192 && decoded.height <= 8192;
+      decoded.close();
+      if (!valid) throw new Error('头像尺寸须在1至8192像素之间');
+      if (!alive.current) return;
+      URL.revokeObjectURL(avatarPreview.current);
+      avatarPreview.current = URL.createObjectURL(file);
+      registeredAvatar.current = null;
+      setAvatarUrl(avatarPreview.current); setAvatarFile(file); setAvatarRights(false);
+    } catch (cause) { if (alive.current) toast.error(cause instanceof Error ? cause.message : '无法读取头像'); }
   };
 
   const handleSave = async () => {
-    if (!user) return;
+    if (!user || !profile || saving) return;
     if (!username.trim()) { toast.error('用户名不能为空'); return; }
-    if (!/^[a-zA-Z0-9_\u4e00-\u9fa5]+$/.test(username)) {
+    if (username.trim().length > 20 || !/^[a-zA-Z0-9_\u4e00-\u9fa5]+$/.test(username.trim())) {
       toast.error('用户名只能包含字母、数字、下划线或中文'); return;
     }
+    if (avatarFile && !avatarRights) { toast.error('请确认头像使用权'); return; }
     setSaving(true);
-    const { error } = await supabase.from('profiles').update({
-      username: username.trim(),
-      avatar_url: avatarUrl,
-      notification_enabled: notification,
-    }).eq('id', user.id);
-    setSaving(false);
-    if (error) { toast.error('保存失败：' + error.message); return; }
-    await refreshProfile();
-    toast.success('个人资料已保存');
-    setIsEditing(false);
+    try {
+      let reference = avatarUrl;
+      if (avatarFile) {
+        reference = registeredAvatar.current?.file === avatarFile ? registeredAvatar.current.url
+          : (await uploadMaterialAsset(avatarFile, user.id, avatarRights)).url;
+        registeredAvatar.current = { file: avatarFile, url: reference };
+      }
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!alive.current || session?.user.id !== user.id) return;
+      const { data, error } = await supabase.from('profiles').update({
+        username: username.trim(), avatar_url: reference ? canonicalMedia(reference) : null,
+      }).eq('id', user.id).select('id').maybeSingle();
+      if (!alive.current) return;
+      if (error || data?.id !== user.id) throw new Error(error?.message || '资料保存结果未确认，请刷新核对');
+      await refreshProfile();
+      if (!alive.current) return;
+      setAvatarFile(null); setIsEditing(false);
+      toast.success('个人资料已保存');
+    } catch (cause) { if (alive.current) toast.error(cause instanceof Error ? cause.message : '保存失败'); }
+    finally { if (alive.current) setSaving(false); }
   };
 
   const handleChangePw = async () => {
+    if (!user || pwSaving) return;
     if (pwForm.next !== pwForm.confirm) { toast.error('两次密码不一致'); return; }
     if (pwForm.next.length < 8) { toast.error('密码至少8位'); return; }
     setPwSaving(true);
-    const { error } = await supabase.auth.updateUser({ password: pwForm.next });
-    setPwSaving(false);
-    if (error) { toast.error('修改失败：' + error.message); return; }
-    toast.success('密码已修改，下次登录生效');
-    setPwForm({ current: '', next: '', confirm: '' });
-    setPwOpen(false);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!alive.current || session?.user.id !== user.id) return;
+      const { data, error } = await supabase.auth.updateUser({ password: pwForm.next });
+      if (!alive.current) return;
+      if (error || data.user?.id !== user.id) throw new Error(error?.message || '密码修改结果未确认');
+      toast.success('密码已修改');
+      setPwForm({ next: '', confirm: '' }); setPwOpen(false);
+    } catch (cause) { if (alive.current) toast.error(cause instanceof Error ? cause.message : '密码修改失败'); }
+    finally { if (alive.current) setPwSaving(false); }
   };
 
   const handleNotificationToggle = async (val: boolean) => {
-    setNotification(val);
-    if (!user) return;
-    await supabase.from('profiles').update({ notification_enabled: val }).eq('id', user.id);
-    await refreshProfile();
-    toast.success(val ? '通知已开启' : '通知已关闭');
+    if (!user || !profile || notificationSaving) return;
+    setNotificationSaving(true);
+    try {
+      const { data, error } = await supabase.from('profiles').update({ notification_enabled: val })
+        .eq('id', user.id).select('id,notification_enabled').maybeSingle();
+      if (!alive.current) return;
+      if (error || data?.notification_enabled !== val || data.id !== user.id) throw new Error('通知偏好保存失败，请重试');
+      setNotification(val);
+      await refreshProfile();
+      if (alive.current) toast.success(val ? '通知已开启' : '通知已关闭');
+    } catch (cause) { if (alive.current) toast.error(cause instanceof Error ? cause.message : '通知偏好保存失败'); }
+    finally { if (alive.current) setNotificationSaving(false); }
   };
 
-  const copyUserId = () => {
-    if (user?.id) { navigator.clipboard.writeText(user.id); toast.success('已复制 User ID'); }
+  const copyUserId = async () => {
+    if (!user) return;
+    try { await navigator.clipboard.writeText(user.id); if (alive.current) toast.success('已复制 User ID'); }
+    catch { if (alive.current) toast.error('复制失败，请手动复制账号ID'); }
   };
 
   const gradient = getGradient(user?.id ?? 'default');
   const initials = getInitials(profile?.username, user?.email);
-  const creditsLeft = userPlan ? userPlan.credits_total - userPlan.credits_used : 0;
-  const creditsUsedPct = userPlan
-    ? Math.min(100, Math.round((userPlan.credits_used / Math.max(userPlan.credits_total, 1)) * 100))
-    : 0;
-  const memberDays = profile?.created_at
-    ? Math.floor((Date.now() - new Date(profile.created_at).getTime()) / 86400000)
-    : 0;
+  const creditsLeft = credits.creditsLeft;
+  const creditsUsedPct = credits.usagePercent;
+  const createdAt = profile?.created_at || user?.created_at;
+  const memberDays = createdAt && Number.isFinite(Date.parse(createdAt))
+    ? Math.max(0, Math.floor((Date.now() - Date.parse(createdAt)) / 86400000)) : null;
 
   const heatColor = (count: number) => {
     if (count === 0) return 'bg-muted/50';
@@ -263,16 +274,13 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-muted/20">
       {/* ── Hero 横幅 ── */}
-      <div className="relative h-36 md:h-44 overflow-hidden">
-        <img
-          src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200&auto=format&fit=crop"
-          alt="Banner"
-          className="absolute inset-0 w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-background/40 to-black/35" />
-      </div>
+      <div className={cn('relative h-36 md:h-44 bg-gradient-to-br', gradient)} />
 
-      <div className="px-4 md:px-6 pb-10 -mt-16 max-w-3xl mx-auto space-y-5">
+      <div className="relative px-4 md:px-6 pb-10 -mt-16 max-w-3xl mx-auto space-y-5">
+        {profileError && <div role="alert" className="rounded-xl border bg-card p-4 text-sm">
+          <p>{profileError}</p><Button variant="outline" size="sm" onClick={() => void refreshProfile()}>重试个人资料</Button>
+          <Button variant="link" size="sm" onClick={() => navigate('/support')}>联系支持</Button>
+        </div>}
 
         {isEditing ? (
           /* ── 编辑资料页面 ── */
@@ -281,7 +289,7 @@ export default function ProfilePage() {
               <h2 className="text-lg font-bold flex items-center gap-2">
                 <Edit3 className="w-5 h-5 text-primary" /> 编辑个人资料
               </h2>
-              <Button variant="ghost" size="sm" onClick={() => setIsEditing(false)}>
+              <Button variant="ghost" size="sm" disabled={saving} onClick={() => setIsEditing(false)}>
                 <X className="w-4 h-4 mr-1" /> 返回
               </Button>
             </div>
@@ -292,11 +300,10 @@ export default function ProfilePage() {
                 {/* 头像预览 & 动作 */}
                 <div className="flex flex-col items-center justify-center gap-3 p-4 border border-border/60 rounded-2xl bg-muted/10">
                   <div className="relative group">
-                    <img
-                      src={getDisplayAvatar(avatarUrl)}
-                      alt="头像预览"
-                      className="w-24 h-24 rounded-3xl object-cover border-2 border-primary shadow-md bg-muted"
-                    />
+                    <Avatar className="w-24 h-24 rounded-3xl border-2 border-primary shadow-md">
+                      <AvatarImage src={avatarUrl || undefined} alt="头像预览" className="object-cover" />
+                      <AvatarFallback className={cn('bg-gradient-to-br text-white text-xl', gradient)}>{initials}</AvatarFallback>
+                    </Avatar>
                     <label
                       htmlFor="avatar-upload-main"
                       className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-md hover:bg-primary/90 transition-colors cursor-pointer"
@@ -306,22 +313,25 @@ export default function ProfilePage() {
                     <input
                       type="file"
                       id="avatar-upload-main"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,image/webp"
+                      disabled={saving}
+                      aria-label="选择个人头像"
                       className="hidden"
                       onChange={handleFileChange}
                     />
                   </div>
                   <div className="text-center">
                     <p className="text-xs font-semibold text-foreground">用户头像</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">支持JPG、PNG，最大2MB</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">JPG、PNG、WebP，最大2MB</p>
                   </div>
                 </div>
 
                 {/* 表单输入 */}
                 <div className="md:col-span-2 space-y-4">
                   <div className="space-y-1.5">
-                    <label className="text-sm font-semibold text-foreground">用户名</label>
+                    <label htmlFor="profile-username" className="text-sm font-semibold text-foreground">用户名</label>
                     <Input
+                      id="profile-username"
                       value={username}
                       onChange={e => setUsername(e.target.value)}
                       placeholder="输入用户名"
@@ -337,60 +347,22 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* 第二部分：内置真实头像选择 */}
-              <div className="space-y-3 border border-border/60 rounded-2xl p-4 bg-muted/20">
-                <div className="flex items-center justify-between border-b border-border/40 pb-2 flex-wrap gap-2">
-                  <div>
-                    <h3 className="text-sm font-semibold">内置预设头像</h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">为您精选 10 款男生与女生高保真真实人物头像</p>
-                  </div>
-                  <div className="flex gap-1 p-0.5 rounded-lg bg-muted/80 text-xs">
-                    <button
-                      onClick={() => setAvatarGender('boys')}
-                      className={cn('px-2.5 py-1 rounded-md transition-colors', avatarGender === 'boys' ? 'bg-card text-foreground shadow-sm font-medium' : 'text-muted-foreground')}
-                    >
-                      男生头像
-                    </button>
-                    <button
-                      onClick={() => setAvatarGender('girls')}
-                      className={cn('px-2.5 py-1 rounded-md transition-colors', avatarGender === 'girls' ? 'bg-card text-foreground shadow-sm font-medium' : 'text-muted-foreground')}
-                    >
-                      女生头像
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-5 gap-3 pt-2">
-                  {REAL_AVATARS[avatarGender].map((avatar) => {
-                    const isSelected = avatarUrl === avatar.url;
-                    return (
-                      <button
-                        key={avatar.name}
-                        onClick={() => setAvatarUrl(avatar.url)}
-                        className={cn(
-                          'relative aspect-square rounded-2xl overflow-hidden border-2 bg-card transition-all hover:scale-105 active:scale-95 shadow-sm',
-                          isSelected ? 'border-primary ring-2 ring-primary/20' : 'border-transparent hover:border-border'
-                        )}
-                        title={avatar.name}
-                      >
-                        <img src={avatar.url} alt={avatar.name} className="w-full h-full object-cover" />
-                        {isSelected && (
-                          <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
-                            <Check className="w-5 h-5 text-primary bg-background rounded-full p-1 shadow-md" />
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+              {avatarFile && <label className="flex items-start gap-2 text-sm rounded-xl border p-4">
+                <input type="checkbox" checked={avatarRights} disabled={saving} onChange={e => setAvatarRights(e.target.checked)} />
+                <span>我拥有头像图片的使用权。保存时上传并登记，可在素材库恢复未确认的上传。</span>
+              </label>}
+              <Button variant="outline" size="sm" disabled={saving} onClick={() => {
+                URL.revokeObjectURL(avatarPreview.current); avatarPreview.current = '';
+                registeredAvatar.current = null;
+                setAvatarUrl(''); setAvatarFile(null); setAvatarRights(false);
+              }}>使用姓名头像</Button>
 
               {/* 提交控制 */}
               <div className="flex gap-3 pt-4 border-t border-border/40">
-                <Button variant="outline" className="flex-1" onClick={() => setIsEditing(false)}>
+                <Button variant="outline" className="flex-1" disabled={saving} onClick={() => { setAvatarFile(null); setIsEditing(false); }}>
                   取消返回
                 </Button>
-                <Button className="flex-1 gap-1.5" onClick={handleSave} disabled={saving}>
+                <Button className="flex-1 gap-1.5" onClick={handleSave} disabled={saving || !profile || (!!avatarFile && !avatarRights)}>
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                   {saving ? '保存中…' : '保存修改'}
                 </Button>
@@ -405,11 +377,10 @@ export default function ProfilePage() {
                 <div className="flex items-end gap-4">
                   {/* 头像 */}
                   <div className="relative shrink-0">
-                    <img
-                      src={getDisplayAvatar(profile?.avatar_url)}
-                      alt="头像"
-                      className="w-20 h-20 md:w-24 md:h-24 rounded-3xl object-cover ring-4 ring-card shadow-xl select-none bg-muted"
-                    />
+                    <Avatar className="w-20 h-20 md:w-24 md:h-24 rounded-3xl ring-4 ring-card shadow-xl">
+                      <AvatarImage src={profile?.avatar_url || undefined} alt="头像" className="object-cover" />
+                      <AvatarFallback className={cn('bg-gradient-to-br text-white text-xl', gradient)}>{initials}</AvatarFallback>
+                    </Avatar>
                     <button
                       onClick={() => setIsEditing(true)}
                       className="absolute -bottom-1 -right-1 w-7 h-7 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shadow-md hover:bg-primary/90 transition-colors">
@@ -430,11 +401,11 @@ export default function ProfilePage() {
                     <p className="text-sm text-muted-foreground truncate mt-0.5">{user?.email}</p>
                     <div className="flex items-center gap-3 mt-2 flex-wrap">
                       <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Clock className="w-3 h-3" />注册 {memberDays} 天
+                        <Clock className="w-3 h-3" />{memberDays == null ? '注册时间未记录' : `注册 ${memberDays} 天`}
                       </span>
-                      {userPlan?.plan && (
+                      {!credits.loading && !credits.error && credits.planName && (
                         <Badge variant="outline" className="text-xs border-primary/30 text-primary gap-1">
-                          <Star className="w-2.5 h-2.5 fill-primary" />{userPlan.plan.name}
+                          <Star className="w-2.5 h-2.5 fill-primary" />{credits.planName}
                         </Badge>
                       )}
                     </div>
@@ -453,7 +424,7 @@ export default function ProfilePage() {
               </div>
 
               {/* 积分进度条 */}
-              {userPlan && (
+              {!credits.loading && !credits.error && (
                 <div className="px-5 md:px-6 pb-5 pt-1">
                   <Separator className="mb-4" />
                   <div className="flex items-center justify-between mb-2">
@@ -463,7 +434,7 @@ export default function ProfilePage() {
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold tabular-nums">
                         <span className={creditsLeft < 50 ? 'text-destructive' : 'text-success'}>{creditsLeft.toLocaleString()}</span>
-                        <span className="text-muted-foreground font-normal"> / {userPlan.credits_total.toLocaleString()}</span>
+                        <span className="text-muted-foreground font-normal"> / {credits.creditsTotal.toLocaleString()}</span>
                       </span>
                       <Button size="sm" variant="ghost" className="h-7 text-xs px-2 text-primary" onClick={() => navigate('/credits')}>
                         充值 <ChevronRight className="w-3 h-3" />
@@ -474,16 +445,24 @@ export default function ProfilePage() {
                   <p className="text-xs text-muted-foreground mt-1.5">已使用 {creditsUsedPct}%</p>
                 </div>
               )}
+              {credits.loading && <p role="status" className="px-5 pb-5 text-sm">读取积分…</p>}
+              {credits.error && <p role="alert" className="px-5 pb-5 text-sm">{credits.error}
+                <Button variant="link" onClick={() => void credits.refresh()}>重试积分</Button></p>}
             </div>
 
             {/* ── 数据统计 ── */}
             <div>
-              <p className="text-sm font-semibold text-muted-foreground mb-3 px-0.5">创作概览</p>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <StatCard icon={Video} label="生成视频" value={stats.videos} color="text-primary" bg="bg-primary/10" onClick={() => navigate('/works')} />
-                <StatCard icon={Film} label="完成作品" value={stats.published} color="text-success" bg="bg-success/10" onClick={() => navigate('/works')} />
-                <StatCard icon={ImageIcon} label="素材文件" value={stats.materials} color="text-info" bg="bg-info/10" onClick={() => navigate('/works')} />
-                <StatCard icon={Package} label="商品管理" value={stats.products} color="text-warning" bg="bg-warning/10" onClick={() => navigate('/products')} />
+              <div className="flex justify-between items-center mb-3">
+                <p className="text-sm font-semibold text-muted-foreground">创作概览</p>
+                <Button size="sm" variant="outline" disabled={statsLoading} onClick={() => void loadAll()}>刷新概览</Button>
+              </div>
+              {statsError && <p role="alert" className="text-sm mb-3">{statsError}{stats && '；显示上次成功读取的数据。'}</p>}
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <StatCard icon={Video} label="视频项目" value={stats?.videos ?? '—'} color="text-primary" bg="bg-primary/10" onClick={() => navigate('/works')} />
+                <StatCard icon={Film} label="完成作品" value={stats?.completed ?? '—'} color="text-success" bg="bg-success/10" onClick={() => navigate('/works')} />
+                <StatCard icon={Globe} label="已发布记录" value={stats?.published ?? '—'} color="text-success" bg="bg-success/10" onClick={() => navigate('/publish')} />
+                <StatCard icon={ImageIcon} label="素材文件" value={stats?.materials ?? '—'} color="text-info" bg="bg-info/10" onClick={() => navigate('/works')} />
+                <StatCard icon={Package} label="商品管理" value={stats?.products ?? '—'} color="text-warning" bg="bg-warning/10" onClick={() => navigate('/products')} />
               </div>
             </div>
 
@@ -495,17 +474,19 @@ export default function ProfilePage() {
                     <BarChart2 className="w-4 h-4 text-primary" />近 30 天创作活跃
                   </p>
                   <span className="text-xs text-muted-foreground">
-                    共 {activity.filter(d => d.count > 0).length} 天有创作
+                    {stats ? `共 ${activity.filter(d => d.count > 0).length} 天创建视频项目` : statsLoading ? '读取中…' : '数据未读取'}
                   </span>
                 </div>
                 <div className="flex gap-1.5 flex-wrap">
                   {activity.map(d => (
-                    <div key={d.day}
-                      title={`第 ${d.day + 1} 天：${d.count} 次操作`}
+                    <div key={d.date}
+                      aria-label={`${d.date}：${d.count} 个视频项目`}
+                      title={`${d.date}：${d.count} 个视频项目`}
                       className={cn('w-6 h-6 rounded-md transition-colors', heatColor(d.count))} />
                   ))}
                 </div>
                 <div className="flex items-center gap-1.5 mt-3 text-xs text-muted-foreground">
+                  <span>{stats?.timezone}</span>
                   <span>少</span>
                   {[0, 1, 2, 3, 4].map(c => (
                     <div key={c} className={cn('w-3.5 h-3.5 rounded-sm', heatColor(c))} />
@@ -520,7 +501,7 @@ export default function ProfilePage() {
               <CardContent className="p-2">
                 <p className="text-xs font-semibold text-muted-foreground px-4 pt-3 pb-1">快速入口</p>
                 <MenuRow icon={FolderOpen} label="作品素材" desc="查看我的视频作品和素材" onClick={() => navigate('/works')} />
-                <MenuRow icon={Zap} label="积分与套餐" desc={userPlan ? `剩余 ${creditsLeft} 积分` : '查看用量和充值'} onClick={() => navigate('/credits')} badge={creditsLeft < 50 ? '不足' : undefined} />
+                <MenuRow icon={Zap} label="积分与套餐" desc={!credits.loading && !credits.error ? `剩余 ${creditsLeft} 积分` : '查看用量和充值'} onClick={() => navigate('/credits')} />
                 <MenuRow icon={Globe} label="跨平台导出" desc="多格式导出和一键分发" onClick={() => navigate('/export-formats')} />
                 <MenuRow icon={TrendingUp} label="投放数据回流" desc="查看广告投放效果" onClick={() => navigate('/data-feedback')} />
                 <MenuRow icon={Sparkles} label="AI工具箱" desc="风格复刻、知识库等高级工具" onClick={() => navigate('/ai-toolbox')} />
@@ -541,11 +522,11 @@ export default function ProfilePage() {
                     <p className="text-sm font-medium">消息通知</p>
                     <p className="text-xs text-muted-foreground mt-0.5">视频生成完成时接收通知</p>
                   </div>
-                  <Switch checked={notification} onCheckedChange={handleNotificationToggle} />
+                  <Switch aria-label="消息通知" checked={notification} onCheckedChange={handleNotificationToggle} disabled={!profile || notificationSaving} />
                 </div>
 
                 <MenuRow icon={Key} label="修改密码" desc="定期更换密码保护账号安全" onClick={() => setPwOpen(true)} />
-                <MenuRow icon={Shield} label="账号安全" desc="登录记录与安全设置" onClick={() => toast.info('安全设置功能开发中')} />
+                <MenuRow icon={Shield} label="账号安全" desc="查看当前会话和退出选项" onClick={() => setSecurityOpen(true)} />
 
                 {/* User ID */}
                 <div className="flex items-center gap-3 px-4 py-3.5">
@@ -566,7 +547,9 @@ export default function ProfilePage() {
             {/* ── 危险区 ── */}
             <Card className="rounded-3xl border-destructive/20">
               <CardContent className="p-2">
-                <MenuRow icon={LogOut} label="退出登录" desc="退出当前账号" danger onClick={async () => { await signOut(); navigate('/login'); }} />
+                <MenuRow icon={LogOut} label="退出登录" desc="退出当前账号" danger onClick={async () => {
+                  try { await signOut(); navigate('/login'); } catch (cause) { toast.error(cause instanceof Error ? cause.message : '退出失败'); }
+                }} />
               </CardContent>
             </Card>
 
@@ -576,7 +559,7 @@ export default function ProfilePage() {
                 <Award className="w-3.5 h-3.5" />
                 <span>Shopro-电商AIGC带货视频 v1.0</span>
                 <span>·</span>
-                <span>© 2025</span>
+                <span>© {new Date().getFullYear()}</span>
               </div>
             </div>
           </>
@@ -584,7 +567,22 @@ export default function ProfilePage() {
       </div>
 
       {/* ── 修改密码弹窗 ── */}
-      <Dialog open={pwOpen} onOpenChange={v => { setPwOpen(v); if (!v) setPwForm({ current: '', next: '', confirm: '' }); }}>
+      <Dialog open={securityOpen} onOpenChange={setSecurityOpen}>
+        <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-md">
+          <DialogHeader><DialogTitle>当前账号与会话</DialogTitle></DialogHeader>
+          <div className="text-sm space-y-3 break-words">
+            <p>登录邮箱：{user?.email || '未记录'}</p>
+            <p>最近登录：{user?.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString() : '未记录'}</p>
+            <p>邮箱确认：{user?.email_confirmed_at ? '已确认' : '未确认'}</p>
+            <p className="text-muted-foreground">当前信息来自登录会话。历史设备和登录记录需要身份服务提供完整审计。</p>
+            <Button variant="outline" onClick={async () => {
+              try { await signOut('global'); }
+              catch { if (alive.current) toast.error('退出所有会话失败，请重试'); }
+            }}>退出所有会话</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={pwOpen} onOpenChange={v => { setPwOpen(v); if (!v) setPwForm({ next: '', confirm: '' }); }}>
         <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-balance">

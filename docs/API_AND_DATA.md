@@ -1,6 +1,8 @@
 # 接口与数据契约
 
-当前 [迭代30](ITERATION_30_WORKS_LIBRARY.md)：material-assets list增加search（0–200字符，字面名称匹配），offset/limit/type和当前用户范围保持。作品与首页参考上传统一原UUID/register/使用权；私有下载读取真实文件。无需新迁移，00058/probe18/render4/edit2保持。
+当前 [迭代31](ITERATION_31_ACCOUNT_STORYBOARD.md)：00059新增authenticated-only `get_my_profile_overview(p_timezone)`，无用户ID参数，返回本人videos/completed/materials/products/published和30个日期/计数；已发布按publish_tasks实际published计数。service-only `profile_overview_schema_ready()`供probe19核对头像引用触发器。脚本与知识写入持久原UUID并核对原内容，资料读取不创建账号。render4/edit2保持。
+
+前一轮 [迭代30](ITERATION_30_WORKS_LIBRARY.md)：material-assets list增加search（0–200字符，字面名称匹配），offset/limit/type和当前用户范围保持。作品与首页参考上传统一原UUID/register/使用权；私有下载读取真实文件。
 
 当前 [迭代29](ITERATION_29_ALERTS_RECOVERY.md)：operations list新增alerts，返回monitor.last_scan_at/stale和每条can_ack；mutate alert_ack需alert_id/expected/reason/原request_key，沿原对象权限与客户范围核对，恢复前仍验证当前权限。production-worker monitor只接受后台专用密钥和scheduler_healthy真实布尔，返回active/opened/resolved/observed_at，不领取业务任务。00057统一扣费锁序，00058告警/事件/心跳，probe18/00058/render4/edit2；前端/调度/发布工具同窗升级。
 

@@ -1,8 +1,8 @@
 # aigcp 环境部署记录
 
-迭代30 [作品与素材入口](ITERATION_30_WORKS_LIBRARY.md)待同步material-assets和前端，迁移/任务协议保持00058/probe18/render4/edit2；正式构建与隔离开发/压缩交互测试通过。当前Gitee用户远端aigcp/master只读仍ce90bfe，本地修改未视为已推送。
+迭代31 [账号与分镜入口](ITERATION_31_ACCOUNT_STORYBOARD.md)新增00059；待同步官方00032–00059、probe19/production-worker/调度与前端，包含profile概览/头像引用保护。render4/edit2与MCP59保持。本地验证不代表已推送或上线，用户Gitee远端需独立只读确认。
 
-2026-10-22当前检查：官方Management API的functions列表与只读迁移查询均返回401，原本24小时的本地管理令牌已无法使用，不能刷新部署事实或发布。最近成功核验仍00031/三旧函数；当前本地16975d3包含00032–00058、告警/恢复/扣费锁序，匹配probe18/00058/render4/edit2的全栈尚未发布。恢复管理访问后先只读确认真实差距及备份，再执行部署；不能把火山CLI当作官方管理工具。
+2026-10-22最近检查：官方Management API的functions列表与只读迁移查询均返回401，原本24小时的本地管理令牌已无法使用。最近成功核验仍00031/三旧函数；本地00032–00059及匹配probe19/00059/render4/edit2全栈尚未发布。恢复管理访问后先只读确认真实差距及备份，再执行部署；不能把火山CLI当作官方管理工具。
 
 最新待发布范围00032–00056，见 [迭代28](ITERATION_28_OPERATIONS_WORKFLOWS.md)：匹配operations/production-worker/全部共享模块、调度与前端，包含工单/租户/风险/现金成本；保留多镜头编排、MCP59/19权限及render4/edit2镜像。严格要求probe17/00056/render4/edit2；官方最近00031/三旧函数事实未变，本段是发布条件，真实业务/容量及全栈尚未验收。
 

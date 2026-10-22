@@ -1,6 +1,8 @@
 # 测试与验收计划
 
-当前 [迭代30专项](ITERATION_30_WORKS_LIBRARY.md)：test:assets真实PG5项/Edge登记搜索/FFmpeg音频3项；browser_works_library验证分页、签名成片解码、原上传恢复/音频下载、真实参考视频、文本故障/完整流、跨标签账号切换与390px，browser_editor_assets覆盖共享资源、录音和工程保存。开发和独立压缩构建分别验证；夹具不视作目标验收。
+当前 [迭代31专项](ITERATION_31_ACCOUNT_STORYBOARD.md)：test:profile真实PG4项验证1106项目完整聚合/时区/身份与头像引用保护；test:profile-ui覆盖迟到旧资料/概览、通知失败、头像保存失败不重传、SSE正文/无效结果保留、原UUID脚本/知识恢复、账号切换路由输入与确认分镜/台词/预算传递。开发与独立压缩页面分别执行，回归作品库、后台合成/FFmpeg、调度和发布；夹具不视作目标验收。
+
+前一轮 [迭代30专项](ITERATION_30_WORKS_LIBRARY.md)：test:assets和browser_works_library/browser_editor_assets覆盖真实登记、媒体解码/录音/下载、分页及原上传恢复。
 
 当前 [迭代29专项](ITERATION_29_ALERTS_RECOVERY.md)：test:operations包含真实PG9项和已复现deadlock后通过的创建/直接扣费锁序；test:alerts验证去重/范围/撤销/接手回执/恢复再发生/陈旧心跳、后台专用协议及调度11项。test:backup运行双PG16/真实HTTP实物归档/恢复，认证篡改/错误密钥/非隔离与重复目标拒绝，核对账表内容/迁移/对象/历史解密及unknown不重提；开发和独立压缩浏览器验证390px告警503原UUID/只读/采集状态。Deno、lint/build、部署9项通过；目标需真实平台/调度/异地保管/容量和RPO/RTO验收。
 

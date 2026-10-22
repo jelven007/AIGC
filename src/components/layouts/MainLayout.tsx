@@ -308,9 +308,11 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
-    await signOut();
-    toast.success('已退出登录');
-    navigate('/login');
+    try {
+      await signOut();
+      toast.success('已退出登录');
+      navigate('/login');
+    } catch (cause) { toast.error(cause instanceof Error ? cause.message : '退出登录失败'); }
   };
 
   const isActive = (path: string) => {
@@ -648,7 +650,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                     try {
                       await signOut();
                     } catch (e: any) {
-                      console.error('Logout error:', e);
+                      toast.error(e instanceof Error ? e.message : '退出登录失败');
+                      return;
                     }
                     toast.success('已成功退出登录');
                     navigate('/login');

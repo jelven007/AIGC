@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Layers, Plus, Package, Loader2, RefreshCw, Pause, Play, X, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/db/supabase';
@@ -70,6 +70,16 @@ function ProductPicker({ open, onClose, onSelect, excluded }: {
 
 export default function BatchCreatePage() {
   const { user } = useAuth();
+  const location = useLocation();
+  const [scriptInput] = useState(() => {
+    const input = location.state;
+    return input?.from === 'script' && Array.isArray(input.scenes) && input.scenes.length >= 2 && input.scenes.length <= 6
+      && input.scenes.every((scene: any) => typeof scene.prompt === 'string' && scene.prompt.trim()
+        && typeof scene.dialogue === 'string' && scene.dialogue.trim() && Number.isInteger(scene.duration)
+        && scene.duration >= 2 && scene.duration <= 15) ? input as {
+          productName: string; platform: string; scenes: { prompt: string; dialogue: string; duration: number }[];
+        } : null;
+  });
   const credits = useCredits();
   const [view, setView] = useState<'create' | 'history'>('create');
   const [products, setProducts] = useState<Product[]>([]);
@@ -79,14 +89,15 @@ export default function BatchCreatePage() {
   const [models, setModels] = useState<ModelCatalogEntry[]>([]);
   const [quote, setQuote] = useState<number | null>(null);
   const [pipelineCosts, setPipelineCosts] = useState<{ video: number; tts: number; subtitles: number; render: number } | null>(null);
-  const [pipelineEnabled, setPipelineEnabled] = useState(false);
-  const [shots, setShots] = useState('商品外观特写\n商品在真实使用场景中的展示');
+  const [pipelineEnabled, setPipelineEnabled] = useState(!!scriptInput);
+  const [shots, setShots] = useState(scriptInput?.scenes.map(scene => scene.prompt.replace(/[\r\n]+/g, ' ')).join('\n') || '商品外观特写\n商品在真实使用场景中的展示');
   const [voice, setVoice] = useState('');
   const [subtitles, setSubtitles] = useState(true);
   const [delivery, setDelivery] = useState<'render' | 'publish'>('render');
   const [configError, setConfigError] = useState('');
   const [settings, setSettings] = useState<BatchInput['settings']>({
-    duration: 5, ratio: '9:16', resolution: '720P', style: '专业商品展示', language: 'zh',
+    duration: scriptInput?.scenes[0].duration || 5, ratio: '9:16', resolution: '720P', style: '专业商品展示',
+    language: scriptInput?.platform === 'tiktok' ? 'en' : 'zh',
   });
   const [overrides, setOverrides] = useState<BatchInput['overrides']>({});
   const [jobs, setJobs] = useState<BatchVideoJob[]>([]);
@@ -203,6 +214,10 @@ export default function BatchCreatePage() {
       </div>
     </div>
     {view === 'create' ? <>
+      {scriptInput && <div role="status" className="rounded-lg border p-4 text-sm space-y-2">
+        <p>已载入 {scriptInput.productName} 的分镜要求。请选择对应商品、填写音色并确认台词和预算。</p>
+        <p>当前每镜头统一为 {settings.duration} 秒。请调整下方时长，使配音适合总镜头时长。</p>
+      </div>}
       {pending && <div role="alert" className="border rounded-lg p-4 space-y-2">
         <p>上次提交结果尚未确认。请恢复原请求，避免重复预占积分。</p>
         <p className="text-sm break-words">{pending.input.name} · {pending.input.product_ids.length} 个商品 · 预算 {pending.input.budget} 积分</p>
@@ -325,6 +340,10 @@ export default function BatchCreatePage() {
       </CardContent></Card>)}
     </div>}
     <ProductPicker open={pickerOpen} onClose={() => setPickerOpen(false)} excluded={products.map(p => p.id)}
-      onSelect={added => setProducts(prev => [...prev, ...added.filter(p => !prev.some(item => item.id === p.id))].slice(0, 50))} />
+      onSelect={added => {
+        setProducts(prev => [...prev, ...added.filter(p => !prev.some(item => item.id === p.id))].slice(0, 50));
+        if (scriptInput) setOverrides(prev => ({ ...prev, ...Object.fromEntries(added.filter(p => p.name === scriptInput.productName)
+          .map(p => [p.id, { ...prev[p.id], narration: scriptInput.scenes.map(scene => scene.dialogue).join('\n') }])) }));
+      }} />
   </div>;
 }
