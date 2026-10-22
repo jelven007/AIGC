@@ -1,5 +1,7 @@
 # 开发指南
 
+当前 [迭代29](ITERATION_29_ALERTS_RECOVERY.md)：禁止改动已提交00056，00057修复套餐→团队/风险→团队行锁；测试真实创建和直接扣费并发，原预算/账本归因不变。00058刷新规则/告警事件/心跳，operations新增alerts/alert_ack，后台monitor独立且只用Worker专用身份。执行test:operations/test:alerts、test:backup（先构建deploy/backup镜像），恢复只向空隔离库，秘密文件0600且Docker context忽略；probe18/00058/render4/edit2与匹配全栈同步。
+
 最新 [迭代26](ITERATION_26_EDITOR_ASSETS.md)：materialAssets API与五个独立资源/上传/录音/音频/预览组件共用私有路径、原UUID和实际时长；00054核对存储证据、回执和墓碑。删除旧模拟资源交易、演示工程和装饰波形；MediaBlobCache限制账号/页面内128MB，render4执行真实EQ/回声/调制。执行test:assets、MCP58/权限、浏览器和原剪辑回归；probe15/00054/render4/edit1与匹配服务同窗发布。
 
 最新 [迭代25](ITERATION_25_EDIT_ANALYSIS.md)：edit-contract/edit-jobs统一原音轨与价格/版本，00053复用队列/租约/原退款，edit_analysis.py读取真实PCM节拍；person_mask.py校验固定模型并生成FFV1透明视频，render.py分别合成原音轨并验证时长/空间。禁止固定间隔铺字幕、未知请求重发或运行期下载任意模型。执行test:edit/真实页面和原render/任务中心/情报/调度/部署；probe14/00053/render3/edit1，重建镜像与匹配全栈。

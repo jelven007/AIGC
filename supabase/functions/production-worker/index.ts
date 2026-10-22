@@ -67,6 +67,9 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
       const teamBudget = await db.from('team_credit_reservations').select('charge_id,team_id').limit(0);
       const restrictions = await db.from('workload_restrictions').select('user_id,restricted,version').limit(0);
       const supplierCosts = await db.from('supplier_cost_entries').select('job_id,model_version,amount_minor,evidence_sha256').limit(0);
+      const alerts = await db.from('operations_alerts').select('id,rule,status,version').limit(0);
+      const alertEvents = await db.from('operations_alert_events').select('alert_id,event,version').limit(0);
+      const monitor = await db.from('operations_monitor_state').select('last_scan_at,scheduler_healthy').limit(0);
       const ready = !error && !voices.error && !costs.error && costs.data?.length === Object.keys(MEDIA_JOB_SLOTS).length
         && !analysis.error && !!analysis.data && !measurements.error && !experiments.error && !knowledge.error && !chunks.error
         && !knowledgeCosts.error && knowledgeCosts.data?.length === 2 && knowledgeCosts.data.every(row => Number.isInteger(row.cost) && row.cost >= 0)
@@ -76,8 +79,15 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
         && !retention.error && !mediaReferences.error && !revocations.error && !revocationReceipts.error && !voiceState.error && !erased.error
         && !wechat.error && !wechatOrders.error && !wechatRefunds.error && !editCosts.error && !materialReceipts.error && !pipeline.error
         && !support.error && !supportMessages.error && !tenants.error && !teamBudget.error && !restrictions.error && !supplierCosts.error
+        && !alerts.error && !alertEvents.error && !monitor.error
         && editCosts.data?.length === 2 && editCosts.data.every(row => Number.isInteger(row.cost) && row.cost >= 0);
-      return Response.json({ ready, version: 17, render_version: 4, edit_version: 2, required_migration: '00056' }, { status: ready ? 200 : 503 });
+      return Response.json({ ready, version: 18, render_version: 4, edit_version: 2, required_migration: '00058' }, { status: ready ? 200 : 503 });
+    }
+    if (general && body.action === 'monitor') {
+      if (typeof body.scheduler_healthy !== 'boolean') return Response.json({ error: '缺少调度健康状态' }, { status: 400 });
+      const alerts = await db.rpc('refresh_operations_alerts', { p_scheduler_healthy: body.scheduler_healthy });
+      if (alerts.error) return Response.json({ error: '告警采集不可用' }, { status: 503 });
+      return Response.json(alerts.data);
     }
     if (general && body.action === 'run') {
       const scheduled = await db.rpc('enqueue_intelligence_schedule');

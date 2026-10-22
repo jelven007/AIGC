@@ -1,5 +1,7 @@
 # 视频任务后台调度
 
+当前 [迭代29](ITERATION_29_ALERTS_RECOVERY.md)：production严格probe18/00058/render4/edit2，常驻每分钟monitor独立于任务执行，至少最近三分钟采集成功才健康；连续三次派发/采集失败保存持久故障事件，恢复事件同卷保留，重启恢复计数。compose新增scheduler-alerts命名卷与VIDEO_WORKER_ALERT_FILE，重建镜像并匹配production-worker/operations/00057–00058及前端。该告警内部保存，宿主完全停机仍需独立外部监控；官方旧视频Cron不提供新production/monitor轮转。
+
 最新 [迭代26](ITERATION_26_EDITOR_ASSETS.md)升级渲染协议为render4，支持实际音频EQ/回声/机器人；production预检严格要求version15/required_migration=00054/render_version=4/edit_version=1。00054、material-assets/匹配production服务、常驻调度/MCP58/前端与FFmpeg镜像同窗，旧render3不领取任务。上传登记不是供应商任务，不增加后台现金出账。
 
 最新 [迭代25](ITERATION_25_EDIT_ANALYSIS.md)增加edit_analysis字幕结案/原版本识别轮转；FFmpeg按render/analysis_prepare/edit_prepare三队列轮转处理，页面关闭不影响音轨分析。专用渲染密钥不能结案字幕模型阶段，上传与结果绑定原租约。production预检严格要求version14/required_migration=00053/render_version=3/edit_version=1，重建镜像及匹配数据库/API/调度/前端；长素材吞吐与真实Whisper待验收。

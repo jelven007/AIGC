@@ -10,6 +10,8 @@
     "test:finance": "python3 tests/test_finance.py",
     "test:cash": "python3 tests/test_cash_refunds.py && node tests/cash_refunds.test.mjs",
     "test:operations": "python3 tests/test_operations_workflows.py && node tests/operations_workflows.test.mjs && node tests/video_jobs.test.mjs && node tests/production_jobs.test.mjs && node tests/ai_billing.test.mjs",
+    "test:alerts": "python3 tests/test_operations_alerts.py && node tests/operations_monitor.test.mjs && python3 tests/test_video_scheduler.py",
+    "test:backup": "python3 tests/test_backup_restore.py",
     "test:payments": "node tests/run_wechat.mjs && node tests/ai_billing.test.mjs && node tests/payment_notify.test.mjs",
     "test:checkout": "python3 tests/test_checkout.py && node tests/checkout.test.mjs",
     "test:wechat": "python3 tests/test_wechat_transactions.py && node tests/wechat_transactions.test.mjs && node tests/run_wechat.mjs",
