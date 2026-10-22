@@ -1,5 +1,9 @@
 # 火山引擎部署指南
 
+更新：2026-10-22，功能基线`d7e3d38`。当前新库60生产迁移（62文件排除18/19）、最新00062、43函数、20模型槽、MCP59/19，verify严格probe22/render4/edit2。火山无实际资源/迁移/运行验收；以下旧范围为历史摘要，当前步骤见正文及 [综合基线](RELEASE_BASELINE_20261022.md)。
+
+## 历史发布依赖
+
 最新 [迭代33](ITERATION_33_CREDITS_SMS.md)要求00032–00061/全部匹配函数与共享模块、probe21/production-worker/调度/前端，render4/edit2及MCP59保持。prepare构建新增--terms-url/--privacy-url（或VITE_TERMS_URL/VITE_PRIVACY_URL），pages核对正式协议构建回执；--skip-build可只准备迁移。verify检查权威积分RPC权限。官方与火山资源及回执独立，均无本轮目标运行验收，下文为历史发布条件。
 
 当前 [迭代31](ITERATION_31_ACCOUNT_STORYBOARD.md)要求00032–00059/全部匹配共享模块、production-worker/operations、probe19调度/告警持久卷与前端；render4/edit2和MCP59/19权限保持。verify核对probe19/00059，并核对头像引用触发器存在且启用。加密备份/恢复见 [指南](BACKUP_RECOVERY.md)，先在空隔离PG恢复。火山与官方托管资源不同，不能用火山回执重放官方旧库；目标告警/备份调度与平台迁移仍待验收。
@@ -34,7 +38,7 @@
 
 当前源码发布范围00032–00041，匹配production-jobs/production-worker/ai-assistant/phase3-assistant及共享依赖，重建FFmpeg镜像，前端最后发布。[素材分析迭代12](ITERATION_12_GROUNDED_ANALYSIS.md)要求真实视觉/ASR配置、两段Worker与私有输出。火山资源与实际供应商仍无新验收证据，部署工具自动发现00041不等于已应用。
 
-目标方案：火山 AI 原生 BaaS Supabase 版 + 火山 Pages + ECS Docker 调度器，模型可用火山方舟。该方案使用火山独立管理面，前端无需 Vercel；**当前实际仍连接官方 Supabase，未切换火山**。源码基线 `ce90bfe`，尚无火山资源创建/部署验收证据；授权准备不等于资源上线。见 [当前状态](CURRENT_STATE.md)。
+目标为火山BaaS/Pages/ECS，管理面与官方Supabase独立；当前仍连接官方，未切换火山。目标先新建/复用合适workspace/branch、迁移实际Auth/DB/Storage，记录回执，不把工具prepare当作上线。见 [当前状态](CURRENT_STATE.md)。
 
 源码增量包含00035–00039，最新多规格导出须部署匹配production-jobs、重建FFmpeg镜像与既有production调度，前端最后发布。00039的导出事务/共用渲染队列配额/4:5/旧回执与实际验收见 [迭代10](ITERATION_10_RENDER_EXPORTS.md)；本段不更新真实云端回执，不重放已应用旧迁移。
 
@@ -92,13 +96,13 @@ byted-supabase-cli secrets set --env-file deploy/volcengine/secrets.env --worksp
 python3 scripts/deploy_volcengine.py functions --workspace-id "$SHOPRO_WORKSPACE_ID"
 ```
 
-平台提供 `SUPABASE_URL` / `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY`，勿覆盖。函数部署从本地 `supabase/functions` 目录读取，运行时明确为 Deno。`video-job-worker` 与两个支付回调关闭平台 JWT 验证，内部使用独立密钥/支付验签。其他函数默认 JWT 校验。源项目专属短信函数返回 410，登录使用 Auth OTP。
+平台提供SUPABASE_URL/ANON_KEY/SERVICE_ROLE_KEY，勿覆盖。43函数从supabase/functions读取，verify_jwt逐项依manifest：JWT/Key业务入口、Worker、OAuth/HMAC/支付回调各按内部鉴权，不能笼统改全部为默认JWT。setup-demo不发布，旧短信/音频/Sora兼容410入口不代表可用服务。
 
 ## 4. Auth 与 Storage
 
-在目标 BaaS 配置实际站点 URL、允许重定向地址、SMTP 邮件或短信供应商。邮箱注册需要验证时页面提示查收邮件；短信登录通过 `signInWithOtp` / `verifyOtp` 建立用户会话，不能使用旧短信代理。未配置短信供应商时使用邮箱登录。
+目标Auth配置真实站点/回跳白名单、SMTP/SMS、6位验证码与服务端限流。SMS通过独立客户端原手机signInWithOtp/verifyOtp回执核对后才安装全局会话，注册/登录明确分开；密码恢复/auth/reset需白名单。正式条款/隐私HTTPS地址构建前配置，缺资源禁注册。
 
-迁移初始化 `materials`、`videos`、`thumbnails` 桶及对象策略。前端参考素材路径以用户 ID 开头；成片由 service_role 写入固定路径。当前桶公开，生产如需私有素材需另行加入签名 URL 授权。升级前核对旧视频的原供应商配置，再按模型配置文档绑定版本；不要让新配置接管旧账号任务。
+当前迁移初始化三私有桶、本人/团队对象ACL、原登记/引用索引/删除墓碑/TTL；前端使用稳定引用和短效签名，Worker一致。存量旧路径实际归属、大小/MIME、Auth/Storage平台schema需独立迁移验收；不能只关闭桶却保留旧public URL。原视频/声纹任务核对旧账号配置后绑定，不由新账号接管。
 
 ## 5. ECS 后台调度
 
@@ -110,7 +114,7 @@ python3 scripts/manage_video_scheduler.py status
 python3 scripts/manage_video_scheduler.py logs
 ```
 
-启动先调用 `probe`，失败不启动。默认每 10 秒一批、最多 4 并发；容器断线退避并自动恢复。确认容器 healthy 后，提交测试任务并关闭页面验证任务自动完成/退款。ECS 断电或容器停机仍会暂停派发。
+保持PRODUCTION_WORKER_ENABLED=true，启动严格probe22/00062/render4/edit2，不匹配不启动。10秒/4并发是配置，monitor每分钟与持久卷参与健康；重建FFmpeg/MCP镜像，备份/外部告警另由目标运维配置。实际提交/关页/原UUID/unknown/退款/平台验收后才算可运行；ECS停机仍暂停。
 
 详见 [视频后台调度](VIDEO_SCHEDULER.md)。pg_cron/pg_net/Vault 是可选方案，必须先确认目标火山平台支持，不能当作默认前置条件。
 
@@ -128,7 +132,9 @@ byted-supabase-cli projects api-keys --reveal --workspace-id "$SHOPRO_WORKSPACE_
 ```sh
 python3 scripts/deploy_volcengine.py prepare \
   --backend-url "$SHOPRO_BACKEND_URL" \
-  --anon-key-file deploy/volcengine/anon.local
+  --anon-key-file deploy/volcengine/anon.local \
+  --terms-url "$SHOPRO_TERMS_URL" \
+  --privacy-url "$SHOPRO_PRIVACY_URL"
 ```
 
 生成 `.volcengine-build/frontend.zip`、SQL 和 manifest。URL、anon key 指纹、ZIP 校验值记录在 manifest。前端构建拒绝模型/支付等敏感 `VITE_*` 变量。已构建 ZIP 的连接信息不会被 Pages bind 自动改写。
@@ -165,7 +171,7 @@ cp .env.example .env
 docker compose -f docker-compose.mcp.yml up -d --build
 ```
 
-配置BaaS HTTPS根地址/anon key及实际域名MCP_ALLOWED_HOSTS，HTTP绑定ECS本机端口经TLS代理公开/mcp；请求携带用户JWT或受限业务Key。45工具不配置模型Key/service_role，创建保存原UUID/参数，媒体确认价格，不自动重发POST。
+配置BaaS HTTPS根地址/anon key与真实MCP_ALLOWED_HOSTS，HTTP本机端口经TLS代理/mcp；59工具/19权限共用用户JWT/Key和九业务入口，原UUID/价格/批次预算，不自动重发POST，不配模型/service_role。SDK目录检查与目标真实TLS/权限/供应商另验收。
 
 ## 8. 验收
 
@@ -183,4 +189,4 @@ npm run build
 
 云端验收：邮箱/OTP 登录、RLS 用户隔离、方舟文本 SSE、视频提交/刷新恢复、页面关闭后执行、明确失败退款、成片转存播放、重复支付通知只入账一次、MCP 用户隔离、Pages 深链接刷新。真实模型验收会产生供应商用量，部署前先配置账号与配额。
 
-最新设计见 [技术架构](TECHNICAL_ARCHITECTURE.md)。验收计划见 [TEST_PLAN](TEST_PLAN.md)，本地结果与未覆盖项见 [验证报告](TEST_REPORT_20261021.md)；正式运行还须执行 [运维手册](RUNBOOK.md) 的备份、告警和恢复要求。
+最新设计见 [技术架构](TECHNICAL_ARCHITECTURE.md)，目标AT-01–28见 [测试计划](TEST_PLAN.md)，本地证据见 [2026-10-22报告](TEST_REPORT_20261022.md)。目标正式运行还需 [备份恢复](BACKUP_RECOVERY.md)、外部告警/调度/异地保管和容量验收；仓库合并不创建火山资源。

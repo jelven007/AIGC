@@ -1,26 +1,32 @@
 # AI 能力与提示词方案
 
+更新：2026-10-22，功能基线`d7e3d38`，当前20槽/00062/probe22/render4/edit2、MCP59/19。下列增量保留历史时点，实际模态与边界以正文和 [综合基线](../RELEASE_BASELINE_20261022.md)为准。
+
+## 历史模型增量
+
 市场情报 [迭代15](../ITERATION_15_MARKET_INTELLIGENCE.md)只采集官方或已授权来源，20槽含三个数据源。竞品标题可带入脚本作参考，不代表读过完整视频或证实商品效果；不再用固定策略/关键词冒充分析。模型解读、画面拆解、自动选品投放仍须各自真实输入与验收。
 
 00043 [知识RAG](../ITERATION_14_KNOWLEDGE_RETRIEVAL.md)已提供真实Embedding分块、后台语义查询、私有正文/版本过滤与脚本引用；17槽。知识是资料而非指令，不将旧商品功效/优惠复制为新事实；向量分数不是商业效果。正文保存/AI整理与索引分开，模型失败不产生固定模板“成功”，没有自动微调或训练。供应商与数据容量待部署验收。
 
 00041新增 [真实素材分析](../ITERATION_12_GROUNDED_ANALYSIS.md)：8帧image_url+真实转录输入，文本/ASR旧版本固定，高光仅引用段号并由服务端算时间。分镜/变体/口播严格解析JSON、校验数量/索引/范围；失败不返回预置成功结果。网页Reader实际正文受大小限制；提示资料作为不可信内容，不生成指标或未经提供的产品认证。
 
-更新：2026-10-21，已提交源码 ce90bfe。描述真实调用协议与已知边界，不把模型名称/默认值当作账号权限或云端验收。当前官方后端仍旧版本，见 [当前状态](../CURRENT_STATE.md)；进行中私有媒体/生产任务见 [待验收变更](../PENDING_CHANGES.md)。
+不把模型名称/默认值当作账号权限或云端验收。官方最近成功证据00031/三旧函数，管理最近401；当前已提交源码和待目标事项见 [当前状态](../CURRENT_STATE.md)/[待办](../PENDING_CHANGES.md)。
 
 ## 1. 能力与调用链
 
 | 模态 | 入口/配置 | 当前代码能力 | 边界 |
 | --- | --- | --- | --- |
 | 文本 | text-generation、ai-assistant、text.primary/fallback | OpenAI Chat 协议、真实 SSE/JSON、主备 | 部分历史 AI Action 仍有模板兜底/模拟业务，不能整体宣称无 Mock |
-| 图片/封面 | image-generation、production-jobs、image.primary | OpenAI Images URL/base64，Chat 图片 URL/参考图，真实图片后台归档与恢复 | Images 编辑/扩图/掩码未接入 |
+| 图片/封面/编辑 | image-generation、production-jobs、image.primary | OpenAI Images/Chat图片、GPT Image同域edits JSON、私有原图/透明PNG扩图与矩形重绘，原价/版本/checkpoint | 每输入12MB、同尺寸非交错PNG；真实商品/文字质量待验收，自由画笔/多图界面未提供 |
 | TTS/ASR | production-jobs、audio.tts/asr | OpenAI/Step，后台版本/计费/证据/归档恢复 | ASR 20MB，Step仅WAV/MP3；声音/质量待供应商验收 |
 | 即时声纹/照片口播/口型 | audio.voice_clone、avatar.photo/lipsync | ElevenLabs IVC及原版本配音、D-ID/Sync异步ID查询/MP4归档 | 需声音/形象授权及供应商验证；专业训练和全身动作未实现 |
 | Reader | reader.primary | Jina 协议读取公开商品页交给文本业务 | 登录/CAPTCHA/动态网页不保证；商品事实需核对 |
 | 视频 | video-jobs/Worker、七个 video 槽 | ArkSeedance/MiniMax/SeedanceMini/Wan3/HappyHorse/Kling/Seedance 适配，持久化队列/退款 | 真实权限/素材/画质/时长待验收；不代表七模型云端已开通 |
-| MCP | 7 个工具共用业务端点 | 登录用户 JWT，视频显式 UUID，统一配置 | 无独立模型/计费旁路；不是自动拼接/投放流水线 |
+| Embedding/情报 | embedding.primary、intelligence三槽 | 私有版本RAG/引用；YouTube/eBay/授权网关及私有图片搜索 | 有界检索/真实授权/配额与质量待验收，不是训练/销量榜 |
+| 分镜/多镜头 | 真实SSE/结构校验、batch-video-jobs | 用户确认镜头/台词/音色，原阶段预算/版本、测量/字幕/合成/预览后发布 | 不自动编造事实台词，过长配音不截断，真实供应商容量待验收 |
+| MCP | 59工具/19权限共用九业务端点 | 请求JWT/Key隔离、原UUID/价格/预算，与网页任务一致 | 无模型/资金旁路；未公开独立掩码工具 |
 
-设置页共有16槽，协议与管理员授权见 [MODEL_SETTINGS](../MODEL_SETTINGS.md)。后台语音与数字人契约/测试见 [迭代11](../ITERATION_11_AUDIO_AVATAR_JOBS.md)。所有真实运行接口读取该配置服务，历史Secrets仅可一次导入，不自动回退。
+设置页20槽，协议/管理员授权见 [MODEL_SETTINGS](../MODEL_SETTINGS.md)。后台媒体、分析、知识、情报与翻译读取创建时版本；历史Secrets仅一次导入，不自动回退。
 
 ## 2. 任务与配置
 
@@ -53,6 +59,6 @@
 
 ## 5. 后续缺口
 
-先升级匹配后端/管理员/主密钥并验收真实模型。继续治理 ai-assistant 模板兜底/模拟分析，若失败不能完成需求，应明确失败并按原流水补偿。工作区生产任务/私有素材完成后再更新接口与验收；新协议、按模型定价、完整渲染/发布/数据回流另立需求。
+先部署匹配00062/全部共享模块/管理员/主密钥，验收真实模型和历史配置；失败不得用模板冒充成功。现有生产/私有素材/渲染/发布/数据已有本地执行器；按模型分层定价、更多供应商/平台、长媒体质量和容量另验收。
 
-数字人口型已有正式协议与后台任务本地验证；完整RAG、自学习、全自动生产和销量优化尚未交付。技术结构见 [架构](../TECHNICAL_ARCHITECTURE.md)，MCP用法见 [接入指南](../../mcp/mcp.md)。
+照片口播/口型、私有有界RAG和多镜头合成已有本地验证；专业训练/全身动作、自动学习投放/销量优化、企业账套和商业资源交易未交付。技术结构见 [架构](../TECHNICAL_ARCHITECTURE.md)，MCP见 [接入](../../mcp/mcp.md)，最新证据见 [报告](../TEST_REPORT_20261022.md)。
