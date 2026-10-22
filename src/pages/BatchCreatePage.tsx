@@ -19,8 +19,10 @@ import { BatchJobError, controlBatchVideoJob, createBatchVideoJob, listBatchVide
 interface Product { id: string; name: string; category: string; price: number | null }
 interface PendingBatch { key: string; input: BatchInput }
 const states: Record<string, string> = { pending: '等待中', processing: '处理中', paused: '已暂停',
-  cancelling: '等待已提交任务结束', completed: '全部完成', partial: '部分完成', failed: '已失败', cancelled: '已取消' };
-const active = (job: BatchVideoJob) => ['pending', 'processing', 'paused', 'cancelling'].includes(job.status);
+  running: '处理中', waiting: '等待依赖', active: '已排队', unknown: '待核对', awaiting_confirmation: '等待预览确认',
+  awaiting_publish: '等待确认发布', cancelling: '等待已提交任务结束', completed: '全部完成', partial: '部分完成', failed: '已失败', cancelled: '已取消' };
+const active = (job: BatchVideoJob) => ['pending', 'processing', 'paused', 'cancelling', 'awaiting_publish'].includes(job.status);
+const stageNames: Record<string, string> = { video: '镜头', tts: '配音', subtitles: '音轨测量与字幕', render: '成片合成', publish: '发布' };
 const message = (cause: unknown) => cause instanceof Error ? cause.message : '操作失败，请重试';
 
 function ProductPicker({ open, onClose, onSelect, excluded }: {
@@ -76,6 +78,12 @@ export default function BatchCreatePage() {
   const [provider, setProvider] = useState('');
   const [models, setModels] = useState<ModelCatalogEntry[]>([]);
   const [quote, setQuote] = useState<number | null>(null);
+  const [pipelineCosts, setPipelineCosts] = useState<{ video: number; tts: number; subtitles: number; render: number } | null>(null);
+  const [pipelineEnabled, setPipelineEnabled] = useState(false);
+  const [shots, setShots] = useState('商品外观特写\n商品在真实使用场景中的展示');
+  const [voice, setVoice] = useState('');
+  const [subtitles, setSubtitles] = useState(true);
+  const [delivery, setDelivery] = useState<'render' | 'publish'>('render');
   const [configError, setConfigError] = useState('');
   const [settings, setSettings] = useState<BatchInput['settings']>({
     duration: 5, ratio: '9:16', resolution: '720P', style: '专业商品展示', language: 'zh',
@@ -93,7 +101,8 @@ export default function BatchCreatePage() {
     if (!storageKey) { setPending(null); return; }
     try {
       const stored = sessionStorage.getItem(storageKey);
-      setPending(stored ? JSON.parse(stored) : null);
+      const saved = stored ? JSON.parse(stored) : null;
+      setPending(saved && typeof saved.key === 'string' && saved.input?.name && Array.isArray(saved.input.product_ids) ? saved : null);
     } catch { setPending(null); }
   }, [storageKey]);
   const loadConfig = useCallback(async () => {
@@ -103,8 +112,9 @@ export default function BatchCreatePage() {
       const prices = await quoteBatchVideoJobs();
       const enabled = catalog.configs.filter(item => item.category === 'video' && item.enabled);
       setModels(enabled); setQuote(prices.unit_cost);
+      setPipelineCosts(prices.pipeline_costs || null);
       setProvider(prev => enabled.some(item => item.provider === prev) ? prev : enabled[0]?.provider || '');
-    } catch (cause) { setConfigError(message(cause)); setQuote(null); }
+    } catch (cause) { setConfigError(message(cause)); setQuote(null); setPipelineCosts(null); }
   }, []);
   const loadJobs = useCallback(async (quiet = false) => {
     if (!user) return;
@@ -126,25 +136,43 @@ export default function BatchCreatePage() {
     timer = setTimeout(refresh, 5000);
     return () => { stopped = true; clearTimeout(timer); };
   }, [hasActive, view, loadJobs]);
-  const total = quote == null ? null : products.length * quote;
+  const shotList = shots.split('\n').map(value => value.trim()).filter(Boolean);
+  const unitCost = pipelineEnabled ? pipelineCosts
+    ? shotList.length * pipelineCosts.video + pipelineCosts.tts + (subtitles ? pipelineCosts.subtitles : 0) : null : quote;
+  const total = unitCost == null ? null : products.length * unitCost;
+  const pipelineValid = !pipelineEnabled || (shotList.length >= 2 && shotList.length <= 6 && shotList.every(shot => shot.length <= 500)
+    && voice.trim() && settings.resolution !== '480P' && products.every(product => overrides[product.id]?.narration?.trim()));
   const savePending = (value: PendingBatch | null) => {
-    setPending(value);
-    try { if (value) sessionStorage.setItem(storageKey, JSON.stringify(value)); else sessionStorage.removeItem(storageKey); }
-    catch { /* 内存仍保留原请求；服务端历史可恢复。 */ }
+    try {
+      if (value) sessionStorage.setItem(storageKey, JSON.stringify(value)); else sessionStorage.removeItem(storageKey);
+      setPending(value); return true;
+    } catch {
+      if (!value) setPending(null);
+      return false;
+    }
   };
   const submit = async () => {
     if (!user || submitting.current) return;
-    const attempt = pending || (quote && products.length && provider && name.trim() ? {
+    const cleanOverrides = Object.fromEntries(Object.entries(overrides).map(([id, value]) => [id, {
+      ...(value.prompt?.trim() ? { prompt: value.prompt.trim() } : {}),
+      ...(pipelineEnabled && value.narration?.trim() ? { narration: value.narration.trim() } : {}),
+    }]).filter(([, value]) => Object.keys(value).length));
+    const attempt = pending || (unitCost && products.length && provider && name.trim() && pipelineValid ? {
       key: crypto.randomUUID(), input: { name: name.trim(), provider, product_ids: products.map(p => p.id),
-        settings, overrides, expected_unit_cost: quote, budget: products.length * quote },
+        settings, overrides: cleanOverrides, expected_unit_cost: unitCost, budget: products.length * unitCost,
+        ...(pipelineEnabled ? { pipeline: { shots: shotList, voice: voice.trim(), subtitles, transition: 'none', delivery } } : {}) },
     } : null);
     if (!attempt) { toast.error('请选择商品、模型并确认批次名称和预算'); return; }
-    submitting.current = true; setBusy('create'); savePending(attempt);
+    submitting.current = true; setBusy('create');
+    if (!savePending(attempt)) {
+      toast.error('无法保存提交回执，请允许会话存储后再提交');
+      submitting.current = false; setBusy(''); return;
+    }
     try {
       const batch = await createBatchVideoJob(attempt.key, attempt.input);
       savePending(null); setProducts([]); setOverrides({}); setView('history'); setExpanded(batch.id);
       setJobs(prev => [batch, ...prev.filter(job => job.id !== batch.id)]);
-      toast.success(`批次已创建，预占 ${batch.reserved_credits} 积分`);
+      toast.success(`批次已保存，当前预占 ${batch.reserved_credits} 积分`);
     } catch (cause) {
       toast.error(message(cause));
       // 明确的事务拒绝没有扣费，可以编辑表单；网络/服务故障保留原请求防止重复预占。
@@ -168,7 +196,7 @@ export default function BatchCreatePage() {
   return <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-5">
     <div className="flex flex-wrap justify-between gap-3">
       <div><h1 className="text-xl font-bold flex gap-2 items-center"><Layers className="w-5 h-5" />批量生成工作台</h1>
-        <p className="text-sm text-muted-foreground mt-1">一商品一条视频，关闭页面后后台继续处理。</p></div>
+        <p className="text-sm text-muted-foreground mt-1">逐商品生成镜头、配音和成片，关闭页面后后台继续处理。</p></div>
       <div className="flex gap-2">
         <Button variant={view === 'create' ? 'default' : 'outline'} onClick={() => setView('create')}>新建任务</Button>
         <Button variant={view === 'history' ? 'default' : 'outline'} onClick={() => { setView('history'); void loadJobs(); }}>历史任务</Button>
@@ -181,8 +209,24 @@ export default function BatchCreatePage() {
         <Button onClick={() => void submit()} disabled={!!busy}>{busy ? '恢复中…' : '恢复上次提交'}</Button>
       </div>}
       <Card><CardHeader><CardTitle className="text-base">商品与生成要求</CardTitle>
-        <CardDescription>读取商品已登记卖点；目标语言和风格作为生成提示，文字、配音和字幕效果请检查成片。</CardDescription></CardHeader>
+        <CardDescription>镜头使用已登记商品事实；多镜头模式执行独立配音和真实音轨字幕，发布前可预览成片。</CardDescription></CardHeader>
         <CardContent className="space-y-4">
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={pipelineEnabled} disabled={!!pending || !!busy}
+            onChange={e => setPipelineEnabled(e.target.checked)} />启用多镜头配音与合成</label>
+          {pipelineEnabled && <fieldset disabled={!!pending || !!busy} className="rounded-lg border p-4 space-y-3">
+            <div><label htmlFor="batch-shots" className="text-sm">镜头要求（每行一个，2–6个）</label>
+              <Textarea id="batch-shots" maxLength={3005} value={shots} onChange={e => setShots(e.target.value)} /></div>
+            <div><label htmlFor="batch-voice" className="text-sm">供应商音色ID</label>
+              <Input id="batch-voice" maxLength={200} value={voice} onChange={e => setVoice(e.target.value)} placeholder="填写已配置TTS供应商的音色ID" /></div>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={subtitles} onChange={e => setSubtitles(e.target.checked)} />生成时间分段字幕</label>
+            <div><label htmlFor="batch-delivery" className="text-sm">交付方式</label>
+              <select id="batch-delivery" className="w-full h-10 rounded-md border bg-background px-3 text-sm" value={delivery}
+                onChange={e => setDelivery(e.target.value as 'render' | 'publish')}>
+                <option value="render">保存合成成片</option><option value="publish">合成后预览并确认多账号发布</option></select></div>
+            <p className="text-sm text-muted-foreground">总镜头时长 {shotList.length * settings.duration} 秒。逐商品填写目标语言台词；
+              配音超出总时长会停止后续合成，请缩短台词或增加镜头。字幕使用已配置的语音识别，支持最多70段。</p>
+            {!pipelineCosts && <p role="alert" className="text-sm text-destructive">配音与字幕价格尚未就绪，请重试配置或联系管理员。</p>}
+          </fieldset>}
           <div className="flex justify-between items-center gap-3"><p>已选择 {products.length} / 50 个商品</p>
             <Button variant="outline" disabled={!!pending || !!busy} onClick={() => setPickerOpen(true)}><Plus className="w-4 h-4 mr-1" />添加商品</Button></div>
           {!products.length && <p className="py-6 text-center text-muted-foreground"><Package className="w-8 h-8 mx-auto mb-2" />从商品库选择要生成的商品</p>}
@@ -196,9 +240,14 @@ export default function BatchCreatePage() {
               <Textarea id={`prompt-${product.id}`} maxLength={7000} disabled={!!pending || !!busy}
                 value={overrides[product.id]?.prompt || ''} placeholder="展示角度、场景或文案要求"
                 onChange={e => setOverrides(prev => {
-                  const next = { ...prev }; if (e.target.value.trim()) next[product.id] = { prompt: e.target.value }; else delete next[product.id];
+                  const next = { ...prev }; next[product.id] = { ...next[product.id] };
+                  if (e.target.value.trim()) next[product.id].prompt = e.target.value; else delete next[product.id].prompt;
+                  if (!next[product.id].prompt && !next[product.id].narration) delete next[product.id];
                   return next;
                 })} />
+              {pipelineEnabled && <div className="mt-3"><label htmlFor={`narration-${product.id}`} className="text-sm">目标语言配音正文（必填）</label>
+                <Textarea id={`narration-${product.id}`} maxLength={2000} value={overrides[product.id]?.narration || ''} disabled={!!pending || !!busy}
+                  onChange={e => setOverrides(prev => ({ ...prev, [product.id]: { ...prev[product.id], narration: e.target.value } }))} /></div>}
             </div>)}
           </div>
         </CardContent></Card>
@@ -212,14 +261,14 @@ export default function BatchCreatePage() {
             <div><label htmlFor="batch-provider" className="text-sm">视频模型</label><select id="batch-provider" className="w-full h-10 rounded-md border bg-background px-3 text-sm"
               value={provider} onChange={e => setProvider(e.target.value)}>{!models.length && <option value="">尚未配置</option>}
               {models.map(item => <option key={item.slot} value={item.provider}>{item.name}</option>)}</select></div>
-            <div><label htmlFor="batch-duration" className="text-sm">视频时长（秒）</label><Input id="batch-duration" type="number" min={2} max={15}
+            <div><label htmlFor="batch-duration" className="text-sm">{pipelineEnabled ? '每个镜头时长（秒）' : '视频时长（秒）'}</label><Input id="batch-duration" type="number" min={2} max={15}
               value={settings.duration} onChange={e => setSettings(prev => ({ ...prev, duration: Number(e.target.value) }))} /></div>
             <div><label htmlFor="batch-ratio" className="text-sm">画幅</label><select id="batch-ratio" className="w-full h-10 rounded-md border bg-background px-3 text-sm"
               value={settings.ratio} onChange={e => setSettings(prev => ({ ...prev, ratio: e.target.value }))}>
               {['9:16', '16:9', '1:1', '4:3', '3:4'].map(value => <option key={value}>{value}</option>)}</select></div>
             <div><label htmlFor="batch-resolution" className="text-sm">分辨率</label><select id="batch-resolution" className="w-full h-10 rounded-md border bg-background px-3 text-sm"
               value={settings.resolution} onChange={e => setSettings(prev => ({ ...prev, resolution: e.target.value }))}>
-              {['480P', '720P', '1080P'].map(value => <option key={value}>{value}</option>)}</select></div>
+              {(pipelineEnabled ? ['720P', '1080P'] : ['480P', '720P', '1080P']).map(value => <option key={value}>{value}</option>)}</select></div>
             <div><label htmlFor="batch-language" className="text-sm">目标语言</label><select id="batch-language" className="w-full h-10 rounded-md border bg-background px-3 text-sm"
               value={settings.language} onChange={e => setSettings(prev => ({ ...prev, language: e.target.value }))}>
               {Object.entries({ zh: '中文', en: '英语', ja: '日语', ko: '韩语', th: '泰语', vi: '越南语' }).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
@@ -228,9 +277,9 @@ export default function BatchCreatePage() {
           </fieldset>
           <p className="text-sm text-muted-foreground">模型可能调整时长与分辨率；不支持的规格或商品图片将整批拒绝，不扣积分。</p>
           <div className="flex flex-wrap justify-between items-center gap-3 pt-4 border-t">
-            <div className="text-sm"><p>单条 {quote ?? '—'} 积分 · 本批预占 <strong>{total ?? '—'}</strong> 积分</p>
+            <div className="text-sm"><p>单个商品 {unitCost ?? '—'} 积分 · 本批预占 <strong>{total ?? '—'}</strong> 积分</p>
               <p className="text-muted-foreground">当前余额 {credits.loading ? '读取中…' : credits.creditsLeft} 积分</p></div>
-            <Button onClick={() => void submit()} disabled={!!pending || !!busy || !products.length || !provider || quote == null || !name.trim()
+            <Button onClick={() => void submit()} disabled={!!pending || !!busy || !products.length || !provider || unitCost == null || !name.trim() || !pipelineValid
               || !settings.style.trim() || !Number.isInteger(settings.duration) || settings.duration < 2 || settings.duration > 15}>
               {busy === 'create' && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}确认预算并创建批次</Button>
           </div>
@@ -263,8 +312,15 @@ export default function BatchCreatePage() {
           <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm break-words min-w-0">{item.product_name || '已删除商品'}</p>
             <span className="text-sm">{item.needs_attention ? '待核对' : states[item.status] || item.status}</span></div>
           {item.error_message && <p className="text-sm text-destructive break-words">{item.error_message}</p>}
-          <div className="flex gap-3 text-sm">{item.project_id && <Link className="underline" to={`/video/edit?importId=${encodeURIComponent(item.project_id)}`}>打开工程</Link>}
-            {item.status === 'completed' && item.video_url && <a className="underline" href={item.video_url} target="_blank" rel="noreferrer">打开成片</a>}</div>
+          {item.stages && <ol className="space-y-1 text-sm">{item.stages.map(stage => <li key={stage.id} className="flex flex-wrap justify-between gap-2">
+            <span>{stageNames[stage.kind] || stage.kind}{stage.kind === 'video' ? ` ${stage.position + 1}` : ''} · {states[stage.status] || stage.status}</span>
+            <span className="text-muted-foreground">{stage.credit_cost} 积分 · {stage.billing_state === 'refunded' ? '已返还'
+              : stage.billing_state === 'settled' ? '已结算' : stage.billing_state === 'free' ? '免积分' : '预占中'}</span>
+          </li>)}</ol>}
+          <div className="flex flex-wrap gap-3 text-sm">{item.project_id && (!job.pipeline || item.video_url) && <Link className="underline" to={`/video/edit?importId=${encodeURIComponent(item.project_id)}`}>打开工程</Link>}
+            {item.video_url && <a className="underline" href={item.video_url} target="_blank" rel="noreferrer">打开成片</a>}
+            {item.status === 'awaiting_publish' && item.project_id && <Link className="underline"
+              to={`/publish?projectId=${item.project_id}&batchItemId=${item.id}&batchRequestKey=${item.stages?.find(stage => stage.kind === 'publish')?.request_key || ''}`}>预览并确认发布</Link>}</div>
         </div>)}</div>}
       </CardContent></Card>)}
     </div>}

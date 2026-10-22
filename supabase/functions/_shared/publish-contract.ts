@@ -7,6 +7,7 @@ export type PublishTarget = { connection_id: string; options: PublishOptions };
 export type PublishGroupRequest = {
   project_id: string; title: string; description: string; tags: string[];
   source_url: string; duration: number; scheduled_at: string | null; targets: PublishTarget[];
+  batch_item_id?: string;
 };
 export function publishOptions(value: any): PublishOptions {
   if (!value || value.consent !== true || typeof value.privacy_level !== 'string' || !value.privacy_level
@@ -24,7 +25,8 @@ export function groupRequest(body: any): PublishGroupRequest {
     || typeof body.source_url !== 'string' || !body.source_url.startsWith('https://') || body.source_url.length > 4000
     || !Number.isFinite(body.duration) || body.duration <= 0
     || !Array.isArray(body.targets) || body.targets.length < 1 || body.targets.length > 10
-    || body.targets.some((target: any) => !target || !uuid(target.connection_id))) {
+    || body.targets.some((target: any) => !target || !uuid(target.connection_id))
+    || body.batch_item_id !== undefined && !uuid(body.batch_item_id)) {
     throw new Error('请选择成片和1至10个账号，标题、简介或标签超出限制');
   }
   const targets: PublishTarget[] = body.targets.map((target: any) => ({
@@ -36,7 +38,8 @@ export function groupRequest(body: any): PublishGroupRequest {
   }
   return { project_id: body.project_id.toLowerCase(), title: body.title, description: body.description,
     tags: body.tags, source_url: body.source_url, duration: body.duration,
-    scheduled_at: body.scheduled_at == null ? null : new Date(body.scheduled_at).toISOString(), targets };
+    scheduled_at: body.scheduled_at == null ? null : new Date(body.scheduled_at).toISOString(), targets,
+    ...(body.batch_item_id ? { batch_item_id: body.batch_item_id.toLowerCase() } : {}) };
 }
 export function capabilityError(info: any, options: PublishOptions, duration: number): string | null {
   if (!Array.isArray(info?.privacy_level_options) || !info.privacy_level_options.includes(options.privacy_level)) {

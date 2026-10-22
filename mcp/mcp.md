@@ -1,5 +1,7 @@
 # MCP 接入指南
 
+更新：2026-10-22，迭代27目录59个实际SDK工具/19业务权限。新增submit_batch_pipeline，需独立batch:create；报价按镜头数×video+tts+可选subtitles确认整批预算。submit_publish_group支持batch_item_id，使用快照中的publish阶段原UUID和真实成片预览源并逐账号确认。00032–00055、probe16/render4/edit2和匹配全栈待发布。见 [多镜头编排契约](../docs/ITERATION_27_BATCH_PIPELINE.md)；以下旧迭代计数为历史时点。
+
 更新：2026-10-22，迭代26目录58个实际SDK工具/18业务权限，新增get_edit_prices和submit_edit_analysis；创建沿render:create/原UUID/确认价格/片段裁剪速度与本人工程，价格读取沿jobs:read，query_production_status沿jobs:read。00032–00054、probe15/render4/edit1与匹配全栈待发布。见 [资源与MCP契约](../docs/ITERATION_26_EDITOR_ASSETS.md)；以下旧迭代计数为历史时点。
 
 更新：2026-10-22，迭代23提供56个实际SDK工具/18业务权限，新增revoke_voice_clone与delete_knowledge_entry，沿网页原UUID/用户身份/撤销与知识副本清理事务。撤销需audio:create，知识删除需knowledge:write；未知受理不盲目退款/重发。00032–00051与probe12/render2待匹配全栈发布及真实删除验收。见 [当前状态](../docs/CURRENT_STATE.md) 与 [生命周期契约](../docs/ITERATION_23_DATA_LIFECYCLE.md)。
@@ -49,7 +51,7 @@ HTTP ContextVar 在每次请求后重置，无状态传输避免用户会话混�
 
 计费沿用业务入口：文本暂不扣应用积分且有频控；视频、图片、媒体、分析、知识和情报按服务端表计费，媒体/分析/知识/情报须显式确认读取的价格，批次另有预算。渲染/发布目前不扣应用积分，但消耗基础设施和平台配额。创建返回任务不代表完成；重试复用UUID与完整参数，unknown不重提、不凭超时退款。
 
-18种权限目录由`api-scopes.ts`共用。商品读/写、知识读/写、情报读/写、发布创建/读取和指标读取/同步相互独立；generic jobs:read可读自有生产结果。API Key每分钟最多100次，接口另外执行用户限流。持有全部业务权限仍不能管理Key、OAuth授权/撤销、平台应用或支付。MCP仅接受固定九个业务函数，不开放任意路由。
+19种权限目录由`api-scopes.ts`共用。多镜头batch:create与单视频video:create独立；批次控制继续使用video:create。商品读/写、知识读/写、情报读/写、发布创建/读取和指标读取/同步相互独立；generic jobs:read可读自有生产结果。API Key每分钟最多100次，接口另外执行用户限流。持有全部业务权限仍不能管理Key、OAuth授权/撤销、平台应用或支付。MCP仅接受固定九个业务函数，不开放任意路由。
 
 业务网络中断或503返回脱敏错误和原request_key，不自动POST重试；响应正文上限2MB、不跟随重定向。客户端先查询原键，仍不确定则以完全相同参数恢复，不能重新生成UUID。
 

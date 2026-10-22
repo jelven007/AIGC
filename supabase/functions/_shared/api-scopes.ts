@@ -1,6 +1,7 @@
 // 同一权限目录供业务接口、密钥签发和开放 API 页面使用。
 export const API_PERMISSIONS = [
   ['video:create', '创建视频与素材分析'], ['video:read', '查看视频任务与批次报价'],
+  ['batch:create', '创建多镜头、配音、字幕与合成批次'],
   ['image:create', '生成图片'], ['render:create', '渲染与多规格导出'],
   ['jobs:read', '查看生产任务、结果与媒体价格'], ['script:generate', '文本与脚本生成'],
   ['publish:create', '发布与取消待提交作品'], ['publish:read', '读取发布任务与已授权账号'],

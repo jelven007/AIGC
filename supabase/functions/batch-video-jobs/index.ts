@@ -2,6 +2,8 @@ import { authenticateRequest, createServiceClient } from '../_shared/auth.ts';
 import { validateBatchRequest, prepareBatchItems } from '../_shared/batch-video.ts';
 import { providerConfig } from '../_shared/video-providers.ts';
 import { signMediaTree } from '../_shared/private-media.ts';
+import { pipelineVersions } from '../_shared/batch-pipeline.ts';
+import { responseBytes } from '../_shared/audio-provider.ts';
 
 const headers = { 'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -14,10 +16,13 @@ export async function handleBatchVideoJobs(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') return new Response(null, { headers });
   if (req.method !== 'POST') return reply({ error: '仅支持 POST' }, 405);
   try {
-    const body = await req.json().catch(() => null);
+    let body;
+    try { body = JSON.parse(new TextDecoder().decode(await responseBytes(new Response(req.body), 512 * 1024))); }
+    catch { return reply({ error: '请求格式非法或超过512KB' }, 400); }
     if (!body || typeof body !== 'object' || Array.isArray(body)) return reply({ error: '请求格式非法' }, 400);
     const auth = await authenticateRequest(req, ['quote', 'list', 'query'].includes(body.action) ? 'video:read'
-      : ['create', 'pause', 'resume', 'cancel'].includes(body.action) ? 'video:create' : undefined);
+      : body.action === 'create' && body.pipeline ? 'batch:create'
+        : ['create', 'pause', 'resume', 'cancel'].includes(body.action) ? 'video:create' : undefined);
     if (auth.error || !auth.user || auth.isServiceRole) return reply({ error: auth.error || '请先登录' }, auth.status || 401);
     const db = createServiceClient();
     const snapshot = async (id: string) => {
@@ -28,7 +33,12 @@ export async function handleBatchVideoJobs(req: Request): Promise<Response> {
     if (body.action === 'quote') {
       const { data, error } = await db.from('credit_costs').select('cost').eq('action', 'generate_video').single();
       if (error || !data || !Number.isInteger(data.cost) || data.cost <= 0) return reply({ error: '视频积分价格未配置' }, 503);
-      return reply({ unit_cost: data.cost, max_items: 50, max_active_batches: 5 });
+      const media = await db.from('credit_costs').select('action,cost').in('action', ['generate_tts', 'generate_edit_subtitles']);
+      const costs = Object.fromEntries((media.data || []).map((row: any) => [row.action, row.cost]));
+      const ready = !media.error && ['generate_tts', 'generate_edit_subtitles'].every(action =>
+        Number.isInteger(costs[action]) && costs[action] >= 0);
+      return reply({ unit_cost: data.cost, max_items: 50, max_active_batches: 5,
+        pipeline_costs: ready ? { video: data.cost, tts: costs.generate_tts, subtitles: costs.generate_edit_subtitles, render: 0 } : null });
     }
     if (body.action === 'create') {
       if (!uuid(body.request_key)) return reply({ error: '缺少幂等请求标识' }, 400);
@@ -39,15 +49,18 @@ export async function handleBatchVideoJobs(req: Request): Promise<Response> {
       const previous = await db.from('batch_jobs').select('id').eq('user_id', auth.user.id)
         .eq('request_key', body.request_key).maybeSingle();
       if (previous.error) return reply({ error: '创建结果未确认，请使用相同请求标识重试' }, 503);
-      let items = null, versionId = null;
+      let items = null, versionId = null, versions = null;
       if (!previous.data) {
         try {
           const config = await providerConfig(request.provider, db);
           versionId = config.versionId;
+          if (request.pipeline) versions = await pipelineVersions(db, request, config.versionId);
           items = await prepareBatchItems(db, auth.user.id, request);
         } catch (cause) { return reply({ error: cause instanceof Error ? cause.message : '商品或模型配置非法' }, 400); }
       }
-      const created = await db.rpc('create_batch_video_jobs', { p_user_id: auth.user.id,
+      const created = request.pipeline ? await db.rpc('create_batch_pipeline', { p_user: auth.user.id,
+        p_key: body.request_key, p_request: request, p_items: items, p_versions: versions })
+        : await db.rpc('create_batch_video_jobs', { p_user_id: auth.user.id,
         p_request_key: body.request_key, p_name: request.name, p_provider: request.provider,
         p_request: request, p_items: items, p_config_version: versionId,
         p_expected_unit_cost: request.expected_unit_cost, p_budget: request.budget });

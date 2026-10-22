@@ -97,3 +97,17 @@ reset(); transactionError = { message: 'refund database outage' };
 assert.equal((await handleBatchVideoJobs(request({ action: 'cancel', batch_id: requestKey }))).status, 503);
 assert.equal((await handleBatchVideoJobs(request({ action: 'forge_completed', batch_id: requestKey }))).status, 400);
 console.log('PASS API Key 独立权限与取消故障不冒报成功，不接受伪造终态');
+const pipeline = { ...valid, pipeline: { shots: ['特写', '展示'], voice: 'alloy', subtitles: true, transition: 'none', delivery: 'render' },
+  overrides: { [productId]: { narration: '用户确认的台词' } }, expected_unit_cost: 25, budget: 25 };
+reset(); consumed = { error: 'scope_denied', status: 403 };
+assert.equal((await handleBatchVideoJobs(request(pipeline, token))).status, 403);
+assert.equal(scope, 'batch:create');
+assert.equal(calls.some(call => call.name !== 'consume_api_key'), false);
+reset(); existing = { id: requestKey };
+assert.equal((await handleBatchVideoJobs(request(pipeline, token))).status, 202);
+assert.equal(scope, 'batch:create');
+assert.equal(calls.at(-1).name, 'create_batch_pipeline');
+assert.equal(calls.at(-1).args.p_versions, null);
+assert.equal(calls.at(-1).args.p_items, null);
+assert.equal(calls.at(-1).args.p_user, uid);
+console.log('PASS 多镜头独立batch:create权限与原批次恢复，不通过单视频权限创建配音合成');

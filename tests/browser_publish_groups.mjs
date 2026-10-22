@@ -4,6 +4,7 @@ const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright')
 const uid = '11111111-1111-4111-8111-111111111111', projectId = crypto.randomUUID();
 const backend = 'https://ui-fixture.example', base = process.env.UI_TEST_URL || 'http://127.0.0.1:5197';
 const source = `${backend}/storage/v1/object/authenticated/materials/${uid}/video.mp4`;
+const batchItem = process.env.BATCH_PUBLISH ? crypto.randomUUID() : null, batchKey = crypto.randomUUID();
 const accounts = [{ id: crypto.randomUUID(), platform: 'tiktok', display_name: '主账号', status: 'active' },
   { id: crypto.randomUUID(), platform: 'douyin', display_name: '门店账号', status: 'active' }];
 const session = { access_token: `header.${Buffer.from(JSON.stringify({ sub: uid, exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url')}.fixture`,
@@ -56,7 +57,7 @@ try {
   });
   const page = await context.newPage();
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto(`${base}/publish`);
+  await page.goto(`${base}/publish${batchItem ? `?projectId=${projectId}&batchItemId=${batchItem}&batchRequestKey=${batchKey}` : ''}`);
   await page.getByRole('heading', { name: '创建发布组' }).waitFor();
   await page.getByRole('combobox').first().selectOption(projectId);
   await page.getByRole('checkbox', { name: 'tiktok · 主账号', exact: true }).check();
@@ -79,6 +80,10 @@ try {
   await page.getByRole('button', { name: '按原参数重试' }).waitFor();
   assert.equal(attempts.length, 1); assert.equal(attempts[0].targets.length, 2);
   assert.equal(attempts[0].source_url, source);
+  if (batchItem) {
+    assert.equal(attempts[0].batch_item_id, batchItem);
+    assert.equal(attempts[0].request_key, batchKey);
+  }
   assert.equal(await page.getByLabel('标题', { exact: true }).isEnabled(), false);
   await page.reload();
   await page.getByRole('button', { name: '按原参数重试' }).waitFor();

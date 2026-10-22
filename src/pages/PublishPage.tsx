@@ -159,8 +159,12 @@ export default function PublishPage() {
           const invalid = capabilityError(creators[target.connection_id], target.options, project.duration);
           if (invalid) throw new Error(invalid);
         }
-        const key = crypto.randomUUID();
+        const batchItem = params.get('batchItemId');
+        const batchKey = params.get('batchRequestKey');
+        if (batchItem && (!uuid(batchItem) || !uuid(batchKey))) throw new Error('请从批次成片入口恢复原发布标识');
+        const key = batchItem ? batchKey! : crypto.randomUUID();
         const payload: PublishGroupRequest = groupRequest({ ...form, request_key: key,
+          ...(batchItem ? { batch_item_id: batchItem } : {}),
           source_url: canonicalMedia(project.video_url), duration: project.duration,
           tags: form.tags.split(/[,，\s]+/).filter(Boolean), scheduled_at: form.scheduled_at ? new Date(form.scheduled_at).toISOString() : null });
         saved = { action: 'create_group', request_key: key, payload };
