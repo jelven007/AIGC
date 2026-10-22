@@ -1,5 +1,9 @@
 # 视频任务后台调度
 
+更新：2026-10-22，功能基线`d7e3d38`。当前production模式严格probe22/00062/render4/edit2；旧video-job-worker模式probe1仅覆盖视频。当前操作见正文；以下旧探针为历史。
+
+## 历史调度增量
+
 最新 [迭代33](ITERATION_33_CREDITS_SMS.md)：production严格probe21/00061/render4/edit2，新增本人权威积分RPC权限预检。重建调度镜像并匹配production-worker/全部函数/00032–00061/前端；旧probe20拒绝，monitor持久卷要求保持。官方旧Cron不提供这套轮转，下文为历史协议。
 
 当前 [迭代31](ITERATION_31_ACCOUNT_STORYBOARD.md)：production严格probe19/00059/render4/edit2，预检新增profile概览/头像引用触发器核对；重建调度镜像并匹配production-worker/operations/00032–00059及前端。常驻每分钟monitor独立于任务执行，最近三分钟采集成功才健康，连续三次失败及恢复同卷保存。宿主完全停机仍需外部监控；官方旧视频Cron不提供新production/monitor轮转。
@@ -28,7 +32,7 @@ production-worker新增knowledge_index/search轮转执行，与现有视频/图�
 
 00041新增 [两段素材分析](ITERATION_12_GROUNDED_ANALYSIS.md)：通用production轮转增加analysis；FFmpeg轮转render与analysis_prepare，prepared后释放租约进入模型阶段。probe升级version=3/required_migration=00041，部署仍需匹配函数与镜像，现有旧视频Cron不会自行支持新分析。
 
-更新：2026-10-21，源码基线 `ce90bfe`。当前实际使用官方 Supabase 云端 Cron；火山方案默认常驻 ECS Docker，尚未部署验收。火山 Cron 扩展需在目标环境确认后才能使用，见 [火山部署指南](VOLCENGINE_DEPLOYMENT.md)。
+官方历史Cron仅旧视频，最近成功证据00031/三函数；管理401后尚未重新确认实时状态。新production轮转依赖常驻调度，火山ECS方案尚未运行验收；扩展Cron需目标确认。
 
 独立 Docker 调度器和 Supabase Cron 配置均已就绪，部署时选择其中一种。调度完全不依赖网页；主机或云端服务必须保持运行。2026-10-21 已创建并接入用户的官方 Supabase `aigcp` 项目，云端 Cron 已启用且完成后台退款验收，见 [部署记录](DEPLOYMENT_AIGCP.md)。当前使用云端 Cron，独立 Docker 调度器未同时启动。
 
@@ -36,11 +40,11 @@ production-worker新增knowledge_index/search轮转执行，与现有视频/图�
 
 ## 推荐：常驻服务器的 Docker 调度器
 
-最新版需要目标环境已核对并应用 00030–00034，特别是 `model_config_version_id`、新版领取函数与配置权限；部署匹配的 `video-job-worker` 与共享模块，并在 Edge Secrets 配置 `VIDEO_WORKER_SECRET`（至少 32 字符）和 `MODEL_CONFIG_ENCRYPTION_KEY`。模型密钥在管理员设置页保存加密版本，调度器无需 service_role、主密钥或模型密钥。
+最新版须目标缺失00032–00062/全部匹配函数与共享模块，production-worker/probe22、FFmpeg render4/edit2、MCP59/前端一致。Edge配置VIDEO_WORKER_SECRET与MODEL_CONFIG_ENCRYPTION_KEY；调度器只需URL/Worker专用密钥，不需service_role/模型/主密钥。
 
 当前官方旧环境仅到 00031、旧 Worker 与 Cron 已运行；不得只替换新版 Worker。缺 00034 时新版 probe 将失败，旧任务还需要核对原账号后绑定版本。升级顺序见 [开发指南](DEVELOPMENT_GUIDE.md)。
 
-1. 在 `deploy/video-scheduler/` 将 `.env.example` 复制为 `.env`，填入自己的 `SUPABASE_URL`。不要使用源仓库演示项目。
+1. 首次从deploy/video-scheduler/.env.example创建.env，填目标SUPABASE_URL并保持`PRODUCTION_WORKER_ENABLED=true`，已有配置不覆盖。旧视频模式不能替代新production。
 2. 将同一 `VIDEO_WORKER_SECRET` 原值写入该目录的 `video_worker_secret` 文件，无变量名，建议文件权限 `600`。该文件及 `.env` 均被 Git 忽略。
 3. 从项目根目录启动：
 
@@ -54,6 +58,8 @@ python3 scripts/manage_video_scheduler.py logs
 
 `status` 中服务应为运行状态，并最终显示 `healthy`。健康检查依据最近成功派发时间；后台失败会保留错误码。`start` 重跑用于恢复停止的服务，不会创建新 Supabase 项目。
 
+生产调度同时每分钟独立monitor，健康还要求最近三分钟扫描成功。scheduler-alerts持久卷保留连续三次失败及恢复事件/计数，重建容器保留卷；该内部记录未配置外部短信/邮件，完全宿主故障需独立监控。run轮转原视频/图片/媒体/知识/情报/翻译/字幕/编排/发布/指标、原渠道交易退款查询与清理，不自动新发现金退款或重提unknown。
+
 ```sh
 python3 scripts/manage_video_scheduler.py stop
 ```
@@ -61,6 +67,8 @@ python3 scripts/manage_video_scheduler.py stop
 停止仅停止后续派发，正在执行的请求可在 160 秒宽限内完成，原任务与扣费记录不会删除。用于本机 Docker 时，关网页仍继续工作，但关闭 Docker 或电脑休眠会暂停；生产环境应放在常驻服务器。
 
 ## Supabase Cron：无需常驻外部主机
+
+本节是旧视频单队列的可选调度。现有SQL不能覆盖新production/monitor/FFmpeg；全栈启用采用前节常驻生产模式，勿同时启动两种视频派发。
 
 目标平台需支持 pg_cron、pg_net、Vault。使用受控数据库管理连接执行：
 
@@ -88,4 +96,4 @@ npm run test:video
 
 测试包含周期恢复、预检不消费任务、HTTP 异常脱敏、并发限制、Cron 重装、到期派发及过期请求回收。数据库测试使用真实 PostgreSQL 与业务迁移；Cron/pg_net/Vault 使用隔离替身，不连接云端、不调用收费模型。
 
-关闭网页和停用调度是不同动作：停用只停止后续派发，浏览器查询仍可领取；发布冻结需同时控制用户生成/查询入口。监控阈值、发布、故障和恢复见 [运维手册](RUNBOOK.md)，本次结果见 [验证报告](TEST_REPORT_20261021.md)。
+关闭网页和停用调度不同：浏览器视频query仍可领取，冻结需控制生成/查询入口。监控/恢复见 [运维手册](RUNBOOK.md)，当前验证见 [2026-10-22报告](TEST_REPORT_20261022.md)；目标吞吐、真实恢复/渠道/SMS/模型/平台与外部告警另验收。

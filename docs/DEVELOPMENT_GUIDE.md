@@ -1,5 +1,9 @@
 # 开发指南
 
+更新：2026-10-22，功能基线`d7e3d38`。当前60个生产迁移（最新00062）、43个生产函数入口、20模型槽、MCP59/19、probe22/render4/edit2。完整需求与交付见 [综合基线](RELEASE_BASELINE_20261022.md)，以下早期摘要保留历史时点。
+
+## 历史开发增量
+
 最新 [迭代33](ITERATION_33_CREDITS_SMS.md)：useCredits共用['credits',uid]查询；CreditsSync只挂AccountScope一次，accountRequest支持取消与原令牌。不得用套餐名称或读取失败的零余额授予/拒绝权益。SMS独立SDK不自动写全局会话，注册需正式VITE_TERMS_URL/VITE_PRIVACY_URL。test:account-credits及两类UI专项验证，所有历史浏览器夹具匹配新RPC。probe21/00061/render4/edit2同窗更新。
 
 当前 [迭代30](ITERATION_30_WORKS_LIBRARY.md)复用materialAssets上传/原回执/身份核对和useRecentWorks限40条只读入口；作品分页每页24项，服务端搜索做字面匹配。公开演示媒体不进入生产资源；测试MP4/WAV只生成在.volcengine-build。
@@ -38,7 +42,7 @@ MCP修改见 [迭代17](ITERATION_17_MCP_PRODUCTION.md)：45工具仅调用业�
 
 增量00041开发入口见 [真实素材分析](ITERATION_12_GROUNDED_ANALYSIS.md)：VideoAnalysisPanel、_shared/video-analysis、structured-analysis、worker/analyze.py。使用`npm run test:analysis`验证真实迁移/协议/FFmpeg，浏览器脚本browser_video_analysis.mjs验证失联恢复与MP4请求。输入视频≤100MB/10分钟，抽样帧不代表完整镜头或BPM测量。
 
-更新：2026-10-21，源码基线 `ce90bfe`。先读 [当前状态](CURRENT_STATE.md) 与 [PRD](prd/PRD.md)。本地源码比当前官方 Supabase 云端新，启动前端成功不代表新版接口已部署。
+先读 [当前状态](CURRENT_STATE.md)与 [PRD](prd/PRD.md)。官方最近成功证据00031/三旧函数，管理最近401；本地启动不证明最新API可用。
 
 ## 1. 环境与首次启动
 
@@ -54,7 +58,7 @@ pnpm dev
 
 复制配置仅用于首次初始化；已有 `.env.local` 时直接编辑，保留目标环境配置。浏览器使用 `http://localhost:5173`；Auth 站点和重定向地址必须允许该地址。
 
-前端仅配置 `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY`。anon/publishable key 是公开客户端凭据，访问权限依赖 Auth、GRANT 和 RLS。模型 Key、service_role、Worker、支付私钥和加密主密钥只进入服务端；构建会拒绝敏感 `VITE_*KEY/SECRET/TOKEN/PASSWORD`。
+前端公开配置`VITE_SUPABASE_URL/VITE_SUPABASE_ANON_KEY`，注册还需正式HTTPS `VITE_TERMS_URL/VITE_PRIVACY_URL`；缺法律资源时禁注册。anon为公开凭据，权限依赖Auth/GRANT/RLS。模型/service_role/Worker/支付与加密密钥只进入服务端，构建拒绝敏感VITE变量。
 
 没有本机 Node 时可用开发容器：
 
@@ -64,13 +68,13 @@ docker run --rm -it -p 127.0.0.1:5173:5173 \
   sh -lc 'corepack enable && pnpm install --frozen-lockfile && pnpm dev'
 ```
 
-容器和宿主若架构不同，不共享安装后的 `node_modules`；安装依赖应在实际执行环境进行。本轮测试使用 Node 20 Alpine，补装其 arm64/musl 原生依赖后构建通过，不代表必须降级开发环境。
+容器与宿主架构不同时不共享node_modules。当前本地验证使用Node24；旧Node20 Alpine记录仅是历史执行环境，不能当作最新运行要求。
 
 ## 2. 后端初始化
 
 | 环境 | 管理工具与入口 | 注意 |
 | --- | --- | --- |
-| 当前官方 Supabase | 官方管理面及受控迁移流程，[部署记录](DEPLOYMENT_AIGCP.md) | 已到 00031，00032–00034 与配套函数尚未发布 |
+| 当前官方 Supabase | 官方管理面及受控迁移流程，[部署记录](DEPLOYMENT_AIGCP.md) | 成功证据00031，管理401；核对后升级缺失00032–00062 |
 | 火山 BaaS Supabase 版 | `byted-supabase-cli`，[火山指南](VOLCENGINE_DEPLOYMENT.md) | 独立 workspace/branch；不能沿用官方管理令牌或推断已迁移 |
 | 隔离测试数据库 | `tests/test_finance.py` 创建 PG16 与平台替身 | 不提供真实 Auth、Storage SDK、PostgREST 或云端函数运行环境 |
 
@@ -91,18 +95,23 @@ docker run --rm -it -p 127.0.0.1:5173:5173 \
 | 目录 | 职责 |
 | --- | --- |
 | `src/pages`、`src/components` | 页面、业务交互、生成任务恢复和模型设置 |
-| `src/db`、`src/lib` | Supabase 客户端、任务 API、模型目录及输入转换 |
+| `src/api`、`src/db`、`src/lib` | 账号固定请求、Supabase客户端、任务/素材/商品API、模型与输入契约 |
 | `supabase/functions/_shared` | 身份验证、协议、配置加解密、计费补偿、视频状态处理 |
 | `supabase/functions/*/index.ts` | HTTP 入口；输入/身份校验与业务调用 |
 | `supabase/migrations` | 递增数据库迁移、权限、资金事务、队列与配置版本 |
 | `supabase/ops` | Cron 安装、状态与停用脚本 |
 | `scripts`、`deploy` | 发布预检、后台调度、Docker 与配置模板 |
-| `mcp` | JWT/受限Key与业务API共用的45工具、SDK目录/传输边界 |
+| `mcp` | JWT/受限Key共用59工具/19权限、SDK目录、九业务入口/传输边界 |
 | `tests` | 真实事务、受控上游协议、调度与发布回归 |
 | `backend` | 缺少核心源码；不作为现有可运行后台 |
 
 ## 4. 实现约束
 
+- `src/App.tsx`的AccountScope按账号重建QueryClient，`src/api/accountSession.ts`固定发起账号JWT并支持取消；`useCredits`共用本人查询和单份订阅。Auth回调不等待SDK自身锁；迟到结果核对当前账号/请求代次，不能恢复旧路由输入。
+- 原UUID和完整输入先保存成功再提交；保存/上传/领取/退款/编排/发布未知都按原回执恢复。JWT只留请求内存。SMS独立客户端验证原手机号后安装全局会话，不直接使用旧代理。
+- 图片编辑共用image-contract/API/worker/00062；原图/掩码私有登记，实际PNG解压有界，确认原价/模型版本。checkpoint恢复不能重新读源或调用模型；刷新配置保留原输入。
+- 编排复用batch_pipeline_stages及原video/production流水；待依赖阶段不占执行名额。费用/锁序修改必须回归套餐→团队/风险→团队行，不能修改已发布00056替代00057。
+- 运营使用当前可信范围、原版本/UUID；工单内部消息过滤，现金账本最小币种单位/凭证/追加冲销。媒体删除使用引用索引、墓碑和租约，不能直接删Storage对象。
 - 关键财务与视频状态只走服务端 RPC；Data API CRUD 同时核对显式权限和 RLS。不接受客户端传来的退款金额、用户 ID 或终态作为证据。
 - 新视频使用显式 UUID 幂等键；同一逻辑请求重试复用键和全部参数。创建响应丢失先找回，不能换键重提。
 - 配置保存追加不可变版本；新任务事务绑定版本。改账号、停用或换 Key 不改变旧任务；主密钥轮换需专门密文迁移。
@@ -115,23 +124,26 @@ docker run --rm -it -p 127.0.0.1:5173:5173 \
 
 ```sh
 npm run typecheck
+npm run lint
 npm run test:finance
 npm run test:payments
 npm run test:video
 npm run test:models
 npm run test:scheduler
 npm run test:volcengine
-python3 tests/test_mcp_backend.py
+npm run test:mcp
 npm run build
 git diff --check
 ```
 
-MCP 测试先在虚拟环境安装 `mcp/requirements_mcp.txt`。Deno 检查从仅挂载 `supabase` 的运行目录执行，避免根目录 npm 配置干扰。`npm run lint` 包含历史 `.rules` 工具和固定路径，不能据类型检查通过宣称整个 lint/CI 已通过；本轮执行范围见 [验证报告](TEST_REPORT_20261021.md)。
+MCP先构建`shoproai-mcp:local`；媒体测试先构建`shoproai-render-worker:local`，备份测试先构建`shoproai-backup:local`。按变更选择image-editing/profile/rewards/account-credits/pipeline/operations/alerts/backup等`package.json`入口，UI脚本使用明确本地夹具服务及Chromium。Deno从仅挂载supabase的目录检查；lint包含typecheck/Biome/ast-grep/Tailwind/检查构建，缺工具或检查失败必须如实记录。最新功能证据见 [2026-10-22报告](TEST_REPORT_20261022.md)。
 
-涉及 API/状态/权限/收费变更时同步 [接口与数据](API_AND_DATA.md)、[测试计划](TEST_PLAN.md)、[运维手册](RUNBOOK.md) 与 [追踪矩阵](CHANGE_TRACEABILITY.md)。提交说明用中文概括实际变更，先本地提交，远端名称与内容确认后再推送。
+涉及API/身份/状态/权限/收费时同步需求、接口、测试、运营/财务与运维。纯文档变更核对链接/锚点/命令/契约/凭据，无需重复全量业务测试。中文提交，明确推送`aigcp`并按 [版本管理](VERSION_MANAGEMENT.md)合并及保留两历史版本。
 
 ## 6. 发布顺序
 
 先保存数据库/Storage/密钥恢复材料并记录版本，再冻结新生成入口、停止后续调度并等待在途请求结束。应用核对后的新增迁移，部署匹配的函数与共享模块，配置 Secrets/管理员/模型版本，绑定核对过的旧任务，执行只读 probe 与隔离权限检查，恢复一种调度器，完成真实业务验收后发布前端。
 
 不单独部署依赖新 RPC 的前端，不将函数 `version:1` 或健康检查结果当作 Git 提交证明。不可变配置与新增数据库字段优先向前修复；回滚函数前核对签名兼容性，不能删除任务、资金流水或旧密文。
+
+当前完整发布必须匹配00062/probe22/render4/edit2、43入口与共享模块、MCP59、注册法律资源和真实Auth/商户/平台。官方旧库不使用火山迁移回执工具重放；仓库push不执行目标部署。

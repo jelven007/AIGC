@@ -1,5 +1,9 @@
 # MCP 接入指南
 
+更新：2026-10-22，功能基线`d7e3d38`；59个实际SDK工具、19业务权限、固定九入口。当前依赖00062/probe22/render4/edit2及全部匹配API，真实TLS/供应商/平台仍待目标验收。以下迭代目录摘要为历史时点，当前参数由tools.json和正文维护。
+
+## 历史目录增量
+
 更新：2026-10-22，迭代27目录59个实际SDK工具/19业务权限。新增submit_batch_pipeline，需独立batch:create；报价按镜头数×video+tts+可选subtitles确认整批预算。submit_publish_group支持batch_item_id，使用快照中的publish阶段原UUID和真实成片预览源并逐账号确认。00032–00055、probe16/render4/edit2和匹配全栈待发布。见 [多镜头编排契约](../docs/ITERATION_27_BATCH_PIPELINE.md)；以下旧迭代计数为历史时点。
 
 更新：2026-10-22，迭代26目录58个实际SDK工具/18业务权限，新增get_edit_prices和submit_edit_analysis；创建沿render:create/原UUID/确认价格/片段裁剪速度与本人工程，价格读取沿jobs:read，query_production_status沿jobs:read。00032–00054、probe15/render4/edit1与匹配全栈待发布。见 [资源与MCP契约](../docs/ITERATION_26_EDITOR_ASSETS.md)；以下旧迭代计数为历史时点。
@@ -37,6 +41,7 @@ HTTP ContextVar 在每次请求后重置，无状态传输避免用户会话混�
 | get_analysis_price/submit_video_analysis | 无/私有视频、title、live或style、UUID、价格，可选competitor_reference | 真实抽帧/ASR任务；竞品参考仅style且须本人sample_id/item_id/rights_confirmed:true，平台播放页不是源素材 |
 | list_product_translations/translate_product | 无/商品ID、expected_updated_at、12语言、include_image布尔、确认价格、UUID | 最近20任务和价格/原版本后台翻译，原UUID恢复；明确失败退款，未知先核对；保存需source_updated_at和用户确认 |
 | get_batch_video_quote/submit_batch_videos | 无/商品IDs、provider、风格语言规格、单价、总预算、UUID | 1–50个自有商品，事务固定快照/版本与整批预占 |
+| submit_batch_pipeline | 原商品/2–6镜头/确认台词/音色/字幕/交付、价格/总预算/UUID | batch:create独立权限，固定全部阶段原流水/版本；实际音轨/合成，发布等预览 |
 | query_video_batch/list_video_batches/control_video_batch | ID或UUID/无/batch_id及pause/resume/cancel | 读取批次，控制未提交项，已受理项继续核对 |
 | list_publish_accounts/get_publish_options | 无/connection_id | 账号安全摘要/实际可见范围；网页完成OAuth授权 |
 | submit_platform_publish/query_platform_publish/list_platform_publish_tasks/cancel_platform_publish | 作品/账号/title/description/tags/options/UUID/排期；原UUID/无/task_id | 发布需完整可见/商业/AIGC及consent选项；取消只影响未提交项，每账号独立UUID |
@@ -68,6 +73,6 @@ Docker：docker compose -f docker-compose.mcp.yml up -d --build；端口绑定 1
 
 支持 streamable-http 的客户端配置实际 /mcp URL 与用户 Authorization；stdio 配置本地 Python/入口路径和受控用户环境。客户端必须处理 JWT 过期、限流和业务错误，不能以一次 initialize 成功宣称生成链路全通。
 
-构建`docker build -t shoproai-mcp:local -f mcp/Dockerfile.mcp mcp`后，在根目录运行`npm run test:mcp`。Python3.12实际SDK验证初始化/并发身份/45工具、旧配音拒绝、各媒体及导出/批量/发布/知识/情报载荷、原请求恢复、跨用户拒绝和传输错误。`npm run test:access`执行真实PG权限/限流/撤销。上线仍须真实TLS/域名、JWT过期、供应商生成、平台发布与持久后台运行验收。
+构建`docker build -t shoproai-mcp:local -f mcp/Dockerfile.mcp mcp`后根目录`npm run test:mcp`检查SDK59工具/19权限、并发身份、媒体/编辑/编排/商品/知识/发布载荷、原UUID与错误/传输。`test:access`核验真实PG撤销/归属/限流。MCP当前图片工具保留生成/参考参数，网页掩码编辑不是新增独立MCP工具；目标需匹配00062、TLS/真实JWT/模型/平台与后台运行。
 
 接口状态见 [API_AND_DATA](../docs/API_AND_DATA.md)，真实验收见 [TEST_PLAN](../docs/TEST_PLAN.md)，部署见 [火山指南](../docs/VOLCENGINE_DEPLOYMENT.md) 或 [官方记录](../docs/DEPLOYMENT_AIGCP.md)。MCP 与前端同版本/同后端，不能用工具绕过配置/计费。

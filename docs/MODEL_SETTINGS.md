@@ -1,5 +1,9 @@
 # 统一模型接口设置
 
+更新：2026-10-22，功能基线`d7e3d38`，20槽、00062/probe22/render4/edit2。当前配置/启用以正文为准，下面旧计数和探针为历史增量。
+
+## 历史配置增量
+
 00053 [剪辑音轨与人物分割](ITERATION_25_EDIT_ANALYSIS.md)不增加供应商槽：字幕固定创建时audio.asr版本，要求openai-asr/whisper-1/verbose_json；无时间段失败退原积分，未知请求不重发。节拍本地FFT不调用供应商；人物PPHumanSeg在镜像构建时固定摘要/许可证并离线推理，不可通过模型设置替换任意ONNX。probe14/00053/render3/edit1，真实供应商及人物边缘/长素材质量仍待验收。
 
 00049 [翻译与图片选品](ITERATION_21_TRANSLATION_NOTIFICATIONS.md)不增加配置槽：翻译固定创建时text.primary版本；勾选主图文字识别须模型支持OpenAI兼容image_url数据URI，真实图片/语言质量另验收，不能仅凭探针判断。eBay图片搜索沿intelligence.ebay应用凭据/Browse官方POST与目标市场，需实际search_by_image权限。执行时私有图读取/魔数/5MB/指纹核对，供应商收到图片字节，不收到Storage签名凭据。probe v10/00049仍待全栈部署。
@@ -14,17 +18,17 @@
 
 新增 [素材分析任务](ITERATION_12_GROUNDED_ANALYSIS.md)复用text.primary与audio.asr，数量仍16槽；任务固定两个旧配置版本。文本模型需真实支持image_url画面，直播ASR须openai-asr/whisper-1及可靠分段；Step只有正文时不能生成高光时间。不要在未验收时宣称视觉模型或声音权限可用。
 
-更新：2026-10-21，源码基线 `ce90bfe`。当前官方 Supabase 仍到 00031，`model_configs` 不存在，以下为最新版启用步骤，尚未在该云端完成。不要仅发布设置页；环境差距见 [当前状态](CURRENT_STATE.md)。
+官方最近成功证据00031/三旧函数/缺model_configs，管理最近401；以下步骤尚未在目标执行。须核对缺失00032–00062与全部匹配函数/镜像，不仅发布设置页，见 [当前状态](CURRENT_STATE.md)。
 
 入口：侧边栏「模型接口设置」→ `/settings/models`。平台管理员可编辑，普通用户仅看到模型名称与启用状态。所有客户端和 MCP 共用服务端配置。
 
-供应商生命周期：OpenAI官方确认Sora 2和Videos API已于2026-09-24关闭，无一对一替代接口。设置页展示退役日期及 [官方说明](https://developers.openai.com/api/reference/resources/videos/methods/create)，退役信息独立于16个可配置槽，不能启用或计费；原Sora函数保持410。不得使用历史API文档宣称当前服务可用，详见 [迭代10](ITERATION_10_RENDER_EXPORTS.md)。
+供应商生命周期：Sora按已记录的2026-09-24官方退役处理，退役信息独立于20可配置槽，不启用/计费，原入口410。依据及日期见 [迭代10](ITERATION_10_RENDER_EXPORTS.md)与 [官方说明](https://developers.openai.com/api/reference/resources/videos/methods/create)。
 
 00040新增audio.voice_clone/ElevenLabs IVC（基础`/v1`、xi-api-key/raw）、avatar.photo/D-ID Talks（`/talks`、Basic已编码凭据）、avatar.lipsync/Sync（`/v2/generate`、x-api-key/raw）；数字人另填查询基础地址，提交最多30秒。后台音频、克隆声纹与原版本配音、人物输入、计费与验收见 [迭代11](ITERATION_11_AUDIO_AVATAR_JOBS.md)。匹配数据库/API/production调度须先发布。
 
 ## 首次启用
 
-1. 核对并先应用未发布的 00032/00033，再应用 `00034_model_registry.sql`，部署新函数、兼容入口与共享模块。火山清单共 26 个生产入口，不包含 `setup-demo`；官方目标按同一入口/鉴权语义逐项发布，不用火山脚本重放旧库。
+1. 核对缺失00032–00062后按序应用；部署manifest的43生产入口及全部共享模块（不含setup-demo），匹配probe22/render4/edit2。官方按同一入口/鉴权逐项发布，不用火山回执脚本重放旧库。
 2. 在受控终端生成 `openssl rand -hex 32`，将结果配置为 Edge Secret `MODEL_CONFIG_ENCRYPTION_KEY`，备份于凭据管理系统。API Key 使用 AES-GCM 加密；更换主密钥前必须迁移所有历史密文，不能直接覆盖。
 3. 用户完成正常 Auth 注册。通过数据库控制台对实际用户授权：
 
@@ -45,15 +49,18 @@ WHERE id = '实际管理员用户UUID';
 |---|---|
 | 主文本 / 备用文本 | OpenAI Chat Completions，文本业务共用主备，首选火山方舟 |
 | 知识索引 / 语义查询 | OpenAI Embeddings，2–1536维浮点、独立模型版本、后台任务 |
-| 图片与封面 | OpenAI Images，同步 URL 或 base64 图片；Chat Completions 图片 URL，可携带参考图 |
+| 图片/封面/编辑 | OpenAI Images结果URL/base64；可选同域images/edits与支持的GPT Image模型，JSON images/mask数据URI；Chat参考图保留 |
 | 语音合成 | OpenAI Audio Speech 或 Step TTS，模型与默认音色可设置 |
 | 语音识别 | OpenAI Audio Transcriptions 或 Step ASR SSE，服务端兼容上传文件与原 Step 输入 |
 | 网页读取 | Jina Reader，将商品网页转换为文本再交给文本模型 |
 | 视频 | ArkSeedance、MiniMax、SeedanceMini、Wan3、HappyHorse、Kling、Seedance 七个现有协议 |
 | 即时声纹与克隆配音 | ElevenLabs IVC，同一历史版本与供应商账号；需本人样本授权，requires_verification=true不可配音 |
 | 照片口播 / 视频口型 | D-ID Talks / Sync Lipsync，已有口播音频与人物输入，保存原ID查询 |
+| 情报三槽 | YouTube官方公开统计、eBay Browse应用凭据、实际授权数据商；固定来源/市场/口径 |
 
-通用字段还包括显示名称、认证请求头、Bearer/原始密钥格式、超时、只读连接检查地址。视频提交最长 30 秒，其余最长 120 秒。协议特有的素材能力和视频规格由现有适配器校验；新的供应商协议仍需新增适配器，修改 URL 不会自动改变协议。
+20槽组成：文本2/视频7/图片1/音频3/数字人2/Reader1/Embedding1/情报3。通用字段有名称/认证头/格式/超时/test地址；视频与异步数字人提交最长30秒，其余受各适配器限制（通用最高120秒）。新供应商须匹配协议，改URL不会自动接入。
+
+`image.primary.settings.edit_endpoint`可选，必须生成地址同域同images路径的edits并使用image-contract支持的GPT Image模型；旧配置可继续生成，不因升级自动获得编辑权限。catalog仅公开version_id与image_capabilities。原图和掩码先私有登记、同标准尺寸非交错8位PNG，每文件12MB，实际解压/透明区校验；编辑提交确认原价/版本，409刷新配置后再确认。
 
 连接检查使用供应商提供的只读 GET 健康接口或模型列表，验证网络和认证；不发起生成任务，不能证明某个模型或视频账号已开通生成权限。保存前无需进行付费生成。业务使用时供应商可能计费。
 
@@ -79,7 +86,7 @@ SELECT public.bind_legacy_video_config(
 
 视频沿用 `credit_costs.generate_video`（默认10积分）及预占、结算、逐笔退款。图片/封面默认各10积分；TTS/ASR默认各2；即时克隆/照片口播/口型默认各10。媒体任务每用户共用10个活跃上限，网页提交确认价格，变化409零扣费。提示词辅助暂不收应用积分，旧同步音频入口410。应用积分与实际供应商用量分开记录。
 
-图片供应商协议仍返回同步结果，应用调用已任务化：保存原返回证据、归档失败重试保存、关闭页面后按同一UUID恢复；受理未知不能重新调用。此能力须部署00035、匹配函数和生产调度器。图片尺寸为1024×1024、1024×1536、1536×1024，质量为auto/low/medium/high，需供应商协议支持。参考图仅chat-image支持；OpenAI Images的编辑、扩图及掩码暂未接入。
+图片供应商返回原结果后checkpoint，归档重试不再次调用或读取源；关页按原UUID恢复，unknown不能重发。标准尺寸1024×1024/1024×1536/1536×1024、质量auto/low/medium/high须实际协议支持。Chat参考与配置GPT Image编辑地址的参考/扩图/矩形重绘已接入00062，不保证掩码保留区逐像素不变；实际权限/商品和文字质量/现金成本待验收。
 
 接口保存与调用检查HTTPS、域名解析及公网地址，拒绝本机、内网、云元数据地址和重定向。域名检查到请求间仍存在DNS重绑定时间窗，生产应配置可信供应商域名或网络出口策略。当前源码提供私有素材与签名访问，最近云端仍为旧部署；启用条件见 [生产链路迭代](ITERATION_06_PRODUCTION_PIPELINE.md)。
 
