@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { creditSnapshot } from './browser_credit_fixture.mjs';
 import { deflateSync } from 'node:zlib';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const backend = 'https://ui-fixture.example', base = process.env.UI_TEST_URL || 'http://127.0.0.1:5197';
@@ -70,7 +71,7 @@ await context.route(`${backend}/**`, async route => {
       timezone: body.p_timezone, activity: Array.from({ length: 30 }, (_, i) => ({ date: `2026-10-${String(i + 1).padStart(2, '0')}`, count: i === 29 ? (id === uid ? 1106 : 3) : 0 })) };
     if (id === uid && state.holdOld) { state.held.push('overview'); if (state.held.length >= 2) oldReady(); await oldReleased; }
     if (state.failOverview) { status = 503; data = { message: 'overview failed' }; }
-  } else if (path.includes('/rest/v1/user_plans')) data = { credits_total: 1000, credits_used: 0, plans: { name: '专业版' } };
+  } else if (path.endsWith('/rpc/get_my_credits')) data = creditSnapshot(id);
   else if (path.includes('/storage/v1/object/sign/') && req.method() === 'POST') data = { signedURL: path.replace('/storage/v1', '') + '?token=fixture' };
   else if (path.includes('/storage/v1/object/') && req.method() === 'POST') {
     state.uploads.push(path); data = { Key: path.split('/object/')[1], Id: crypto.randomUUID() };

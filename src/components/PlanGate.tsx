@@ -1,7 +1,7 @@
-import React, { ReactNode, useRef } from 'react';
+import type { ReactNode } from 'react';
 import { useCredits } from '@/hooks/useCredits';
-import { useAuth } from '@/contexts/AuthContext';
 import { ForbiddenPage } from './ForbiddenPage';
+import { Button } from './ui/button';
 
 interface PlanGateProps {
   children: ReactNode;
@@ -16,42 +16,21 @@ export function PlanGate({
   featureName,
   fallback,
 }: PlanGateProps) {
-  const { planName, loading } = useCredits();
-  const { user } = useAuth();
-  const resolved = useRef<{ userId: string; planName: string } | null>(null);
-  if (resolved.current?.userId !== user?.id) resolved.current = null;
-  if (!loading && user) resolved.current = { userId: user.id, planName };
-  const currentPlan = loading ? resolved.current?.planName || '' : planName;
-
-  if (loading && !resolved.current) {
+  const { planLevel, loading, error, refresh, refreshing } = useCredits();
+  if (error) return <div role="alert" className="mx-auto max-w-md space-y-3 py-12 text-center">
+    <p className="text-sm text-muted-foreground">套餐权益暂时无法核验，请重试。</p>
+    <Button variant="outline" disabled={refreshing} onClick={() => void refresh()}>重试权益核验</Button>
+  </div>;
+  if (loading) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center">
+      <div role="status" aria-label="正在核验套餐权益" className="flex min-h-[40vh] items-center justify-center">
         <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       </div>
     );
   }
 
-  const isProOrAbove =
-    currentPlan.includes('专业') ||
-    currentPlan.includes('企业') ||
-    currentPlan.includes('旗舰') ||
-    currentPlan.toLowerCase().includes('pro');
-
-  const isEnterprise =
-    currentPlan.includes('企业') ||
-    currentPlan.includes('旗舰') ||
-    currentPlan.toLowerCase().includes('enterprise');
-
-  let hasAccess = true;
-  let requiredLabel = '专业版';
-
-  if (requiredPlan === 'pro') {
-    hasAccess = isProOrAbove;
-    requiredLabel = '专业版';
-  } else if (requiredPlan === 'enterprise') {
-    hasAccess = isEnterprise;
-    requiredLabel = '企业版';
-  }
+  const hasAccess = planLevel >= (requiredPlan === 'enterprise' ? 3 : 1);
+  const requiredLabel = requiredPlan === 'enterprise' ? '企业版' : '专业版';
 
   if (!hasAccess) {
     return fallback ?? <ForbiddenPage requiredPlan={requiredLabel} featureName={featureName} />;

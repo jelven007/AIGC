@@ -1,6 +1,6 @@
 # 接口与数据契约
 
-最新 [迭代32](ITERATION_32_REWARDS_AUTH.md)：00060新增本人get_my_invitations(offset,limit)/get_my_activities，claim_activity_reward(activity_id,request_key)返回原奖励/回执；服务端共同判定资格/UTC日/后台成片。邀请reward_version=1验证后赠分，历史NULL不补发，credit_logs唯一reward_source/reward_key。report_frontend_error(request_key,path)只写本人固定异常并限每分钟10份；禁止浏览器直写奖励/初始化档案/邀请码/错误表。probe20/00060，render4/edit2保持；下文按历史时点阅读。
+最新 [迭代33](ITERATION_33_CREDITS_SMS.md)：00061新增get_my_credits()，固定auth.uid返回余额、有效/配置等级、状态、到期/周期、服务端时间；缺账号报错，管理员仍查本人。account_credits_schema_ready为service-only。页面共用账号查询，生成前回源；通知POST固定原账号，SMS独立验证回执后登录。probe21/00061，render4/edit2保持；下文按历史时点阅读。
 
 当前 [迭代31](ITERATION_31_ACCOUNT_STORYBOARD.md)：00059新增authenticated-only `get_my_profile_overview(p_timezone)`，无用户ID参数，返回本人videos/completed/materials/products/published和30个日期/计数；已发布按publish_tasks实际published计数。service-only `profile_overview_schema_ready()`供probe19核对头像引用触发器。脚本与知识写入持久原UUID并核对原内容，资料读取不创建账号。render4/edit2保持。
 

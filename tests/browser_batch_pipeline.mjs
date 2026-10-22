@@ -1,5 +1,6 @@
 /** 多镜头页面真实操作与原请求恢复，使用隔离业务响应，不调用真实供应商。 */
 import assert from 'node:assert/strict';
+import { creditSnapshot } from './browser_credit_fixture.mjs';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -82,7 +83,7 @@ try {
       if (request.method() === 'PATCH') { saved.push(body); Object.assign(sourceProject, body); data = sourceProject; }
       else data = new URL(request.url()).searchParams.has('id') ? sourceProject : [];
     } else if (path.includes('/rest/v1/profiles')) data = { id: uid, username: '本地测试', role: 'user' };
-    else if (path.includes('/rest/v1/user_plans')) data = { credits_total: 1000, credits_used: 0, plans: { name: '专业版' } };
+    else if (path.endsWith('/rpc/get_my_credits')) data = creditSnapshot(uid);
     else if (path.includes('/rest/v1/products')) data = [{ id: product, name: '移动端多镜头商品', category: '商品', price: 50 }];
     await route.fulfill({ status, contentType, body: contentType === 'application/json' ? JSON.stringify(data) : data,
       headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*' } });

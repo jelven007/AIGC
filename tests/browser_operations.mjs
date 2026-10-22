@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { creditSnapshot } from './browser_credit_fixture.mjs';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const backend = 'https://ui-fixture.example', base = process.env.UI_TEST_URL || 'http://127.0.0.1:5197';
 const channel = process.env.CASH_TEST_CHANNEL || 'alipay';
@@ -39,7 +40,7 @@ try {
       if (body.action === 'refund' && failRefund) { status = 503; data = { code: 1, message: '退款受理待确认', outcome: 'unknown' }; }
       else data = { code: 0, data: { refund_status: refundSuccess ? 'success' : 'unknown', request_key: body.request_key } };
     } else if (path.includes('/rest/v1/profiles')) data = { id: uid, username: '测试运营', invite_code: 'TEST' };
-    else if (path.includes('/rest/v1/user_plans')) data = { credits_total: 100, credits_used: 0, plans: { name: '专业版' } };
+    else if (path.endsWith('/rpc/get_my_credits')) data = creditSnapshot(uid, { credits_total: 100, credits_left: 100 });
     await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data),
       headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*' } });
   });

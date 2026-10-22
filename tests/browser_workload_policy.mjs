@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { creditSnapshot } from './browser_credit_fixture.mjs';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const base = process.env.UI_TEST_URL || 'http://127.0.0.1:5197', backend = 'https://ui-fixture.example';
 const uid = '11111111-1111-4111-8111-111111111111', videoKey = crypto.randomUUID(), imageKey = crypto.randomUUID();
@@ -31,7 +32,7 @@ try {
       } else data = { jobs: [] };
     } else if (path.endsWith('/model-settings')) data = { configs: [{ slot: 'image.primary', name: '图片模型', enabled: true }, { slot: 'video.SeedanceMini', name: '视频模型', enabled: true }] };
     else if (path.includes('/rest/v1/profiles')) data = { id: uid, username: '测试客户', invite_code: 'TEST' };
-    else if (path.includes('/rest/v1/user_plans')) data = { credits_total: 100, credits_used: 0, plans: { name: '专业版', level: 1 } };
+    else if (path.endsWith('/rpc/get_my_credits')) data = creditSnapshot(uid, { credits_total: 100, credits_left: 100 });
     else if (path.includes('/rest/v1/credit_costs')) data = [{ action: 'generate_image', cost: 10 }, { action: 'generate_video', cost: 10 }];
     await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data),
       headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*' } });

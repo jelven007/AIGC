@@ -6,129 +6,16 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
+import { LegalConsent, legalDocumentsReady } from '@/components/auth/LegalConsent';
+import PhoneSmsPanel from '@/components/auth/PhoneSmsPanel';
 import {
   Eye, EyeOff, Video, Sparkles, TrendingUp, Zap,
-  Mail, Lock, ArrowLeft, CheckCircle2, KeyRound, Phone, Loader2,
+  Mail, Lock, ArrowLeft, CheckCircle2, KeyRound, Phone,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // 三种模式：login / register / forgot / phone
 type Mode = 'login' | 'register' | 'forgot' | 'phone';
-
-// ── 手机号短信登录/绑定组件 ──────────────────────────────────────────────
-function PhoneSmsPanel() {
-  const navigate = useNavigate();
-  const [phone, setPhone] = useState('');
-  const [code, setCode] = useState('');
-  const [codeSent, setCodeSent] = useState(false);
-  const [countdown, setCountdown] = useState(0);
-  const [sending, setSending] = useState(false);
-  const [verifying, setVerifying] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
-
-  const startCountdown = () => {
-    setCountdown(60);
-    timerRef.current = setInterval(() => {
-      setCountdown(v => { if (v <= 1) { clearInterval(timerRef.current!); return 0; } return v - 1; });
-    }, 1000);
-  };
-
-  const handleSend = async () => {
-    if (!phone.trim() || phone.length < 11) { toast.error('请输入正确的手机号'); return; }
-    setSending(true);
-    try {
-      const { error } = await supabase.auth.signInWithOtp({ phone: `+86${phone}` });
-      if (error) throw error;
-      setCodeSent(true);
-      startCountdown();
-      toast.success('验证码已发送，请注意查收');
-    } catch (e: unknown) {
-      toast.error(`发送失败：${(e as Error).message}`);
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const handleVerify = async () => {
-    if (!code.trim() || code.length < 4) { toast.error('请输入验证码'); return; }
-    setVerifying(true);
-    try {
-      const { data, error } = await supabase.auth.verifyOtp({ phone: `+86${phone}`, token: code, type: 'sms' });
-      if (error) throw error;
-      if (!data.session) throw new Error('登录会话未建立，请重试');
-      toast.success('登录成功，欢迎回来！');
-      navigate('/');
-    } catch (e: unknown) {
-      toast.error(`验证失败：${(e as Error).message}`);
-    } finally {
-      setVerifying(false);
-    }
-  };
-
-  return (
-    <div className="space-y-3 sm:space-y-4">
-      {/* 手机号输入 */}
-      <div className="space-y-1 sm:space-y-1.5">
-        <Label className="text-sm font-semibold text-foreground">手机号</Label>
-        <div className="relative">
-          <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-primary/70 pointer-events-none" />
-          <Input
-            placeholder="请输入手机号"
-            value={phone}
-            onChange={e => setPhone(e.target.value)}
-            maxLength={11}
-            className="pl-10 h-10 sm:h-11 rounded-lg sm:rounded-xl bg-muted/20 border-border/60 focus-visible:ring-primary"
-            disabled={codeSent}
-          />
-        </div>
-      </div>
-
-      {/* 验证码 */}
-      {codeSent && (
-        <div className="space-y-1 sm:space-y-1.5">
-          <Label className="text-sm font-semibold text-foreground">验证码</Label>
-          <div className="flex gap-2">
-            <Input
-              placeholder="请输入验证码"
-              value={code}
-              onChange={e => setCode(e.target.value)}
-              maxLength={6}
-              className="flex-1 h-10 sm:h-11 rounded-lg sm:rounded-xl bg-muted/20 border-border/60 focus-visible:ring-primary"
-            />
-            <Button type="button" variant="outline" disabled={countdown > 0 || sending} onClick={handleSend} className="shrink-0 w-28 h-10 sm:h-11 rounded-lg sm:rounded-xl">
-              {countdown > 0 ? `${countdown}s 后重发` : sending ? <Loader2 className="w-4 h-4 animate-spin" /> : '重新发送'}
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* 发送/验证按钮 */}
-      {!codeSent ? (
-        <Button type="button" className="w-full h-10 sm:h-11 font-semibold rounded-lg sm:rounded-xl bg-gradient-to-r from-orange-500 via-orange-600 to-red-500 hover:from-orange-600 hover:via-orange-700 hover:to-red-600 text-white shadow-orange-500/20 shadow-md border-0" onClick={handleSend} disabled={sending}>
-          {sending ? <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" />发送中...</span> : '获取验证码'}
-        </Button>
-      ) : (
-        <Button type="button" className="w-full h-10 sm:h-11 font-semibold rounded-lg sm:rounded-xl bg-gradient-to-r from-orange-500 via-orange-600 to-red-500 hover:from-orange-600 hover:via-orange-700 hover:to-red-600 text-white shadow-orange-500/20 shadow-md border-0" onClick={handleVerify} disabled={verifying}>
-          {verifying ? <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" />验证中...</span> : '验证并登录'}
-        </Button>
-      )}
-
-      {/* 修改手机号 */}
-      {codeSent && (
-        <button type="button" onClick={() => {
-          setCodeSent(false); setCode(''); setCountdown(0);
-          if (timerRef.current) clearInterval(timerRef.current);
-        }}
-          className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors">
-          修改手机号
-        </button>
-      )}
-    </div>
-  );
-}
 
 const BRAND_FEATURES = [
   { icon: Zap, title: 'AI脚本生成', desc: '确认商品信息与分镜台词后创作' },
@@ -275,6 +162,7 @@ export default function LoginPage() {
   const initialMode: Mode = requestedMode && ['login', 'register', 'forgot', 'phone'].includes(requestedMode)
     ? requestedMode as Mode : 'register';
   const [mode, setMode] = useState<Mode>(initialMode);
+  const [phoneRegister, setPhoneRegister] = useState(initialMode === 'register' || !!inviteCodeParam);
 
   useEffect(() => {
     if (initialMode) setMode(initialMode);
@@ -288,6 +176,9 @@ export default function LoginPage() {
   const [forgotSent, setForgotSent] = useState(false);
   const [form, setForm] = useState({ username: '', password: '', confirmPassword: '', email: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const mounted = useRef(false), requestVersion = useRef(0), busy = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; requestVersion.current++; }; }, []);
+  useEffect(() => { requestVersion.current++; busy.current = false; setLoading(false); }, [mode]);
 
   // 已登录用户直接跳转工作台
   useEffect(() => {
@@ -312,7 +203,7 @@ export default function LoginPage() {
       if (mode === 'register') {
         if (!form.confirmPassword) errs.confirmPassword = '请再次输入密码';
         else if (form.password !== form.confirmPassword) errs.confirmPassword = '两次密码不一致';
-        if (!agreed) errs.agreed = '请同意用户协议 and 隐私政策';
+        if (!legalDocumentsReady || !agreed) errs.agreed = '请阅读并同意已发布的用户协议和隐私政策';
       }
     }
     setErrors(errs);
@@ -321,8 +212,11 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (loading) return;
+    if (busy.current) return;
     if (!validate()) return;
+    busy.current = true;
+    const request = requestVersion.current;
+    const current = () => mounted.current && request === requestVersion.current;
     setLoading(true);
 
     try {
@@ -331,6 +225,7 @@ export default function LoginPage() {
         const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
           redirectTo: `${window.location.origin}/auth/reset`,
         });
+        if (!current()) return;
         if (error) throw error;
         setForgotSent(true);
         toast.success('重置链接已发送，请检查您的邮箱');
@@ -338,6 +233,7 @@ export default function LoginPage() {
         const email = form.username.trim();
         if (mode === 'login') {
           const { data, error } = await supabase.auth.signInWithPassword({ email, password: form.password });
+          if (!current()) return;
           if (error) throw error;
           if (!data.session || !data.user) throw new Error('登录会话未建立，请重试');
           toast.success('登录成功，欢迎回来！');
@@ -353,6 +249,7 @@ export default function LoginPage() {
               }
             }
           });
+          if (!current()) return;
           if (error) throw error;
 
           if (data.session) {
@@ -365,6 +262,7 @@ export default function LoginPage() {
         }
       }
     } catch (err: unknown) {
+      if (!current()) return;
       const msg = err instanceof Error ? err.message : '操作失败';
       if (msg.includes('Invalid login credentials')) {
         setErrors({ password: '用户名或密码错误' });
@@ -378,7 +276,7 @@ export default function LoginPage() {
         toast.error(msg);
       }
     } finally {
-      setLoading(false);
+      if (current()) { busy.current = false; setLoading(false); }
     }
   };
 
@@ -386,13 +284,13 @@ export default function LoginPage() {
     login: '欢迎回来',
     register: '创建账号',
     forgot: '找回密码',
-    phone: '手机号验证',
+    phone: phoneRegister ? '手机号注册' : '手机号登录',
   };
   const subtitleMap: Record<Mode, string> = {
     login: '使用您的账号登录 Shopro-电商AIGC带货视频平台',
     register: '填写信息，开启 AI 视频创作之旅',
     forgot: '输入注册邮箱，我们将发送重置链接',
-    phone: '验证手机号，安全绑定或快速登录',
+    phone: phoneRegister ? '验证手机号，创建您的账号' : '使用验证码登录已有账号',
   };
 
   return (
@@ -416,6 +314,7 @@ export default function LoginPage() {
           {(mode === 'forgot' || mode === 'phone') && (
             <button
               type="button"
+              disabled={loading}
               onClick={() => { setMode('register'); setForgotSent(false); setErrors({}); }}
               className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
             >
@@ -434,7 +333,7 @@ export default function LoginPage() {
 
           {/* 找回密码成功状态 / 手机号验证面板 / 普通表单 */}
           {mode === 'phone' ? (
-            <PhoneSmsPanel />
+            <PhoneSmsPanel key={phoneRegister ? 'register' : 'login'} inviteCode={inviteCodeParam} register={phoneRegister} />
           ) : forgotSent ? (
             <div className="rounded-2xl border border-success/20 bg-success/5 p-6 text-center space-y-3">
               <div className="w-12 h-12 rounded-full bg-success/15 flex items-center justify-center mx-auto">
@@ -495,6 +394,7 @@ export default function LoginPage() {
                     {mode === 'login' && (
                       <button
                         type="button"
+                        disabled={loading}
                         onClick={() => { setMode('forgot'); setErrors({}); }}
                         className="text-xs text-indigo-600 dark:text-indigo-400 font-bold hover:underline"
                       >
@@ -546,26 +446,13 @@ export default function LoginPage() {
               {/* 用户协议（注册） */}
               {mode === 'register' && (
                 <div className="space-y-1">
-                  <div className="flex items-start gap-2.5">
-                    <Checkbox
-                      id="agreed"
-                      checked={agreed}
-                      onCheckedChange={v => { setAgreed(!!v); setErrors(e => ({ ...e, agreed: '' })); }}
-                      className="mt-0.5"
-                    />
-                    <label htmlFor="agreed" className="text-xs text-muted-foreground leading-relaxed cursor-pointer select-none">
-                      我已阅读并同意
-                      <span className="text-indigo-600 dark:text-indigo-400 font-bold hover:underline cursor-pointer mx-0.5">《用户协议》</span>
-                      和
-                      <span className="text-indigo-600 dark:text-indigo-400 font-bold hover:underline cursor-pointer mx-0.5">《隐私政策》</span>
-                    </label>
-                  </div>
+                  <LegalConsent agreed={agreed} disabled={loading} onChange={value => { setAgreed(value); setErrors(e => ({ ...e, agreed: '' })); }} />
                   {errors.agreed && <p className="text-xs text-destructive pl-6">{errors.agreed}</p>}
                 </div>
               )}
 
               {/* 提交按钮 - 橙红色 */}
-              <Button type="submit" className="w-full h-10 sm:h-11 font-semibold rounded-lg sm:rounded-xl shadow-md transition-transform hover:-translate-y-0.5 bg-gradient-to-r from-orange-500 via-orange-600 to-red-500 hover:from-orange-600 hover:via-orange-700 hover:to-red-600 text-white shadow-orange-500/20" disabled={loading}>
+              <Button type="submit" className="w-full h-10 sm:h-11 font-semibold rounded-lg sm:rounded-xl shadow-md transition-transform hover:-translate-y-0.5 bg-gradient-to-r from-orange-500 via-orange-600 to-red-500 hover:from-orange-600 hover:via-orange-700 hover:to-red-600 text-white shadow-orange-500/20" disabled={loading || (mode === 'register' && !legalDocumentsReady)}>
                 {loading
                   ? <span className="flex items-center gap-2"><span className="h-4 w-4 rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground animate-spin" />处理中...</span>
                   : mode === 'login' ? '登 录' : mode === 'register' ? '立 即 注 册' : '发送重置链接'
@@ -582,10 +469,10 @@ export default function LoginPage() {
 
               {/* 手机号验证入口 */}
               {(mode === 'login' || mode === 'register') && (
-                <button type="button" onClick={() => { setMode('phone'); setErrors({}); }}
+                <button type="button" disabled={loading} onClick={() => { setPhoneRegister(mode === 'register'); setMode('phone'); setErrors({}); }}
                   className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-border/60 text-sm text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/5 transition-all">
                   <Phone className="w-4 h-4" />
-                  手机号验证码登录
+                  {mode === 'register' ? '手机号验证码注册' : '手机号验证码登录'}
                 </button>
               )}
 
@@ -593,7 +480,7 @@ export default function LoginPage() {
               {mode === 'login' && (
                 <p className="text-sm text-center text-muted-foreground mt-2">
                   还没有账号？
-                  <button type="button" onClick={() => { setMode('register'); setErrors({}); setForm(f => ({ ...f, confirmPassword: '' })); }}
+                  <button type="button" disabled={loading} onClick={() => { setMode('register'); setErrors({}); setForm(f => ({ ...f, confirmPassword: '' })); }}
                     className="text-primary font-medium hover:underline ml-1">
                     立即注册
                   </button>
@@ -602,7 +489,7 @@ export default function LoginPage() {
               {mode === 'register' && (
                 <p className="text-sm text-center text-muted-foreground mt-2">
                   已有账号？
-                  <button type="button" onClick={() => { setMode('login'); setErrors({}); }}
+                  <button type="button" disabled={loading} onClick={() => { setMode('login'); setErrors({}); }}
                     className="text-primary font-medium hover:underline ml-1">
                     直接登录
                   </button>

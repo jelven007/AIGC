@@ -1,5 +1,6 @@
 /** 真实移动端页面操作；夹具模拟请求失联、刷新恢复及部分成片。 */
 import assert from 'node:assert/strict';
+import { creditSnapshot } from './browser_credit_fixture.mjs';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const backend = 'https://ui-fixture.example', base = process.env.UI_TEST_URL || 'http://127.0.0.1:5197';
 const uid = '11111111-1111-4111-8111-111111111111', projectId = crypto.randomUUID();
@@ -37,7 +38,7 @@ try {
         legacyQueries.push(body); data = { job: { id: crypto.randomUUID(), status: 'pending' } };
       } else throw new Error('unexpected production action ' + body.action);
     } else if (path.includes('/rest/v1/profiles')) data = { id: uid, username: '本地测试', invite_code: 'TEST', role: 'user' };
-    else if (path.includes('/rest/v1/user_plans')) data = { credits_total: 100, credits_used: 0, plans: { name: '专业版' } };
+    else if (path.endsWith('/rpc/get_my_credits')) data = creditSnapshot(uid, { credits_total: 100, credits_left: 100 });
     else if (path.includes('/rest/v1/video_projects')) {
       if (request.method() !== 'GET') projectMutations.push(body);
       data = [{ id: projectId, title: '私有成片', duration: 2 }];

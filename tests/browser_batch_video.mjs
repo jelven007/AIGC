@@ -1,5 +1,6 @@
 /** 浏览器真实操作本地页面，业务响应使用夹具；不向云端提交或扣费。 */
 import assert from 'node:assert/strict';
+import { creditSnapshot } from './browser_credit_fixture.mjs';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const backend = 'https://ui-fixture.example', base = process.env.UI_TEST_URL || 'http://127.0.0.1:5197';
 const uid = '11111111-1111-4111-8111-111111111111';
@@ -41,7 +42,7 @@ try {
         data = cancelFail ? { error: '取消结果未确认' } : { batch };
       }
     } else if (path.includes('/rest/v1/profiles')) data = { id: uid, username: '本地测试', invite_code: 'TEST', role: 'user' };
-    else if (path.includes('/rest/v1/user_plans')) data = { credits_total: 100, credits_used: 0, plans: { name: '专业版' } };
+    else if (path.endsWith('/rpc/get_my_credits')) data = creditSnapshot(uid, { credits_total: 100, credits_left: 100 });
     else if (path.includes('/rest/v1/products')) data = [{ id: productId, name: '超长商品名称用于验证移动端换行保温杯保温杯保温杯保温杯保温杯', category: '杯具', price: 50 }];
     await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data),
       headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*' } });

@@ -1,5 +1,6 @@
 /** 本地页面 + API夹具；不创建线上密钥、团队或发送邀请。 */
 import assert from 'node:assert/strict';
+import { creditSnapshot } from './browser_credit_fixture.mjs';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const backend = 'https://ui-fixture.example', base = process.env.UI_TEST_URL || 'http://127.0.0.1:5197';
 const uid = '11111111-1111-4111-8111-111111111111';
@@ -51,7 +52,7 @@ try {
       if (body.action === 'share') { shared = [{ id: 'mat', user_id: uid, name: '私有商品素材', url: `${backend}/file.png` }]; data = { ok: true }; }
       if (body.action === 'unshare') { shared = []; data = { ok: true }; }
     } else if (path.includes('/rest/v1/profiles')) data = { id: uid, username: '本地测试', invite_code: 'TESTUSER', role: 'user' };
-    else if (path.includes('/rest/v1/user_plans')) data = { credits_total: 100, credits_used: 10, plans: { name: '免费版' } };
+    else if (path.endsWith('/rpc/get_my_credits')) data = creditSnapshot(uid, { credits_total: 100, credits_used: 10, credits_left: 90, plan_level: 0, configured_plan_level: 0, plan_name: '免费版' });
     else if (path.includes('/rest/v1/materials')) data = [{ id: 'mat', user_id: uid, name: '私有商品素材', url: `${backend}/file.png` }];
     await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data),
       headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*' } });

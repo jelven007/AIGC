@@ -18,6 +18,15 @@ spec.loader.exec_module(deploy)
 
 
 class DeployTest(unittest.TestCase):
+    def test_registration_documents_require_https_and_no_embedded_credentials(self):
+        with patch.dict(deploy.os.environ, {"VITE_TERMS_URL": "", "VITE_PRIVACY_URL": ""}):
+            for terms in ("", "javascript:alert(1)", "http://legal.example/terms", "https://user:pass@legal.example/terms"):
+                with self.assertRaises(ValueError):
+                    deploy.legal_config(SimpleNamespace(terms_url=terms, privacy_url="https://legal.example/privacy"))
+            self.assertEqual(deploy.legal_config(SimpleNamespace(
+                terms_url="https://legal.example/terms", privacy_url="https://legal.example/privacy")),
+                {"terms": "https://legal.example/terms", "privacy": "https://legal.example/privacy"})
+
     def test_bootstrap_has_one_transaction_and_no_demo_resources(self):
         source = deploy.migration_sql(deploy.migration_files())
         self.assertEqual(source.count("\nBEGIN;"), 1)

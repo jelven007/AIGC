@@ -1,5 +1,6 @@
 /** 真实页面与本地API夹具：不接生产资源，不发送模型生成或发布请求。 */
 import assert from 'node:assert/strict';
+import { creditSnapshot } from './browser_credit_fixture.mjs';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const base = process.env.UI_TEST_URL || 'http://127.0.0.1:5197';
 const backend = 'https://ui-fixture.example';
@@ -55,7 +56,7 @@ try {
         else { publishes = publishes.map(item => item.id === body.task_id ? { ...item, status: 'cancelled' } : item); reply = { ok: true }; }
       } else reply = { tasks: phase === 'empty' ? [] : publishes };
     } else if (path.includes('/rest/v1/profiles')) reply = { id: uid, username: '本地测试', invite_code: 'TESTUSER', role: 'user' };
-    else if (path.includes('/rest/v1/user_plans')) reply = { credits_total: 100, credits_used: 10, plans: { name: '免费版' } };
+    else if (path.endsWith('/rpc/get_my_credits')) reply = creditSnapshot(uid, { credits_total: 100, credits_used: 10, credits_left: 90, plan_level: 0, configured_plan_level: 0, plan_name: '免费版' });
     await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(reply),
       headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*' } });
   });

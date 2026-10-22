@@ -1,6 +1,6 @@
 # 火山引擎部署指南
 
-最新 [迭代32](ITERATION_32_REWARDS_AUTH.md)要求00032–00060/全部匹配函数与共享模块、probe20/production-worker/调度/前端，render4/edit2及MCP59保持。verify检查奖励/异常RPC和注册验证触发器；初始化身份服务需允许/auth/reset邮件回跳。官方与火山资源及回执独立，均无本轮运行验收，下文为各历史发布条件。
+最新 [迭代33](ITERATION_33_CREDITS_SMS.md)要求00032–00061/全部匹配函数与共享模块、probe21/production-worker/调度/前端，render4/edit2及MCP59保持。prepare构建新增--terms-url/--privacy-url（或VITE_TERMS_URL/VITE_PRIVACY_URL），pages核对正式协议构建回执；--skip-build可只准备迁移。verify检查权威积分RPC权限。官方与火山资源及回执独立，均无本轮目标运行验收，下文为历史发布条件。
 
 当前 [迭代31](ITERATION_31_ACCOUNT_STORYBOARD.md)要求00032–00059/全部匹配共享模块、production-worker/operations、probe19调度/告警持久卷与前端；render4/edit2和MCP59/19权限保持。verify核对probe19/00059，并核对头像引用触发器存在且启用。加密备份/恢复见 [指南](BACKUP_RECOVERY.md)，先在空隔离PG恢复。火山与官方托管资源不同，不能用火山回执重放官方旧库；目标告警/备份调度与平台迁移仍待验收。
 

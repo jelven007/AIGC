@@ -3,7 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/db/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { Plan, UserPlan, CreditLog } from '@/types/types';
+import { Plan, CreditLog } from '@/types/types';
+import { useCredits } from '@/hooks/useCredits';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -96,7 +97,9 @@ function PlanCard({ plan, isCurrent, onSelect, idx }: {
                 </>
             }
           </div>
-          <p className="text-sm font-medium text-primary mt-2 flex items-center gap-1.5"><Zap className="w-3.5 h-3.5" /> 每月 {plan.credits.toLocaleString()} 积分</p>
+          <p className="text-sm font-medium text-primary mt-2 flex items-center gap-1.5"><Zap className="w-3.5 h-3.5" />
+            {Number(plan.price) === 0 ? '注册赠送' : '套餐包含'} {plan.credits.toLocaleString()} 积分
+          </p>
         </div>
 
         <div className="space-y-3 flex-1 mb-6">
@@ -135,21 +138,19 @@ export default function CreditsPage() {
     ? params.get('tab')! : 'plans';
   const handleTabChange = (val: string) => setParams({ tab: val }, { replace: true });
   const client = useQueryClient();
+  const credits = useCredits();
   const [logType, setLogType] = useState('all');
   const [page, setPage] = useState(0);
   const [orderPage, setOrderPage] = useState(0);
   const PAGE_SIZE = 10;
   const planQuery = useQuery({
     queryKey: ['billing', user?.id, 'plans'], enabled: !!user, retry: 1,
-    queryFn: async () => {
-      const [up, catalog] = await Promise.all([
-        supabase.from('user_plans').select('*').eq('user_id', user!.id).abortSignal(AbortSignal.timeout(15000)).maybeSingle(),
-        supabase.from('plans').select('*').order('level', { ascending: true }).abortSignal(AbortSignal.timeout(15000)),
-      ]);
-      if (up.error || catalog.error) throw new Error('套餐与余额读取失败，请重试');
+    queryFn: async ({ signal }) => {
+      const catalog = await supabase.from('plans').select('*').order('level', { ascending: true })
+        .abortSignal(AbortSignal.any([signal, AbortSignal.timeout(15000)]));
+      if (catalog.error) throw new Error('套餐目录读取失败，请重试');
       const all = (catalog.data || []) as Plan[];
-      return { plans: all.filter(p => p.level >= 0), boosters: all.filter(p => p.level < 0),
-        userPlan: up.data ? { ...up.data, plan: all.find(p => p.id === up.data.plan_id) } as UserPlan : null };
+      return { plans: all.filter(p => p.level >= 0), boosters: all.filter(p => p.level < 0) };
     },
   });
   const logsQuery = useQuery({
@@ -175,8 +176,11 @@ export default function CreditsPage() {
       return { orders: result.data || [], total: result.count || 0 };
     },
   });
-  const { plans = [], boosters = [], userPlan = null } = planQuery.data || {};
-  const loadingPlan = planQuery.isPending;
+  const { plans = [], boosters = [] } = planQuery.data || {};
+  const info = credits.data;
+  const userPlan = info ? { plan_id: info.planId, credits_total: info.total, credits_used: info.used,
+    cycle_start: info.cycleStart, cycle_end: info.cycleEnd, status: info.status, plan: { name: info.planName } } : null;
+  const loadingPlan = planQuery.isPending || credits.loading;
   const loadingLogs = logsQuery.isPending;
   const logs = logsQuery.data?.logs || [];
   const refreshBilling = useCallback(() => { void client.invalidateQueries({ queryKey: ['billing', user?.id] }); }, [client, user?.id]);
@@ -186,15 +190,16 @@ export default function CreditsPage() {
   }, [refreshBilling]);
   const [payModalOpen, setPayModalOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
-  const handleSelectPlan = (plan: Plan) => { setSelectedPlan(plan); setPayModalOpen(true); };
+  const handleSelectPlan = (plan: Plan) => {
+    if (credits.loading || credits.error) return;
+    setSelectedPlan(plan); setPayModalOpen(true);
+  };
   const hasPending = user ? !!readPendingCheckout(user.id) : false;
   useEffect(() => { setPage(0); setOrderPage(0); setPayModalOpen(false); setSelectedPlan(null); }, [user?.id]);
 
   // 积分使用率
-  const usagePercent = userPlan
-    ? Math.min(100, Math.round((userPlan.credits_used / Math.max(userPlan.credits_total, 1)) * 100))
-    : 0;
-  const creditsLeft = userPlan ? Math.max(0, userPlan.credits_total - userPlan.credits_used) : 0;
+  const usagePercent = credits.usagePercent;
+  const creditsLeft = credits.creditsLeft;
 
   return (
     <div className="p-4 md:p-6 space-y-6">
@@ -204,9 +209,13 @@ export default function CreditsPage() {
           <CreditCard className="w-5 h-5 text-primary" />积分与套餐
         </h1>
         <p className="text-sm text-muted-foreground mt-0.5">管理您的套餐订阅和积分使用情况</p>
+        <Button variant="outline" size="sm" className="mt-3" disabled={credits.refreshing} onClick={() => void credits.refresh()}>刷新余额与权益</Button>
       </div>
       {planQuery.error && <div role="alert" className="text-sm text-destructive flex flex-wrap gap-3 items-center">
         {planQuery.error.message}<Button variant="outline" onClick={() => void planQuery.refetch()}>重试套餐读取</Button>
+      </div>}
+      {credits.error && <div role="alert" className="text-sm text-destructive flex flex-wrap gap-3 items-center">
+        {credits.error}<Button variant="outline" disabled={credits.refreshing} onClick={() => void credits.refresh()}>重试余额读取</Button>
       </div>}
       {hasPending && <Button variant="outline" onClick={() => { setSelectedPlan(null); setPayModalOpen(true); }}>恢复原支付请求</Button>}
 
@@ -256,7 +265,7 @@ export default function CreditsPage() {
         <TabsContent value="overview" className="space-y-4 mt-4">
           {loadingPlan ? (
             <div className="flex items-center justify-center py-16"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
-          ) : !userPlan ? (
+          ) : credits.error ? <p className="py-12 text-center text-sm text-muted-foreground">余额和当前权益暂不可用，请重试读取。</p> : !userPlan ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3">
               <AlertCircle className="w-10 h-10 text-muted-foreground/40" />
               <p className="text-muted-foreground text-sm">暂无套餐信息</p>
@@ -275,11 +284,14 @@ export default function CreditsPage() {
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-sm sm:text-base">当前套餐：{userPlan.plan?.name ?? '未知套餐'}</span>
-                          <Badge className="text-[10px] px-1.5 py-0 bg-success/20 text-success hover:bg-success/20 border-none shrink-0">{userPlan.status === 'active' ? '生效中' : '已过期'}</Badge>
+                          <Badge className="text-[10px] px-1.5 py-0 border-none shrink-0" variant={credits.entitlementActive ? 'default' : 'secondary'}>
+                            {credits.entitlementActive ? '生效中' : userPlan.status === 'cancelled' ? '已取消' : '已过期'}
+                          </Badge>
                         </div>
                         {/* 周期信息小字 */}
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          计费周期：{format(new Date(userPlan.cycle_start), 'yyyy/MM/dd')} ~ {format(new Date(userPlan.cycle_end), 'yyyy/MM/dd')}
+                          {info?.configuredPlanLevel === 0 && !info.expiresAt ? '注册基础权益' :
+                            `计费周期：${format(new Date(userPlan.cycle_start), 'yyyy/MM/dd')} ~ ${format(new Date(userPlan.cycle_end), 'yyyy/MM/dd')}`}
                         </p>
                       </div>
                     </div>
@@ -376,14 +388,15 @@ export default function CreditsPage() {
         <TabsContent value="plans" className="mt-4">
           {loadingPlan ? (
             <div className="flex items-center justify-center py-16"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
-          ) : !planQuery.error && plans.length === 0 ? <p className="py-12 text-center text-muted-foreground">暂无可购买套餐</p> : (
+          ) : credits.error ? <p className="py-12 text-center text-sm text-muted-foreground">核验当前权益后可选择套餐。</p> :
+            !planQuery.error && plans.length === 0 ? <p className="py-12 text-center text-muted-foreground">暂无可购买套餐</p> : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {plans.map((plan, idx) => (
                 <PlanCard
                   key={plan.id}
                   plan={plan}
                   idx={idx}
-                  isCurrent={userPlan?.plan_id === plan.id}
+                  isCurrent={credits.entitlementActive && userPlan?.plan_id === plan.id}
                   onSelect={handleSelectPlan}
                 />
               ))}

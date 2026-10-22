@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { creditSnapshot } from './browser_credit_fixture.mjs';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const backend = 'https://ui-fixture.example', base = process.env.UI_TEST_URL || 'http://127.0.0.1:5197';
 const uid = '11111111-1111-4111-8111-111111111111', planId = '22222222-2222-4222-8222-222222222222';
@@ -29,8 +30,8 @@ try {
     if (req.method() === 'OPTIONS') data = {};
     else if (path.includes('/auth/')) data = session.user;
     else if (path.includes('/rest/v1/profiles')) data = { id: uid, username: '测试用户', invite_code: 'TEST' };
-    else if (path.includes('/rest/v1/user_plans')) data = { plan_id: 'free', credits_total: 150, credits_used: 100, status: 'active',
-      cycle_start: date, cycle_end: '2026-11-22T00:00:00Z', plans: { name: '基础版' } };
+    else if (path.endsWith('/rpc/get_my_credits')) data = creditSnapshot(uid, { plan_id: 'free', plan_name: '基础版',
+      plan_level: 0, configured_plan_level: 0, credits_total: 150, credits_used: 100, credits_left: 50 });
     else if (path.includes('/rest/v1/plans')) data = [{ id: 'free', name: '基础版', level: 0, credits: 20, price: 0, features: [] },
       { id: planId, name: '真实套餐', level: 1, credits: 100, price, features: ['真实配置权益'] }];
     else if (path.includes('/rest/v1/credit_logs')) {
@@ -136,8 +137,8 @@ try {
   await publicPage.goto(base + '/landing', { waitUntil: 'domcontentloaded' });
   await publicPage.locator('h1').first().waitFor();
   assert.ok(!scripts.some(path => /MainLayout|PaymentDialog|VideoEditPage|xlsx|MeasurementDashboard/.test(path)));
-  await publicPage.getByRole('button', { name: '查看实际套餐', exact: true }).click();
-  await publicPage.waitForURL(/\/login\?redirect=/);
+  await publicPage.getByRole('link', { name: '查看套餐与权益', exact: true }).click();
+  await publicPage.waitForURL(url => url.pathname === '/login' && url.searchParams.get('redirect') === '/credits?tab=plans');
   await publicContext.close();
   console.log('PASS 未登录首页不加载业务布局/支付/编辑/导出模块，购买先登录');
 } catch (error) {

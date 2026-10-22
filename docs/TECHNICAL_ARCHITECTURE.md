@@ -1,6 +1,6 @@
 # Shopro AI 技术架构
 
-最新 [迭代32](ITERATION_32_REWARDS_AUTH.md)：一个原子注册事务接管快照触发器；新邀请按双账号UUID锁序/邀请行/唯一流水在验证后赠分，旧记录不重发。资格函数复用于列表/领取；原请求回执与UTC期唯一账本独立于可变汇总。本人数据库聚合分页替代浏览器拉全表，POST/PUT固定发起账号令牌；异常上报最小路径/固定码与回执限流。00060/probe20/render4/edit2，下文为历史演进。
+最新 [迭代33](ITERATION_33_CREDITS_SMS.md)：本人余额/权益单次只读快照、账号QueryClient共享与取消、单份Realtime/可见页轮询；服务端时钟与单调经过时长控制在页到期。去模块全局余额与无调用浏览器资金入口，生成前权威回源；SMS隔离SDK/15秒/离页取消/原手机回执后全局登录，通知固定原账号。00061/probe21/render4/edit2，下文为历史演进。
 
 当前 [迭代31](ITERATION_31_ACCOUNT_STORYBOARD.md)：账号作为布局与React Query缓存边界，切换后清除继承的路由输入；Auth资料请求按身份/代次核对，SDK回调延后读取。本人概览在数据库完整聚合并用owner/created索引计算时区日期，头像加入生命周期引用。首页分镜复用Script/Works/Batch组件，原UUID保存恢复与真实SSE解析替代重复实现及模拟阶段；00059/probe19/render4/edit2。
 

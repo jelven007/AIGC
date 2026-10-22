@@ -59,7 +59,7 @@ export default function LandingPage() {
       <section id="套餐" className="border-t border-white/10 max-w-7xl mx-auto px-5 md:px-8 py-16 md:py-24 space-y-5">
         <p className="text-sm text-orange-300">套餐与积分</p><h2 className="text-3xl font-semibold">根据创作需要选择套餐</h2>
         <p className="text-white/65 max-w-2xl leading-relaxed">登录后查看当前可购买套餐、积分和权益。下单前会显示实际金额，提交生成任务前会显示积分费用。</p>
-        <Link to={user ? '/credits' : '/login'} className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-400 text-black font-semibold rounded-xl px-6 py-3">
+        <Link to={user ? '/credits?tab=plans' : `/login?mode=login&redirect=${encodeURIComponent('/credits?tab=plans')}`} className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-400 text-black font-semibold rounded-xl px-6 py-3">
           查看套餐与权益 <ArrowRight className="h-4 w-4" /></Link>
       </section>
     </main>

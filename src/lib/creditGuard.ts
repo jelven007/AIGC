@@ -37,8 +37,8 @@ export function insufficientCreditsMessage(current: number, cost: number = VIDEO
  * 调用方必须在进入 loading / 调用大模型 / Edge Function / 写生成记录之前调用，
  * 返回 false 时应立即 return，确保「不足即拦截」且不发出任何生成相关网络请求。
  *
- * 余额读取优先使用 useCredits 维护的模块级缓存（MainLayout 全局挂载，通常已预热），
- * 仅在缓存缺失时回源查询一次，避免点击瞬间产生多余网络请求。
+ * 点击时读取服务端权威余额，避免过期缓存误拦截充值用户或误放行。
+ * 最终扣费仍由后台任务创建事务完成。
  */
 export async function ensureCreditsForGeneration(
   userId: string | null | undefined,
@@ -46,17 +46,15 @@ export async function ensureCreditsForGeneration(
 ): Promise<{ ok: boolean; left: number }> {
   if (!userId) { toast.error('请先登录'); return { ok: false, left: 0 }; }
 
-  const { peekCreditsLeft } = await import('@/hooks/useCredits');
-  let left = peekCreditsLeft(userId);
-
-  if (left === null) {
-    const res = await fetchUserCredits(userId);
-    if (res.error || !res.data) {
-      toast.error('积分余额暂不可用，请稍后重试');
-      return { ok: false, left: 0 };
-    }
-    left = res.data?.left ?? 0;
+  if (!Number.isSafeInteger(cost) || cost <= 0) return { ok: false, left: 0 };
+  const res = await fetchUserCredits(userId);
+  const { data } = await supabase.auth.getSession();
+  if (data.session?.user.id !== userId) return { ok: false, left: 0 };
+  if (res.error || !res.data) {
+    toast.error('积分余额暂不可用，请稍后重试');
+    return { ok: false, left: 0 };
   }
+  const left = res.data.left;
 
   if (left < cost) {
     toast.error(insufficientCreditsMessage(left, cost), { duration: 6000 });

@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Bell, CheckCheck, Trash2, Loader2, RefreshCw, Settings, CheckCircle2, AlertCircle } from 'lucide-react';
-import { toast } from 'sonner';
 import { useNotifications } from '@/hooks/useNotifications';
 import { notificationPath, type NotificationCategory, type NotificationMutation } from '@/api/notifications';
 import { Button } from '@/components/ui/button';
@@ -15,6 +14,8 @@ export default function NotificationsPage() {
   const [category, setCategory] = useState<NotificationCategory>('all'), [page, setPage] = useState(0);
   const { feed, isLoading, error, refetch, mutate, mutating } = useNotifications(category, page * 25);
   const [operationError, setOperationError] = useState('');
+  const mounted = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => { setPage(0); setOperationError(''); }, [category]);
   useEffect(() => {
     if (feed && page > 0 && page * 25 >= feed.total) setPage(Math.max(0, Math.ceil(feed.total / 25) - 1));
@@ -22,7 +23,7 @@ export default function NotificationsPage() {
   const act = async (input: NotificationMutation) => {
     setOperationError('');
     try { await mutate(input); }
-    catch (cause) { setOperationError(cause instanceof Error ? cause.message : '通知操作失败'); }
+    catch (cause) { if (mounted.current) setOperationError(cause instanceof Error ? cause.message : '通知操作失败'); }
   };
   return <div className="mx-auto max-w-4xl p-4 md:p-8 space-y-6">
     <div className="flex flex-wrap justify-between items-start gap-3">
@@ -55,7 +56,10 @@ export default function NotificationsPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button asChild variant="outline" size="sm"><Link to={notificationPath(item)} state={{ notification_source_id: item.source_id }}
-            onClick={() => { if (!item.read_at) void mutate({ action: 'read', ids: [item.id] }).catch(cause => toast.error(cause.message)); }}>查看详情</Link></Button>
+            onClick={() => { if (!item.read_at) void mutate({ action: 'read', ids: [item.id] }).catch(cause => {
+              // 详情导航已发起；失败保留未读，回到通知页可重试，不向目标页发送迟到提示。
+              if (mounted.current) setOperationError(cause.message);
+            }); }}>查看详情</Link></Button>
           {!item.read_at && <Button variant="ghost" size="sm" disabled={mutating} onClick={() => void act({ action: 'read', ids: [item.id] })}>标记已读</Button>}
           <Button variant="ghost" size="sm" disabled={mutating} aria-label={`删除通知 ${item.title}`}
             onClick={() => void act({ action: 'delete', ids: [item.id] })}><Trash2 className="w-4 h-4 mr-1" />删除</Button>
