@@ -2,6 +2,7 @@ import { authenticateRequest, createServiceClient } from '../_shared/auth.ts';
 import { providerConfig, validateVideoInput } from '../_shared/video-providers.ts';
 import { processVideoJob, publicVideoJob, type VideoJob } from '../_shared/video-jobs.ts';
 import { validateMediaTree, signMediaTree } from '../_shared/private-media.ts';
+import { workloadPolicy } from '../_shared/workload-policy.ts';
 
 const headers = {
   'Access-Control-Allow-Origin': '*',
@@ -56,6 +57,8 @@ export async function handleVideoJobs(req: Request): Promise<Response> {
         p_config_version: config.versionId,
       });
       if (error) {
+        const policy = workloadPolicy(error);
+        if (policy) return reply({ error: policy.message, outcome: 'rejected' }, policy.status);
         if (error.message.includes('积分不足')) return reply({ error: error.message }, 402);
         if (error.message.includes('同一请求标识')) return reply({ error: error.message }, 409);
         if (error.message.includes('模型配置')) return reply({ error: '模型配置已更新，请重新提交' }, 409);

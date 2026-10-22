@@ -103,7 +103,7 @@ const db = {
   async rpc(name, parameters) {
     state.calls.push({ name, parameters });
     if (name === 'claim_video_job') return { data: state.claim ? state.job : null };
-    if (name === 'create_video_job') return { data: state.job };
+    if (name === 'create_video_job') return state.createError ? { error: state.createError } : { data: state.job };
     if (name === 'record_video_job_event' && state.recordError) return { error: { message: 'db down' } };
     return { data: state.job, error: null };
   },
@@ -228,5 +228,23 @@ await test('调度预检验证队列表结构，不领取任务或调用模型',
   assert.equal((await handleVideoWorker(request({ action: 'probe' }, 'Bearer worker'))).status, 503);
   assert.equal(state.calls.length, 0);
   assert.equal((await handleVideoWorker(request({ action: 'invalid' }, 'Bearer worker'))).status, 400);
+});
+await test('受限账号/租户/日预算在模型调用前明确拒绝，数据库故障保持未知', async () => {
+  globalThis.fetch = () => { throw new Error('must not call provider'); };
+  for (const [message, status] of [
+    ['账号的新计费任务已受限，可通过工单申诉', 403],
+    ['租户已暂停新计费任务，可通过工单联系运营', 403],
+    ['团队日积分预算不足', 429], ['日积分预算不足：上限20', 429],
+  ]) {
+    reset({ creating: true, createError: { message, code: '42501' } });
+    const response = await handleVideoJobs(request({ action: 'create', provider: 'Wan3', input, request_key: crypto.randomUUID() }));
+    assert.equal(response.status, status);
+    assert.equal((await response.json()).outcome, 'rejected');
+    assert.equal(state.calls.filter(call => call.name === 'create_video_job').length, 1);
+    assert.deepEqual(events(), []);
+  }
+  reset({ creating: true, createError: { message: 'database connection lost' } });
+  const response = await handleVideoJobs(request({ action: 'create', provider: 'Wan3', input, request_key: crypto.randomUUID() }));
+  assert.equal(response.status, 503);
 });
 console.log(`${passes} tests passed`);

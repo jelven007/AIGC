@@ -5,6 +5,7 @@ import { canonicalMediaTree, mediaObject, signedMedia, validateMediaTree } from 
 import { jobEvent, publicProductionJob, type ProductionJob } from './production-jobs.ts';
 import { boundedText, groundedHighlights, parseModelJSON, score, textList, timedTranscript } from './structured-analysis.ts';
 import { productUuid } from './product-contract.ts';
+import { workloadPolicy } from './workload-policy.ts';
 
 export function analysisInput(raw: any) {
   if (!raw || !['live', 'style'].includes(raw.mode)) throw new Error('分析类型不正确');
@@ -35,7 +36,7 @@ export async function createAnalysisJob(db: SupabaseClient, uid: string, key: st
   }
   const created = await db.rpc('create_production_job', { p_user_id: uid, p_request_key: key, p_kind: 'analysis',
     p_payload: { ...input, asr_version: asr.version_id }, p_project_id: null, p_version: text.version_id });
-  if (created.error) throw new Error(/积分不足|队列|配置已更新|价格已更新|同一请求标识/.test(created.error.message)
+  if (created.error) throw workloadPolicy(created.error) || new Error(/积分不足|队列|配置已更新|价格已更新|同一请求标识/.test(created.error.message)
     ? created.error.message : '分析任务创建结果待确认，请恢复原请求');
   return publicProductionJob(db, created.data);
 }

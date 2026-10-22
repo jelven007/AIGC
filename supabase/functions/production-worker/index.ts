@@ -61,6 +61,12 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
       const editCosts = await db.from('credit_costs').select('action,cost').in('action', ['generate_edit_beats', 'generate_edit_subtitles']);
       const materialReceipts = await db.from('material_upload_receipts').select('request_key,material_id,rights_confirmed_at').limit(0);
       const pipeline = await db.from('batch_pipeline_stages').select('id,request_key,charge_id,depends_on,publish_group_id').limit(0);
+      const support = await db.from('support_tickets').select('id,version,assignee_id,due_at').limit(0);
+      const supportMessages = await db.from('support_messages').select('id,ticket_id,internal').limit(0);
+      const tenants = await db.from('teams').select('state,ops_version,daily_credit_budget').limit(0);
+      const teamBudget = await db.from('team_credit_reservations').select('charge_id,team_id').limit(0);
+      const restrictions = await db.from('workload_restrictions').select('user_id,restricted,version').limit(0);
+      const supplierCosts = await db.from('supplier_cost_entries').select('job_id,model_version,amount_minor,evidence_sha256').limit(0);
       const ready = !error && !voices.error && !costs.error && costs.data?.length === Object.keys(MEDIA_JOB_SLOTS).length
         && !analysis.error && !!analysis.data && !measurements.error && !experiments.error && !knowledge.error && !chunks.error
         && !knowledgeCosts.error && knowledgeCosts.data?.length === 2 && knowledgeCosts.data.every(row => Number.isInteger(row.cost) && row.cost >= 0)
@@ -69,8 +75,9 @@ export async function handleProductionWorker(req: Request): Promise<Response> {
         && !checkout.error && !notifications.error && !references.error && !translations.error && Number.isInteger(translations.data?.cost) && translations.data!.cost >= 0
         && !retention.error && !mediaReferences.error && !revocations.error && !revocationReceipts.error && !voiceState.error && !erased.error
         && !wechat.error && !wechatOrders.error && !wechatRefunds.error && !editCosts.error && !materialReceipts.error && !pipeline.error
+        && !support.error && !supportMessages.error && !tenants.error && !teamBudget.error && !restrictions.error && !supplierCosts.error
         && editCosts.data?.length === 2 && editCosts.data.every(row => Number.isInteger(row.cost) && row.cost >= 0);
-      return Response.json({ ready, version: 16, render_version: 4, edit_version: 2, required_migration: '00055' }, { status: ready ? 200 : 503 });
+      return Response.json({ ready, version: 17, render_version: 4, edit_version: 2, required_migration: '00056' }, { status: ready ? 200 : 503 });
     }
     if (general && body.action === 'run') {
       const scheduled = await db.rpc('enqueue_intelligence_schedule');

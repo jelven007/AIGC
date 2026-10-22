@@ -3,6 +3,7 @@ import { asrModel, encodeAudio, jsonModelResponse, safeMediaDownload, ttsModel }
 import { modelFetch, resolveModel, validateEndpoint } from './model-registry.ts';
 import { canonicalMediaTree, mediaReference, signedMedia, validateMediaTree } from './private-media.ts';
 import { jobEvent, publicProductionJob, type ProductionJob } from './production-jobs.ts';
+import { workloadPolicy } from './workload-policy.ts';
 
 export const MEDIA_JOB_SLOTS: Record<string, string> = {
   tts: 'audio.tts', asr: 'audio.asr', voice_clone: 'audio.voice_clone', avatar: 'avatar.photo', lipsync: 'avatar.lipsync',
@@ -79,7 +80,7 @@ export async function createMediaJob(db: SupabaseClient, uid: string, kind: stri
   if (kind === 'asr' && config.settings.protocol === 'step-asr' && !/\.(wav|mp3)$/i.test(input.filename)) throw new Error('Step ASR 当前仅接受 WAV/MP3');
   const created = await db.rpc('create_production_job', { p_user_id: uid, p_request_key: key, p_kind: kind,
     p_payload: input, p_project_id: projectId || null, p_version: config.version_id });
-  if (created.error) throw new Error(created.error.message.includes('积分不足') ? '积分不足'
+  if (created.error) throw workloadPolicy(created.error) || new Error(created.error.message.includes('积分不足') ? '积分不足'
     : /队列|配置已更新|价格已更新|声纹|同一请求标识/.test(created.error.message) ? created.error.message : '任务创建结果待确认，请使用原请求恢复');
   return publicProductionJob(db, created.data);
 }

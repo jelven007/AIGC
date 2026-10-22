@@ -1,6 +1,6 @@
 # aigcp 环境部署记录
 
-最新待发布范围00032–00055，见 [迭代27](ITERATION_27_BATCH_PIPELINE.md)：匹配batch-video-jobs/production-worker/platform-publish/api-keys及共享模块、调度、MCP59/19权限、前端与重建FFmpeg镜像。严格要求probe16/00055/render4/edit2，旧edit1领取前426；真实模型/平台、容量与目标全栈部署尚未验收。最近官方00031/三旧函数事实未变，本段是发布条件。
+最新待发布范围00032–00056，见 [迭代28](ITERATION_28_OPERATIONS_WORKFLOWS.md)：匹配operations/production-worker/全部共享模块、调度与前端，包含工单/租户/风险/现金成本；保留多镜头编排、MCP59/19权限及render4/edit2镜像。严格要求probe17/00056/render4/edit2；官方最近00031/三旧函数事实未变，本段是发布条件，真实业务/容量及全栈尚未验收。
 
 最新待发布范围00032–00053，见 [迭代25](ITERATION_25_EDIT_ANALYSIS.md)：匹配production-jobs/production-worker及共享模块、常驻调度/前端，重建含固定PPHumanSeg模型/许可证的FFmpeg镜像。严格要求probe14/00053/render3/edit1，旧render2领取前426；真实Whisper、长素材质量/资源和目标部署仍待验收。最近官方00031/三旧函数事实未变，本段不是上线回执。
 

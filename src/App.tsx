@@ -29,6 +29,7 @@ const AnalyticsPage   = lazy(() => import("@/pages/AnalyticsPage"));
 const ProfilePage     = lazy(() => import("@/pages/ProfilePage"));
 const ModelSettingsPage = lazy(() => import("@/pages/ModelSettingsPage"));
 const OperationsPage = lazy(() => import("@/pages/OperationsPage"));
+const SupportPage = lazy(() => import("@/pages/SupportPage"));
 const ProductsPage    = lazy(() => import("@/pages/ProductsPage"));
 const ProductSelectionPage = lazy(() => import("@/pages/ProductSelectionPage"));
 const AvatarsPage     = lazy(() => import("@/pages/AvatarsPage"));
@@ -238,6 +239,7 @@ function AppRoutes() {
                   <Route path="/profile" element={<ProfilePage />} />
                   <Route path="/settings/models" element={<ModelSettingsPage />} />
                   <Route path="/operations" element={<OperationsPage />} />
+                  <Route path="/support" element={<SupportPage />} />
                   <Route path="/products" element={<ProductsPage />} />
                   <Route path="/product-selection" element={<ProductSelectionPage />} />
                   <Route path="/avatars" element={<AvatarsPage />} />

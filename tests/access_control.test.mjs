@@ -7,6 +7,7 @@ globalThis.Deno = { env: { get: key => env[key] }, serve() {} };
 let consumed = { user_id: uid, key_id: 'key' }, user = { id: uid, email_confirmed_at: '2026-10-21' };
 let insertFail = false, revokeFail = false, deleteFail = false, removalsFail = false;
 let inserted, seenScope, deleted, claimed = [];
+const deletionReceipts = [];
 const keyRecord = { id: 'key', name: '生产', key_prefix: 'ak_live_', scopes: ['video:read'], is_active: true };
 const db = {
   auth: { getUser: async () => ({ data: { user } }), admin: { getUserById: async id => ({ data: { user: { ...user, id } } }) } },
@@ -26,6 +27,11 @@ const db = {
     if (name === 'upsert_rate_limit') return { data: true };
     if (name === 'delete_owned_material') { deleted = args; return { error: deleteFail ? { message: '素材仍被引用' } : null }; }
     if (name === 'claim_media_deletions') return { data: claimed };
+    if (name === 'finish_media_deletion') {
+      assert.equal(args.p_lease, claimed[0].lease_token);
+      deletionReceipts.push(args);
+      return { data: true };
+    }
     throw new Error(name);
   },
   storage: { from() { return { remove: async () => ({ error: removalsFail ? new Error('storage outage') : null }) }; } },
@@ -71,7 +77,8 @@ assert.equal(removed.status, 200);
 assert.equal(deleted.p_path, `${uid}/商品 图.png`); assert.equal(deleted.p_bucket, 'materials');
 deleteFail = true;
 assert.equal((await assets.handleMaterialAssets(request({ action: 'delete', material_id: 'material' }))).status, 409);
-claimed = [{ id: 'cleanup', bucket: 'materials', path: 'file', attempts: 1 }];
+claimed = [{ id: 'cleanup', bucket: 'materials', path: 'file', attempts: 1, lease_token: crypto.randomUUID() }];
 removalsFail = true; assert.equal(await cleanup.processMediaDeletions(db), 0);
 removalsFail = false; assert.equal(await cleanup.processMediaDeletions(db), 1);
+assert.deepEqual(deletionReceipts.map(row => row.p_success), [false, true]);
 console.log('PASS 删除签名URL去令牌和解码、引用冲突、清理故障可恢复');

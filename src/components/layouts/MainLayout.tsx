@@ -73,6 +73,7 @@ const navGroups = [
       { path: '/open-api', label: '开放 API', icon: Code2 },
       { path: '/settings/models', label: '模型接口设置', icon: Settings2 },
       { path: '/operations', label: '运营控制台', icon: LayoutDashboard },
+      { path: '/support', label: '帮助与工单', icon: Bell },
     ],
   },
 ];

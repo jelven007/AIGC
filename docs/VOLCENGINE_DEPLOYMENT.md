@@ -1,6 +1,6 @@
 # 火山引擎部署指南
 
-最新 [迭代27](ITERATION_27_BATCH_PIPELINE.md)要求00032–00055及匹配batch-video-jobs/production-worker/platform-publish/api-keys/共享模块、MCP59/19权限、前端和重建FFmpeg。verify严格要求probe16/00055/render4/edit2，旧edit1领取前拒绝；备份阶段原UUID、预算/扣费流水、模型版本和依赖。需要真实配音、字幕、镜头/发布恢复与容量验收，火山和官方目标均无本轮部署回执。
+最新 [迭代28](ITERATION_28_OPERATIONS_WORKFLOWS.md)要求00032–00056及匹配operations/production-worker/全部共享模块、调度与前端，保留MCP59/19权限和render4/edit2。verify严格要求probe17/00056/render4/edit2；备份必须覆盖原任务/资金/模型版本、工单/消息、租户策略/团队预占、风险处置与不可变现金账本。火山和官方目标均无本轮部署回执，真实业务/容量及恢复验收仍需执行。
 
 最新 [迭代26](ITERATION_26_EDITOR_ASSETS.md)要求00032–00054与匹配material-assets/production API和共享模块、常驻调度、前端/MCP58及重建FFmpeg。verify严格要求probe15/00054/render4/edit1，旧render3领取前拒绝；新增material_upload_receipts须备份并验证Storage MIME/大小元数据与共享权限。火山及官方目标均没有本轮部署回执，不能单独更新前端。
 

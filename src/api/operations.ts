@@ -1,10 +1,19 @@
 import { supabase } from '@/db/supabase';
 import { alipayTradeOps } from './alipay';
 import { wechatTradeOps } from './wechat';
-export type OperatorDomain = 'orders' | 'refunds' | 'customers' | 'jobs' | 'risk' | 'audit' | 'operators';
+export type OperatorDomain = 'orders' | 'refunds' | 'customers' | 'jobs' | 'risk' | 'audit' | 'operators' | 'tickets' | 'tenants' | 'costs' | 'cost_missing';
 export interface OperatorAccess { root: boolean; permissions: string[]; grants: { id: string; role: string; scope_user_id: string | null }[] }
 export interface OperatorPage { items: Record<string, unknown>[]; total: number; page: number; page_size: number; observed_at: string }
-export type OperatorRequest = { action: 'mutate'; operation: 'budget' | 'grant' | 'revoke'; request_key: string; payload: Record<string, unknown> };
+export type OperatorOperation = 'budget' | 'grant' | 'revoke' | 'ticket_create' | 'ticket_reply' | 'ticket_update'
+  | 'tenant_update' | 'tenant_member' | 'risk_review' | 'restriction' | 'cost_record' | 'cost_reverse';
+export type OperatorRequest = { action: 'mutate'; operation: OperatorOperation; request_key: string; payload: Record<string, unknown> };
+export interface SupportDetail { ticket: Record<string, unknown>; items: Record<string, unknown>[]; total: number; page: number; page_size: number; staff: boolean }
+export function supportPage(page: number): Promise<OperatorPage> { return operationsRequest({ action: 'support', page }); }
+export function supportDetail(ticketId: string, page = 1): Promise<SupportDetail> { return operationsRequest({ action: 'support', ticket_id: ticketId, page }); }
+export interface TenantDetail { tenant: Record<string, unknown>; items: Record<string, unknown>[]; total: number; page: number; page_size: number }
+export function tenantDetail(teamId: string, page = 1): Promise<TenantDetail> { return operationsRequest({ action: 'tenant', team_id: teamId, page }); }
+export interface CostReport { totals: { currency: string; amount_minor: number; entry_count: number }[]; unrecorded_workloads: number; observed_at: string }
+export function costReport(userId: string): Promise<CostReport> { return operationsRequest({ action: 'cost_report', user_id: userId || undefined }); }
 export type PendingOperatorRequest = { kind: 'operator'; body: OperatorRequest } | { kind: 'refund'; body: {
   action: 'refund'; order_no: string; refund_amount: string; refund_reason: string; request_key: string;
 }; channel?: 'alipay' | 'wechat' };

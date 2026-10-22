@@ -108,7 +108,7 @@ export function useVideoGeneration(userId?: string) {
         }
       } catch (cause) {
         if (!stopped && generation.current === epoch) {
-          if (cause instanceof VideoJobError && [400, 401, 402, 409].includes(cause.status)) {
+          if (cause instanceof VideoJobError && [400, 401, 402, 403, 409, 429].includes(cause.status)) {
             saveReceipt(null);
             toast.error(cause.message);
             if (cause.status === 402) openCreditsDialog();
@@ -160,7 +160,7 @@ export function useVideoGeneration(userId?: string) {
       if (active(response)) toast.info(`任务已排队，预占 ${response.credit_cost} 积分；确定失败将自动退还`);
     } catch (cause) {
       if (generation.current !== epoch) return;
-      if (!sent || (cause instanceof VideoJobError && [400, 401, 402, 409].includes(cause.status))) {
+      if (!sent || (cause instanceof VideoJobError && [400, 401, 402, 403, 409, 429].includes(cause.status))) {
         saveReceipt(null);
         toast.error(cause instanceof Error ? cause.message : '任务创建失败');
         if (cause instanceof VideoJobError && cause.status === 402) openCreditsDialog();

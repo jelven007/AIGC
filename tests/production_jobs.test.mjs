@@ -6,6 +6,7 @@ const env = { SUPABASE_URL: 'https://db.example', SUPABASE_ANON_KEY: 'anon',
   SUPABASE_SERVICE_ROLE_KEY: 'service', MODEL_CONFIG_ENCRYPTION_KEY: 'c'.repeat(64) };
 globalThis.Deno = { env: { get: key => env[key] }, serve() {}, resolveDns: async () => ['8.8.8.8'] };
 let user = { id: uid }, job, configKey, connection, imageSettings, modelCalls = 0, uploadFailure = false, events = [], taskUpdates = [];
+let createError = null;
 const db = {
   auth: { getUser: async () => ({ data: { user } }) },
   from(table) {
@@ -25,6 +26,7 @@ const db = {
     upload: async () => ({ error: uploadFailure ? new Error('storage outage') : null }),
   }; } },
   async rpc(name, args) {
+    if (name === 'create_production_job') return { error: createError };
     if (name === 'can_read_media') return { data: args.p_path.startsWith(uid + '/') || args.p_path.startsWith(`generated-images/${uid}/`) };
     if (name === 'claim_production_job') return { data: job };
     if (name === 'update_production_job') {
@@ -63,6 +65,15 @@ assert.equal((await api.handleProductionJobs(request({ action: 'list' }))).statu
 user = { id: uid };
 assert.equal((await api.handleProductionJobs(request({ action: 'create', kind: 'render', request_key: crypto.randomUUID(), input: { version: 999 } }))).status, 400);
 console.log('PASS 私有签名续期、跨用户拒绝、计费前授权与工程参数错误');
+for (const [message, status] of [['账号的新计费任务已受限，可通过工单申诉', 403], ['团队日积分预算不足', 429]]) {
+  createError = { message };
+  const response = await api.handleProductionJobs(request({ action: 'create', kind: 'image', request_key: crypto.randomUUID(), input: { prompt: '真实图片' } }));
+  assert.equal(response.status, status);
+  assert.equal((await response.json()).outcome, 'rejected');
+  assert.equal(modelCalls, 0);
+}
+createError = null;
+console.log('PASS 图片账号限制/团队预算为明确403/429，零供应商调用与零伪退款');
 
 job = { id: crypto.randomUUID(), user_id: uid, request_key: crypto.randomUUID(), kind: 'image', status: 'running',
   lease_token: crypto.randomUUID(), model_config_version_id: 'image-version', payload: { prompt: '商品', size: '1024x1024' } };
@@ -131,4 +142,4 @@ await platforms.processPublishJob(db);
 assert.match(queried.url, /video_data/); assert.deepEqual(queried.body, { item_ids: ['@real-item'] });
 assert.equal(taskUpdates.at(-1).status, 'published');
 console.log('PASS 抖音按官方作品ID查询公开状态与真实指标映射');
-console.log('6 groups passed');
+console.log('7 groups passed');

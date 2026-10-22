@@ -7,6 +7,7 @@ import { createIntelligenceJob, intelligenceUuid } from '../_shared/intelligence
 import { publicProductionJob, type ProductionJob } from '../_shared/production-jobs.ts';
 import { intelligenceScope } from '../_shared/api-scopes.ts';
 import { privateImageReference, readIntelligenceImage } from '../_shared/intelligence-image.ts';
+import { workloadPolicy } from '../_shared/workload-policy.ts';
 export async function handleIntelligence(req: Request): Promise<Response> {
   const preflight = handleCorsPreflight(req); if (preflight) return preflight;
   const headers = getCorsHeaders(req), reply = (body: unknown, status = 200) => Response.json(body, { status, headers });
@@ -78,6 +79,8 @@ export async function handleIntelligence(req: Request): Promise<Response> {
     }
     throw new IntelligenceError('操作不支持');
   } catch (cause) {
+    const policy = workloadPolicy(cause);
+    if (policy) return reply({ error: policy.message, outcome: 'rejected' }, policy.status);
     const message = cause instanceof Error ? cause.message : '情报服务不可用';
     return reply({ error: cause instanceof SyntaxError ? 'JSON请求非法' : message }, cause instanceof ConfigError ? 424
       : cause instanceof SyntaxError || cause instanceof IntelligenceError ? 400
