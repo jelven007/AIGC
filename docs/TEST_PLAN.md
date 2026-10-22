@@ -1,5 +1,9 @@
 # 测试与验收计划
 
+更新：2026-10-22，功能基线`d7e3d38`。当前00062/probe22/render4/edit2，MCP59/19。本次文档验证与最新功能执行证据分别见 [2026-10-22报告](TEST_REPORT_20261022.md)。下面摘要为各轮时点，后文用例按当前契约执行。
+
+## 历史专项索引
+
 最新 [迭代34专项](ITERATION_34_IMAGE_EDITING.md)：test:image-editing包含4项真实PG和6组真实共享模块协议，以及probe22/00062；覆盖一次计费、价格/版本/对象/权限拒绝、未知保护、原流水退款、实际PNG与透明通道有界解压、同域编辑协议与checkpoint不重发。test:image-editing-ui验证工具入口/统计、扩图/矩形重绘、素材使用权、私有原引用、原UUID失联恢复、修改区域失效、缺能力禁用及账号切换迟到隔离；开发与压缩页面分别执行。原财务/生产任务/账号/导出与调度部署回归，结果不代替真实模型权限/质量/成本和目标容量验收。
 
 上一轮 [迭代33专项](ITERATION_33_CREDITS_SMS.md)：test:account-credits包含5项真实PG（含无邮箱手机注册/验证奖励）；UI验证共享余额、读取错误、权益/过期、迟到账号隔离、通知离页、SMS原手机/回执/邀请码/redirect、错误会话和未知冷却。test:registration-disabled-ui使用未配置协议的独立服务器。隔离协议/SMS不作为正式法务与真实身份送达验收。
@@ -44,7 +48,7 @@
 
 新增00041接受项见 [分析迭代12](ITERATION_12_GROUNDED_ANALYSIS.md)：5项PG/4组协议/2项FFmpeg及移动页面恢复，覆盖两段领取、版本/价格/配额、原退款、字幕边界/越界、源指纹、静音及无时间戳、私有抽帧、真实MP4。云端还需验证视觉模型与Whisper权限、旧租约、实际成本、10分钟边界和上线后对象生命周期。
 
-版本：2026-10-21，源码 `ce90bfe`。与 [PRD](prd/PRD.md)、[接口](API_AND_DATA.md) 对应。已执行结果独立记录在 [验证报告](TEST_REPORT_20261021.md)，此处列出的云端用例不代表已执行。
+与 [PRD](prd/PRD.md)、[接口](API_AND_DATA.md) 对应；旧 [2026-10-21报告](TEST_REPORT_20261021.md)仅覆盖原时点，此处目标用例不代表已执行。
 
 ## 1. 测试层次与环境
 
@@ -53,7 +57,7 @@
 | 事务与权限 | Docker PG16，真实业务迁移，Auth/Storage/角色替身 | 并发扣费、RPC/表权限、配置版本、退款原子性 | 托管 Auth、PostgREST、云端扩展/RLS 整体配置 |
 | API/上游协议 | Node/Deno 受控 fetch、Storage、SDK 替身 | 请求协议、错误分类、输入与鉴权、失败补偿 | 真实模型权限、速度、画质、供应商账单 |
 | 调度/发布/MCP | Python、本地 HTTP、真实 MCP SDK、数据库替身 | 退避、并发、回执、防漂移、JWT 传递 | ECS 在线稳定性、Pages 重写、正式 TLS |
-| 浏览器 | 对目标环境实际操作、双用户、移动宽度 | 设置页、刷新/关页恢复、提示与交互 | 不能用页面截图替代数据库/资金证据 |
+| 浏览器 | 本地开发与独立压缩夹具；目标另测，双用户/390px | 实际控件/录音/媒体下载、原UUID/迟到隔离/布局 | 本地UI不证明真实Auth/模型/支付，截图不替代资金证据 |
 | 云端与业务 | 隔离验收账号、真实已开通模型、支付沙箱 | 部署兼容、成片可播放、真实账单/回调 | 小样本不证明规模 SLA 或商业转化 |
 
 正式业务环境不用演示用户和演示数据迁移。真实生成使用明确预算的验收账号；保存任务/订单/配置版本与脱敏结果，清理时先完成终态和对账，不删除未核对任务。
@@ -73,6 +77,13 @@
 | BATCH-01 | `npm run test:batch`；`node tests/browser_batch_video.mjs`（本地UI夹具） | BATCH-01/02；整批回滚/预算/套餐/并发恢复/暂停/取消退款与领取竞态 |
 | EXPORT-01 | `npm run test:exports`、`npm run test:render`、`node tests/browser_render_exports.mjs` | RENDER-02、MODEL-04；全批回滚/并发/配额/源删除恢复、4:5像素尺寸/滤镜强度、刷新/旧回执兼容 |
 | MEDIA-01 | `npm run test:media`、`node tests/browser_media_jobs.mjs` | AUDIO-02、AVATAR-01；版本/价格/声纹权限/配额、原受理未知、归档恢复、照片口播/口型、同请求刷新 |
+| IMAGE-EDIT-01 | `npm run test:image-editing`、`npm run test:image-editing-ui` | 私有PNG/同域协议、原价/版本、unknown/checkpoint、原UUID/区域失效/迟到账号 |
+| ACCOUNT-01 | `test:profile` / `test:rewards` / `test:account-credits`及对应`-ui`、`test:registration-disabled-ui` | 本人完整聚合、旧邀请/验证唯一奖励、活动原回执、共享权益/过期、SMS与正式协议 |
+| PIPELINE-01 | `npm run test:pipeline`、`node tests/browser_batch_pipeline.mjs` | 原阶段预算/版本/共享配额、真实音轨/字幕/工程/发布、暂停取消未知 |
+| OPS-01 | `test:operations` / `test:cash` / `test:checkout` / `test:wechat` | 可信范围/工单/租户/预算/风险/现金凭证、两渠道原单与退款权益 |
+| RECOVERY-01 | `test:alerts` / `test:backup` / `test:lifecycle` | 持久告警/撤权/陈旧心跳、加密实物/历史密钥恢复、引用TTL/墓碑 |
+| DATA-01 | `test:products` / `test:translation` / `test:knowledge` / `test:intelligence` / `test:measurements` | 真实来源/空值/币种/版本/留存、原请求/预算/签名统计 |
+| EDIT-01 | `test:edit` / `test:assets` / `test:render` | 真实PCM/节拍/时间段/人物alpha/音频效果、原素材/使用权/回执 |
 | ENG-01 | `npm run typecheck`、关键函数 `deno check`、`npm run build` | 编译与打包，不替代业务验收 |
 
 MCP 需安装 `mcp/requirements_mcp.txt`。按实际修改选择回归：计费/RPC 跑真实 DB；提交/查询跑 VID；配置跑 DB+MOD；调度跑 SCH；发布脚本跑 DEP。文档更新做链接、事实和差异检查，无需反复全量测试。
@@ -81,11 +92,11 @@ MCP 需安装 `mcp/requirements_mcp.txt`。按实际修改选择回归：计费/
 
 多规格导出启用还需验证：00039与匹配API/FFmpeg镜像已部署，私有源作品六画幅/三分辨率实际编码和下载播放，关页同键恢复、部分失败/独立发布、队列容量429、旧回执恢复。Sora按官方退役信息检查，不调用关闭API。新增要求对应REQ-RENDER-02/REQ-MODEL-04；本地夹具不代替此验收。
 
-00040媒体启用还需验收真实OpenAI/Step配音/识别、ElevenLabs即时声纹及验证、D-ID/Sync私有签名输入与可播放MP4，双用户访问、同请求账单、换价拒绝、关页恢复、旧配置/旧声纹账号、未知核对与自动返还。production-worker probe版本2需ready且required_migration=00040；专业训练与动作控制不在本地已交付范围。对应REQ-AUDIO-02/REQ-AVATAR-01，见 [迭代11](ITERATION_11_AUDIO_AVATAR_JOBS.md)。
+媒体启用需实际OpenAI/Step配音识别、ElevenLabs验证与原账号删除、D-ID/Sync私有输入/MP4、双用户/原请求账单/换价/关页/旧配置/unknown。当前production probe必须22/00062/render4/edit2；专业训练/动作控制不在交付范围。
 
 | ID | 前置与操作 | 预期结果/证据 | 需求 |
 | --- | --- | --- | --- |
-| AT-01 | 记录 URL、迁移、函数、Git、Cron/容器；调用 probe | 00034 所需字段存在；函数与源码匹配；probe 不消费任务 | OPS-01 |
+| AT-01 | 记录URL/迁移/43入口/Git/镜像/唯一调度，调用probe | 00062全部结构/权限就绪；probe22/render4/edit2；不消费任务 | OPS-01 |
 | AT-02 | 新邮箱注册、验证与登录；重复回调/初始化 | 一份用户套餐，默认 20 赠分一次；未登录无法读业务 | AUTH-01 |
 | AT-03 | A/B 两用户读取修改商品、素材、任务与订单 | B 无法读取/覆盖 A；关键 RPC 不能由普通用户执行 | ASSET-01 |
 | AT-04 | 普通用户、伪造 user_metadata、真实管理员访问设置 | 仅管理员可 list/save/import/test；任何响应无 Key/密文 | MODEL-01 |
@@ -98,7 +109,7 @@ MCP 需安装 `mcp/requirements_mcp.txt`。按实际修改选择回归：计费/
 | AT-11 | 注入 POST 超时/5xx/成功无 ID | unknown、needs_attention、积分保留；有核对记录 | VIDEO-03 |
 | AT-12 | 明确拒绝/上游失败；注入退款事务故障再恢复 | 证据持久化；终态/作品/原流水退款原子恢复一次 | VIDEO-04 |
 | AT-13 | V1 提交后切 V2/禁用；核对并绑定旧任务 | V1 任务仍读 V1；V2 新任务规则生效；绑定有审计 | VIDEO-05 |
-| AT-14 | 真实图片两协议、封面、非法/空图片、页面关闭 | 正常图片归档；失败报错；不伪造 CTR；关页不承诺恢复 | IMAGE-01 |
+| AT-14 | 真实图片生成/参考/扩图/矩形重绘与封面；非法PNG/对象/原价版本/关页 | 私有成片、原UUID恢复、unknown不重发、checkpoint只归档；商品/文字人工核对 | IMAGE-01/IMAGE-EDIT-01 |
 | AT-15 | 文本 SSE/JSON、主模型失败备用、中断和限流 | 实际输出；无模拟成功；429；缓存不串用户 | TEXT-01 |
 | AT-16 | TTS 音色、ASR 上传、Step SSE、20MB 边界 | 真实可播/可识别；错误脱敏；JWT 与频控有效 | AUDIO-01 |
 | AT-17 | 支付沙箱验签、错金额/渠道、重复通知、权益故障 | 错误不入账；正确通知权益一次；恢复后可重试 | PAY-01 |
@@ -107,6 +118,12 @@ MCP 需安装 `mcp/requirements_mcp.txt`。按实际修改选择回归：计费/
 | AT-20 | 备份恢复到隔离环境，并核对队列/密文/Storage | 可解密旧版本、资金一致；恢复阶段不自动重提上游 | OPS-01 |
 | AT-21 | 有效/到期套餐、两用户、重复批次、配置改动、价格与预算不足 | 1–50商品整批事务，失败零预占/零孤立作品；同键找回/参数冲突 | BATCH-01 |
 | AT-22 | 批次关页、暂停/恢复、领取与取消并发、退款写入故障、未知核对 | 已受理继续；仅queued原流水返还一次；进度/终态/账单汇总一致 | BATCH-02 |
+| AT-23 | 原账号迟到资料/余额/通知/图片成功后切换账号，实际SMS未知/错误回执/换号码 | 新账号不受旧结果影响；短信原号码独立回执；过期/读失败不伪降级 | ACCOUNT-ISOLATION-01/AUTH-SMS-01 |
+| AT-24 | 正式条款/隐私缺失、新邀请验证/旧邀请、活动UTC边界和原领取、密码恢复 | 缺资源禁注册；唯一20/50流水；旧不补发；原UUID恢复；真实回跳/同意证据 | LEGAL-RESOURCE-01/REWARD-INVITE-01 |
+| AT-25 | 多镜头实际配音/字幕/合成，超长正文，暂停/取消和预览后发布 | 原阶段预算/版本不变，完整音轨不截断，真实成片与原发布UUID | BATCH-PIPELINE-01 |
+| AT-26 | 真实角色撤销/范围、工单内部消息、租户暂停与旧签名、并发预算/风险 | 关键写当前权限/版本/UUID；原退款和工单可用；签名原期限 | SUPPORT-01/TENANT-OPS-01 |
+| AT-27 | 两渠道实际付款/延迟通知/到期竞争/现金退款，真实供应商账单及冲销 | 原商户/申请/签名一次到账和权益回收，未知保留；分币种凭证与原账本一致 | CASH-01/WECHAT-CASH-REFUND-01/SUPPLIER-CASH-01 |
+| AT-28 | 目标monitor/宿主故障/外部通知、真实备份调度/异地归档/隔离恢复 | 告警原对象/心跳/恢复，Auth/DB/Storage/历史密钥核对，实测RPO/RTO | OPS-ALERT-01/RECOVERY-01 |
 
 AT-11/12 等故障注入优先隔离环境，不通过反复请求真实收费服务制造失败。正式上线保存每个必需用例的环境、执行时间、操作者、输入标识、预期/实际与证据路径。
 
@@ -122,6 +139,6 @@ AT-11/12 等故障注入优先隔离环境，不通过反复请求真实收费�
 
 P0：越权/资金错误/密钥泄漏/重复受理/配置串账号，发布阻断。P1：主链路不可用/长期无法恢复/计费无法核对，发布阻断相关能力。P2：辅助交互、性能、文案，记录影响与替代路径。
 
-发布必需 AT-01–13（启用视频时）、相应模态用例（启用时）、AT-17（开支付时）、AT-18（公开 MCP 时）、AT-19/20（正式托管与恢复）。不启用的能力保持关闭并标明范围；私有素材需求未实现前不接受该承诺。
+发布必需AT-01–13（启用视频）、相应模态、AT-17/27（支付）、AT-18（公开MCP）、AT-19/20/28（正式托管/恢复），当前账号/奖励AT-23/24及启用编排/运营的AT-25/26。源码私有保护已有，实际目标权限/存量未验收前不能提供私有存储承诺。
 
 缺陷记录包含复现条件、环境与提交、request_key/job/order/version、脱敏日志、资金影响、负责人、修复提交和回归证据。上线后用 [运维手册](RUNBOOK.md) 监控和核对，需求覆盖见 [追踪矩阵](CHANGE_TRACEABILITY.md)。

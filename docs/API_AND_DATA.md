@@ -1,5 +1,11 @@
 # 接口与数据契约
 
+更新：2026-10-22，功能基线`d7e3d38`，当前00062/probe22/render4/edit2，MCP59/19。完整功能清单见 [发布基线](RELEASE_BASELINE_20261022.md)。
+
+## 历史协议增量
+
+以下按各轮记录保留；当前通用、模型、数据和新增契约见后文。旧probe/数量不用于最新版接入。
+
 最新 [迭代34](ITERATION_34_IMAGE_EDITING.md)：image请求新增mode、mask_image、confirmed_credit_cost/confirmed_model_version；00062在扣费前校验原价/原配置/私有存储对象，同UUID恢复原任务。image.primary增加可选同域edit_endpoint，catalog只提供image_capabilities/version_id。编辑发送官方images/mask JSON数据URL；PNG实际解压有界校验，非法原图和掩码拒绝。image_editing_schema_ready为service-only，probe22/00062，render4/edit2保持；下文按历史时点阅读。
 
 上一轮 [迭代33](ITERATION_33_CREDITS_SMS.md)：00061新增get_my_credits()，固定auth.uid返回余额、有效/配置等级、状态、到期/周期、服务端时间；缺账号报错，管理员仍查本人。account_credits_schema_ready为service-only。页面共用账号查询，生成前回源；通知POST固定原账号，SMS独立验证回执后登录。
@@ -40,7 +46,7 @@ render v1增量见 [迭代16](ITERATION_16_RENDER_EFFECTS.md)：十二transition
 
 增量00041：[素材分析契约](ITERATION_12_GROUNDED_ANALYSIS.md)。production-jobs新增analysis-price与create kind=analysis（video:create），input的mode/title/source_url/confirmed_credit_cost；查询含mode及源指纹/模型版本/可验证结果。专用Worker领取analysis_prepare并提交prepared，模型阶段权限隔离；旧风格/高光入口410。普通同步AI强制JWT身份及关联工程/商品归属校验。
 
-更新：2026-10-21，源码基线 `ce90bfe`。描述当前代码协议；当前官方云端仅有旧版本三个函数，见 [当前状态](CURRENT_STATE.md)。示例 UUID 为说明用途，接入时生成自己的 UUID。
+当前官方成功证据仍00031/三旧函数，管理最近401，见 [当前状态](CURRENT_STATE.md)。接入须部署匹配00062全部依赖；示例UUID仅说明，实际使用自建原请求UUID。
 
 ## 1. 通用约定
 
@@ -48,13 +54,13 @@ render v1增量见 [迭代16](ITERATION_16_RENDER_EFFECTS.md)：十二transition
 
 JSON 请求使用 `Content-Type: application/json`，允许的预检由各函数处理。通常 400 表示参数/配置非法，401 未登录，403 无权限，402 视频积分不足，404 本人任务不存在，409 幂等/配置冲突，429 频控，503 运行错误或结果未确认。各接口具体状态以实现为准，不能把所有非 2xx 当作上游未受理。
 
-访问控制增量 `00037`：四个业务入口支持 `Authorization: Bearer ak_live_...`，按 Action 的 scope 验证；管理端 `api-keys/team-space/material-assets` 仅用户 JWT。完整 Action/权限与 Key 有效期、每分钟限额、团队邀请/共享、删除 outbox 见 [访问控制接口](ITERATION_08_ACCESS_CONTROL.md)。旧 phase3 团队和密钥 Actions 返回410；前端不再直接写相关管理表。网关设置与函数内鉴权须一起发布。
+受限Key按19种Action scope授权，MCP固定九业务入口；api-keys/team-space/material-assets/operations、支付、奖励/通知管理使用本人JWT或可信运营身份，Key不开放这些写入。网关例外以43入口manifest逐项核对，关闭网关JWT后函数仍必须验证JWT/Key/专用密钥/签名。旧phase3团队和密钥Actions返回410。
 
 批量增量00038：`batch-video-jobs`支持quote/list/query（video:read）与create/pause/resume/cancel（video:create），JWT/Key共用身份。create传request_key、商品ID、统一规格/独立要求、确认单价和总预算；整批原子预占并复用video_jobs。query/list纯读取，终态与资金汇总子任务；取消仅释放未提交项。完整字段、错误状态和兼容见 [批量接口](ITERATION_09_BATCH_VIDEO.md)。
 
 导出增量00039：production-jobs新增export（render:create）、query-export/exports（jobs:read）。export传request_key、source_project_id、formats[{ratio,height}]；源URL/时长由服务端读取。六画幅含4:5、三短边，最多18组合，全部输出作品/渲染任务同事务；24个未结案渲染共用配额，容量不足429。同键不同参数409，失联503保留原请求；query-export缺本人记录404。返回export包含独立jobs的规格/状态/结果，未返回原始输入或租约。完整兼容见 [多规格导出接口](ITERATION_10_RENDER_EXPORTS.md)。
 
-媒体增量00040：production-jobs create支持tts/asr/voice_clone（audio:create）、avatar/lipsync（avatar:create），list可按kinds筛选；voices与media-prices使用jobs:read。完整输入/返回与原声纹版本绑定见 [媒体任务接口](ITERATION_11_AUDIO_AVATAR_JOBS.md)。确认价格变化409零扣费；未配置424；共享10个活跃媒体任务上限429；503保持原回执。旧同步音频入口410，原客户端已切后台队列。production-worker probe版本2要求00040，不消费任务。
+媒体create支持tts/asr/voice_clone（audio:create）、avatar/lipsync（avatar:create），voices/media-prices需jobs:read；价变409/无配置424/10活跃配额429/未知503保留原回执。声纹原UUID撤销、供应商原版本删除见迭代23。production probe22要求00062/render4/edit2，不消费任务；旧probe2不可用于本次发布。
 
 ## 2. 视频任务
 
@@ -131,17 +137,17 @@ stateDiagram-v2
 | `import` | 管理员；历史服务端 Secrets | `{imported,skipped}`；只补尚未保存的有效槽 |
 | `test` | 管理员；`slot` | `{ok,status,latency_ms,message}`；保存的只读 GET，10 秒超时 |
 
-`settings` 字段为 `name/protocol/endpoint/query_endpoint/model/auth_header/auth_scheme/timeout_ms/voice/test_endpoint`。完整槽与协议见 [MODEL_SLOTS](../supabase/functions/_shared/model-catalog.ts) 和 [模型指南](MODEL_SETTINGS.md)。Key 留空保留原值；设置里显示的默认模型名称不证明该账号有权限。主密钥 AES-GCM 加解密，配置版本不可 UPDATE/DELETE，版本与槽绑定。
+`settings`字段为`name/protocol/endpoint/query_endpoint/edit_endpoint/model/auth_header/auth_scheme/timeout_ms/voice/test_endpoint`。20槽及协议见 [MODEL_SLOTS](../supabase/functions/_shared/model-catalog.ts)。catalog包含无秘密`version_id/image_capabilities`；edit_endpoint可选，OpenAI Images编辑须同域同images路径和受支持GPT Image模型。Key留空保留，版本不可改删；默认名称/只读test不证明生成权限。
 
 ## 5. 同步生成与兼容入口
 
 | 入口 | 核心输入/返回 | 应用计费与边界 |
 | --- | --- | --- |
 | `text-generation` | `messages`、`stream`、`temperature`、`max_tokens`；真实 SSE/JSON | 暂不扣应用积分，20 次/用户/分钟；最多 30 消息、单消息 16000 字符、输出最多 8192 tokens |
-| `image-generation` | request_key、prompt/size/quality/reference_image；202 `{job}` | 进入图片后台计费队列；默认10积分，原结果归档恢复 |
+| `image-generation` / `production-jobs` image | request_key、prompt/size/quality、mode/reference_image/mask_image、confirmed_credit_cost/confirmed_model_version；202 `{job}` | 默认10原流水；掩码编辑必须确认价格/版本，私有PNG实际验证；checkpoint归档不再生成 |
 | `siliconflow-audio`、`stepaudio` | 历史同步入口 | 410迁移说明；改用production-jobs后台语音任务 |
 | `production-jobs`媒体类型 | tts/asr/voice_clone/avatar/lipsync；202 `{job}` | 真实确认价格、版本与私有输出；默认2/2/10/10/10，详见迭代11 |
-| `ai-assistant` | `action` 与业务参数 | 按 `credit_costs` Action 收费；缓存/限流拒绝不扣，失败按原流水补偿；部分 Action 仍有模拟业务逻辑 |
+| `ai-assistant` | Action/业务参数/归属与确认价格 | 按配置收费，真实SSE/结构校验，缓存与明确拒绝不扣、失败原流水补偿；旧停用Action不能作为功能承诺 |
 | 旧文本函数 | GLM/DeepSeek/Wenxin/MiniMax 兼容入口 | 复用统一主备配置；名称不代表固定供应商运行 |
 
 图片处理器见 [image-provider](../supabase/functions/_shared/image-provider.ts)，音频协议见 [audio-provider](../supabase/functions/_shared/audio-provider.ts)，任务执行见 [media-jobs](../supabase/functions/_shared/media-jobs.ts)。封面数据库/前端统一 `gen_task_id` 与 `completed`；不生成 CTR 预测值。网页 Reader 配置供商品卖点读取使用，没有独立公开任意抓取服务。
@@ -152,12 +158,15 @@ stateDiagram-v2
 | --- | --- |
 | `profiles/user_plans/plans` | 用户资料、套餐及 `credits_total/credits_used`；注册赠分默认 20 |
 | `credit_costs/credit_logs` | Action 成本、扣费与补偿关联；视频默认 10；不存现金兑换承诺 |
-| `orders/alipay_notify_events/alipay_refunds` | 订单渠道、金额、权益快照、支付宝通知/遗留退款记录；收款原子发放，现金退款另待验收 |
+| `orders/alipay_notify_events/alipay_refunds` | 原渠道/快照/交易及历史凭据；现金退款以00047/52当前申请/预占/签名到账/权益事务为准 |
 | `video_jobs/video_projects` | UUID 幂等、输入、原扣费、配置版本、租约、终态证据、作品结果 |
 | `model_configs/model_config_versions` | 当前指针与不可变设置/密文版本；仅服务端管理 |
 | `production_jobs/voice_clones` | 五类媒体任务的幂等、预占、证据/归档/原流水退款，声纹归属及历史配置；供应商声纹ID为受限列 |
 | `audit_logs/rate_limit_windows` | 配置和异常核对证据、频率控制 |
-| Storage | `materials/videos/thumbnails`；成片固定 `generated-videos/{user_id}/{job_id}.mp4|webm`，当前公开桶 |
+| Storage | 源码三桶私有，本人/团队授权与稳定引用/短效签名；目标旧桶尚需迁移；模型成片固定`generated-videos/{user_id}/{job_id}` |
+| `batch_pipeline_stages`等编排数据 | 固定依赖/原UUID/商品与版本/原charge，未启动阶段不占执行名额，原发布阶段绑定 |
+| 运营/现金/告警表 | 可信角色/客户范围、工单/租户版本、团队预占、风险限制、分币种追加成本、原对象告警/事件 |
+| 素材引用/删除/上传回执 | 私有存储证据、原登记UUID、使用权、引用索引、TTL/租约/删除墓碑与历史声纹版本 |
 
 实际字段以 [迁移目录](../supabase/migrations) 为准。数据库关键接口包含 `create_video_job(...,p_config_version)`、`claim_video_job`、`checkpoint_video_job_result`、`record_video_job_event`、`save_model_config`、`bind_legacy_video_config`、`reconcile_video_submission`。普通用户不得直接执行这些状态/配置写入口；权限在 00028–00034 收敛。
 
@@ -167,6 +176,25 @@ stateDiagram-v2
 
 支付接口、验签、权益快照与对账见 [支付方案](plan/支付.md)。支付宝查询是 GET `alipay-trade-query?order_no=...`，不能用 POST 或页面跳转直接认定支付成功。
 
-MCP [接入指南](../mcp/mcp.md)的45工具使用同一业务API，HTTP每请求JWT/受限Key并隔离身份；创建显式UUID，媒体/分析/知识/情报确认价格，视频默认ArkSeedance可选择七协议。任务状态/预占与网页相同，错误保留原键且不自动POST重试。
+MCP [接入指南](../mcp/mcp.md)的59工具/19权限共用九业务API；HTTP每请求JWT/Key隔离，原UUID/价格/批次预算与网页一致，不自动重发POST。当前图片编辑页面协议已实现；MCP图片工具保留原参数，不宣称已有独立掩码工具。
+
+## 8. 当前身份、运营与恢复契约
+
+| 入口 | 身份/参数 | 当前行为 |
+| --- | --- | --- |
+| `get_my_credits()` | authenticated，无用户ID | 本人余额、有效/配置等级、状态/到期/周期/服务端时间；缺账号报错 |
+| `get_my_profile_overview(p_timezone)` | authenticated，无用户ID | 完整本人作品/素材/商品/真实发布聚合，30天时区日期计数 |
+| `get_my_invitations` | authenticated、分页 | 本人完整聚合、20条默认/50上限、遮蔽受邀者、历史待核对 |
+| `claim_activity_reward(activity_id,request_key)` | authenticated、原UUID | 实际资格/UTC日/活动版本、唯一流水；结束/改价后原回执仍恢复 |
+| `report_frontend_error(p_request_key,p_path)` | authenticated、原UUID/路由路径 | 本人10次/分钟，服务端固定REACT_RENDER_CRASH，不接受客户端错误正文/堆栈/查询串 |
+| `operations access/list/mutate` | 个人JWT、可信角色/客户范围，当前版本/原UUID | 工单内部消息/处理人、租户所有权/成员/启停/预算、风险结论/限制、现金凭证/冲销、alert_ack；当前正文16KB |
+| `production-worker monitor` | VIDEO_WORKER_SECRET、scheduler_healthy布尔 | 独立扫描，不领取任务；last_scan_at/stale、原对象告警/自动恢复 |
+| `production-worker probe` | VIDEO_WORKER_SECRET | `{ready,version:22,required_migration:"00062",render_version:4,edit_version:2}`，缺schema503 |
+
+短信Auth OTP使用独立客户端核对原手机/验证会话，成功回执后安装全局会话；发送未知保留冷却/原号码，不使用旧send/verify-sms-code代理（410）。正式VITE_TERMS_URL/VITE_PRIVACY_URL缺失时禁注册。
+
+图片mode为generate/reference/inpaint/outpaint，后两者须私有同尺寸标准8位非交错PNG原图和含全透明/不透明区的掩码，每文件12MB；模式/尺寸/区域改动重新准备。00062锁原价/配置与对象权限，同UUID换输入409；旧参数自动识别generate/reference。详细JSON见 [迭代34](ITERATION_34_IMAGE_EDITING.md)。
+
+batch-video-jobs多镜头需batch:create，原报价/镜头/台词/音色/可选字幕/交付与总预算；控制仍video:create。依赖阶段固定原流水，不读取后来价格，实际配音超时长停止合成；发布batch_item_id绑定原阶段UUID和真实预览源。详细见 [迭代27](ITERATION_27_BATCH_PIPELINE.md)。
 
 API/字段变更必须同步调用端、迁移、测试、运维查询与 [追踪矩阵](CHANGE_TRACEABILITY.md)；删改旧签名前先核对未完成任务和当前已部署版本。
