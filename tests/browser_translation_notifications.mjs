@@ -82,7 +82,7 @@ try {
       }
     } else if (path.endsWith('/production-jobs')) {
       if (body.action === 'analysis-price') data = { cost: 2 };
-      else if (body.action === 'list') data = { jobs: analysisJobs };
+      else if (body.action === 'list') data = { jobs: [...analysisJobs, ...translations].filter(job => !body.kinds || body.kinds.includes(job.kind)) };
       else if (body.action === 'create') {
         submissions.push(body); analysisJobs = [{ id, kind: 'analysis', mode: 'style', status: 'completed', created_at: sourceDate, credit_cost: 2,
           result: { competitor_reference: { sample_id: id, item: { id: 'real-video', title: '真实竞品标题', url: 'https://youtube.com/watch?v=real' },

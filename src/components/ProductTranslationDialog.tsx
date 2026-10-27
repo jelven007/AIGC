@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Languages, Loader2, Download, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
@@ -7,6 +8,9 @@ import { PRODUCT_LANGUAGES, productRequest, ProductRequestError, type ProductTra
   type ProductTranslationJob, type ProductTranslationResult } from '@/api/products';
 import { queryProductionJob } from '@/api/productionJobs';
 import { TASK_STATUSES } from '@/lib/taskCenter';
+import { productionKindsOptions, rememberTask, taskDetailKey } from '@/lib/taskQueries';
+import { useTaskQuery } from '@/hooks/useTaskQuery';
+import { useTaskReceipt } from '@/hooks/useTaskReceipt';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
 
@@ -17,42 +21,40 @@ export function ProductTranslationDialog({ open, onOpenChange, product, onApply,
 }) {
   const { user } = useAuth();
   const [language, setLanguage] = useState('en'), [includeImage, setIncludeImage] = useState(false);
-  const [cost, setCost] = useState<number | null>(null), [jobs, setJobs] = useState<ProductTranslationJob[]>([]);
-  const [selected, setSelected] = useState(''), [pending, setPending] = useState<Receipt | null>(null);
+  const [cost, setCost] = useState<number | null>(null);
+  const [selected, setSelected] = useState('');
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const lock = useRef(false), owner = useRef(user?.id); owner.current = user?.id;
   const storageKey = `shopro:product-translation:${user?.id || ''}`;
-  const load = useCallback(async () => {
-    const uid = owner.current;
-    const data = await productRequest({ action: 'translations' });
-    if (initialJobId && !data.jobs.some((job: ProductTranslationJob) => job.id === initialJobId)) {
-      const job = await queryProductionJob(initialJobId);
+  const client = useQueryClient();
+  const { value: pending, write: saveReceipt, error: storageError } = useTaskReceipt<Receipt>(user ? storageKey : '',
+    value => value?.action === 'translate' && typeof value.request_key === 'string' && value.input?.product_id);
+  const history = useTaskQuery(useMemo(() => productionKindsOptions(['product_translate'], user?.id), [user?.id]),
+    'production', open && !!user);
+  const missingDetail = !!initialJobId && !!history.data && !history.data.slice(0, 20).some(job => job.id === initialJobId);
+  const detail = useTaskQuery(useMemo(() => ({ queryKey: taskDetailKey('production', user?.id, { job_id: initialJobId || '' }),
+    queryFn: async ({ signal }: { signal: AbortSignal }) => {
+      const job = await queryProductionJob(initialJobId!, user!.id, signal);
       if (job.kind !== 'product_translate') throw new Error('该任务不是商品翻译');
-      data.jobs = [job, ...data.jobs];
-    }
-    if (uid !== owner.current) return;
-    setJobs(data.jobs); setCost(data.cost);
-  }, [initialJobId]);
+      return job as ProductTranslationJob;
+    },
+  }), [initialJobId, user?.id]), 'production', open && !!user && missingDetail);
+  const recent = (history.data || []).slice(0, 20) as ProductTranslationJob[];
+  const jobs = missingDetail && detail.data ? [detail.data, ...recent] : recent;
+  const pricing = useQuery({ queryKey: ['prices', user?.id, 'product_translate'], enabled: open && !!user,
+    staleTime: 300000, retry: false, queryFn: ({ signal }) => productRequest({ action: 'translations' }, user!.id, signal) });
+  useEffect(() => { setCost(pricing.data?.cost ?? null); }, [pricing.data]);
+  const load = useCallback(async () => {
+    await Promise.all([history.refetch({ throwOnError: true }),
+      ...(missingDetail ? [detail.refetch({ throwOnError: true })] : [])]);
+  }, [missingDetail, history.refetch, detail.refetch]);
   useEffect(() => {
-    setJobs([]); setCost(null); setPending(null); setSelected(''); setError(''); setIncludeImage(false);
+    setCost(null); setSelected(''); setError(''); setIncludeImage(false); lock.current = false; setBusy(false);
   }, [user?.id]);
   useEffect(() => { setSelected(''); setIncludeImage(false); }, [product?.id]);
   useEffect(() => { if (open && initialJobId) setSelected(initialJobId); }, [open, initialJobId]);
-  useEffect(() => {
-    if (!open || !user) return;
-    try {
-      const receipt = JSON.parse(localStorage.getItem(storageKey) || 'null');
-      setPending(receipt?.action === 'translate' && typeof receipt.request_key === 'string' && receipt.input ? receipt : null);
-    } catch { setError('原翻译记录读取失败，请到任务中心核对'); }
-    void load().catch(cause => setError(cause.message));
-  }, [open, user?.id, storageKey, load]);
-  useEffect(() => {
-    if (!open || !jobs.some(job => ['pending', 'running'].includes(job.status))) return;
-    const timer = setInterval(() => { void load().catch(cause => setError(cause.message)); }, 5000);
-    return () => clearInterval(timer);
-  }, [open, jobs, load]);
   const submit = async () => {
-    if (!user || lock.current || !pending && (!product || cost === null)) return;
+    if (!user || lock.current || storageError || !pending && (!product || cost === null)) return;
     const uid = user.id;
     const receipt: Receipt = pending || { action: 'translate', request_key: crypto.randomUUID(), input: {
       product_id: product!.id, expected_updated_at: product!.updated_at, target_language: language,
@@ -60,19 +62,19 @@ export function ProductTranslationDialog({ open, onOpenChange, product, onApply,
     } };
     lock.current = true; setBusy(true); setError('');
     try {
-      localStorage.setItem(storageKey, JSON.stringify(receipt)); setPending(receipt);
-      const data = await productRequest(receipt);
-      localStorage.removeItem(storageKey);
+      if (!saveReceipt(receipt)) return;
+      const data = await productRequest(receipt, uid);
       if (uid !== owner.current) return;
-      setPending(null); setSelected(data.job.id); await load();
+      rememberTask(client, 'production', uid, data.job);
+      saveReceipt(null); setSelected(data.job.id); await load();
       toast.success('翻译任务已提交，关闭后可从翻译记录或任务中心查看');
     } catch (cause) {
       if (uid !== owner.current) return;
       setError(cause instanceof Error ? cause.message : '翻译回执待确认');
       if (cause instanceof ProductRequestError && cause.outcome === 'rejected') {
-        localStorage.removeItem(storageKey); setPending(null);
+        saveReceipt(null);
       }
-    } finally { lock.current = false; setBusy(false); }
+    } finally { if (uid === owner.current) { lock.current = false; setBusy(false); } }
   };
   const visible = product ? jobs.filter(job => job.product_id === product.id || job.result?.product_id === product.id) : jobs;
   const current = jobs.find(job => job.id === selected) || visible[0];
@@ -90,7 +92,8 @@ export function ProductTranslationDialog({ open, onOpenChange, product, onApply,
         <DialogDescription>翻译标题、描述、卖点与规格，可识别主图文字。结果保留30天，核对后可带入商品编辑。</DialogDescription>
       </DialogHeader>
       <div className="px-5 pb-4 overflow-y-auto space-y-4">
-        {error && <p role="alert" className="text-sm text-destructive break-words">{error}</p>}
+        {(storageError || error || history.error || pricing.error || detail.error) && <p role="alert" className="text-sm text-destructive break-words">
+          {storageError || error || history.error?.message || pricing.error?.message || detail.error?.message}</p>}
         {pending && <div className="border rounded-lg p-3 space-y-2 text-sm">
           <p>翻译回执待确认。恢复使用原商品版本、目标语言、积分和请求标识。</p>
           <Button disabled={busy} onClick={() => void submit()}>恢复原翻译请求</Button>

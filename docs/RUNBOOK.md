@@ -1,6 +1,8 @@
 # 运维运行手册
 
-更新：2026-10-22，功能基线`d7e3d38`。当前完整发布要求00062/probe22/render4/edit2、43生产入口、MCP59/19与全部共享模块/镜像/前端。官方最近管理401，成功证据00031/三旧函数；实际边界见 [综合基线](RELEASE_BASELINE_20261022.md)。
+更新：2026-10-27。当前完整发布要求00068/probe24/render4/edit2、66生产迁移、43生产入口、MCP59/19及匹配共享模块/镜像/前端身份。官方已记录成功证据00031/三旧函数，2026-10-22管理401，本轮未复核；实际状态见[当前状态](CURRENT_STATE.md)和[发布接受](RELEASE_ACCEPTANCE.md)。
+
+本轮操作入口：[生产与独立维护](WORKER_SCHEDULING.md)、[媒体/MCP资源](MEDIA_WORKER_RESOURCES.md)、[密钥轮换](KEY_ROTATION.md)、[外部告警投递](ALERT_DELIVERY.md)、[异地归档恢复](BACKUP_RECOVERY.md)。以下历史增量中的旧探针不用于当前发布。
 
 ## 历史运行条件
 
@@ -42,7 +44,7 @@ MCP发布与故障见 [迭代17](ITERATION_17_MCP_PRODUCTION.md)：先部署匹�
 
 当前新增源码需部署到00041，见 [素材分析运行契约](ITERATION_12_GROUNDED_ANALYSIS.md)。重建FFmpeg Worker以支持analysis_prepare，匹配production-worker两段处理和probe v3；关注准备阶段队列年龄、8帧/WAV私有对象、unknown、旧版本和退款。数据库最近真实回执仍00031；不得用探针或本地测试充当发布回执。输入/中间对象清理与备份演练继续待实施。
 
-当前官方最后成功证据00031/三旧函数与当时10秒Cron；最近访问401不能据此认定当前Cron健康。新版缺失00032–00062待核对部署；火山为独立待验收方案。
+官方最后已记录成功证据00031/三旧函数与当时10秒Cron；2026-10-22访问401，不能据此认定当前Cron健康。目标缺失至00068须重新核对；火山为独立待验收方案。
 
 源码增量已到00037，实际云端记录未刷新。除 [生产链路](ITERATION_06_PRODUCTION_PIPELINE.md) 外，本次发布须包含 [访问控制](ITERATION_08_ACCESS_CONTROL.md)：旧Key迁移停用，四业务入口函数内验证JWT/Key；团队只从事务API写入；素材删除清理由production调度执行。查看未清理对象只查询 `media_deletions` 的 id/bucket/path/attempts/next_run_at/last_error，不输出认证请求；持续失败应修复Storage并重试原清理项。
 
@@ -117,7 +119,7 @@ python3 scripts/manage_video_scheduler.py logs
 
 恢复依赖后先 probe，再启动一种调度器。租约默认 180 秒，等待现有租约恢复；不通过清空 `lease_token`、删除任务或增加 `attempts` 强行重提。Docker 的重启策略不能解决宿主停机/休眠。
 
-当前生产模式必须`PRODUCTION_WORKER_ENABLED=true`，probe22/00062/render4/edit2全等；仅旧视频probe1不能通过新栈预检。monitor每分钟独立扫描，健康需最近派发与三分钟内采集；scheduler-alerts卷保留发生/恢复，完全宿主故障需外部监控。
+生产模式必须`PRODUCTION_WORKER_ENABLED=true`，probe24/00068/render4/edit2全等；启动同时运行生产和独立维护进程，各有健康与持久故障记录。run只执行已入队任务，维护领取计划/留存/删除/指标；日常轻量ready一条RPC，完整probe用于发布核对。monitor每分钟独立扫描，健康需最近派发及三分钟内采集。外部投递需单独启用alerts profile、配置Relay持久幂等回执；宿主完全故障仍需独立监控。
 
 ### 4.2 受理未知
 
@@ -163,9 +165,9 @@ SELECT public.reconcile_video_submission(
 
 1. 确认平台/项目、Git/迁移差距和目标能力，备份并建立发布记录。
 2. 暂停新计费生成；停止后续调度并等待在途请求结束。仅停调度不能阻止浏览器 query 执行任务，需同时限制相关用户入口/访问。
-3. 核对缺失00032–00062，部署43生产入口及全部共享模块/Secrets；官方不要用火山SHA-256脚本重放旧库。
+3. 核对缺失至00068，部署43生产入口及冻结共享模块/Secrets/源码摘要；官方不要用火山SHA-256脚本重放旧库。
 4. 配置管理员/供应商并绑定核对过的旧任务。运行 probe、双用户权限和真实模型小样本。
-5. probe22/00062/render4/edit2通过后恢复唯一生产调度/FFmpeg，执行启用能力的真实关页/退款/身份/配置/媒体/平台用例，再发布MCP59/19和前端，记录版本证据。
+5. 核对probe24/00068/render4/edit2、真实迁移摘要、最终镜像及前端发布身份，执行六项只读接受；恢复唯一生产/维护调度和FFmpeg，执行真实关页/退款/身份/配置/媒体/平台用例并记录MCP/前端实际运行证据。
 
 官方停止后续 Cron 派发执行 [video_worker_unschedule.sql](../supabase/ops/video_worker_unschedule.sql)，恢复用 [调度指南](VIDEO_SCHEDULER.md)。Docker 用 `manage_video_scheduler.py stop/start`；stop 给在途请求 160 秒宽限。停用不删除任务或退款。
 
@@ -175,11 +177,11 @@ SELECT public.reconcile_video_submission(
 
 备份包括数据库（业务/权限/任务/流水/配置版本）、Auth 用户迁移材料、Storage 实物与映射、主密钥/Worker/商户凭据的独立安全备份、迁移回执和前端/函数产物。数据库备份不含 Storage 文件；官方免费项目的实际备份/PITR 能力需按项目确认，不承诺已具备。
 
-可执行加密流程见 [备份恢复](BACKUP_RECOVERY.md)：数据库导出快照、账表内容摘要/迁移回执、Storage实物及历史主密钥一起认证，双PG16/HTTP隔离恢复已通过。初期每日/发布前备份、每月演练的目标调度和异地保管仍待配置；小夹具时间不代表生产RPO/RTO。恢复必须新空隔离环境，官方托管Auth/Storage迁移按平台流程验收。
+可执行加密流程见[备份恢复](BACKUP_RECOVERY.md)：导出快照、账表摘要/迁移回执、Storage实物和完整历史密钥目录一起认证，按原备份ID/摘要上传独立网关、拉回后在空环境恢复。双PG16/真实本地HTTP演练已通过；目标每日/发布前调度、保留策略和独立保管仍须配置，小样本不代表生产RPO/RTO。官方托管Auth/Storage迁移按平台流程验收。
 
 恢复时先关闭新生成和调度，恢复 DB、旧密文与匹配主密钥、Auth/Storage，再核对恢复点之后的供应商受理/支付交易。陈旧 `submitting` 可能已受理，不能恢复 queued 后重提；用审计核对消除差异，再启用 Worker。
 
-凭据轮换：Worker Secret 同步 Edge 与唯一调度器/Vault；支付证书核对有效期/序列号；模型 Key 通过设置页生成新版本并保留旧任务可查询凭据；AES-GCM 主密钥先完成所有历史密文重加密设计和恢复验证。本轮未实现自动主密钥轮换工具。
+凭据轮换：Worker Secret同步Edge与唯一调度器/Vault，支付证书核对期限/序列号；模型Key通过设置页生成新版本并保留旧任务查询凭据。AES-GCM主密钥通过完整keyring更换当前ID，先执行跨全部用途的只读key-preflight，备份完整目录并做空环境恢复；新写入v2按用途AAD，原密文按原ID/legacy键读取。删除历史键或批量重加密不在本轮自动工具范围，见[密钥轮换](KEY_ROTATION.md)。
 
 ## 7. 值班与交接
 

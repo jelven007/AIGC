@@ -1,0 +1,12 @@
+{
+  "worker_url": "https://填写已验收项目域名/functions/v1/production-worker",
+  "worker_secret_file": "/run/secrets/video_worker_secret",
+  "relay_url": "https://填写告警relay域名/events",
+  "relay_secret_file": "/run/secrets/relay_secret",
+  "channel": "operations",
+  "spool_paths": [
+    "/var/lib/shopro/scheduler-alerts.json",
+    "/var/lib/shopro/maintenance-alerts.json"
+  ],
+  "isolated": false
+}

@@ -35,8 +35,8 @@ try {
       }
     } else if (path.includes('/rest/v1/video_projects')) {
       if (req.method() === 'PATCH') {
-        saved.push(body); Object.assign(project, body); data = project;
-      } else data = new URL(req.url()).searchParams.has('id') ? project : [];
+        saved.push(body); Object.assign(project, body); data = [project];
+      } else data = new URL(req.url()).searchParams.has('id') ? [project] : [];
     } else if (path.includes('/rest/v1/profiles')) data = { id: uid, username: '测试', invite_code: 'TEST' };
     else if (path.endsWith('/rpc/get_my_credits')) data = creditSnapshot(uid, { credits_total: 100, credits_left: 100 });
     await route.fulfill({ status, contentType: type, body: type === 'application/json' ? JSON.stringify(data) : data,

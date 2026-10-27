@@ -24,7 +24,7 @@ export async function handleOperations(req: Request): Promise<Response> {
     let result;
     if (body.action === 'access') result = await db.rpc('operator_access', { p_actor: auth.user.id });
     else if (body.action === 'list') {
-      if (!['orders', 'refunds', 'customers', 'jobs', 'risk', 'audit', 'operators', 'tickets', 'tenants', 'costs', 'cost_missing', 'alerts'].includes(body.domain)
+      if (!['orders', 'refunds', 'customers', 'jobs', 'risk', 'audit', 'operators', 'tickets', 'tenants', 'costs', 'cost_missing', 'model_attempts', 'alerts'].includes(body.domain)
         || body.user_id && !uuid(body.user_id) || body.page !== undefined && (!Number.isInteger(body.page) || body.page < 1 || body.page > 1000)
         || body.keyword !== undefined && (typeof body.keyword !== 'string' || body.keyword.length > 64)) return reply({ error: '列表筛选非法' }, 400);
       result = await db.rpc('operator_list', { p_actor: auth.user.id, p_domain: body.domain,
@@ -76,7 +76,7 @@ export async function handleOperations(req: Request): Promise<Response> {
           || !boundedText(payload.statement_ref, 120) || !boundedText(payload.line_ref, 120)
           || typeof payload.evidence_sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(payload.evidence_sha256)
           || body.operation === 'cost_reverse' && !uuid(payload.entry_id)
-          || body.operation === 'cost_record' && (!uuid(payload.job_id) || !['video', 'production', 'model_call'].includes(payload.job_type)
+          || body.operation === 'cost_record' && (!uuid(payload.job_id) || !['video', 'production', 'model_call', 'model_attempt'].includes(payload.job_type)
             || !['CNY', 'USD', 'EUR'].includes(payload.currency) || !Number.isSafeInteger(payload.amount_minor)
             || payload.amount_minor < 0 || payload.amount_minor > 1000000000))) {
         return reply({ error: '运营申请参数非法', outcome: 'rejected' }, 400);

@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/db/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { platformRequest, type PlatformConnection, type CreatorInfo, type PlatformPublishTask,
-  type PublishOptions, type PublishTarget, type PublishGroup, type PublishGroupRequest } from '@/api/platforms';
+  type PublishOptions, type PublishTarget, type PublishGroupRequest } from '@/api/platforms';
 import { capabilityError, groupRequest, uuid } from '../../supabase/functions/_shared/publish-contract';
 import { EdgeRequestError } from '@/lib/edgeRequest';
 import { canonicalMedia } from '@/lib/privateMedia';
@@ -12,6 +13,10 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { Globe, RefreshCw, Send, ExternalLink } from 'lucide-react';
+import { taskListOptions } from '@/lib/taskQueries';
+import { readTaskReceipt, writeTaskReceipt } from '@/lib/taskReceipt';
+import { useTaskQuery } from '@/hooks/useTaskQuery';
+import { requireAccountSession } from '@/api/accountSession';
 
 type Form = { project_id: string; title: string; description: string; tags: string; scheduled_at: string; targets: PublishTarget[] };
 type Receipt = { request_key: string; action: 'create_group' | 'create'; payload: Record<string, unknown> };
@@ -34,11 +39,6 @@ function localTime(iso: string | null) {
 export default function PublishPage() {
   const { user } = useAuth();
   const [params] = useSearchParams();
-  const [connections, setConnections] = useState<PlatformConnection[]>([]);
-  const [platforms, setPlatforms] = useState<{ id: string; name: string; enabled: boolean }[]>([]);
-  const [tasks, setTasks] = useState<PlatformPublishTask[]>([]);
-  const [groups, setGroups] = useState<PublishGroup[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
   const [creators, setCreators] = useState<Record<string, CreatorInfo>>({});
   const [creatorErrors, setCreatorErrors] = useState<Record<string, string>>({});
   const [form, setForm] = useState<Form>(() => blank(params.get('projectId') || ''));
@@ -46,29 +46,45 @@ export default function PublishPage() {
   const receipt = useRef<Receipt | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
-  const [loading, setLoading] = useState(true);
   const [storageError, setStorageError] = useState(false);
   const activeUser = useRef(user?.id);
   activeUser.current = user?.id;
   const submitting = useRef(false);
-  const loadingRef = useRef(false);
   const storageKey = user ? `shopro:publish:${user.id}` : '';
+  const accounts = useQuery({ queryKey: ['publish-accounts', user?.id], enabled: !!user, staleTime: 300000, retry: false,
+    queryFn: ({ signal }) => platformRequest<{ connections: PlatformConnection[]; platforms: { id: string; name: string; enabled: boolean }[] }>(
+      'platform-accounts', { action: 'list' }, user!.id, signal) });
+  const history = useTaskQuery(useMemo(() => taskListOptions('publish', user?.id), [user?.id]), 'publish', !!user);
+  const works = useQuery({ queryKey: ['publish-projects', user?.id], enabled: !!user, staleTime: 300000, retry: false,
+    queryFn: async ({ signal }) => {
+      const uid = user!.id; await requireAccountSession(uid);
+      const result = await supabase.from('video_projects').select('id,title,video_url,duration').eq('user_id', uid)
+        .eq('status', 'completed').order('created_at', { ascending: false }).limit(50).abortSignal(signal);
+      if (result.error) throw new Error('作品读取失败');
+      await requireAccountSession(uid);
+      return (result.data || []) as Project[];
+    } });
+  const connections = accounts.data?.connections || [], platforms = accounts.data?.platforms || [];
+  const tasks = history.data?.tasks || [], groups = history.data?.groups || [], projects = works.data || [];
+  const loading = [accounts, history, works].some(query => query.isPending);
   const project = projects.find(item => item.id === form.project_id);
 
   const clearReceipt = useCallback(() => {
-    localStorage.removeItem(storageKey);
+    writeTaskReceipt(storageKey, null);
     receipt.current = null; setPending(null);
     setForm(previous => ({ ...previous, targets: previous.targets.map(target =>
       ({ ...target, options: { ...target.options, consent: false } })) }));
   }, [storageKey]);
   useEffect(() => {
-    setConnections([]); setTasks([]); setGroups([]); setProjects([]); setCreators({}); setCreatorErrors({});
+    setCreators({}); setCreatorErrors({}); submitting.current = false; setBusy('');
     setForm(blank(params.get('projectId') || '')); receipt.current = null; setPending(null); setError(''); setStorageError(false);
     if (!user) return;
     try {
       localStorage.removeItem('platform_credentials'); localStorage.removeItem('platform_auth');
       localStorage.removeItem(`platform_auths_${user.id}`);
-      const stored = JSON.parse(localStorage.getItem(storageKey) || 'null');
+      const original = readTaskReceipt<any>(storageKey, value => value && uuid(value.request_key) && (value.form || value.payload));
+      if (original.error) throw new Error(original.error);
+      const stored = original.value;
       if (!stored) return;
       // 升级前未确认的单账号请求必须沿用旧 action 与 UUID，不能迁移成新的发布组。
       let saved: Receipt;
@@ -90,36 +106,36 @@ export default function PublishPage() {
   }, [storageKey, user?.id, params]);
 
   const load = useCallback(async () => {
-    if (!user || loadingRef.current) return;
-    loadingRef.current = true;
+    if (!user) return;
     const owner = user.id;
     try {
-      const accounts = await platformRequest('platform-accounts', { action: 'list' });
-      const publish = await platformRequest<{ tasks: PlatformPublishTask[]; groups?: PublishGroup[] }>('platform-publish', { action: 'list' });
-      const result = await supabase.from('video_projects').select('id,title,video_url,duration').eq('user_id', owner)
-        .eq('status', 'completed').order('created_at', { ascending: false }).limit(50);
-      if (result.error) throw new Error('作品读取失败');
+      await Promise.all([accounts.refetch({ throwOnError: true }), history.refetch({ throwOnError: true }), works.refetch({ throwOnError: true })]);
       if (activeUser.current !== owner) return;
-      setConnections(accounts.connections); setPlatforms(accounts.platforms);
-      setTasks(publish.tasks); setGroups(publish.groups || []); setProjects(result.data || []);
       const saved = receipt.current;
       if (saved && !submitting.current) {
         const found = await platformRequest('platform-publish', {
           action: saved.action === 'create_group' ? 'query_group' : 'query', request_key: saved.request_key,
-        });
+        }, owner);
         if (activeUser.current !== owner || receipt.current !== saved) return;
         if (found.group || found.task) { clearReceipt(); toast.success('已恢复原发布记录，请查看下方进度'); }
       }
     } catch (cause) { if (activeUser.current === owner) setError(cause instanceof Error ? cause.message : '发布数据读取失败'); }
-    finally { loadingRef.current = false; if (activeUser.current === owner) setLoading(false); }
-  }, [user, clearReceipt]);
-  useEffect(() => { void load(); const timer = setInterval(() => void load(), 15000); return () => clearInterval(timer); }, [load]);
+  }, [user?.id, clearReceipt, accounts.refetch, history.refetch, works.refetch]);
+  useEffect(() => {
+    const saved = receipt.current, owner = user?.id;
+    if (!saved || !owner || !history.data || submitting.current) return;
+    if (saved.action === 'create_group' ? history.data.groups.some(group => group.request_key === saved.request_key)
+      : history.data.tasks.some(task => task.request_key === saved.request_key)) {
+      try { clearReceipt(); toast.success('已恢复原发布记录，请查看下方进度'); }
+      catch (cause) { setStorageError(true); setError((cause as Error).message); }
+    }
+  }, [history.data, pending, user?.id, clearReceipt]);
 
   const fetchCreator = async (id: string) => {
     const owner = user?.id;
     setCreatorErrors(previous => ({ ...previous, [id]: '' }));
     try {
-      const info = await platformRequest<CreatorInfo>('platform-accounts', { action: 'creator', connection_id: id });
+      const info = await platformRequest<CreatorInfo>('platform-accounts', { action: 'creator', connection_id: id }, owner);
       if (activeUser.current === owner) setCreators(previous => ({ ...previous, [id]: info }));
     } catch (cause) {
       if (activeUser.current === owner) setCreatorErrors(previous => ({ ...previous, [id]: (cause as Error).message }));
@@ -141,13 +157,15 @@ export default function PublishPage() {
       : { ...target, options: { ...target.options, consent: false, ...values } }) }));
   };
   const authorize = async (platform: string) => {
+    const owner = user?.id; if (!owner) return;
     setBusy(platform);
-    try { const result = await platformRequest('platform-accounts', { action: 'authorize', platform }); window.location.assign(result.url); }
-    catch (cause) { setError((cause as Error).message); setBusy(''); }
+    try { const result = await platformRequest('platform-accounts', { action: 'authorize', platform }, owner);
+      if (activeUser.current === owner) window.location.assign(result.url); }
+    catch (cause) { if (activeUser.current === owner) { setError((cause as Error).message); setBusy(''); } }
   };
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!user || submitting.current) return;
+    if (!user || submitting.current || storageError) return;
     const owner = user.id;
     submitting.current = true; setBusy('publish'); setError('');
     let attempted = false;
@@ -169,10 +187,10 @@ export default function PublishPage() {
           tags: form.tags.split(/[,，\s]+/).filter(Boolean), scheduled_at: form.scheduled_at ? new Date(form.scheduled_at).toISOString() : null });
         saved = { action: 'create_group', request_key: key, payload };
         // 保存成功后才发起请求，使断线/关页后能够继续核对。
-        localStorage.setItem(storageKey, JSON.stringify(saved)); receipt.current = saved; setPending(saved);
+        writeTaskReceipt(storageKey, saved); receipt.current = saved; setPending(saved);
       }
       attempted = true;
-      const response = await platformRequest('platform-publish', { ...saved.payload, action: saved.action, request_key: saved.request_key });
+      const response = await platformRequest('platform-publish', { ...saved.payload, action: saved.action, request_key: saved.request_key }, owner);
       if (!response.group && !response.task) throw new Error('发布结果待确认，请核对原请求');
       if (activeUser.current !== owner) return;
       clearReceipt(); toast.success('发布任务已保存，各账号进度将在后台持续更新');
@@ -182,8 +200,7 @@ export default function PublishPage() {
       if (attempted && cause instanceof EdgeRequestError && (cause.status === 400 || cause.code === 'publish_group_rejected')) clearReceipt();
       setError(cause instanceof Error ? cause.message : '发布请求结果待确认，请核对原请求');
     } finally {
-      submitting.current = false;
-      if (activeUser.current === owner) { setBusy(''); void load(); }
+      if (activeUser.current === owner) { submitting.current = false; setBusy(''); void history.refetch(); }
     }
   };
   const changeAccount = (id: string, checked: boolean) => {
@@ -192,10 +209,12 @@ export default function PublishPage() {
       : form.targets.filter(target => target.connection_id !== id) });
   };
   const cancel = async (id: string) => {
+    const owner = user?.id; if (!owner) return;
     setBusy(id);
-    try { await platformRequest('platform-publish', { action: 'cancel', task_id: id }); await load(); }
-    catch (cause) { toast.error((cause as Error).message); }
-    finally { setBusy(''); }
+    try { await platformRequest('platform-publish', { action: 'cancel', task_id: id }, owner);
+      if (activeUser.current === owner) await history.refetch(); }
+    catch (cause) { if (activeUser.current === owner) toast.error((cause as Error).message); }
+    finally { if (activeUser.current === owner) setBusy(''); }
   };
   const accountName = (id?: string) => connections.find(connection => connection.id === id)?.display_name || '历史账号';
   const renderTask = (task: PlatformPublishTask) => <div key={task.id} className="py-3 flex flex-wrap justify-between gap-3">
@@ -214,7 +233,8 @@ export default function PublishPage() {
     <div className="flex justify-between gap-4"><div><h1 className="text-2xl font-semibold flex gap-2 items-center"><Globe className="h-5 w-5" />跨平台发布</h1>
       <p className="text-sm text-muted-foreground mt-2">一份成片可发布到多个账号。逐个确认可见范围和内容声明，发布后分别跟踪进度。</p></div>
       <Button variant="outline" disabled={!!busy} onClick={() => void load()}><RefreshCw className="mr-2 h-4 w-4" />刷新</Button></div>
-    {error && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error}</p>}
+    {(error || accounts.error || history.error || works.error) && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+      {error || accounts.error?.message || history.error?.message || works.error?.message}</p>}
     {pending && <div role="status" className="rounded-lg border border-amber-500/40 p-4 space-y-2 text-sm">
       <p>上一请求结果待确认。原内容已保留，请刷新核对或按原参数重试。</p>
       <p className="break-all text-muted-foreground">请求编号：{pending.request_key}</p>
@@ -227,7 +247,9 @@ export default function PublishPage() {
         <Button size="sm" variant="ghost" disabled={locked || connection.status !== 'active'} onClick={async () => {
           setBusy(connection.id);
           try {
-            await platformRequest('platform-accounts', { action: 'disconnect', connection_id: connection.id });
+            const owner = user?.id; if (!owner) return;
+            await platformRequest('platform-accounts', { action: 'disconnect', connection_id: connection.id }, owner);
+            if (activeUser.current !== owner) return;
             patch({ targets: form.targets.filter(target => target.connection_id !== connection.id) }); await load();
           } catch (cause) { toast.error((cause as Error).message); } finally { setBusy(''); }
         }}>断开</Button></div>)}</div>

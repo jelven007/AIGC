@@ -1,5 +1,6 @@
 """固定PPHumanSeg模型逐帧分割；输入仅本地文件，输出FFV1透明视频。"""
 import hashlib
+import os
 from pathlib import Path
 import selectors
 import shutil
@@ -45,7 +46,25 @@ class PersonModel:
         return np.rint(alpha * 255).astype(np.uint8)
 
 
-def create_person_mask(source, track, fps, target, model, cancelled=lambda: False, timeout=1800):
+def write_frame(fd, data, cancelled, check_space, timeout):
+    started = time.monotonic()
+    os.set_blocking(fd, False)
+    with selectors.DefaultSelector() as selector:
+        selector.register(fd, selectors.EVENT_WRITE)
+        remaining = memoryview(data)
+        while remaining:
+            if cancelled() or time.monotonic() - started > timeout:
+                raise RenderError("人物分割已停止、租约失效或超过执行时限")
+            check_space()
+            if selector.select(timeout=.2):
+                try:
+                    count = os.write(fd, remaining)
+                    remaining = remaining[count:]
+                except BlockingIOError:
+                    continue
+
+
+def create_person_mask(source, track, fps, target, model, cancelled=lambda: False, timeout=1800, budget=None):
     validate_mask(track["personMask"])
     source, target = Path(source), Path(target)
     metadata = probe(source)
@@ -86,13 +105,20 @@ def create_person_mask(source, track, fps, target, model, cancelled=lambda: Fals
         started, count = time.monotonic(), 0
         buffer = bytearray()
         frame_bytes = width * height * 3
+
+        def check_space():
+            if budget:
+                budget.check()
+            if (target.exists() and target.stat().st_size > 512 * 1024 * 1024
+                or shutil.disk_usage(target.parent).free < 128 * 1024 * 1024):
+                raise RenderError("人物蒙版超过512MB或临时空间不足，请缩短片段")
+
         with selectors.DefaultSelector() as selector:
             selector.register(decoder.stdout, selectors.EVENT_READ)
             while True:
                 if cancelled() or time.monotonic() - started > timeout:
                     raise RenderError("人物分割已停止、租约失效或超过执行时限")
-                if target.exists() and target.stat().st_size > 512 * 1024 * 1024 or shutil.disk_usage(target.parent).free < 128 * 1024 * 1024:
-                    raise RenderError("人物蒙版超过512MB或临时空间不足，请缩短片段")
+                check_space()
                 if not selector.select(timeout=.2):
                     continue
                 # read1不等待整个帧，允许逐200ms检查租约和取消。
@@ -103,7 +129,8 @@ def create_person_mask(source, track, fps, target, model, cancelled=lambda: Fals
                 if len(buffer) == frame_bytes:
                     frame = np.frombuffer(buffer, dtype=np.uint8).reshape(height, width, 3)
                     alpha = model.mask(frame, track["personMask"])
-                    encoder.stdin.write(np.dstack((frame, alpha)).tobytes())
+                    write_frame(encoder.stdin.fileno(), np.dstack((frame, alpha)).tobytes(),
+                                cancelled, check_space, timeout - (time.monotonic() - started))
                     buffer = bytearray()
                     count += 1
                     if count > round(duration * fps) + 2:
@@ -111,6 +138,7 @@ def create_person_mask(source, track, fps, target, model, cancelled=lambda: Fals
         encoder.stdin.close()
         if decoder.wait(timeout=30) or encoder.wait(timeout=30) or buffer or count < 1:
             raise RenderError("人物分割视频编码失败")
+        check_space()
         return target
     except (BrokenPipeError, subprocess.TimeoutExpired) as cause:
         raise RenderError("人物分割视频处理失败") from cause

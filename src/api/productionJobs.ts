@@ -1,5 +1,6 @@
 import { authenticatedEdgeRequest, EdgeRequestError } from '@/lib/edgeRequest';
 import { canonicalMediaTree } from '@/lib/privateMedia';
+import { requireAccountSession } from './accountSession';
 import type { EditSource, EditRequest } from '../../supabase/functions/_shared/edit-contract';
 export interface VideoHighlight {
   type: string; start_sec: number; end_sec: number; title: string; score: number; keyword: string;
@@ -40,23 +41,27 @@ export interface RenderExport {
 export interface RenderExportRequest {
   request_key: string; source_project_id: string; formats: { ratio: string; height: number }[];
 }
-export async function createRenderExport(request: RenderExportRequest): Promise<RenderExport> {
-  return (await productionRequest({ action: 'export', ...request })).export;
+export async function createRenderExport(request: RenderExportRequest, userId?: string): Promise<RenderExport> {
+  return (await productionRequest({ action: 'export', ...request }, userId)).export;
 }
-export async function listRenderExports(): Promise<RenderExport[]> {
-  return (await productionRequest({ action: 'exports' })).exports;
+export async function listRenderExports(userId?: string, signal?: AbortSignal): Promise<RenderExport[]> {
+  return (await productionRequest({ action: 'exports' }, userId, signal)).exports;
 }
 export class ProductionJobError extends Error {
   constructor(message: string, readonly status: number) { super(message); }
 }
-export async function productionRequest(body: Record<string, unknown>, expectedUserId?: string) {
+export async function productionRequest(body: Record<string, unknown>, expectedUserId?: string, signal?: AbortSignal) {
   // 需要状态码区分请求丢失、404和参数拒绝，便于安全恢复。
   try {
+    const session = await requireAccountSession(expectedUserId);
+    signal?.throwIfAborted();
     const response = await authenticatedEdgeRequest('production-jobs', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(canonicalMediaTree(body)), signal: AbortSignal.timeout(15000),
-    }, '', expectedUserId);
+      body: JSON.stringify(canonicalMediaTree(body)),
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000),
+    }, '', session.user.id);
     const data = await response.json();
+    await requireAccountSession(session.user.id);
     if (data?.error) throw new ProductionJobError(data.error, 400);
     return data;
   } catch (cause) {
@@ -65,10 +70,10 @@ export async function productionRequest(body: Record<string, unknown>, expectedU
       cause instanceof EdgeRequestError ? cause.status : 0);
   }
 }
-export async function createProductionJob(kind: string, requestKey: string, input: unknown, projectId?: string, userId?: string): Promise<ProductionJob> {
-  return (await productionRequest({ action: 'create', kind, request_key: requestKey, input, project_id: projectId }, userId)).job;
+export async function createProductionJob(kind: string, requestKey: string, input: unknown, projectId?: string, userId?: string, signal?: AbortSignal): Promise<ProductionJob> {
+  return (await productionRequest({ action: 'create', kind, request_key: requestKey, input, project_id: projectId }, userId, signal)).job;
 }
-export async function queryProductionJob(id: string, userId?: string): Promise<ProductionJob> {
-  return (await productionRequest({ action: 'query', job_id: id }, userId)).job;
+export async function queryProductionJob(id: string, userId?: string, signal?: AbortSignal): Promise<ProductionJob> {
+  return (await productionRequest({ action: 'query', job_id: id }, userId, signal)).job;
 }
-export async function listProductionJobs(userId?: string): Promise<ProductionJob[]> { return (await productionRequest({ action: 'list' }, userId)).jobs; }
+export async function listProductionJobs(userId?: string, signal?: AbortSignal): Promise<ProductionJob[]> { return (await productionRequest({ action: 'list' }, userId, signal)).jobs; }

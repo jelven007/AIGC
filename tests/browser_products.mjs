@@ -44,7 +44,8 @@ try {
         status = failExtract ? 503 : 202;
         data = failExtract ? { error: '商品提取回执待确认', outcome: 'unknown' } : { job: jobs[0], outcome: 'accepted' };
       }
-    } else if (path.includes('/rest/v1/profiles')) data = { id: uid, username: '测试用户', invite_code: 'TEST' };
+    } else if (path.endsWith('/production-jobs')) data = { jobs: jobs.filter(job => !body.kinds || body.kinds.includes(job.kind)) };
+    else if (path.includes('/rest/v1/profiles')) data = { id: uid, username: '测试用户', invite_code: 'TEST' };
     else if (path.endsWith('/rpc/get_my_credits')) data = creditSnapshot(uid, { credits_total: 100, credits_left: 100 });
     await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data),
       headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*' } });

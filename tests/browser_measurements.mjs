@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { creditSnapshot } from './browser_credit_fixture.mjs';
 import { readFile, writeFile } from 'node:fs/promises';
-import * as XLSX from 'xlsx';
+import { execFileSync } from 'node:child_process';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const backend = 'https://ui-fixture.example', base = process.env.UI_TEST_URL || 'http://127.0.0.1:5197';
 const uid = '11111111-1111-4111-8111-111111111111', project = '22222222-2222-4222-8222-222222222222', second = '33333333-3333-4333-8333-333333333333', source = '44444444-4444-4444-8444-444444444444';
@@ -66,9 +66,10 @@ try {
   await page.getByRole('button', { name: '导出 Excel', exact: true }).click();
   const download = await downloadEvent, bytes = await readFile(await download.path());
   await writeFile('.volcengine-build/measurement-browser.xlsx', bytes);
-  const workbook = XLSX.read(bytes, { type: 'buffer' });
-  assert.equal(XLSX.utils.sheet_to_json(workbook.Sheets['授权投放与交易'])[0].CVR, .1);
-  assert.equal(XLSX.utils.sheet_to_json(workbook.Sheets['授权投放与交易'])[0].ROAS, 2.8);
+  const workbook = JSON.parse(execFileSync('python3', ['tests/xlsx_reader.py'], { input: bytes }));
+  const [columns, values] = workbook['授权投放与交易'];
+  assert.equal(values[columns.indexOf('CVR')], .1);
+  assert.equal(values[columns.indexOf('ROAS')], 2.8);
   failReport = true; await page.getByRole('button', { name: '刷新报告', exact: true }).click();
   await page.getByRole('alert').filter({ hasText: '真实观测暂不可用' }).waitFor();
   assert.equal(await page.getByText('2.80倍', { exact: true }).count(), 0);

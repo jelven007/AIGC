@@ -56,8 +56,8 @@ await context.route(`${backend}/**`, async route => {
     } else data = { materials: state.materials.filter(item => !body.type || item.type === body.type), total: state.materials.length };
   } else if (path.endsWith('/production-jobs')) data = body.action === 'edit-prices' ? { costs: { beats: 0, subtitles: 3 } } : { jobs: [] };
   else if (path.includes('/rest/v1/video_projects')) {
-    if (req.method() === 'PATCH') { Object.assign(state.project, body); state.saved.push(body); data = state.project; }
-    else data = new URL(req.url()).searchParams.has('id') ? state.project : [];
+    if (req.method() === 'PATCH') { Object.assign(state.project, body); state.saved.push(body); data = [state.project]; }
+    else data = new URL(req.url()).searchParams.has('id') ? [state.project] : [];
   } else if (path.includes('/rest/v1/profiles')) data = { id: uid, username: '测试', invite_code: 'TEST' };
   else if (path.endsWith('/rpc/get_my_credits')) data = creditSnapshot(uid, { credits_total: 100, credits_left: 100 });
   await route.fulfill({ status, contentType: type, body: type === 'application/json' ? JSON.stringify(data) : data,

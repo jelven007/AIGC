@@ -1,15 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/db/supabase';
 import { storedMedia } from '@/api/media';
-import { createProductionJob, productionRequest, ProductionJobError, type ProductionJob } from '@/api/productionJobs';
+import { createProductionJob, productionRequest, ProductionJobError } from '@/api/productionJobs';
 import { canonicalMediaTree } from '@/lib/privateMedia';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, RefreshCw } from 'lucide-react';
+import { uploadAccountObject } from '@/api/accountSession';
+import { taskListOptions, rememberTask } from '@/lib/taskQueries';
+import { useTaskQuery } from '@/hooks/useTaskQuery';
+import { useTaskReceipt } from '@/hooks/useTaskReceipt';
 
 const kinds = { tts: '生成配音', asr: '识别音频', voice_clone: '克隆声纹', avatar: '照片口播', lipsync: '口型同步' };
 type MediaKind = keyof typeof kinds;
@@ -25,47 +29,46 @@ export default function MediaJobsPanel({ imageUrl = '' }: { imageUrl?: string })
   const [text, setText] = useState(''), [voice, setVoice] = useState(''), [voiceClone, setVoiceClone] = useState('');
   const [name, setName] = useState(''), [consent, setConsent] = useState(false);
   const [media, setMedia] = useState<Record<string, string>>({}), [audioFilename, setAudioFilename] = useState('');
-  const [jobs, setJobs] = useState<ProductionJob[]>([]), [voices, setVoices] = useState<Voice[]>([]);
-  const [costs, setCosts] = useState<Partial<Record<MediaKind, number>>>({});
-  const [receipt, setReceipt] = useState<Receipt | null>(null);
-  const [revocation, setRevocation] = useState<Revocation | null>(null);
   const [busy, setBusy] = useState(''), [error, setError] = useState('');
+  const client = useQueryClient();
+  const scope = useRef(0), account = useRef(user?.id);
+  account.current = user?.id;
   const key = user ? `shopro:media-receipt:${user.id}` : '';
+  const savedReceipt = useTaskReceipt<Receipt>(key, value => value && value.kind in kinds && typeof value.request_key === 'string' && value.input);
+  const revoked = useTaskReceipt<Revocation>(key ? `${key}:revoke` : '',
+    value => value && typeof value.voice_clone_id === 'string' && typeof value.request_key === 'string');
+  const receipt = savedReceipt.value, revocation = revoked.value;
+  const tasks = useTaskQuery(useMemo(() => taskListOptions('production', user?.id), [user?.id]), 'production', !!user);
+  const voiceQuery = useTaskQuery(useMemo(() => ({ queryKey: ['tasks', user?.id, 'voices'],
+    queryFn: async ({ signal }: { signal: AbortSignal }): Promise<Voice[]> =>
+      (await productionRequest({ action: 'voices' }, user?.id, signal)).voices,
+  }), [user?.id]), 'production', !!user);
+  const prices = useQuery({ queryKey: ['task-prices', user?.id, 'media'], enabled: !!user, retry: false, staleTime: 300000,
+    queryFn: async ({ signal }): Promise<Partial<Record<MediaKind, number>>> =>
+      (await productionRequest({ action: 'media-prices' }, user?.id, signal)).costs });
+  const jobs = (tasks.data || []).filter(job => job.kind in kinds), voices = voiceQuery.data || [], costs = prices.data || {};
+  const problem = savedReceipt.error || revoked.error || error || tasks.error?.message || voiceQuery.error?.message || prices.error?.message;
   const refresh = async () => {
     if (!user) return;
-    const [taskData, voiceData, prices] = await Promise.all([productionRequest({ action: 'list', kinds: Object.keys(kinds) }),
-      productionRequest({ action: 'voices' }), productionRequest({ action: 'media-prices' })]);
-    setJobs(taskData.jobs); setVoices(voiceData.voices); setCosts(prices.costs);
+    await Promise.all([tasks.refetch({ throwOnError: true }), voiceQuery.refetch({ throwOnError: true }), prices.refetch({ throwOnError: true })]);
   };
   useEffect(() => {
-    setReceipt(null); setRevocation(null); setJobs([]); setVoices([]); setVoiceClone('');
-    if (!key) return;
-    try {
-      const saved = localStorage.getItem(key); if (saved) setReceipt(JSON.parse(saved));
-      const revoked = localStorage.getItem(`${key}:revoke`); if (revoked) setRevocation(JSON.parse(revoked));
-    }
-    catch { setError('任务回执读取失败，请在任务中心核对后再创建任务'); }
-    let alive = true;
-    const load = () => {
-      void Promise.all([productionRequest({ action: 'list', kinds: Object.keys(kinds) }), productionRequest({ action: 'voices' })])
-        .then(([taskData, voiceData]) => { if (alive) { setJobs(taskData.jobs); setVoices(voiceData.voices); } })
-        .catch(cause => { if (alive) setError(cause.message); });
-    };
-    void productionRequest({ action: 'media-prices' }).then(prices => { if (alive) setCosts(prices.costs); })
-      .catch(cause => { if (alive) setError(cause.message); });
-    load(); const timer = setInterval(load, 5000);
-    return () => { alive = false; clearInterval(timer); };
+    scope.current++;
+    setVoiceClone(''); setMedia({}); setText(''); setName(''); setConsent(false); setBusy(''); setError(''); setAudioFilename('');
+    return () => { scope.current++; };
   }, [key]);
   useEffect(() => {
     if (voices.some(item => item.id === voiceClone && item.revoked_at)) setVoiceClone('');
   }, [voices, voiceClone]);
-  useEffect(() => { if (imageUrl) { setMedia(prev => ({ ...prev, image_url: imageUrl })); setKind('avatar'); } }, [imageUrl]);
+  useEffect(() => { if (imageUrl) { setMedia(prev => ({ ...prev, image_url: imageUrl })); setKind('avatar'); } }, [imageUrl, user?.id]);
   useEffect(() => {
     const input = location.state?.text;
     if (typeof input === 'string' && input.length <= 8000) { setText(input); setKind('tts'); }
   }, [location.state]);
   const upload = async (field: string, file?: File) => {
     if (!user || !file) return;
+    const revision = scope.current;
+    const current = () => revision === scope.current && account.current === user.id;
     const max = field === 'image_url' ? 5 : field === 'video_url' ? 80 : 20;
     const expected = field === 'image_url' ? 'image/' : field === 'video_url' ? 'video/' : 'audio/';
     if (!file.size || file.size > max * 1024 * 1024 || !file.type.startsWith(expected)) {
@@ -76,15 +79,18 @@ export default function MediaJobsPanel({ imageUrl = '' }: { imageUrl?: string })
       const extension = file.name.split('.').pop()?.toLowerCase();
       if (!extension || !/^(jpg|jpeg|png|webp|mp4|mov|wav|mp3|m4a|ogg|webm|flac)$/.test(extension)) throw new Error('文件格式不支持');
       const path = `${user.id}/media-inputs/${crypto.randomUUID()}.${extension}`;
-      const result = await supabase.storage.from('materials').upload(path, file, { contentType: file.type });
-      if (result.error) throw new Error('素材上传失败，请重试');
+      await uploadAccountObject(user.id, 'materials', path, file);
+      if (!current()) return;
       setMedia(prev => ({ ...prev, [field]: storedMedia('materials', path) }));
       if (field === 'audio_url') setAudioFilename(`audio.${extension}`);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : '素材上传失败'); }
-    finally { setBusy(''); }
+    } catch (cause) { if (current()) setError(cause instanceof Error ? cause.message : '素材上传失败'); }
+    finally { if (current()) setBusy(''); }
   };
   const submit = async (saved?: Receipt) => {
     if (!user) { setError('请先登录'); return; }
+    if (busy || receipt && !saved || !saved && savedReceipt.error) return;
+    const revision = scope.current;
+    const current = () => revision === scope.current && account.current === user.id;
     setBusy('submit'); setError('');
     let request = saved;
     try {
@@ -96,35 +102,40 @@ export default function MediaJobsPanel({ imageUrl = '' }: { imageUrl?: string })
                 ...(kind === 'avatar' ? { image_url: media.image_url } : { video_url: media.video_url }) };
         request = { kind, request_key: crypto.randomUUID(), input: canonicalMediaTree({ ...input, confirmed_credit_cost: costs[kind] }) };
         // 在提交之前持久化，断网与刷新后继续使用同一请求。
-        localStorage.setItem(key, JSON.stringify(request)); setReceipt(request);
+        if (!savedReceipt.write(request)) return;
       }
-      const job = await createProductionJob(request.kind, request.request_key, request.input);
-      setJobs(prev => [job, ...prev.filter(item => item.id !== job.id)]);
-      localStorage.removeItem(key); setReceipt(null);
-      void refresh().catch(cause => setError(cause.message));
+      const job = await createProductionJob(request.kind, request.request_key, request.input, undefined, user.id);
+      if (!current()) return;
+      rememberTask(client, 'production', user.id, job);
+      savedReceipt.write(null);
+      void refresh().catch(cause => { if (current()) setError(cause.message); });
     } catch (cause) {
+      if (!current()) return;
       setError(cause instanceof Error ? cause.message : '任务创建失败');
       if (cause instanceof ProductionJobError && [400, 401, 403, 402, 409, 424, 429].includes(cause.status)) {
-        localStorage.removeItem(key); setReceipt(null);
-        if (cause.status === 409) void refresh().catch(refreshError => setError(refreshError.message));
+        savedReceipt.write(null);
+        if (cause.status === 409) void refresh().catch(refreshError => { if (current()) setError(refreshError.message); });
       }
-    } finally { setBusy(''); }
+    } finally { if (current()) setBusy(''); }
   };
   const revoke = async (item?: Voice) => {
     if (!user || busy) return;
+    const revision = scope.current;
+    const current = () => revision === scope.current && account.current === user.id;
     if (item && !window.confirm(`撤销「${item.name}」的声音授权？未提交配音会取消并返还积分，后台将删除供应商声纹。已生成文件继续保留。`)) return;
     const request = revocation || (item ? { voice_clone_id: item.id, request_key: crypto.randomUUID() } : null);
     if (!request) return;
     setBusy('revoke'); setError('');
     try {
-      localStorage.setItem(`${key}:revoke`, JSON.stringify(request)); setRevocation(request);
-      await productionRequest({ action: 'revoke-voice', ...request });
-      localStorage.removeItem(`${key}:revoke`); setRevocation(null);
+      if (!revoked.write(request)) return;
+      await productionRequest({ action: 'revoke-voice', ...request }, user.id);
+      if (!current()) return;
+      revoked.write(null);
       if (voiceClone === request.voice_clone_id) setVoiceClone('');
       await refresh();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '撤销响应待确认，请恢复原请求');
-    } finally { setBusy(''); }
+      if (current()) setError(cause instanceof Error ? cause.message : '撤销响应待确认，请恢复原请求');
+    } finally { if (current()) setBusy(''); }
   };
   const needsAudio = kind !== 'tts', needsVisual = kind === 'avatar' || kind === 'lipsync';
   const ready = kind === 'tts' ? text.trim() : media.audio_url && audioFilename && (kind === 'asr'
@@ -136,7 +147,7 @@ export default function MediaJobsPanel({ imageUrl = '' }: { imageUrl?: string })
       <Button variant="outline" disabled={!!busy} onClick={() => { void refresh().catch(cause => setError(cause.message)); }}>
         <RefreshCw className="w-4 h-4 mr-2" />刷新任务</Button>
     </div>
-    {error && <p role="alert" className="text-sm text-destructive break-words">{error}</p>}
+    {problem && <p role="alert" className="text-sm text-destructive break-words">{problem}</p>}
     {receipt && <div className="rounded-lg bg-muted p-3 text-sm space-y-2">
       <p>上次提交结果尚未确认。恢复时会核对原请求。</p>
       <Button disabled={!!busy} onClick={() => void submit(receipt)}>恢复原媒体任务</Button>
@@ -146,7 +157,7 @@ export default function MediaJobsPanel({ imageUrl = '' }: { imageUrl?: string })
       <Button disabled={!!busy} onClick={() => void revoke()}>恢复原声纹撤销</Button>
     </div>}
     <form onSubmit={event => { event.preventDefault(); void submit(); }} className="space-y-4">
-      <fieldset disabled={!!busy || !!receipt} className="space-y-4">
+      <fieldset disabled={!!busy || !!receipt || !!savedReceipt.error} className="space-y-4">
         <label className="block text-sm space-y-2">任务类型<select aria-label="媒体任务类型" value={kind}
           onChange={event => setKind(event.target.value as MediaKind)} className="h-10 rounded-md border bg-background px-3 w-full">
           {Object.entries(kinds).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>
@@ -174,7 +185,7 @@ export default function MediaJobsPanel({ imageUrl = '' }: { imageUrl?: string })
         </>}
       </fieldset>
       <div className="flex flex-wrap gap-3 items-center">
-        <Button type="submit" disabled={!!busy || !!receipt || !ready || !Number.isInteger(costs[kind])}>{busy && <Loader2 className="h-4 w-4 animate-spin mr-2" />}提交{kinds[kind]}任务</Button>
+        <Button type="submit" disabled={!!busy || !!receipt || !!savedReceipt.error || !ready || !Number.isInteger(costs[kind])}>{busy && <Loader2 className="h-4 w-4 animate-spin mr-2" />}提交{kinds[kind]}任务</Button>
         <span className="text-sm text-muted-foreground">{Number.isInteger(costs[kind]) ? `本次预占 ${costs[kind]} 积分，确定失败自动返还` : '正在读取积分价格'}</span>
         <Link to="/credits" className="text-sm underline text-muted-foreground">查看积分计费</Link>
       </div>

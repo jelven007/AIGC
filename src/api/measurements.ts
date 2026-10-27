@@ -1,4 +1,4 @@
-import { authenticatedEdgeRequest } from '@/lib/edgeRequest';
+import { authenticatedEdgeJSON } from '@/lib/edgeRequest';
 export interface MeasuredProject {
   id: string; title: string; status: string; video_style: string | null; duration: number | null; created_at: string;
 }
@@ -37,10 +37,9 @@ export interface ExperimentSpecification {
   request_key: string; source_id: string; title: string; primary_metric: string; planned_sample: number;
   ends_at: string; variants: Array<{ title: string; project_id: string }>;
 }
-export async function measurementRequest<T>(body: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
-  const response = await authenticatedEdgeRequest('measurements', { method: 'POST', signal,
-    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  return response.json();
+export async function measurementRequest<T>(body: Record<string, unknown>, signal?: AbortSignal, userId?: string): Promise<T> {
+  return authenticatedEdgeJSON('measurements', { method: 'POST', signal,
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }, userId);
 }
 export const numberText = (value: number | null | undefined) => value == null ? '—' : value.toLocaleString('zh-CN');
 export const percentText = (value: number | null | undefined) => value == null ? '—' : `${(value * 100).toFixed(2)}%`;

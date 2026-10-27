@@ -1,6 +1,6 @@
 # 火山引擎部署指南
 
-更新：2026-10-22，功能基线`d7e3d38`。当前新库60生产迁移（62文件排除18/19）、最新00062、43函数、20模型槽、MCP59/19，verify严格probe22/render4/edit2。火山无实际资源/迁移/运行验收；以下旧范围为历史摘要，当前步骤见正文及 [综合基线](RELEASE_BASELINE_20261022.md)。
+更新：2026-10-27。当前新库66生产迁移（68文件排除18/19）、最新00068、43函数、20模型槽、MCP59/19，verify严格probe24/render4/edit2及源码摘要。本地旧库升级和接受工具已验证，火山无实际资源/迁移/运行验收；当前[全栈回执](REPRODUCIBLE_RELEASE.md)、[发布接受/ECS对等](RELEASE_ACCEPTANCE.md)为操作入口，以下旧范围保留历史。
 
 ## 历史发布依赖
 
@@ -85,7 +85,8 @@ byted-supabase-cli db advisors --workspace-id "$SHOPRO_WORKSPACE_ID"
 
 复制 `deploy/volcengine/secrets.env.example` 为 `secrets.env`，权限设为 600，填入：
 
-- `MODEL_CONFIG_ENCRYPTION_KEY`：32 字节随机主密钥的 64 位十六进制表示；
+- `MODEL_CONFIG_KEYRING`：当前ID、历史ID/32字节键及legacy映射；或兼容旧单主密钥`MODEL_CONFIG_ENCRYPTION_KEY`。轮换先[历史预检与完整备份](KEY_ROTATION.md)；
+- `RELEASE_SOURCE_SHA256`：本次prepare的`release.source_sha256`，与实际函数部署产物共同核对；
 - 独立随机 `VIDEO_WORKER_SECRET`，与调度器一致；
 - 需要上线支付时的支付宝/微信商户配置。
 
@@ -114,7 +115,7 @@ python3 scripts/manage_video_scheduler.py status
 python3 scripts/manage_video_scheduler.py logs
 ```
 
-保持PRODUCTION_WORKER_ENABLED=true，启动严格probe22/00062/render4/edit2，不匹配不启动。10秒/4并发是配置，monitor每分钟与持久卷参与健康；重建FFmpeg/MCP镜像，备份/外部告警另由目标运维配置。实际提交/关页/原UUID/unknown/退款/平台验收后才算可运行；ECS停机仍暂停。
+保持PRODUCTION_WORKER_ENABLED=true，启动严格probe24/00068/render4/edit2，不匹配不启动；生产/维护两个独立进程，同镜像/独立健康/持久预算。10秒/4并发仅配置，monitor参与健康，alerts profile单独配置Relay回执。匹配FFmpeg/MCP/备份镜像、可信出口和专用媒体盘；按[只读接受](RELEASE_ACCEPTANCE.md)核对后，再验收真实提交/关页/原UUID/unknown/退款/平台/异地恢复，ECS停机仍暂停。
 
 详见 [视频后台调度](VIDEO_SCHEDULER.md)。pg_cron/pg_net/Vault 是可选方案，必须先确认目标火山平台支持，不能当作默认前置条件。
 
@@ -137,7 +138,7 @@ python3 scripts/deploy_volcengine.py prepare \
   --privacy-url "$SHOPRO_PRIVACY_URL"
 ```
 
-生成 `.volcengine-build/frontend.zip`、SQL 和 manifest。URL、anon key 指纹、ZIP 校验值记录在 manifest。前端构建拒绝模型/支付等敏感 `VITE_*` 变量。已构建 ZIP 的连接信息不会被 Pages bind 自动改写。
+生成`.volcengine-build/frontend.zip`、SQL和manifest。URL/anon指纹/法律配置/ZIP摘要及完整源码摘要记录在manifest，前端内含release-identity.json绑定相同Git/源码/Worker契约。前端构建拒绝敏感VITE变量，Pages bind不会改写已有连接常量；源码或产物漂移必须重新prepare。
 
 首次创建 Pages：
 

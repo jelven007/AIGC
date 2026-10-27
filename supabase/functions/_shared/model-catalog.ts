@@ -41,6 +41,7 @@ export interface ModelSettings {
   voice: string;
   test_endpoint: string;
   edit_endpoint?: string;
+  supports_vision?: boolean;
 }
 export interface ModelConfigView {
   slot: string;

@@ -84,6 +84,7 @@ class BatchPipelineTest(unittest.TestCase):
 
     def test_launch_uses_original_charge_version_and_queue_quota(self):
         batch = self.create()
+        self.assertIn("batch_pipeline", json.loads(sql(self.as_service("SELECT worker_due_lanes();")).stdout))
         tts = next(s for s in self.advance(batch) if s["kind"] == "tts")
         sql(f"""INSERT INTO production_jobs(user_id,request_key,kind,payload)
           SELECT '{self.user}',gen_random_uuid(),'tts','{{}}'::jsonb FROM generate_series(1,10)""")

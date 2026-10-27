@@ -23,6 +23,7 @@ const DOMAINS: { id: OperatorDomain; name: string; permission: string; columns: 
   { id: 'tenants', name: '租户管理', permission: 'tenants:read', columns: [['name', '租户'], ['state', '状态'], ['active_members', '有效成员'], ['max_members', '成员上限'], ['daily_reserved', '今日预占'], ['daily_credit_budget', '团队日预算']] },
   { id: 'costs', name: '供应商现金成本', permission: 'costs:read', columns: [['statement_ref', '账单编号'], ['line_ref', '行号'], ['provider', '原供应商'], ['currency', '币种'], ['amount_minor', '现金金额'], ['job_id', '原调用编号']] },
   { id: 'cost_missing', name: '待核对现金用量', permission: 'costs:read', columns: [['job_type', '调用类型'], ['kind', '业务'], ['status', '任务状态'], ['id', '原调用编号'], ['created_at', '创建时间']] },
+  { id: 'model_attempts', name: '模型调用核对', permission: 'costs:read', columns: [['request_id', '原请求'], ['slot', '模型槽'], ['model', '模型'], ['status', '尝试状态'], ['total_tokens', 'Token用量'], ['needs_reconciliation', '受理待核对'], ['cash_state', '现金核对'], ['upstream_id', '供应商编号']] },
   { id: 'risk', name: '风险事件', permission: 'risk:read', columns: [['action', '操作'], ['decision', '判定'], ['category', '类别'], ['disposition', '人工处置'], ['created_at', '发生时间']] },
   { id: 'audit', name: '操作审计', permission: 'audit:read', columns: [['action', '操作'], ['table_name', '对象'], ['record_id', '记录'], ['created_at', '时间']] },
   { id: 'operators', name: '运营权限', permission: 'operators:write', columns: [['operator_id', '运营账号'], ['role', '角色'], ['scope_user_id', '客户范围'], ['created_at', '授权时间']] },
@@ -33,7 +34,8 @@ const STATUS: Record<string, string> = { paid: '已支付', pending: '待支付'
   active: '生效', failed: '失败', completed: '完成', processing: '执行中', queued: '排队中', reserved: '预占', settled: '已结算',
   open: '待处理', in_progress: '处理中', waiting_customer: '等待客户', resolved: '已解决', suspended: '暂停',
   high: '紧急', normal: '普通', low: '低', unreviewed: '未核对', reviewing: '核查中', dismissed: '排除', confirmed: '确认风险',
-  critical: '严重', warning: '提醒', acknowledged: '已接手' };
+  critical: '严重', warning: '提醒', acknowledged: '已接手', started: '调用待结案',
+  interrupted: '响应中断', unrecorded: '未核对', recorded: '已登记' };
 function cell(value: unknown, key: string) {
   if (value === null || value === undefined) return key === 'scope_user_id' ? '全部客户' : '—';
   if (typeof value === 'boolean') return value ? '是' : '否';

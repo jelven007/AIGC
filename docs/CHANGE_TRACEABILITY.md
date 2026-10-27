@@ -1,6 +1,6 @@
 # 变更、需求与文档追踪矩阵
 
-更新：2026-10-22，功能基线`d7e3d38`。下表逐项覆盖Gitee `ce90bfe..d7e3d38`全部31提交。需求编号均加`REQ-`前缀；接受条件见 [PRD](prd/PRD.md)。验证列指对应历史执行证据，本轮文档校准不重新宣称所有业务测试已执行。
+更新：2026-10-27。下表保留Gitee `ce90bfe..d7e3d38`31提交的历史追踪；本轮工作区未提交。当前优化方案A/B/C/D/S1及ECS指南的实现/验证映射见[实施台账](OPTIMIZATION_IMPLEMENTATION_20261027.md)，接受条件见[PRD](prd/PRD.md)。
 
 ## 1. 迭代与实现
 
@@ -45,16 +45,16 @@
 | 主题 | 需求 | 方案/开发 | 测试 | 运营/财务 | 运维 |
 | --- | --- | --- | --- | --- | --- |
 | 身份/奖励/权益 | PRD身份与新增行 | API本人RPC、开发账号边界 | profile/rewards/account-credits与SMS页面 | 真实同意/验证/历史账/错误说明 | Auth配置/回跳/限流/原回执 |
-| 模型/媒体/编辑/编排 | PRD模态与BATCH | 架构、MODEL_SETTINGS、AI、API | image/media/edit/render/pipeline | 价格/版权/质量/原UUID | probe22/render4/edit2/私有对象 |
+| 模型/媒体/编辑/编排 | PRD模态与BATCH/优化A–D | 架构、MODEL_SETTINGS、AI、API | 原任务/attempt/共享查询/剪辑/受限媒体 | 价格/版权/质量/原UUID/真实现金 | probe24/render4/edit2/私有对象/可信出口 |
 | 商品/知识/情报/观测 | PRD来源/版本/统计 | API与统一服务端报告 | products/translation/knowledge/intelligence/measurements | 数据口径/授权/成本/实验 | 留存/容量/来源/配置版本 |
 | 支付/团队/运营 | PRD CASH/TEAM/SUPPORT | 后端、API/锁序/可信范围 | cash/wechat/checkout/access/operations | 两渠道对账/工单/风险/现金成本 | 原商户/预占/告警/审计 |
-| 恢复/发布 | PRD OPS/RECOVERY | 开发、部署manifest | alerts/backup/scheduler/volcengine | 客户窗口/处理目标 | RUNBOOK/备份/版本管理 |
+| 恢复/发布 | PRD OPS/RECOVERY、B1/B3/D3/S1 | 冻结锁、发布manifest/身份、keyring | 告警Relay/归档拉回/双PG/旧库接受 | 客户窗口/原事件回执/真实目标 | RUNBOOK/独立维护/异地备份/发布接受 |
 
 ## 3. 当前发布缺口
 
-官方管理最近401；最近成功部署证据00031/三个旧函数；当前源码须核对缺失00032–00062、43入口与全部共享模块、调度/FFmpeg/MCP/前端。火山资源与实际迁移另行验收。现金退款、团队预算、工单、情报/RAG、编辑和编排已有本地链路，剩余实际供应商/商户/平台、企业统一账套/自动发票及容量问题见 [待办](PENDING_CHANGES.md)。
+官方已记录00031/三旧函数成功及2026-10-22管理401，本轮未复核；当前源码须核对缺失至00068、43入口/冻结共享模块、生产/独立维护、FFmpeg/MCP/备份镜像与前端身份。火山/ECS资源、正式告警/异地调度、真实身份/供应商/商户/平台及容量见[待办](PENDING_CHANGES.md)。
 
-本轮文档和Git交付见 [2026-10-22报告](TEST_REPORT_20261022.md)、[版本管理](VERSION_MANAGEMENT.md)，当前整包范围见 [综合基线](RELEASE_BASELINE_20261022.md)。
+历史Git交付见[2026-10-22报告](TEST_REPORT_20261022.md)和[版本管理](VERSION_MANAGEMENT.md)，本轮改动未commit/push；当前范围与新鲜证据见[实施台账](OPTIMIZATION_IMPLEMENTATION_20261027.md)及[当前状态](CURRENT_STATE.md)。
 
 ## 4. 后续变更记录要求
 

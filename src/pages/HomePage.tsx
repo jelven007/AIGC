@@ -15,12 +15,12 @@ import { Badge } from '@/components/ui/badge';
 import ProductVideoWizard from './VideoCreatePage';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { UrlProductImportDialog } from '@/components/UrlProductImportDialog';
-import { sendDeepSeekStreamRequest, sendStepAudioASR } from '@/lib/sse';
+import { usePromptAssistant } from '@/hooks/usePromptAssistant';
+import { useWorkspaceEntry } from '@/hooks/useWorkspaceEntry';
 import { makeWorkTitle } from '@/lib/utils';
-import { modelSettingsRequest, type ModelCatalogEntry } from '@/api/modelSettings';
-import { uploadMaterialAsset, pendingMaterialUploads, recoverMaterialUploads } from '@/api/materialAssets';
+import { useReferenceMaterials } from '@/hooks/useReferenceMaterials';
+import { useWorkspaceModels } from '@/hooks/useWorkspaceModels';
 import { useProductionJob } from '@/hooks/useProductionJob';
-import { audioRecorder } from '@/lib/audioRecorder';
 import { Product } from '@/types/types';
 import { ProductImage } from '@/components/ProductFields';
 import { productPrice } from '@/lib/productDisplay';
@@ -28,7 +28,6 @@ import { listProducts } from '@/api/products';
 import { useRecentWorks } from '@/hooks/useRecentWorks';
 import ImageEditCanvas, { type PreparedImageEdit } from '@/components/ImageEditCanvas';
 import type { ImageMode } from '../../supabase/functions/_shared/image-contract';
-import { supabase } from '@/db/supabase';
 import { useCredits } from '@/hooks/useCredits';
 
 
@@ -111,29 +110,21 @@ export interface CategoryVideoItem {
 // ── 主页组件 ───────────────────────────────────────────────────────────
 export default function HomePage() {
   const { user } = useAuth();
-  return <HomeWorkspace key={user?.id || 'signed-out'} />;
+  const entry = useWorkspaceEntry(user?.id);
+  return <HomeWorkspace key={user?.id || 'signed-out'} entry={entry} />;
 }
 
-function HomeWorkspace() {
+function HomeWorkspace({ entry }: { entry: any }) {
   const { projectId } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
+  const route = useLocation();
+  const location = { ...route, state: entry };
   const { user, profile } = useAuth();
-  const [referenceRights, setReferenceRights] = useState(false), [referenceBusy, setReferenceBusy] = useState(false);
-  const [pendingReferences, setPendingReferences] = useState(() => user ? pendingMaterialUploads(user.id) : 0);
-  const workspaceActive = useRef(true), referenceBusyRef = useRef(false);
+  const references = useReferenceMaterials(user?.id);
+  const { rights: referenceRights, setRights: setReferenceRights, busy: referenceBusy,
+    pending: pendingReferences, recover: recoverReferences, upload: importReference } = references;
+  const workspaceActive = useRef(true);
   useEffect(() => { workspaceActive.current = true; return () => { workspaceActive.current = false; }; }, []);
-  const recoverReferences = async () => {
-    if (!user || referenceBusyRef.current) return;
-    referenceBusyRef.current = true; setReferenceBusy(true);
-    try {
-      const result = await recoverMaterialUploads(user.id);
-      if (!workspaceActive.current) return;
-      if (result.restored) toast.success(`已恢复${result.restored}个原素材登记，请在素材库查看`);
-      if (result.pending) toast.error(result.errors[0] || '原素材仍待确认');
-    } catch (cause) { if (workspaceActive.current) toast.error(cause instanceof Error ? cause.message : '恢复失败'); }
-    finally { referenceBusyRef.current = false; if (workspaceActive.current) { setReferenceBusy(false); setPendingReferences(pendingMaterialUploads(user.id)); } }
-  };
 
   const [mainTab, setMainTab] = useState(projectId ? '分镜编辑' : new URLSearchParams(location.search).get('tab') === 'image' ? '图片生成' : '视频生成');
   const [inputTab, setInputTab] = useState(location.state?.inputTab || '参考');
@@ -208,12 +199,12 @@ function HomeWorkspace() {
     setLoadingProducts(true);
     try {
       if (!user) { setProductsList([]); return; }
-      const { products } = await listProducts({ limit: 100 });
-      setProductsList(products);
+      const { products } = await listProducts({ limit: 100 }, user.id);
+      if (workspaceActive.current) setProductsList(products);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '商品库读取失败，请重试');
+      if (workspaceActive.current) toast.error(err instanceof Error ? err.message : '商品库读取失败，请重试');
     } finally {
-      setLoadingProducts(false);
+      if (workspaceActive.current) setLoadingProducts(false);
     }
   }, [user]);
 
@@ -322,18 +313,19 @@ function HomeWorkspace() {
   const [model, setModel] = useState<{ label: string; id: string }>({ label: '火山方舟 Seedance', id: 'ArkSeedance' });
   const [resolution, setResolution] = useState('720P · 16:9 · 5s');
   const [modelOpen, setModelOpen] = useState(false);
-  const [modelCatalog, setModelCatalog] = useState<ModelCatalogEntry[]>([]);
-  const [modelCatalogError, setModelCatalogError] = useState('');
+  const workspaceModels = useWorkspaceModels(user?.id);
+  const { models: modelCatalog, error: modelCatalogError, price: imageCost, refreshing: imageSettingsBusy } = workspaceModels;
   useEffect(() => {
-    modelSettingsRequest<{ configs: ModelCatalogEntry[] }>({ action: 'catalog' }).then(result => {
-      if (!workspaceActive.current) return;
-      setModelCatalog(result.configs);
-      const video = result.configs.find(item => item.category === 'video' && item.enabled);
-      if (video) setModel({ label: video.name, id: video.provider! });
-    }).catch(e => { if (workspaceActive.current) setModelCatalogError(e.message); });
+    setModel(previous => {
+      const video = modelCatalog.find(item => item.provider === previous.id && item.category === 'video' && item.enabled)
+        || modelCatalog.find(item => item.category === 'video' && item.enabled && item.provider);
+      return !video || previous.label === video.name && previous.id === video.provider
+        ? previous : { label: video.name, id: video.provider! };
+    });
+  }, [modelCatalog]);
+  useEffect(() => {
     // 清除旧版本遗留的浏览器模型密钥。
-    localStorage.removeItem('custom_models_video');
-    localStorage.removeItem('custom_models_image');
+    try { localStorage.removeItem('custom_models_video'); localStorage.removeItem('custom_models_image'); } catch {}
   }, []);
   const [resOpen, setResOpen] = useState(false);
 
@@ -376,26 +368,11 @@ function HomeWorkspace() {
   const [firstFrame, setFirstFrame] = useState<string | null>(null);
   const [lastFrame, setLastFrame] = useState<string | null>(null);
 
-  // 语音输入状态
-  const [recording, setRecording] = useState(false);
-
-  // 提示词增强进度条状态
-  const [enhanceProgress, setEnhanceProgress] = useState(0);
-
   // 图片生成相关新状态与 ref
   const [imgRefImage, setImgRefImage] = useState<string | null>(null);
   const [imgMode, setImgMode] = useState<ImageMode>('generate');
   const [preparedImageEdit, setPreparedImageEdit] = useState<PreparedImageEdit | null>(null);
-  const [imageCost, setImageCost] = useState<number | null>(null);
-  const [imageSettingsBusy, setImageSettingsBusy] = useState(false);
   const { refresh: refreshImageCredits } = useCredits();
-  useEffect(() => {
-    void supabase.from('credit_costs').select('cost').eq('action', 'generate_image').maybeSingle().then(({ data, error }) => {
-      if (workspaceActive.current && !error && data && Number.isInteger(data.cost) && data.cost >= 0) setImageCost(data.cost);
-    });
-  }, []);
-  const [enhancingImg, setEnhancingImg] = useState(false);
-  const [imgRecording, setImgRecording] = useState(false);
   const imgUploadInputRef = useRef<HTMLInputElement>(null);
 
   // 上传文件的 ref
@@ -411,65 +388,10 @@ function HomeWorkspace() {
     setResolution(`${res} · ${ratio} · ${dur}s`);
   };
 
-  const importReference = async (file: File | undefined, kind: 'image' | 'video', update: (value: string) => void) => {
-    if (!file || !user || referenceBusyRef.current) return;
-    if (!referenceRights) { toast.error('请先确认素材使用权'); return; }
-    referenceBusyRef.current = true; setReferenceBusy(true);
-    try {
-      if (!file.type.startsWith(kind + '/')) throw new Error('请选择' + (kind === 'image' ? '图片' : '视频') + '素材');
-      const material = await uploadMaterialAsset(file, user.id, referenceRights);
-      if (!workspaceActive.current) return;
-      update(material.url); toast.success('参考素材已登记，可在素材库管理');
-    } catch (cause) { if (workspaceActive.current) toast.error(cause instanceof Error ? cause.message : '素材登记未确认'); }
-    finally { referenceBusyRef.current = false; if (workspaceActive.current) { setReferenceBusy(false); setPendingReferences(pendingMaterialUploads(user.id)); } }
-  };
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; event.target.value = ''; void importReference(file, 'image', setRefImage); };
   const handleVideoUpload = (event: React.ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; event.target.value = ''; void importReference(file, 'video', setRefVideo); };
   const handleFirstFrameUpload = (event: React.ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; event.target.value = ''; void importReference(file, 'image', setFirstFrame); };
   const handleLastFrameUpload = (event: React.ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; event.target.value = ''; void importReference(file, 'image', setLastFrame); };
-
-  const handleVoiceInput = async () => {
-    if (recording) {
-      setRecording(false);
-      toast.info('🎙️ 录音已结束，正在识别语音...');
-      try {
-        const { base64, recognizedText } = await audioRecorder.stop();
-        if (recognizedText && recognizedText.trim()) {
-          setPrompt(prev => prev + (prev ? '，' : '') + recognizedText.trim());
-          triggerVideoTypingGlow();
-          toast.success('🎙️ 语音识别成功');
-          return;
-        }
-
-        await sendStepAudioASR({
-          audioData: base64,
-          onData: (text) => {
-            setPrompt(prev => prev + (prev ? '，' : '') + text);
-            triggerVideoTypingGlow();
-          },
-          onComplete: () => {
-            toast.success('🎙️ 语音识别成功');
-          },
-          onError: (err) => {
-            console.error('ASR error:', err);
-            toast.error(`${err.message}`);
-          }
-        });
-      } catch (err) {
-        console.error('Failed to stop recording:', err);
-        toast.error('录音处理失败，请重试');
-      }
-    } else {
-      try {
-        await audioRecorder.start();
-        setRecording(true);
-        toast.info('🎙️ 录音中... 请说话，再次点击按钮以停止并识别', { duration: 5000 });
-      } catch (err) {
-        console.error('Microphone access failed:', err);
-        toast.error('无法启用麦克风，请检查权限设置');
-      }
-    }
-  };
 
   // 生成任务在服务端持久化，浏览器只显示状态和成片。
   const { generating, taskId, genProgress, resultVideo, statusText, generate, hideProgress, clearResult } = useVideoGeneration(user?.id);
@@ -495,49 +417,16 @@ function HomeWorkspace() {
 
   const [activePlayVideo, setActivePlayVideo] = useState<any>(null);
 
-  const [imgEnhanceProgress, setImgEnhanceProgress] = useState(0);
-
-
-  const handleImgVoiceInput = async () => {
-    if (imgRecording) {
-      setImgRecording(false);
-      toast.info('🎙️ 录音已结束，正在识别语音...');
-      try {
-        const { base64, recognizedText } = await audioRecorder.stop();
-        if (recognizedText && recognizedText.trim()) {
-          setImgPrompt(prev => prev + (prev ? '，' : '') + recognizedText.trim());
-          toast.success('🎙️ 语音识别成功');
-          return;
-        }
-
-        await sendStepAudioASR({
-          audioData: base64,
-          onData: (text) => {
-            setImgPrompt(prev => prev + (prev ? '，' : '') + text);
-          },
-          onComplete: () => {
-            toast.success('🎙️ 语音识别成功');
-          },
-          onError: (err) => {
-            console.error('ASR error:', err);
-            toast.error(`${err.message}`);
-          }
-        });
-      } catch (err) {
-        console.error('Failed to stop recording:', err);
-        toast.error('录音处理失败，请重试');
-      }
-    } else {
-      try {
-        await audioRecorder.start();
-        setImgRecording(true);
-        toast.info('🎙️ 录音中... 请说话，再次点击按钮以停止并识别', { duration: 5000 });
-      } catch (err) {
-        console.error('Microphone access failed:', err);
-        toast.error('无法启用麦克风，请检查权限设置');
-      }
-    }
-  };
+  const promptAssistant = usePromptAssistant(user?.id, {
+    video: prompt, image: imgPrompt, updateVideo: value => { setPrompt(value); triggerVideoTypingGlow(); },
+    updateImage: value => { setImgPrompt(value); triggerImgTypingGlow(); },
+  });
+  const recording = promptAssistant.recordingKind === 'video', imgRecording = promptAssistant.recordingKind === 'image';
+  const enhancing = promptAssistant.enhancingKind === 'video', enhancingImg = promptAssistant.enhancingKind === 'image';
+  const enhanceProgress = enhancing ? promptAssistant.progress : 0, imgEnhanceProgress = enhancingImg ? promptAssistant.progress : 0;
+  const enhanceError = promptAssistant.error;
+  const handleVoiceInput = () => promptAssistant.toggleVoice('video');
+  const handleImgVoiceInput = () => promptAssistant.toggleVoice('image');
 
   const handleImgRefImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]; event.target.value = ''; void importReference(file, 'image', setImgRefImage);
@@ -549,12 +438,6 @@ function HomeWorkspace() {
   useEffect(() => {
     if (imageTask.job?.status === 'completed' && imageTask.job.result?.url) setResultImage(imageTask.job.result.url);
   }, [imageTask.job?.id, imageTask.job?.status, imageTask.job?.result?.url]);
-  const abortRef = useRef<AbortController | null>(null);
-  const [enhanceError, setEnhanceError] = useState('');
-  useEffect(() => () => { abortRef.current?.abort(); }, []);
-
-  // 提示词增强状态
-  const [enhancing, setEnhancing] = useState(false);
 
   const handleImageGenerate = async () => {
     if (!imgPrompt.trim()) { toast.error('请输入图片描述'); return; }
@@ -575,15 +458,9 @@ function HomeWorkspace() {
   };
   const imgConfig = modelCatalog.find(item => item.slot === 'image.primary');
   const refreshImageSettings = async () => {
-    setImageSettingsBusy(true);
     try {
-      const catalog = await modelSettingsRequest<{ configs: ModelCatalogEntry[] }>({ action: 'catalog' });
-      const price = await supabase.from('credit_costs').select('cost').eq('action', 'generate_image').maybeSingle();
-      if (!workspaceActive.current) return;
-      if (price.error || !price.data || !Number.isInteger(price.data.cost) || price.data.cost < 0) throw new Error('图片价格读取失败');
-      setModelCatalog(catalog.configs); setModelCatalogError(''); setImageCost(price.data.cost);
+      await workspaceModels.refresh();
     } catch (cause) { if (workspaceActive.current) toast.error(cause instanceof Error ? cause.message : '图片配置读取失败'); }
-    finally { if (workspaceActive.current) setImageSettingsBusy(false); }
   };
 
   // 视频生成统一使用持久化服务端任务。
@@ -601,38 +478,8 @@ function HomeWorkspace() {
     });
   };
 
-  // 完整流确认成功才替换原输入；失败回滚，离页中止当前请求。
-  const enhancePrompt = async (kind: 'video' | 'image') => {
-    const original = kind === 'video' ? prompt : imgPrompt;
-    if (!original.trim()) { toast.error('请先输入基础描述'); return; }
-    if (abortRef.current) return;
-    const controller = new AbortController(); abortRef.current = controller;
-    const update = kind === 'video' ? setPrompt : setImgPrompt;
-    const updateCount = kind === 'video' ? setEnhanceProgress : setImgEnhanceProgress;
-    const updateBusy = kind === 'video' ? setEnhancing : setEnhancingImg;
-    updateBusy(true); updateCount(0); setEnhanceError('');
-    let text = '', completed = false, failure: Error | null = null;
-    try {
-      await sendDeepSeekStreamRequest({
-        messages: [{ role: 'user', content: '请将以下描述扩展为适合电商的' + (kind === 'video' ? '视频' : '图片')
-          + '提示词，保持商品事实不变，使用中文直接输出画面描述，不添加解释。原文：' + original }],
-        max_tokens: kind === 'video' ? 1024 : 512, signal: controller.signal,
-        onData: chunk => { if (!controller.signal.aborted) { text += chunk; update(text); updateCount(text.length); } },
-        onComplete: () => { completed = true; }, onError: cause => { failure = cause; },
-      });
-      if (controller.signal.aborted) return;
-      if (failure) throw failure;
-      if (!completed || !text.trim()) throw new Error('提示词结果未完成，请重试');
-      toast.success(kind === 'video' ? '提示词已增强' : '图片提示词已增强');
-    } catch (cause) {
-      if (!controller.signal.aborted) { update(original); setEnhanceError(cause instanceof Error ? cause.message : '提示词增强失败，原输入已保留'); }
-    } finally {
-      if (abortRef.current === controller) abortRef.current = null;
-      if (!controller.signal.aborted) { updateBusy(false); updateCount(0); }
-    }
-  };
-  const handleEnhancePrompt = () => enhancePrompt('video');
-  const handleEnhanceImgPrompt = () => enhancePrompt('image');
+  const handleEnhancePrompt = () => promptAssistant.enhance('video');
+  const handleEnhanceImgPrompt = () => promptAssistant.enhance('image');
 
   return (
     <div
@@ -1080,7 +927,8 @@ function HomeWorkspace() {
                     </button>
                     {modelOpen && (
                       <div className="absolute top-full mt-2 left-0 z-50 bg-[#161522] border border-white/15 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] py-1.5 min-w-[170px] backdrop-blur-2xl">
-                        {MODELS.filter(m => modelCatalog.some(item => item.provider === m.id && item.enabled)).map(m => (
+                        {MODELS.filter(m => modelCatalog.some(item => item.provider === m.id && item.enabled))
+                          .map(m => ({ ...m, label: modelCatalog.find(item => item.provider === m.id && item.enabled)!.name })).map(m => (
                           <button key={m.id} onClick={() => {
                             setModel({ label: m.label, id: m.id });
                             setModelOpen(false);
@@ -1228,6 +1076,8 @@ function HomeWorkspace() {
                       <button
                         type="button"
                         onClick={handleVoiceInput}
+                        aria-label={recording ? '停止视频语音输入' : '开始视频语音输入'}
+                        aria-pressed={recording}
                         className={cn(
                           "w-8 h-8 md:w-9 md:h-9 rounded-xl flex items-center justify-center transition-all border shrink-0",
                           recording
@@ -1586,6 +1436,8 @@ function HomeWorkspace() {
                     <button
                       type="button"
                       onClick={handleImgVoiceInput}
+                      aria-label={imgRecording ? '停止图片语音输入' : '开始图片语音输入'}
+                      aria-pressed={imgRecording}
                       className={cn(
                         "w-8 h-8 md:w-9 md:h-9 rounded-xl flex items-center justify-center transition-all border shrink-0",
                         imgRecording

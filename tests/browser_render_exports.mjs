@@ -41,7 +41,7 @@ try {
     else if (path.endsWith('/rpc/get_my_credits')) data = creditSnapshot(uid, { credits_total: 100, credits_left: 100 });
     else if (path.includes('/rest/v1/video_projects')) {
       if (request.method() !== 'GET') projectMutations.push(body);
-      data = [{ id: projectId, title: '私有成片', duration: 2 }];
+      data = [{ id: projectId, user_id: uid, title: '私有成片', duration: 2 }];
     }
     await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data),
       headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*' } });

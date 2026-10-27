@@ -12,9 +12,12 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 from dataclasses import dataclass
 from typing import Optional
+from alert_delivery import spool
 
+CONTRACT = json.loads(Path(__file__).with_name("runtime-contract.json").read_text())
 
 @dataclass(repr=False)
 class Config:
@@ -84,15 +87,24 @@ def call_worker(config, action="run"):
             data = json.loads(raw)
         if action == "probe":
             production = config.endpoint.endswith("/production-worker")
-            expected_version = 22 if production else 1
+            expected_version = CONTRACT["version"] if production else 1
             if data.get("ready") is not True or data.get("version") != expected_version:
                 raise WorkerError("worker_not_ready")
-            if production and (data.get("required_migration") != "00062" or data.get("render_version") != 4 or data.get("edit_version") != 2):
+            if production and (any(data.get(key) != value for key, value in CONTRACT.items()) or data.get("missing") != []):
+                raise WorkerError("worker_not_ready")
+            return 0
+        if action == "ready":
+            if data.get("ready") is not True:
                 raise WorkerError("worker_not_ready")
             return 0
         processed = data.get("processed")
         if type(processed) is not int or processed not in (0, 1):
             raise WorkerError("invalid_response")
+        if action == "maintenance":
+            if type(data.get("errors")) is not int or data["errors"] not in (0, 1):
+                raise WorkerError("invalid_response")
+            if data["errors"]:
+                raise WorkerError("maintenance_failed")
         return processed
     except urllib.error.HTTPError as cause:
         raise WorkerError(f"http_{cause.code}") from None
@@ -144,31 +156,31 @@ def monitor(config, scheduler_healthy):
 def persist_local_alerts(config, state):
     # Worker或数据库完全不可达时仍保留故障/恢复事件。命名卷独立于临时健康文件。
     path = config.alert_path or config.state_path.with_name("scheduler-alerts.json")
-    if path.exists():
-        value = json.loads(path.read_text())
-        if not isinstance(value, dict) or not isinstance(value.get("events"), list):
-            raise ValueError("本地告警记录损坏，请核对持久卷")
-    else:
-        value = {"endpoint": config.endpoint, "active": [], "events": []}
-    if value.get("endpoint") != config.endpoint:
-        value = {"endpoint": config.endpoint, "active": [], "events": []}
     desired = []
     if state["failures"] >= 3:
         desired.append("scheduler_unhealthy")
     if state.get("monitor_failures", 0) >= 3:
         desired.append("monitor_unavailable")
-    previous = set(value["active"])
-    for code in sorted(previous ^ set(desired)):
-        event = {"rule": code, "event": "opened" if code in desired else "resolved", "at": time.time()}
-        value["events"].append(event)
-        log("local_alert", **event)
-    value.update(active=desired, failures=state["failures"], monitor_failures=state.get("monitor_failures", 0),
-                 events=value["events"][-100:], observed_at=time.time())
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(".tmp")
-    temporary.write_text(json.dumps(value))
-    temporary.chmod(0o600)
-    os.replace(temporary, path)
+    with spool(path) as value:
+        if not value:
+            value.update(endpoint=config.endpoint, active=[], events=[])
+        if value.get("endpoint") != config.endpoint:
+            raise ValueError("告警持久卷与目标不匹配，请使用对应环境的独立卷")
+        for old in value["events"]:
+            old.setdefault("event_id", str(uuid.uuid4()))
+        version = max([value.get("version", 0), *[e.get("version", 0) for e in value["events"]]])
+        previous = set(value["active"])
+        for code in sorted(previous ^ set(desired)):
+            version += 1
+            event = {"event_id": str(uuid.uuid4()), "source_id": str(uuid.uuid5(uuid.NAMESPACE_URL, config.endpoint + "#" + path.name)),
+                     "version": version, "rule": code,
+                     "event": "opened" if code in desired else "resolved", "at": time.time()}
+            value["events"].append(event)
+            log("local_alert", **event)
+        confirmed = {e["event_id"] for e in [e for e in value["events"] if e.get("delivered_at")][-100:]}
+        value["events"] = [e for e in value["events"] if not e.get("delivered_at") or e["event_id"] in confirmed]
+        value.update(active=desired, version=version, failures=state["failures"], monitor_failures=state.get("monitor_failures", 0),
+                     observed_at=time.time())
 
 
 def log(event, **values):
@@ -180,13 +192,13 @@ def healthy(config):
         state = json.loads(config.state_path.read_text())
         return state.get("ready") is True and state.get("failures", 0) < 3 and time.time() - state["last_ok"] < max(
             90, config.timeout + config.interval * 3) and (not config.endpoint.endswith('/production-worker')
-            or time.time() - state.get("last_monitor", 0) < 180)
+            or state.get("mode") == "maintenance" or time.time() - state.get("last_monitor", 0) < 180)
     except (OSError, KeyError, ValueError, TypeError):
         return False
 
 
-def serve(config, stop):
-    state = {"ready": False, "last_ok": 0, "failures": 0}
+def serve(config, stop, maintenance=False):
+    state = {"ready": False, "last_ok": 0, "failures": 0, "mode": "maintenance" if maintenance else "production"}
     alert_path = config.alert_path or config.state_path.with_name("scheduler-alerts.json")
     if alert_path.exists():
         saved = json.loads(alert_path.read_text())
@@ -202,20 +214,15 @@ def serve(config, stop):
                 call_worker(config, "probe")
                 state["ready"] = True
                 state["last_ok"] = time.time()
+                state["last_ready"] = time.time()
                 log("ready")
-            result = run_cycle(config)
-            if config.endpoint.endswith('/production-worker'):
-                # 独立低频采集自然视频指标，避免每条图片任务触发全账号采集。
-                if time.time() - state.get("last_metrics", 0) >= 900:
-                    request = urllib.request.Request(config.endpoint, method="POST",
-                        data=b'{"action":"metrics"}',
-                        headers={"Authorization": "Bearer " + config.secret, "Content-Type": "application/json"})
-                    try:
-                        with urllib.request.build_opener(NoRedirect).open(request, timeout=config.timeout) as response:
-                            response.read(16384)
-                        state["last_metrics"] = time.time()
-                    except Exception:
-                        log("metrics_deferred")
+            elif config.endpoint.endswith('/production-worker') and time.time() - state.get("last_ready", 0) >= 60:
+                call_worker(config, "ready")
+                state["last_ready"] = time.time()
+            if maintenance:
+                result = {"processed": call_worker(config, "maintenance"), "errors": 0, "error_codes": []}
+            else:
+                result = run_cycle(config)
             if result["errors"]:
                 state["failures"] += 1
                 if any(code in ("http_401", "http_403", "http_404") for code in result["error_codes"]):
@@ -228,7 +235,7 @@ def serve(config, stop):
         except WorkerError as cause:
             state.update(ready=False, failures=state["failures"] + 1)
             log("probe_failed", code=cause.code)
-        if config.endpoint.endswith('/production-worker') and time.time() - state.get("last_monitor_attempt", 0) >= 60:
+        if not maintenance and config.endpoint.endswith('/production-worker') and time.time() - state.get("last_monitor_attempt", 0) >= 60:
             state["last_monitor_attempt"] = time.time()
             try:
                 monitor(config, state["failures"] < 3)
@@ -250,9 +257,12 @@ def main():
     parser.add_argument("--daemon", action="store_true", help="持续调度，脱离浏览器运行")
     parser.add_argument("--probe", action="store_true", help="只读检查 Worker、密钥和任务迁移")
     parser.add_argument("--healthcheck", action="store_true", help="检查后台最近一次成功调度")
+    parser.add_argument("--maintenance", action="store_true", help="独立调度计划、留存、删除和指标任务")
     args = parser.parse_args()
     try:
         config = load_config()
+        if args.maintenance and not config.endpoint.endswith('/production-worker'):
+            raise ValueError("维护调度要求 PRODUCTION_WORKER_ENABLED=true")
         if args.healthcheck:
             return 0 if healthy(config) else 1
         if args.probe:
@@ -263,8 +273,8 @@ def main():
             stop = threading.Event()
             for signum in (signal.SIGTERM, signal.SIGINT):
                 signal.signal(signum, lambda *_: stop.set())
-            return serve(config, stop)
-        result = run_cycle(config)
+            return serve(config, stop, maintenance=args.maintenance)
+        result = {"processed": call_worker(config, "maintenance"), "errors": 0} if args.maintenance else run_cycle(config)
         log("cycle", **result)
         return 1 if result["errors"] else 0
     except (ValueError, OSError) as cause:

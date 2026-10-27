@@ -1,0 +1,69 @@
+name: Verify local contracts
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  frontend-and-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      VITE_SUPABASE_URL: https://ui-fixture.example
+      VITE_SUPABASE_ANON_KEY: fixture
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .node-version
+      - run: npm install --global pnpm@10.34.5
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm build
+      - run: for suite in tests/*.test.mjs; do node "$suite" || exit; done
+      - run: pnpm test:release
+      - run: python3 tests/test_finance.py
+      - run: python3 tests/test_access_control.py
+      - run: python3 tests/test_ai_requests.py
+      - run: python3 tests/test_knowledge_capacity.py
+      - run: python3 tests/test_database_upgrade.py
+      - run: python3 tests/test_operations_workflows.py
+      - run: python3 tests/test_cash_refunds.py
+      - run: pnpm test:alert-delivery
+      - run: python3 tests/test_final_contract.py
+      - run: python3 scripts/deploy_volcengine.py prepare --skip-build
+  edge:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    container: denoland/deno:2.2.6@sha256:a9d74786da49ca2eaf7a67f97ef5ae85ba0100d393e6b63b7ee7e052f5a36106
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - run: deno check --frozen --config supabase/functions/deno.json supabase/functions/*/index.ts
+  media-and-mcp:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .node-version
+      - run: npm install --global pnpm@10.34.5
+      - run: pnpm install --frozen-lockfile
+      - run: docker build -t shoproai-render-worker:local -f worker/Dockerfile .
+      - run: docker build -t shoproai-mcp:local -f mcp/Dockerfile.mcp mcp
+      - run: docker build -t shoproai-backup:local -f deploy/backup/Dockerfile .
+      - run: docker build -t shoproai-video-scheduler:local -f deploy/video-scheduler/Dockerfile .
+      - run: pnpm test:keyring
+      - run: python3 tests/test_backup_archive.py
+      - run: python3 tests/test_release_acceptance.py
+      - run: pnpm test:worker-egress
+      - run: docker run --rm -v "$PWD:/workspace:ro" -w /workspace shoproai-mcp:local python tests/test_mcp_backend.py
+      - run: docker run --rm -v "$PWD:/workspace:ro" -w /workspace shoproai-mcp:local python mcp/export_tools.py --check
+      - run: docker run --rm -v "$PWD:/workspace:ro" -w /workspace shoproai-render-worker:local python tests/test_worker_resources.py
+      - run: docker run --rm -v "$PWD:/workspace:ro" -w /workspace shoproai-render-worker:local python tests/test_edit_media.py
+      - run: docker run --rm -v "$PWD:/workspace:ro" -w /workspace shoproai-render-worker:local python tests/test_batch_pipeline_media.py
+      - run: docker run --rm -v "$PWD:/workspace:ro" -w /workspace shoproai-render-worker:local python tests/test_render.py

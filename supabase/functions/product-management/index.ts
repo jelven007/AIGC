@@ -30,7 +30,14 @@ export async function handleProductManagement(req: Request): Promise<Response> {
     if (body.action === 'list') {
       const offset = body.offset ?? 0, limit = body.limit ?? 100;
       if (!Number.isInteger(offset) || offset < 0 || offset > 2000 || !Number.isInteger(limit) || limit < 1 || limit > 100) throw new ProductError('分页参数非法');
-      let query = db.from('products').select('*', { count: 'exact' }).eq('user_id', uid);
+      const cursorMode = body.pagination === 'cursor', cursor = body.cursor;
+      if (body.pagination != null && !cursorMode || cursor != null && !cursorMode
+        || cursorMode && (offset !== 0 || body.sort && body.sort !== 'created_at_desc')) throw new ProductError('游标仅支持时间倒序且不能混用offset');
+      if (cursor != null && (typeof cursor !== 'object' || Array.isArray(cursor) || !productUuid(cursor.id)
+        || typeof cursor.created_at !== 'string'
+        || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/.test(cursor.created_at)
+        || !Number.isFinite(Date.parse(cursor.created_at)))) throw new ProductError('商品游标非法');
+      let query = db.from('products').select('*', cursor ? undefined : { count: 'exact' }).eq('user_id', uid);
       if (body.search) {
         const search = productText(body.search, 200, true);
         query = query.ilike('name', `%${search.replace(/[%_\\]/g, '\\$&')}%`);
@@ -44,9 +51,14 @@ export async function handleProductManagement(req: Request): Promise<Response> {
         price_desc: ['price', false], price_asc: ['price', true], sales_desc: ['sales_count', false] };
       const sort = sorting[body.sort || 'created_at_desc'];
       if (!sort) throw new ProductError('商品排序非法');
-      const listed = await query.order(sort[0], { ascending: sort[1], nullsFirst: false }).order('id').range(offset, offset + limit - 1);
+      if (cursor) query = query.or(`created_at.lt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.gt.${cursor.id})`);
+      query = query.order(sort[0], { ascending: sort[1], nullsFirst: false }).order('id');
+      const listed = await (cursorMode ? query.limit(limit + 1) : query.range(offset, offset + limit - 1));
       if (listed.error) throw new Error('商品列表读取失败');
-      return reply({ products: await signMediaTree(db, listed.data, uid), total: listed.count, offset });
+      const page = cursorMode ? listed.data.slice(0, limit) : listed.data;
+      const last = page.at(-1);
+      return reply({ products: await signMediaTree(db, page, uid), total: cursor ? null : listed.count, offset,
+        ...(cursorMode ? { next_cursor: listed.data.length > limit && last ? { created_at: last.created_at, id: last.id } : null } : {}) });
     }
     if (body.action === 'imports' || body.action === 'translations') {
       const listed = await db.from('production_jobs').select('*').eq('user_id', uid).eq('kind', body.action === 'imports' ? 'product_import' : 'product_translate')

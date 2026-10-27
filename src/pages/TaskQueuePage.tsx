@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { listServerVideoJobs, queryServerVideoJob } from '@/api/videoJobs';
-import { listProductionJobs, queryProductionJob } from '@/api/productionJobs';
-import { cancelPlatformPublishTask, listPlatformPublishTasks } from '@/api/platforms';
+import { queryServerVideoJob } from '@/api/videoJobs';
+import { queryProductionJob } from '@/api/productionJobs';
+import { cancelPlatformPublishTask } from '@/api/platforms';
+import { taskListOptions, taskDetailKey, rememberTask } from '@/lib/taskQueries';
+import { useTaskQuery } from '@/hooks/useTaskQuery';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -23,7 +26,6 @@ const STATUS_STYLE: Record<TaskStatus, string> = {
 const STATUS_ICON = { pending: Clock, running: Loader2, review: Clock, completed: CheckCircle2,
   failed: XCircle, unknown: AlertTriangle, cancelled: XCircle };
 const SOURCE_NAMES: Record<TaskSource, string> = { video: '视频任务', production: '图片与剪辑任务', publish: '发布记录' };
-const emptySnapshot = (): TaskSnapshot => ({ videos: [], production: [], publishes: [] });
 const formatDate = (value: string) => Number.isFinite(Date.parse(value))
   ? new Date(value).toLocaleString('zh-CN') : '时间未记录';
 
@@ -84,15 +86,24 @@ function TaskRow({ task, busy, disabled, onRefresh, onCancel }: {
 
 export default function TaskQueuePage() {
   const { user } = useAuth();
-  const [snapshot, setSnapshot] = useState<TaskSnapshot>(emptySnapshot);
-  const [sourceErrors, setSourceErrors] = useState<Partial<Record<TaskSource, string>>>({});
-  const [loading, setLoading] = useState(true);
+  const client = useQueryClient();
+  const videos = useTaskQuery(useMemo(() => taskListOptions('video', user?.id), [user?.id]), 'video', !!user);
+  const production = useTaskQuery(useMemo(() => taskListOptions('production', user?.id), [user?.id]), 'production', !!user);
+  const publishes = useTaskQuery(useMemo(() => taskListOptions('publish', user?.id), [user?.id]), 'publish', !!user);
+  const snapshot: TaskSnapshot = { videos: videos.data || [], production: production.data || [], publishes: publishes.data?.tasks || [] };
+  const sourceErrors: Partial<Record<TaskSource, string>> = {
+    ...(videos.error ? { video: videos.error.message } : {}),
+    ...(production.error ? { production: production.error.message } : {}),
+    ...(publishes.error ? { publish: publishes.error.message } : {}),
+  };
+  const loading = !!user && [videos, production, publishes].some(query => query.isPending);
   const [refreshing, setRefreshing] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'all' | TaskStatus>('all');
   const [kindFilter, setKindFilter] = useState<'all' | TaskKind>('all');
   const [search, setSearch] = useState('');
   const [busyTask, setBusyTask] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const updated = Math.min(videos.dataUpdatedAt, production.dataUpdatedAt, publishes.dataUpdatedAt);
+  const lastUpdated = updated ? new Date(updated).toISOString() : null;
   const epoch = useRef(0);
   const loadToken = useRef<object | null>(null);
   const actionToken = useRef<object | null>(null);
@@ -103,75 +114,42 @@ export default function TaskQueuePage() {
     loadToken.current = token;
     setRefreshing(true);
     try {
-      const readList = async <T,>(request: Promise<T[]>): Promise<T[]> => {
-        const records = await request;
-        if (!Array.isArray(records)) throw new Error('任务服务返回格式无效，请检查后端版本');
-        return records;
-      };
-      const requests = [readList(listServerVideoJobs()), readList(listProductionJobs()), readList(listPlatformPublishTasks())] as const;
-      const [videos, production, publishes] = await Promise.allSettled(requests);
-      if (generation !== epoch.current) return;
-      const errors: Partial<Record<TaskSource, string>> = {};
-      const message = (reason: unknown) => reason instanceof Error ? reason.message : '服务暂时不可用';
-      if (videos.status === 'rejected') errors.video = message(videos.reason);
-      if (production.status === 'rejected') errors.production = message(production.reason);
-      if (publishes.status === 'rejected') errors.publish = message(publishes.reason);
-      setSourceErrors(errors);
-      setSnapshot(previous => ({
-        videos: videos.status === 'fulfilled' ? videos.value : previous.videos,
-        production: production.status === 'fulfilled' ? production.value : previous.production,
-        publishes: publishes.status === 'fulfilled' ? publishes.value : previous.publishes,
-      }));
-      if (!Object.keys(errors).length) setLastUpdated(new Date().toISOString());
+      await Promise.allSettled([videos.refetch({ throwOnError: true }), production.refetch({ throwOnError: true }), publishes.refetch({ throwOnError: true })]);
     } finally {
       if (loadToken.current === token) loadToken.current = null;
-      if (generation === epoch.current) { setLoading(false); setRefreshing(false); }
+      if (generation === epoch.current) setRefreshing(false);
     }
-  }, [user?.id]);
+  }, [user?.id, videos.refetch, production.refetch, publishes.refetch]);
 
   useEffect(() => {
     epoch.current++;
     loadToken.current = null; actionToken.current = null;
-    setSnapshot(emptySnapshot()); setSourceErrors({}); setLastUpdated(null); setBusyTask(null);
-    setLoading(!!user); setRefreshing(false);
+    setBusyTask(null); setRefreshing(false);
     setStatusFilter('all'); setKindFilter('all'); setSearch('');
-    if (!user) return;
-    void load();
-    // 定时读取公开业务状态，不依赖 Realtime 是否已加入 publication。
-    const timer = setInterval(() => { if (!document.hidden && !actionToken.current) void load(); }, 10000);
-    const focus = () => { if (!actionToken.current) void load(); };
-    const visibility = () => { if (!document.hidden) focus(); };
-    window.addEventListener('focus', focus);
-    document.addEventListener('visibilitychange', visibility);
-    return () => {
-      epoch.current++;
-      clearInterval(timer);
-      window.removeEventListener('focus', focus);
-      document.removeEventListener('visibilitychange', visibility);
-    };
-  }, [user?.id, load]);
+    return () => { epoch.current++; };
+  }, [user?.id]);
 
   const refreshTask = async (task: CenterTask) => {
-    if (actionToken.current || loadToken.current) return;
+    if (!user || actionToken.current || loadToken.current) return;
     const token = {}, generation = epoch.current;
     actionToken.current = token; setBusyTask(task.key);
     try {
       if (task.source === 'video') {
-        const job = await queryServerVideoJob({ job_id: task.id });
+        const job = await client.fetchQuery({ queryKey: taskDetailKey('video', user.id, { job_id: task.id }),
+          queryFn: ({ signal }) => queryServerVideoJob({ job_id: task.id }, user.id, signal), retry: false, staleTime: 0 });
         if (!job || job.id !== task.id) throw new Error('任务查询结果不匹配，请刷新全部核对');
         if (generation !== epoch.current) return;
-        setSnapshot(previous => ({ ...previous, videos: previous.videos.map(item => item.id === job.id ? job : item) }));
+        rememberTask(client, 'video', user.id, job);
         window.dispatchEvent(new CustomEvent('credits_changed'));
       } else if (task.source === 'production') {
-        const job = await queryProductionJob(task.id);
+        const job = await client.fetchQuery({ queryKey: taskDetailKey('production', user.id, { job_id: task.id }),
+          queryFn: ({ signal }) => queryProductionJob(task.id, user.id, signal), retry: false, staleTime: 0 });
         if (!job || job.id !== task.id) throw new Error('任务查询结果不匹配，请刷新全部核对');
         if (generation !== epoch.current) return;
-        setSnapshot(previous => ({ ...previous, production: previous.production.map(item => item.id === job.id ? job : item) }));
+        rememberTask(client, 'production', user.id, job);
         window.dispatchEvent(new CustomEvent('credits_changed'));
       } else {
-        const publishes = await listPlatformPublishTasks();
-        if (generation !== epoch.current) return;
-        setSnapshot(previous => ({ ...previous, publishes }));
+        await publishes.refetch({ throwOnError: true });
       }
       toast.success('任务状态已更新');
     } catch (cause) {
@@ -182,13 +160,12 @@ export default function TaskQueuePage() {
     }
   };
   const cancelTask = async (task: CenterTask) => {
-    if (!task.canCancel || task.source !== 'publish' || actionToken.current || loadToken.current) return;
+    if (!user || !task.canCancel || task.source !== 'publish' || actionToken.current || loadToken.current) return;
     const token = {}, generation = epoch.current;
     actionToken.current = token; setBusyTask(task.key);
     try {
-      await cancelPlatformPublishTask(task.id);
+      await cancelPlatformPublishTask(task.id, user.id);
       if (generation !== epoch.current) return;
-      setSnapshot(previous => ({ ...previous, publishes: previous.publishes.map(item => item.id === task.id ? { ...item, status: 'cancelled' } : item) }));
       toast.success('发布任务已取消');
       await load();
     } catch (cause) {
@@ -246,7 +223,7 @@ export default function TaskQueuePage() {
       </div>
       <p role="status" className="text-sm text-muted-foreground">
         {lastUpdated ? `最后完整更新：${formatDate(lastUpdated)}。` : ''}
-        当前展示各来源最近返回的任务，页面打开时每10秒更新。临时查询或归档故障由后台重试。
+        活跃任务每10秒更新，待核对任务每30秒查询；页面隐藏时暂停，完成后停止自动查询。
       </p>
       {loading ? <div aria-label="正在加载任务" className="space-y-3">{[1, 2, 3].map(index => <Skeleton key={index} className="h-32 rounded-xl" />)}</div>
         : !user ? <p className="py-12 text-center text-sm text-muted-foreground">请先登录后查看自己的任务。</p>

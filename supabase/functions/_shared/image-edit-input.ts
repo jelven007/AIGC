@@ -62,7 +62,7 @@ async function checkPngPixels(bytes: Uint8Array, mask = true) {
   if (mask && (!transparent || !opaque)) throw new Error('掩码须同时包含编辑区域和保留区域');
   return header;
 }
-async function privateImage(db: SupabaseClient, userId: string, value: unknown, pngOnly: boolean) {
+export async function readPrivateImage(db: SupabaseClient, userId: string, value: unknown, pngOnly = false, maxBytes = 12 * 1024 * 1024) {
   if (typeof value !== 'string' || !mediaObject(value, Deno.env.get('SUPABASE_URL') || '')) throw new Error('图片编辑须使用已上传的私有素材');
   const source = await signedMedia(db, value, userId, 900), url = new URL(source), unsigned = new URL(url);
   unsigned.search = ''; await validateEndpoint(unsigned.href);
@@ -73,7 +73,7 @@ async function privateImage(db: SupabaseClient, userId: string, value: unknown, 
     for (;;) {
       const chunk = await reader.read(); if (chunk.done) break;
       total += chunk.value.length;
-      if (total > 12 * 1024 * 1024) throw new Error('编辑PNG不能超过12MB');
+      if (total > maxBytes) throw new Error('图片文件超过读取限制');
       chunks.push(chunk.value);
     }
   } finally { await reader.cancel().catch(() => {}); }
@@ -93,8 +93,8 @@ function dataUrl(bytes: Uint8Array, mime = 'image/png') {
   return `data:${mime};base64,` + btoa(binary);
 }
 export async function readImageEditInput(db: SupabaseClient, userId: string, input: Record<string, unknown>) {
-  const source = await privateImage(db, userId, input.reference_image, !!input.mask_image);
-  const mask = input.mask_image ? await privateImage(db, userId, input.mask_image, true) : null;
+  const source = await readPrivateImage(db, userId, input.reference_image, !!input.mask_image);
+  const mask = input.mask_image ? await readPrivateImage(db, userId, input.mask_image, true) : null;
   if (mask) {
     const original = await checkPngPixels(source.bytes, false), dimensions = await checkPngPixels(mask.bytes);
     if (input.size && `${original.width}x${original.height}` !== input.size) throw new Error('编辑画布须与输出尺寸一致');

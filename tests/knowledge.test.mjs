@@ -19,6 +19,8 @@ const db = {
   rpc: async (name, params) => {
     calls.push({ name, params });
     if (name === 'upsert_rate_limit') return { data: true };
+    if (name === 'begin_model_attempt') return { data: params.p_attempt };
+    if (name === 'finish_model_attempt') return { data: true };
     if (name === 'claim_production_job') return { data: claimed ? structuredClone(claimed) : null };
     if (name === 'search_knowledge_vectors') return { data: [] };
     if (name === 'read_knowledge_context') return selected.rejectContext ? { error: {} }
@@ -90,7 +92,7 @@ user = { id: '11111111-1111-4111-8111-111111111111' };
 assert.equal((await handleKnowledge(request({ action: 'create', kind: 'knowledge_search', request_key: key, input: { query: '温和洁面', limit: 5, confirmed_credit_cost: 1 } }))).status, 424);
 assert.equal((await handleKnowledge(request({ action: 'create', kind: 'knowledge_search', input: { query: '', confirmed_credit_cost: 1 } }))).status, 400);
 console.log('PASS 认证、参数和未启用Embedding明确失败');
-modelEnabled = true; fetches = [];
+modelEnabled = true; fetches = []; calls = [];
 globalThis.fetch = async (url, init) => { fetches.push({ url, init }); return new Response('data: [DONE]\n\n'); };
 const stream = await handleTextGeneration(request({ knowledge_job_id: key, messages: [{ role: 'user', content: '写洁面脚本' }] }));
 assert.equal(stream.status, 200);
@@ -100,4 +102,8 @@ assert.ok(messages[0].content.includes('不能作为新商品'));
 assert.ok(messages[1].content.includes('真实资料'));
 assert.equal(messages.at(-1).content, '写洁面脚本');
 await stream.body.cancel();
-console.log('PASS 真正流式脚本入口按认证身份加载带版本的知识引用，保护商品事实');
+const attempt = calls.find(call => call.name === 'begin_model_attempt').params;
+assert.equal(attempt.p_user, user.id);
+assert.equal(attempt.p_context.knowledge_job_id, key);
+assert.equal(calls.find(call => call.name === 'finish_model_attempt').params.p_status, 'interrupted');
+console.log('PASS 真正流式脚本入口按认证身份加载带版本知识，取消保留原尝试及中断状态');

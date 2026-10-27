@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/db/supabase';
 import { storedMedia } from '@/api/media';
 import { canonicalMediaTree } from '@/lib/privateMedia';
 import { createProductionJob, productionRequest, ProductionJobError, type ProductionJob } from '@/api/productionJobs';
@@ -9,6 +9,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Loader2, RefreshCw, Scissors, Fingerprint } from 'lucide-react';
+import { uploadAccountObject } from '@/api/accountSession';
+import { taskListOptions, rememberTask } from '@/lib/taskQueries';
+import { useTaskQuery } from '@/hooks/useTaskQuery';
+import { useTaskReceipt } from '@/hooks/useTaskReceipt';
 
 type Receipt = { kind: 'analysis' | 'render'; request_key: string; input: Record<string, unknown> };
 const statuses: Record<string, string> = { pending: '等待后台处理', running: '后台处理中', completed: '已完成',
@@ -25,75 +29,76 @@ export default function VideoAnalysisPanel({ mode }: { mode: 'live' | 'style' })
     ? { sample_id: reference.sample_id, item_id: reference.item_id } : null;
   const [rights, setRights] = useState(false);
   const [title, setTitle] = useState(''), [source, setSource] = useState(''), [filename, setFilename] = useState('');
-  const [cost, setCost] = useState<number | null>(null), [jobs, setJobs] = useState<ProductionJob[]>([]);
-  const [receipts, setReceipts] = useState<Receipt[]>([]), [busy, setBusy] = useState(false), [error, setError] = useState('');
+  const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const scope = useRef(0), account = useRef(user?.id);
+  account.current = user?.id;
   const key = user ? `shopro:analysis:${user.id}:${mode}` : '';
+  const client = useQueryClient();
+  const saved = useTaskReceipt<Receipt[]>(key, value => Array.isArray(value) && value.every(item =>
+    item && ['analysis', 'render'].includes(item.kind) && typeof item.request_key === 'string' && item.input));
+  const receipts = saved.value || [];
+  const tasks = useTaskQuery(useMemo(() => taskListOptions('production', user?.id), [user?.id]), 'production', !!user);
+  const price = useQuery({ queryKey: ['task-prices', user?.id, 'analysis'], enabled: !!user, retry: false, staleTime: 300000,
+    queryFn: async ({ signal }): Promise<number> => (await productionRequest({ action: 'analysis-price' }, user?.id, signal)).cost });
+  const jobs = (tasks.data || []).filter(job => ['analysis', 'render'].includes(job.kind)), cost = price.data ?? null;
+  const problem = saved.error || error || tasks.error?.message || price.error?.message;
   const label = mode === 'live' ? '直播高光切片' : '视频风格分析';
   const refresh = async () => {
-    const data = await productionRequest({ action: 'list', kinds: ['analysis', 'render'] });
-    setJobs(data.jobs);
+    if (!user) return;
+    await tasks.refetch({ throwOnError: true });
   };
   useEffect(() => {
-    setJobs([]); setReceipts([]); setCost(null); setSelected({}); setError(''); setSource(''); setFilename(''); setTitle('');
-    if (!key) return;
-    try { setReceipts(JSON.parse(localStorage.getItem(key) || '[]')); }
-    catch { setError('原请求回执读取失败，请先到任务中心核对'); }
-    let alive = true, loading = false;
-    const load = async () => {
-      if (loading) return;
-      loading = true;
-      try {
-        const [tasks, price] = await Promise.all([productionRequest({ action: 'list', kinds: ['analysis', 'render'] }),
-          productionRequest({ action: 'analysis-price' })]);
-        if (alive) { setJobs(tasks.jobs); setCost(price.cost); }
-      } catch (cause) { if (alive) setError(cause instanceof Error ? cause.message : '任务读取失败'); }
-      finally { loading = false; }
-    };
-    void load(); const timer = setInterval(() => void load(), 5000);
-    return () => { alive = false; clearInterval(timer); };
+    scope.current++;
+    setSelected({}); setError(''); setSource(''); setFilename(''); setTitle(''); setBusy(false);
+    return () => { scope.current++; };
   }, [key]);
   useEffect(() => {
     setRights(false);
     if (mode === 'style' && location.state?.competitor_reference) setTitle(String(location.state.title || '').slice(0, 80));
   }, [location.key, key, mode]);
-  const remember = (requests: Receipt[]) => {
-    localStorage.setItem(key, JSON.stringify(requests)); setReceipts(requests);
-  };
+  const remember = (requests: Receipt[]) => saved.write(requests);
   const submit = async (requests: Receipt[]) => {
-    if (!user || busy) return;
+    if (!user || busy || saved.error) return;
+    const revision = scope.current;
+    const current = () => revision === scope.current && account.current === user.id;
     setBusy(true); setError('');
     let pending = requests;
     try {
       // 先保存整个批次；刷新后每个片段仍用原幂等标识恢复。
-      remember(pending);
+      if (!remember(pending)) return;
       for (const request of requests) {
-        const job = await createProductionJob(request.kind, request.request_key, request.input);
-        setJobs(previous => [job, ...previous.filter(item => item.id !== job.id)]);
-        pending = pending.filter(item => item.request_key !== request.request_key); remember(pending);
+        const job = await createProductionJob(request.kind, request.request_key, request.input, undefined, user.id);
+        if (!current()) return;
+        rememberTask(client, 'production', user.id, job);
+        pending = pending.filter(item => item.request_key !== request.request_key);
+        if (!remember(pending)) return;
       }
       await refresh();
     } catch (cause) {
+      if (!current()) return;
       setError(cause instanceof Error ? cause.message : '创建结果待确认，请恢复原请求');
       if (cause instanceof ProductionJobError && [400, 401, 402, 403, 409, 424, 429].includes(cause.status)) {
         // 已明确拒绝的请求可重新编辑；之前成功创建的任务仍保留。
         remember([]); void refresh().catch(() => {});
       }
-    } finally { setBusy(false); }
+    } finally { if (current()) setBusy(false); }
   };
   const upload = async (file?: File) => {
     if (!user || !file || busy) return;
+    const revision = scope.current;
+    const current = () => revision === scope.current && account.current === user.id;
     if (!file.size || file.size > 100 * 1024 * 1024 || !file.type.startsWith('video/')
       || !/\.(mp4|mov|webm)$/i.test(file.name)) { setError('请选择不超过100MB的MP4、MOV或WebM视频'); return; }
     setBusy(true); setError('');
     try {
       const path = `${user.id}/analysis-inputs/${crypto.randomUUID()}.${file.name.split('.').pop()!.toLowerCase()}`;
-      const result = await supabase.storage.from('materials').upload(path, file, { contentType: file.type });
-      if (result.error) throw new Error('视频上传失败，请重试');
+      await uploadAccountObject(user.id, 'materials', path, file);
+      if (!current()) return;
       setSource(storedMedia('materials', path)); setFilename(file.name);
       if (!title) setTitle(file.name.slice(0, 80));
-    } catch (cause) { setError(cause instanceof Error ? cause.message : '视频上传失败'); }
-    finally { setBusy(false); }
+    } catch (cause) { if (current()) setError(cause instanceof Error ? cause.message : '视频上传失败'); }
+    finally { if (current()) setBusy(false); }
   };
   const exportClips = (job: ProductionJob) => {
     const result = job.result;
@@ -117,7 +122,7 @@ export default function VideoAnalysisPanel({ mode }: { mode: 'live' | 'style' })
       <Button variant="outline" disabled={busy || !user} onClick={() => void refresh().catch(cause => setError(cause.message))}>
         <RefreshCw className="w-4 h-4 mr-2" />刷新任务</Button>
     </div>
-    {error && <p role="alert" className="text-sm text-destructive break-words">{error}</p>}
+    {problem && <p role="alert" className="text-sm text-destructive break-words">{problem}</p>}
     {!user && <p className="text-sm">请先<Link to="/login" className="underline ml-1">登录</Link>后上传素材。</p>}
     {receipts.length > 0 && <div className="rounded-xl border p-4 space-y-3">
       <p className="text-sm">有 {receipts.length} 个请求结果待确认，恢复时会核对原任务。</p>
@@ -129,7 +134,7 @@ export default function VideoAnalysisPanel({ mode }: { mode: 'live' | 'style' })
       void submit([{ kind: 'analysis', request_key: crypto.randomUUID(), input: { mode, title, source_url: source, confirmed_credit_cost: cost,
         ...(linked ? { competitor_reference: { ...linked, rights_confirmed: rights } } : {}) } }]);
     }}>
-      <fieldset disabled={busy || !!receipts.length || !user} className="space-y-4">
+      <fieldset disabled={busy || !!receipts.length || !!saved.error || !user} className="space-y-4">
         {linked && <div className="rounded-lg border p-3 space-y-3 text-sm">
           <p className="break-words">已关联竞品统计参考：{String(location.state.title || linked.item_id)}</p>
           <p className="text-xs text-muted-foreground">请上传你有使用权的视频。分析会附上已采集的原平台统计；上传素材与原作品的关系由你确认。</p>

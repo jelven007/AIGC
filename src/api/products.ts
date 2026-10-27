@@ -1,9 +1,11 @@
-import { supabase } from '@/db/supabase';
-import { canonicalMediaTree, hydrateMediaTree } from '@/lib/privateMedia';
-import { backendAnonKey } from '@/lib/backendConfig';
+import { canonicalMediaTree } from '@/lib/privateMedia';
+import { authenticatedEdgeJSON, EdgeRequestError } from '@/lib/edgeRequest';
+import { uploadAccountObject } from './accountSession';
+import { storedMedia, mediaPreview } from './media';
 import type { Product } from '@/types/types';
 import type { ProductionJob } from './productionJobs';
 import { handleApiRequest } from './client';
+import { readTaskReceipt, writeTaskReceipt } from '@/lib/taskReceipt';
 export { PRODUCT_CATEGORIES, productDraft, productImportInput } from '../../supabase/functions/_shared/product-contract';
 export type ProductItem = Product;
 export type ProductDraft = ReturnType<typeof import('../../supabase/functions/_shared/product-contract').productDraft>;
@@ -23,36 +25,43 @@ export type ProductMutation = { action: 'save' | 'delete'; request_key: string;
 export class ProductRequestError extends Error {
   constructor(message: string, readonly status: number, readonly outcome: string) { super(message); }
 }
-export async function productRequest(body: Record<string, unknown>) {
-  const { data, error } = await supabase.functions.invoke('product-management', { body: canonicalMediaTree(body) });
-  if (error) {
-    const response = error.context instanceof Response ? error.context : null;
-    const details = await response?.json().catch(() => null);
-    throw new ProductRequestError(details?.error || error.message, response?.status || 0, details?.outcome || 'unknown');
+export async function productRequest(body: Record<string, unknown>, userId?: string, signal?: AbortSignal) {
+  try {
+    const data = await authenticatedEdgeJSON('product-management', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(canonicalMediaTree(body)), signal }, userId);
+    if (data?.error) throw new ProductRequestError(data.error, 400, data.outcome || 'unknown');
+    if (!data) throw new ProductRequestError('商品服务未返回回执', 0, 'unknown');
+    return data;
+  } catch (cause) {
+    if (cause instanceof ProductRequestError) throw cause;
+    throw new ProductRequestError(cause instanceof Error ? cause.message : '商品服务未返回回执',
+      cause instanceof EdgeRequestError ? cause.status : 0, cause instanceof EdgeRequestError ? cause.outcome || 'unknown' : 'unknown');
   }
-  if (data?.error) throw new ProductRequestError(data.error, 400, data.outcome || 'unknown');
-  if (!data) throw new ProductRequestError('商品服务未返回回执', 0, 'unknown');
-  return data;
 }
-export async function listProducts(options: { search?: string; category?: string; status?: string; sort?: string; offset?: number; limit?: number } = {})
+export async function listProducts(options: { search?: string; category?: string; status?: string; sort?: string; offset?: number; limit?: number } = {}, userId?: string, signal?: AbortSignal)
   : Promise<{ products: Product[]; total: number; offset: number }> {
-  return productRequest({ action: 'list', ...options });
+  return productRequest({ action: 'list', ...options }, userId, signal);
+}
+export interface ProductCursor { created_at: string; id: string }
+export async function listProductPage(options: { limit?: number; cursor?: ProductCursor } = {}, userId?: string, signal?: AbortSignal)
+  : Promise<{ products: Product[]; total: number | null; next_cursor: ProductCursor | null }> {
+  return productRequest({ action: 'list', pagination: 'cursor', ...options }, userId, signal);
 }
 export async function fetchProducts(options: { userId?: string; category?: string; search?: string } = {}) {
   return handleApiRequest(async () => {
-    const listed = await listProducts({ category: options.category === '全部' ? 'all' : options.category, search: options.search });
+    const listed = await listProducts({ category: options.category === '全部' ? 'all' : options.category, search: options.search }, options.userId);
     return { data: listed.products, error: null };
   });
 }
 export function pendingProductKey(uid: string) { return `shopro-product-mutation-${uid}`; }
 export function storeProductMutation(uid: string, request: ProductMutation) {
-  localStorage.setItem(pendingProductKey(uid), JSON.stringify(canonicalMediaTree(request)));
+  writeTaskReceipt(pendingProductKey(uid), canonicalMediaTree(request));
 }
 export function readProductMutation(uid: string): ProductMutation | null {
-  try {
-    const raw = localStorage.getItem(pendingProductKey(uid));
-    return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
+  const saved = readTaskReceipt<ProductMutation>(pendingProductKey(uid), value => value
+    && ['save', 'delete'].includes(value.action) && typeof value.request_key === 'string' && Array.isArray(value.items));
+  if (saved.error) throw new Error(saved.error);
+  return saved.value;
 }
 export async function uploadProductImage(file: File, uid: string): Promise<string> {
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024 || !file.size) {
@@ -64,10 +73,6 @@ export async function uploadProductImage(file: File, uid: string): Promise<strin
   const webp = new TextDecoder().decode(bytes.slice(0, 4)) === 'RIFF' && new TextDecoder().decode(bytes.slice(8, 12)) === 'WEBP';
   if (!(file.type === 'image/jpeg' && jpeg || file.type === 'image/png' && png || file.type === 'image/webp' && webp)) throw new Error('图片文件内容与格式不匹配');
   const path = `${uid}/products/uploads/${crypto.randomUUID()}.${file.type.split('/')[1]}`;
-  const uploaded = await supabase.storage.from('materials').upload(path, file, { contentType: file.type, upsert: false });
-  if (uploaded.error) throw new Error('商品图片上传失败，请重试');
-  const { data } = supabase.storage.from('materials').getPublicUrl(path);
-  const canonical = canonicalMediaTree(data.publicUrl);
-  const session = await supabase.auth.getSession();
-  return hydrateMediaTree(canonical, new Headers({ Authorization: `Bearer ${session.data.session?.access_token || ''}`, apikey: backendAnonKey }));
+  await uploadAccountObject(uid, 'materials', path, file);
+  return mediaPreview(storedMedia('materials', path), uid);
 }

@@ -14,8 +14,13 @@
     "url": "https://填写目标项目域名",
     "service_key_file": "/run/secrets/storage_service_key"
   },
+  "archive": {
+    "url": "https://填写独立故障域归档网关域名",
+    "secret_file": "/run/secrets/archive_secret"
+  },
   "secrets": {
     "model_master_key": "/run/secrets/model_master_key",
+    "model_keyring": "/run/secrets/model_keyring",
     "worker_secret": "/run/secrets/worker_secret",
     "render_secret": "/run/secrets/render_secret"
   }

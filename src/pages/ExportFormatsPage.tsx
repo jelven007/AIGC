@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/db/supabase';
 import { useAuth } from '@/contexts/AuthContext';
@@ -6,6 +7,8 @@ import { createRenderExport, createProductionJob, productionRequest, listRenderE
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
+import { useTaskQuery } from '@/hooks/useTaskQuery';
+import { useTaskReceipt } from '@/hooks/useTaskReceipt';
 
 const ratios = ['9:16', '16:9', '1:1', '4:3', '3:4', '4:5'];
 const groupLabels = { completed: '全部完成', partial: '部分完成', failed: '导出失败', attention: '需要处理', processing: '后台处理中' };
@@ -13,65 +16,53 @@ const jobLabels = { pending: '排队中', running: '渲染中', completed: '已�
 interface Project { id: string; title: string; duration: number }
 export default function ExportFormatsPage() {
   const { user } = useAuth(), [params] = useSearchParams();
-  const [projects, setProjects] = useState<Project[]>([]);
   const [projectId, setProjectId] = useState(params.get('projectId') || '');
   const [selectedRatios, setSelectedRatios] = useState(['9:16']), [heights, setHeights] = useState([1080]);
-  const [exports, setExports] = useState<RenderExport[]>([]);
-  const [busy, setBusy] = useState(false), [loading, setLoading] = useState(true), [error, setError] = useState('');
-  const [pending, setPending] = useState<RenderExportRequest | null>(null);
-  const [legacy, setLegacy] = useState<{ request_key: string; project_id: string; input: unknown } | null>(null);
+  const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const lock = useRef(false);
   const currentUser = useRef(user?.id); currentUser.current = user?.id;
   const storageKey = user ? `shopro:exports:${user.id}` : '';
+  const client = useQueryClient();
+  const saved = useTaskReceipt<RenderExportRequest>(storageKey, value => value && typeof value.request_key === 'string'
+    && typeof value.source_project_id === 'string' && Array.isArray(value.formats));
+  const old = useTaskReceipt<{ request_key: string; project_id: string; input: unknown }>(user ? `shopro:format:${user.id}` : '',
+    value => value && typeof value.request_key === 'string' && typeof value.project_id === 'string' && value.input);
+  const pending = saved.value, legacy = old.value;
+  const groups = useTaskQuery(useMemo(() => ({ queryKey: ['tasks', user?.id, 'render-exports'],
+    queryFn: ({ signal }: { signal: AbortSignal }) => listRenderExports(user?.id, signal) }), [user?.id]), 'production', !!user);
+  const sources = useQuery({ queryKey: ['export-sources', user?.id], enabled: !!user, retry: false, staleTime: 60000,
+    queryFn: async ({ signal }): Promise<Project[]> => {
+      const result = await supabase.from('video_projects').select('id,title,duration').eq('user_id', user!.id).eq('status', 'completed')
+        .order('created_at', { ascending: false }).limit(100).abortSignal(signal);
+      if (result.error) throw new Error('作品读取失败，请刷新重试');
+      return result.data || [];
+    } });
+  const projects = sources.data || [], exports = groups.data || [], loading = !!user && (sources.isPending || groups.isPending);
+  const problem = saved.error || old.error || error || sources.error?.message || groups.error?.message;
   const load = useCallback(async () => {
     if (!user) return;
-    const [source, groups] = await Promise.all([
-      supabase.from('video_projects').select('id,title,duration').eq('user_id', user.id).eq('status', 'completed')
-        .order('created_at', { ascending: false }).limit(100),
-      listRenderExports(),
-    ]);
-    if (currentUser.current !== user.id) return;
-    if (source.error) throw new Error('作品读取失败，请刷新重试');
-    setProjects(source.data || []); setExports(groups);
-  }, [user?.id]);
+    await Promise.all([sources.refetch({ throwOnError: true }), groups.refetch({ throwOnError: true })]);
+  }, [user?.id, sources.refetch, groups.refetch]);
   useEffect(() => {
-    let stopped = false, polling = false;
-    setPending(null); setLegacy(null); setProjects([]); setExports([]); setLoading(true);
-    if (storageKey) {
-      try {
-        const stored = localStorage.getItem(storageKey);
-        if (stored) setPending(JSON.parse(stored));
-        const old = localStorage.getItem(`shopro:format:${user!.id}`);
-        if (old) setLegacy(JSON.parse(old));
-      } catch { setError('上次导出回执无法读取，请在导出记录核对结果'); }
-    }
-    const refresh = async () => {
-      if (polling || stopped) return;
-      polling = true;
-      try { await load(); }
-      catch (cause) { if (!stopped) setError(cause instanceof Error ? cause.message : '导出查询失败'); }
-      finally { polling = false; if (!stopped) setLoading(false); }
-    };
-    void refresh();
-    const timer = setInterval(() => void refresh(), 10000);
-    return () => { stopped = true; clearInterval(timer); };
-  }, [load, storageKey]);
+    lock.current = false; setBusy(false); setError('');
+  }, [storageKey]);
   const recoverLegacy = async () => {
     if (!legacy || !user || lock.current) return;
     lock.current = true; setBusy(true); setError('');
     try {
-      try { await productionRequest({ action: 'query', request_key: legacy.request_key }); }
+      try { await productionRequest({ action: 'query', request_key: legacy.request_key }, user.id); }
       catch (cause) {
         if (!(cause instanceof ProductionJobError) || cause.status !== 404) throw cause;
-        await createProductionJob('render', legacy.request_key, legacy.input, legacy.project_id);
+        await createProductionJob('render', legacy.request_key, legacy.input, legacy.project_id, user.id);
       }
-      localStorage.removeItem(`shopro:format:${user.id}`); setLegacy(null);
+      if (currentUser.current !== user.id) return;
+      old.write(null);
       toast.info('原单规格导出已恢复，可在任务中心查看进度');
     } catch (cause) { setError(cause instanceof Error ? cause.message : '旧导出恢复失败，请保留原请求'); }
     finally { lock.current = false; setBusy(false); }
   };
   const submit = async () => {
-    if (!user || lock.current) return;
+    if (!user || lock.current || saved.error || old.error) return;
     if (!pending && (!projectId || !selectedRatios.length || !heights.length)) return;
     lock.current = true; setBusy(true); setError('');
     let request = pending;
@@ -80,15 +71,17 @@ export default function ExportFormatsPage() {
         request = { request_key: crypto.randomUUID(), source_project_id: projectId,
           formats: selectedRatios.flatMap(ratio => heights.map(height => ({ ratio, height }))) };
         // 写回执失败时不提交，避免失去幂等请求。
-        localStorage.setItem(storageKey, JSON.stringify(request)); setPending(request);
+        if (!saved.write(request)) return;
       }
-      const group = await createRenderExport(request);
-      localStorage.removeItem(storageKey); setPending(null);
-      setExports(previous => [group, ...previous.filter(item => item.id !== group.id)]);
+      const group = await createRenderExport(request, user.id);
+      if (currentUser.current !== user.id) return;
+      saved.write(null);
+      client.setQueryData<RenderExport[]>(['tasks', user.id, 'render-exports'],
+        previous => [group, ...(previous || []).filter(item => item.id !== group.id)]);
       toast.info(`${group.total_count} 种规格已进入后台渲染队列`);
     } catch (cause) {
       if (cause instanceof ProductionJobError && [400, 401, 403, 409, 422, 429].includes(cause.status)) {
-        localStorage.removeItem(storageKey); setPending(null);
+        saved.write(null);
       }
       setError(cause instanceof Error ? cause.message : '导出提交结果待确认，请恢复原请求');
     } finally { lock.current = false; setBusy(false); }
@@ -99,7 +92,7 @@ export default function ExportFormatsPage() {
       <div><h1 className="text-2xl font-semibold">跨平台格式导出</h1><p className="text-sm text-muted-foreground mt-2">一次选择多种画幅和分辨率，后台生成独立 MP4 成片。</p></div>
       <Button asChild variant="outline"><Link to={`/publish${projectId ? `?projectId=${projectId}` : ''}`}>平台发布</Link></Button>
     </div>
-    {error && <div role="alert" className="rounded-lg border border-destructive/30 p-3 text-sm text-destructive break-words">{error}</div>}
+    {problem && <div role="alert" className="rounded-lg border border-destructive/30 p-3 text-sm text-destructive break-words">{problem}</div>}
     {pending && <div role="status" className="rounded-lg border p-4 space-y-3">
       <p className="text-sm">上次导出结果待确认。恢复时使用原作品和规格，避免重复渲染。</p>
       <Button disabled={busy} onClick={() => void submit()}>{busy ? '正在恢复…' : '恢复上次导出'}</Button>
@@ -128,7 +121,7 @@ export default function ExportFormatsPage() {
         <p className="text-xs text-muted-foreground">分辨率按短边计算，画面等比缩放并补黑边，保留全部内容。</p>
       </fieldset>
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="submit" disabled={busy || !!pending || !!legacy || !projectId || !count || loading}>{busy && !pending ? '正在提交…' : `创建 ${count} 种规格导出`}</Button>
+        <Button type="submit" disabled={busy || !!saved.error || !!old.error || !!pending || !!legacy || !projectId || !count || loading}>{busy && !pending ? '正在提交…' : `创建 ${count} 种规格导出`}</Button>
         <p className="text-sm text-muted-foreground">每种规格独立处理，关闭页面后仍继续。</p>
       </div>
     </form>

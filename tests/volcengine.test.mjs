@@ -13,9 +13,13 @@ const keys = {
   'text.primary': await registry.encryptKey('text.primary', 'private'),
 };
 let activeSlot;
+const attempts = [], uid = '11111111-1111-4111-8111-111111111111';
 globalThis.__createClient = () => ({
-  auth: { getUser: async token => ({ data: { user: token === 'user' ? { id: 'user-id' } : null } }) },
-  rpc: async () => ({ data: true, error: null }),
+  auth: { getUser: async token => ({ data: { user: token === 'user' ? { id: uid } : null } }) },
+  rpc: async (name, params) => {
+    if (['begin_model_attempt', 'finish_model_attempt'].includes(name)) attempts.push({ name, params });
+    return { data: name === 'begin_model_attempt' ? params.p_attempt : true, error: null };
+  },
   from(table) {
     return {
       select() { return this; },
@@ -82,9 +86,13 @@ assert.equal((await handler(request({ ...body, max_tokens: 999999 }))).status, 4
 enabled = false;
 assert.equal((await handler(request(body))).status, 503);
 enabled = true;
-globalThis.fetch = async () => new Response('data: {"choices":[{"delta":{"content":"正文"}}]}\n\ndata: [DONE]\n\n');
+globalThis.fetch = async () => new Response('data: {"choices":[{"delta":{"content":"正文"}}]}\n\ndata: [DONE]\n\n',
+  { headers: { 'Content-Type': 'text/event-stream' } });
 const response = await handler(request(body));
 assert.equal(response.status, 200);
 assert.equal(response.headers.get('content-type'), 'text/event-stream');
+assert.ok((await response.text()).includes('正文'));
+assert.equal(attempts[0].params.p_user, uid);
+assert.equal(attempts.at(-1).params.p_status, 'success');
 console.log('PASS 文本 JWT、非法规格、缺配置与 SSE 响应');
 console.log('4 groups passed');

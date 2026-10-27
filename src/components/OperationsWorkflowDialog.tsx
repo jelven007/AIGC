@@ -27,7 +27,7 @@ const fields: Partial<Record<OperatorOperation, Field[]>> = {
     { key: 'role', label: '成员角色', options: [['editor', '编辑者'], ['admin', '管理员'], ['viewer', '查看者']] }],
   risk_review: [{ key: 'disposition', label: '处置结果', options: [['reviewing', '核查中'], ['dismissed', '误报或排除'], ['confirmed', '确认风险']] }],
   restriction: [{ key: 'restricted', label: '新计费任务权限', options: [['true', '限制'], ['false', '解除限制']] }],
-  cost_record: [{ key: 'job_type', label: '原调用类型', options: [['video', '视频任务'], ['production', '生产任务'], ['model_call', '同步模型调用']] },
+  cost_record: [{ key: 'job_type', label: '原调用类型', options: [['video', '视频任务'], ['production', '生产任务'], ['model_attempt', '模型实际尝试'], ['model_call', '旧同步模型调用']] },
     { key: 'job_id', label: '原任务或调用 UUID' }, { key: 'cash_amount', label: '账单现金金额', max: 16 },
     { key: 'currency', label: '账单币种', options: [['CNY', '人民币 CNY'], ['USD', '美元 USD'], ['EUR', '欧元 EUR']] }],
 };

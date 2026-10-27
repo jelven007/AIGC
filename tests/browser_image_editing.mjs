@@ -23,7 +23,8 @@ await context.route(`${backend}/**`, async route => {
   else if (path.includes('/auth/')) data = { ...session.user, id };
   else if (path.includes('/profiles')) data = { id, username: '图片测试', role: 'user' };
   else if (path.endsWith('/rpc/get_my_credits')) data = creditSnapshot(id);
-  else if (path.includes('/credit_costs')) data = [{ action: 'generate_image', cost: state.cost }];
+  else if (path.includes('/credit_costs')) data = req.headers().accept === 'application/vnd.pgrst.object+json'
+    ? { cost: state.cost } : [{ action: 'generate_image', cost: state.cost }];
   else if (path.endsWith('/model-settings')) data = { configs: [{ slot: 'image.primary', name: '已配置图片模型', enabled: true,
     version_id: version, image_capabilities: { reference: state.editing, mask: state.editing } }] };
   else if (path.includes('/object/sign/') && req.method() === 'POST') data = { signedURL: path.replace('/storage/v1', '') + '?token=fixture' };
@@ -92,8 +93,13 @@ try {
     await page.getByText('每次编辑：13 积分', { exact: false }).waitFor();
     assert.equal(await page.getByLabel('图片描述', { exact: true }).inputValue(), '延续自然光背景，保留商品外形与文字');
     assert.equal(state.uploads.length, 2);
+    const lostCreateResponse = page.waitForResponse(response => response.url().endsWith('/production-jobs')
+      && response.request().method() === 'POST' && response.request().postDataJSON()?.action === 'create');
     await page.getByRole('button', { name: '生成图片', exact: true }).click();
-    await page.getByRole('alert').filter({ hasText: '提交结果待确认' }).waitFor();
+    const lostCreate = await lostCreateResponse;
+    assert.equal(lostCreate.status(), 503);
+    assert.equal((await lostCreate.json()).error, '提交结果待确认');
+    await page.getByRole('button', { name: '刷新进度', exact: true }).waitFor();
     assert.equal(state.creates.length, 1);
     assert.equal(state.creates[0].input.mode, 'outpaint');
     assert.equal(state.creates[0].input.confirmed_model_version, version);

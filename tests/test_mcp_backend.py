@@ -15,6 +15,7 @@ import backend_client
 from backend_client import request_token, BackendError
 import mcp_shopro_server as server
 from http_server import app, mcp
+import http_server
 
 
 class MCPTest(unittest.TestCase):
@@ -355,6 +356,103 @@ class MCPTest(unittest.TestCase):
             payload = base64.urlsafe_b64encode(json.dumps({"role": role}).encode()).decode().rstrip("=")
             response = self.client.post("/mcp", headers={"Authorization": f"Bearer header.{payload}.sig"}, json={})
             self.assertEqual(response.status_code, 401)
+        self.assertIsNone(request_token.get())
+
+    def test_oversized_tool_request_is_rejected_before_business_call(self):
+        with patch.object(server, "call_backend") as backend:
+            response = self.client.post("/mcp", headers={"Authorization": "Bearer user-a"},
+                                        content=b"x" * (256 * 1024 + 1))
+            self.assertEqual(response.status_code, 413, response.text)
+            backend.assert_not_called()
+        self.assertIsNone(request_token.get())
+
+    def test_health_is_process_only_and_requires_no_business_credential(self):
+        with patch.object(server, "call_backend") as backend:
+            response = self.client.get("/healthz")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json(), {"ok": True, "scope": "process"})
+            backend.assert_not_called()
+
+
+class HTTPResourceTest(unittest.IsolatedAsyncioTestCase):
+    async def test_inflight_requests_reject_excess_and_release_identity_after_failure(self):
+        if not hasattr(http_server, "ResourceLimitsMiddleware"):
+            self.fail("MCP缺少有界并发及读取预算")
+        entered, release = asyncio.Event(), asyncio.Event()
+        calls = []
+
+        async def handler(scope, receive, send):
+            calls.append(request_token.get())
+            entered.set()
+            await release.wait()
+            raise RuntimeError("private-secret")
+
+        limits = http_server.ResourceLimitsMiddleware(handler, max_concurrent=1, max_per_user=1)
+        wrapped = http_server.UserTokenMiddleware(limits)
+        scope = {"type": "http", "headers": [(b"authorization", b"Bearer user-a")], "method": "POST"}
+
+        async def receive():
+            return {"type": "http.request", "body": b"{}", "more_body": False}
+
+        async def invoke():
+            sent = []
+            async def send(message):
+                sent.append(message)
+            try:
+                await wrapped(scope, receive, send)
+            except RuntimeError:
+                pass
+            self.assertIsNone(request_token.get())
+            return sent
+
+        first = asyncio.create_task(invoke())
+        await asyncio.wait_for(entered.wait(), 2)
+        denied = await invoke()
+        self.assertEqual(denied[0]["status"], 429)
+        release.set()
+        await first
+        await invoke()
+        self.assertEqual(calls, ["user-a", "user-a"])
+        self.assertEqual(limits.active, {})
+
+    async def test_chunked_oversize_and_slow_body_never_reach_tool(self):
+        if not hasattr(http_server, "ResourceLimitsMiddleware"):
+            self.fail("MCP没有分块正文/慢请求门禁")
+        calls = []
+        async def handler(*_):
+            calls.append("business")
+        for slow in (False, True):
+            limits = http_server.ResourceLimitsMiddleware(handler, max_body=5, body_timeout=.02)
+            wrapped = http_server.UserTokenMiddleware(limits)
+            sent = []
+            scope = {"type": "http", "headers": [(b"authorization", b"Bearer user-a")]}
+            async def receive():
+                if slow:
+                    await asyncio.sleep(1)
+                return {"type": "http.request", "body": b"xxx", "more_body": True}
+            async def send(message):
+                sent.append(message)
+            await wrapped(scope, receive, send)
+            self.assertEqual(sent[0]["status"], 408 if slow else 413)
+            self.assertEqual(limits.active, {})
+        self.assertEqual(calls, [])
+        self.assertIsNone(request_token.get())
+
+    async def test_tool_timeout_releases_budget_without_resending_original_request(self):
+        calls, sent = [], []
+        async def handler(scope, receive, send):
+            calls.append(request_token.get())
+            await asyncio.sleep(1)
+        limits = http_server.ResourceLimitsMiddleware(handler, request_timeout=.02)
+        wrapped = http_server.UserTokenMiddleware(limits)
+        async def receive():
+            return {"type": "http.request", "body": b"{}", "more_body": False}
+        async def send(message):
+            sent.append(message)
+        await wrapped({"type": "http", "headers": [(b"authorization", b"Bearer user-a")]}, receive, send)
+        self.assertEqual(sent[0]["status"], 503)
+        self.assertEqual(calls, ["user-a"])
+        self.assertEqual(limits.active, {})
         self.assertIsNone(request_token.get())
 
 

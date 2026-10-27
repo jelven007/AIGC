@@ -15,7 +15,8 @@ import {
   Tag, ToggleLeft, ToggleRight, Trash2, TrendingUp, Truck, Type, Undo, Upload, Volume2, VolumeX, Wand2, Waypoints, X, Zap, ZoomIn, ZoomOut 
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { MediaBlobCache } from '@/lib/mediaBlobCache';
+import { useEditorMediaCache } from '@/hooks/useEditorMediaCache';
+import { useEditorClock } from '@/hooks/useEditorClock';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -25,7 +26,6 @@ import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Slider } from '@/components/ui/slider';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/db/supabase';
 import { stableMedia } from '@/api/media';
 import { listMaterialAssets, materialDuration, uploadMaterialAsset, type EditorMaterial } from '@/api/materialAssets';
 import { EditorAssetsPanel } from '@/components/production/EditorAssetsPanel';
@@ -34,9 +34,12 @@ import { MaterialUploadControl } from '@/components/production/MaterialUploadCon
 import { EditorAudioPanel, EQ_FREQUENCIES } from '@/components/production/EditorAudioPanel';
 import { TimelineMediaPreview } from '@/components/production/TimelineMediaPreview';
 import { deleteMaterial } from '@/api/accessControl';
-import { canonicalMediaTree, hydrateMediaTree } from '@/lib/privateMedia';
-import { backendAnonKey } from '@/lib/backendConfig';
 import { useProductionJob } from '@/hooks/useProductionJob';
+import { useEditorHistory } from '@/hooks/useEditorHistory';
+import { useEditorPersistence } from '@/hooks/useEditorPersistence';
+import { createEditorProject, listEditorProjects, saveEditorProject } from '@/api/editorProjects';
+import { requireAccountSession } from '@/api/accountSession';
+import { persistEditorSnapshot, type EditorSnapshot } from '@/lib/editorPersistence';
 import { EditAnalysisDialog } from '@/components/production/EditAnalysisDialog';
 import { beatCuts, sourceMatches, subtitleItems } from '@/lib/editTimeline';
 import { cn } from '@/lib/utils';
@@ -1922,6 +1925,12 @@ const DEFAULT_TRACKS: TrackItem[] = [];
 const stripLegacyGlowFx = (list: TrackItem[]) => list;
 
 export default function VideoEditPage() {
+  const { user } = useAuth();
+  const [params] = useSearchParams();
+  return <VideoEditWorkspace key={`${user?.id || 'signed-out'}:${params.get('importId') || 'new'}`} />;
+}
+
+function VideoEditWorkspace() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -1938,10 +1947,8 @@ export default function VideoEditPage() {
   const [saving, setSaving] = useState(false);
   const [recordingOpen, setRecordingOpen] = useState(false);
   const [materials, setMaterials] = useState<EditorMaterial[]>([]);
-  const [tracks, setTracks] = useState<TrackItem[]>(DEFAULT_TRACKS);
-  const [tracksHistory, setTracksHistory] = useState<TrackItem[][]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
-  const isHistoryAction = useRef(false);
+  const timeline = useEditorHistory<TrackItem>(DEFAULT_TRACKS);
+  const { tracks, setTracks } = timeline;
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -1984,13 +1991,10 @@ export default function VideoEditPage() {
   }, [renderTask.job]);
 
   // 内部稳定跟踪当前项目 ID（消除路由异步更新延迟）
-  const currentProjectIdRef = useRef<string | null>(importId);
-  useEffect(() => {
-    currentProjectIdRef.current = importId;
-  }, [importId]);
   const [scale, setScale] = useState([100]);
   const [opacity, setOpacity] = useState([100]);
   const [volume, setVolume] = useState([100]);
+  const restoredAttributes = useRef<{ id: string; scale?: number[]; opacity?: number[]; volume?: number[] } | null>(null);
   const [editorAspect, setEditorAspect] = useState('aspect-video');
   const [timelineScrollOffset, setTimelineScrollOffset] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -2008,9 +2012,8 @@ export default function VideoEditPage() {
   const timeDisplayRef = useRef<HTMLSpanElement>(null);
   const bottomTimeDisplayRef = useRef<HTMLSpanElement>(null);
   const currentTimeRef = useRef<number>(0);
-  const [cachedUrls, setCachedUrls] = useState<Record<string, string>>({});
-  const [isPreloading, setIsPreloading] = useState(false);
-  const [preloadProgress, setPreloadProgress] = useState(100);
+  const { cachedUrls, isPreloading, preloadProgress, getMedia } = useEditorMediaCache(tracks
+    .filter(track => track.type === 'video' && track.url).map(track => track.url!).concat(previewVideoUrl ? [previewVideoUrl] : []));
   const activeVideoClipRef = useRef<TrackItem | undefined>(undefined);
   const previewVideoUrlRef = useRef<string | null>(null);
 
@@ -2022,24 +2025,6 @@ export default function VideoEditPage() {
     el.addEventListener('scroll', onScroll, { passive: true });
     return () => el.removeEventListener('scroll', onScroll);
   }, []);
-
-  const pageMediaCache = useMemo(() => new MediaBlobCache(), [user?.id]);
-  useEffect(() => { setCachedUrls({}); return () => pageMediaCache.dispose(); }, [pageMediaCache]);
-  useEffect(() => {
-    const urls = [...new Set(tracks.filter(track => track.type === 'video' && track.url).map(track => track.url!)
-      .concat(previewVideoUrl ? [previewVideoUrl] : []))];
-    let stopped = false;
-    const load = async () => {
-      setIsPreloading(!!urls.length); const result: Record<string, string> = {};
-      for (const [index, url] of urls.entries()) {
-        if (stopped) return;
-        try { result[url] = await pageMediaCache.get(url); } catch { result[url] = url; }
-        if (!stopped) setPreloadProgress(Math.round((index + 1) / urls.length * 100));
-      }
-      if (!stopped) { setCachedUrls(result); setIsPreloading(false); }
-    };
-    void load(); return () => { stopped = true; };
-  }, [tracks, previewVideoUrl, pageMediaCache]);
 
   // 工程时长保持用户值，轨道增长时才扩展，短视频不强制补到30秒。
   useEffect(() => {
@@ -2329,12 +2314,14 @@ export default function VideoEditPage() {
   // Sync state with selected item attributes
   useEffect(() => {
     if (selectedTrackObj) {
-      setScale([selectedTrackObj.scale ?? 100]);
-      setOpacity([selectedTrackObj.opacity ?? 100]);
-      setVolume([selectedTrackObj.volume ?? 100]);
+      const restored = restoredAttributes.current?.id === selectedTrackObj.id ? restoredAttributes.current : null;
+      setScale([selectedTrackObj.scale ?? restored?.scale?.[0] ?? 100]);
+      setOpacity([selectedTrackObj.opacity ?? restored?.opacity?.[0] ?? 100]);
+      setVolume([selectedTrackObj.volume ?? restored?.volume?.[0] ?? 100]);
       setSpeed(selectedTrackObj.speed ?? 1);
+      restoredAttributes.current = null;
     }
-  }, [selectedTrackObj?.id]);
+  }, [selectedTrackObj?.id, selectedTrackObj?.scale, selectedTrackObj?.opacity, selectedTrackObj?.volume, selectedTrackObj?.speed]);
 
   const updateTrackItem = useCallback((id: string, updates: Partial<TrackItem>) => {
     setTracks(prev => prev.map(t => {
@@ -2597,7 +2584,7 @@ export default function VideoEditPage() {
       const blobUrl = audioBlobCacheRef.current[rawUrl];
       if (!blobUrl && !audioBlobPendingRef.current.has(rawUrl) && !audioBlobFailedRef.current.has(rawUrl)) {
         audioBlobPendingRef.current.add(rawUrl);
-        pageMediaCache.get(rawUrl)
+        getMedia(rawUrl)
           .then(url => {
             if (!url.startsWith('blob:')) { audioBlobFailedRef.current.add(rawUrl); return; }
             audioBlobCacheRef.current[rawUrl] = url;
@@ -2683,61 +2670,23 @@ export default function VideoEditPage() {
     };
   }, []);
 
-  // Initialize history with initial tracks once loaded
-  useEffect(() => {
-    if (tracks.length > 0 && tracksHistory.length === 0) {
-      setTracksHistory([tracks]);
-      setHistoryIndex(0);
-    }
-  }, [tracks, tracksHistory.length]);
-
-  // Monitor tracks changes and push to history
-  useEffect(() => {
-    if (isHistoryAction.current) {
-      isHistoryAction.current = false;
-      return;
-    }
-    // Do not record history when dragging is in progress
-    if (dragInfo !== null) {
-      return;
-    }
-
-    if (tracksHistory.length > 0 && historyIndex >= 0) {
-      const currentHistoricalState = tracksHistory[historyIndex];
-      if (JSON.stringify(currentHistoricalState) === JSON.stringify(tracks)) {
-        return;
-      }
-
-      const newHistory = tracksHistory.slice(0, historyIndex + 1);
-      newHistory.push(tracks);
-      setTracksHistory(newHistory);
-      setHistoryIndex(newHistory.length - 1);
-    }
-  }, [tracks, dragInfo, tracksHistory, historyIndex]);
-
   const handleUndo = useCallback(() => {
-    if (historyIndex > 0) {
-      isHistoryAction.current = true;
-      const prevIndex = historyIndex - 1;
-      setHistoryIndex(prevIndex);
-      setTracks(tracksHistory[prevIndex]);
+    if (timeline.canUndo) {
+      timeline.undo();
       toast.success('撤销成功');
     } else {
       toast.info('没有可以撤销的操作');
     }
-  }, [historyIndex, tracksHistory]);
+  }, [timeline.canUndo, timeline.undo]);
 
   const handleRedo = useCallback(() => {
-    if (historyIndex < tracksHistory.length - 1) {
-      isHistoryAction.current = true;
-      const nextIndex = historyIndex + 1;
-      setHistoryIndex(nextIndex);
-      setTracks(tracksHistory[nextIndex]);
+    if (timeline.canRedo) {
+      timeline.redo();
       toast.success('重做成功');
     } else {
       toast.info('没有可以重做的操作');
     }
-  }, [historyIndex, tracksHistory]);
+  }, [timeline.canRedo, timeline.redo]);
 
   // Global keydown listeners
   useEffect(() => {
@@ -2786,27 +2735,18 @@ export default function VideoEditPage() {
   const [showSamplePicker, setShowSamplePicker] = useState(false);
 
   useEffect(() => {
-    if (!importId) {
-      supabase.from('video_projects')
-        .select('id,title,thumbnail_url,status')
-        .eq('status', 'completed')
-        .order('created_at', { ascending: false })
-        .limit(9)
-        .then(({ data }) => setSampleProjects(data ?? []));
-    }
-  }, [importId]);
+    if (importId || !user) return;
+    const controller = new AbortController();
+    void listEditorProjects(user.id, 9, controller.signal).then(setSampleProjects).catch(() => {});
+    return () => controller.abort();
+  }, [importId, user?.id]);
 
   // 加载已生成完成的视频（供一键导入）
   const loadImportedVideos = useCallback(async () => {
     if (!user) return;
-    const { data } = await supabase
-      .from('video_projects')
-      .select('id,title,video_url,thumbnail_url')
-      .eq('user_id', user.id)
-      .eq('status', 'completed')
-      .order('created_at', { ascending: false })
-      .limit(20);
-    const mapped = (data ?? []).filter(v => !!v.video_url).map(v => ({
+    const data = await listEditorProjects(user.id);
+    if (!persistence.active.current) return;
+    const mapped = data.filter(v => !!v.video_url).map(v => ({
       ...v,
       video_url: v.video_url!, thumbnail_url: v.thumbnail_url,
     }));
@@ -2815,9 +2755,39 @@ export default function VideoEditPage() {
 
   const loadMaterials = useCallback(async () => {
     if (!user) { setMaterials([]); return; }
-    try { setMaterials((await listMaterialAssets()).materials); }
-    catch (cause) { toast.error(cause instanceof Error ? cause.message : '素材读取失败'); }
+    try {
+      const result = await listMaterialAssets(0, 30, undefined, '', user.id);
+      if (persistence.active.current) setMaterials(result.materials);
+    }
+    catch (cause) { if (persistence.active.current) toast.error(cause instanceof Error ? cause.message : '素材读取失败'); }
   }, [user]);
+
+  const restoreProject = useCallback((snapshot: EditorSnapshot) => {
+    const selected = snapshot.tracks.find(track => track.id === snapshot.selectedTrackItem)
+      || snapshot.tracks.find(track => track.type === 'video') || snapshot.tracks[0];
+    restoredAttributes.current = selected ? { id: selected.id, scale: snapshot.scale, opacity: snapshot.opacity, volume: snapshot.volume } : null;
+    setSelectedTrackItem(selected?.id || null);
+    setProjectTitle(snapshot.projectTitle);
+    timeline.reset(stripLegacyGlowFx(snapshot.tracks));
+    setDuration(snapshot.duration);
+    setPreviewVideoUrl(snapshot.previewVideoUrl || null);
+    setCurrentTime(snapshot.currentTime || 0);
+    if (snapshot.zoom !== undefined) setZoom(snapshot.zoom);
+    if (snapshot.scale) setScale(snapshot.scale);
+    if (snapshot.opacity) setOpacity(snapshot.opacity);
+    if (snapshot.volume) setVolume(snapshot.volume);
+    if (snapshot.editorAspect) setEditorAspect(snapshot.editorAspect);
+    if (snapshot.appliedFilter) setAppliedFilter(snapshot.appliedFilter);
+    if (snapshot.appliedTrans) setAppliedTrans(snapshot.appliedTrans);
+    if (snapshot.pipSettings) setPipSettings(snapshot.pipSettings);
+    if (snapshot.filterIntensity) setFilterIntensity(snapshot.filterIntensity);
+    if (snapshot.chromaSettings) setChromaSettings(snapshot.chromaSettings);
+    setPersonCutoutEnabled(Boolean(snapshot.personCutoutEnabled));
+    setAiBeautyEnabled(Boolean(snapshot.aiBeautyEnabled ?? snapshot.beautyEnabled));
+    setAiCutoutEnabled(Boolean(snapshot.aiCutoutEnabled && snapshot.chromaSettings));
+  }, [timeline.reset]);
+  const persistence = useEditorPersistence(user?.id, importId, restoreProject);
+  const { currentProjectIdRef } = persistence;
 
   // 智能提取封面：真实首帧优先，绝不使用占位网图
   const resolveProjectThumbnail = async (trackList: TrackItem[], videoUrl: string | null) => {
@@ -2855,13 +2825,17 @@ export default function VideoEditPage() {
       return null;
     }
 
-    const targetId = currentProjectIdRef.current || importId;
+    if (!persistence.ready || !persistence.active.current) throw new Error('工程尚未恢复完成，请稍后保存');
+    if (!currentProjectIdRef.current) {
+      currentProjectIdRef.current = crypto.randomUUID();
+      persistence.pendingCreate.current = true;
+    }
+    const targetId = currentProjectIdRef.current;
     const finalDuration = Math.ceil(duration);
     const validTitle = (options?.customTitle || projectTitle || '未命名剪辑项目').trim();
     const finalStatus = options?.customStatus || 'draft';
     const finalVideoUrl = options?.customVideoUrl ?? previewVideoUrl ?? null;
     const finalTracks = options?.customTracks ?? tracks;
-    const finalCover = options?.customThumbnailUrl ?? (await resolveProjectThumbnail(finalTracks, finalVideoUrl));
 
     const styleData = {
       duration: Number(duration.toFixed(3)),
@@ -2891,7 +2865,7 @@ export default function VideoEditPage() {
       duration: finalDuration,
       resolution: editorAspect === 'aspect-[9/16]' ? '1080x1920' : '1920x1080',
       video_url: finalVideoUrl,
-      thumbnail_url: finalCover,
+      thumbnail_url: options?.customThumbnailUrl ?? null,
       materials: finalTracks.map(t => ({
         id: t.id,
         name: t.name,
@@ -2904,192 +2878,71 @@ export default function VideoEditPage() {
       updated_at: new Date().toISOString(),
     };
 
-    try {
-      let savedId = targetId;
-      if (targetId) {
-        // 已有工程的成片状态和原生成规格由服务端维护；保存只更新可编辑工程数据。
-        for (const field of ['user_id', 'status', 'duration', 'resolution', 'video_url', 'thumbnail_url']) delete payload[field];
-        const { error } = await supabase.from('video_projects').update(payload).eq('id', targetId);
-        if (error) throw error;
-        if (!options?.silent) toast.success('剪辑项目已成功保存');
-      } else {
-        const { data, error } = await supabase.from('video_projects').insert(payload).select('id').single();
-        if (error) throw error;
-        if (data?.id) {
-          savedId = data.id;
-          currentProjectIdRef.current = data.id;
-          navigate(`/video/edit?importId=${data.id}`, { replace: true });
-          if (!options?.silent) toast.success('新剪辑项目已创建并成功保存');
+    persistence.persist({ ...styleData, importId: targetId, projectTitle: validTitle,
+      pendingCreate: persistence.pendingCreate.current });
+    return persistence.queue.run(async () => {
+      try {
+        if (!persistence.active.current) throw new Error('工程页面已切换，请在原工程恢复保存');
+        await requireAccountSession(user.id);
+        const creating = persistence.pendingCreate.current;
+        if (creating) {
+          payload.thumbnail_url = options?.customThumbnailUrl ?? await resolveProjectThumbnail(finalTracks, finalVideoUrl);
+          await createEditorProject(user.id, targetId, payload, persistence.signal);
+          persistence.pendingCreate.current = false;
+        } else {
+          for (const field of ['user_id', 'status', 'duration', 'resolution', 'video_url', 'thumbnail_url']) delete payload[field];
+          await saveEditorProject(user.id, targetId, payload, persistence.signal);
         }
+        if (!persistence.active.current) return targetId;
+        persistence.persist({ ...latestSnapshot.current,
+          ...(options?.customTracks && latestSnapshot.current.tracks === tracks ? { tracks: finalTracks } : {}),
+          importId: targetId, pendingCreate: false });
+        persistence.setError('');
+        if (!options?.silent) toast.success(creating ? '新剪辑项目已创建并成功保存' : '剪辑项目已成功保存');
+        window.dispatchEvent(new CustomEvent('shopro:works-updated'));
+        if (!importId && !options?.silent) navigate(`/video/edit?importId=${targetId}`, { replace: true });
+        return targetId;
+      } catch (err: any) {
+        if (persistence.active.current) {
+          persistence.setError(err.message || '工程保存结果待确认，请恢复原工程');
+          if (!options?.silent) toast.error('保存失败: ' + (err.message || '网络或数据异常'));
+        }
+        throw err;
       }
-
-      // 同步到 localStorage
-      localStorage.setItem(`video-editor-draft-${user.id}`, JSON.stringify({
-        importId: savedId,
-        projectTitle: validTitle,
-        ...styleData,
-      }));
-
-      // 派发同步事件通知作品库
-      window.dispatchEvent(new CustomEvent('shopro:works-updated'));
-      return savedId;
-    } catch (err: any) {
-      console.error('Save project error:', err);
-      if (!options?.silent) toast.error('保存失败: ' + (err.message || '网络或数据异常'));
-      throw err;
-    }
+    });
   };
 
-  // 加载项目（读取 title, style_data, materials, video_url, thumbnail_url 等）
-  const loadProject = useCallback(async () => {
-    const targetId = currentProjectIdRef.current || importId;
-    if (!targetId || !user) return;
-
-    // Check if we already restored a matching draft from localStorage to avoid database override
-    const saved = localStorage.getItem(`video-editor-draft-${user.id}`);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.importId === targetId) {
-          return; // Skip database fetch to use newer local edits
-        }
-      } catch (e) { }
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from('video_projects')
-        .select('id,title,duration,video_url,thumbnail_url,resolution,style_data,materials,status')
-        .eq('id', targetId)
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (error) {
-        console.warn('Load project error:', error);
-        return;
-      }
-
-      if (data) {
-        if (data.title) setProjectTitle(data.title);
-        if (data.video_url) setPreviewVideoUrl(data.video_url);
-
-        const styleData = (data.style_data || {}) as any;
-        const loadedTracks = styleData.tracks || data.materials;
-        if (Array.isArray(loadedTracks) && loadedTracks.length > 0) {
-          const projTracks = stripLegacyGlowFx(loadedTracks);
-          setTracks(projTracks);
-          setTracksHistory([projTracks]);
-          setHistoryIndex(0);
-        } else {
-          setTracks(DEFAULT_TRACKS);
-          setTracksHistory([DEFAULT_TRACKS]);
-          setHistoryIndex(0);
-        }
-
-        if (data.duration || styleData.duration) {
-          setDuration(styleData.duration || data.duration);
-        }
-        if (styleData.zoom !== undefined) setZoom(styleData.zoom);
-        if (styleData.scale) setScale(styleData.scale);
-        if (styleData.opacity) setOpacity(styleData.opacity);
-        if (styleData.volume) setVolume(styleData.volume);
-        if (styleData.editorAspect) setEditorAspect(styleData.editorAspect);
-        if (styleData.appliedFilter) setAppliedFilter(styleData.appliedFilter);
-        if (styleData.appliedTrans) setAppliedTrans(styleData.appliedTrans);
-        if (styleData.pipSettings) setPipSettings(styleData.pipSettings);
-        if (styleData.filterIntensity) setFilterIntensity(styleData.filterIntensity);
-        if (styleData.chromaSettings) setChromaSettings(styleData.chromaSettings);
-        setPersonCutoutEnabled(Boolean(styleData.personCutoutEnabled));
-        if (styleData.aiBeautyEnabled !== undefined || styleData.beautyEnabled !== undefined) {
-          setAiBeautyEnabled(Boolean(styleData.aiBeautyEnabled ?? styleData.beautyEnabled));
-        }
-        if (styleData.aiCutoutEnabled !== undefined && styleData.chromaSettings) {
-          setAiCutoutEnabled(Boolean(styleData.aiCutoutEnabled));
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load project from DB:', err);
-    }
-  }, [importId, user]);
-
   useEffect(() => {
-    loadMaterials();
-    loadImportedVideos();
-    if (importId) loadProject();
-  }, [loadMaterials, loadImportedVideos, loadProject, importId]);
+    void loadMaterials();
+    void loadImportedVideos().catch(cause => { if (persistence.active.current) toast.error(cause.message || '作品读取失败'); });
+  }, [loadMaterials, loadImportedVideos]);
 
-  // Load from localStorage draft if present on mount
+  const snapshot = useMemo<EditorSnapshot>(() => ({
+    importId: currentProjectIdRef.current || importId, projectTitle, tracks, zoom, duration, scale, opacity, volume, editorAspect, selectedTrackItem,
+    previewVideoUrl, appliedFilter, appliedTrans, pipSettings, filterIntensity, chromaSettings,
+    aiCutoutEnabled, personCutoutEnabled, aiBeautyEnabled, pendingCreate: persistence.pendingCreate.current,
+  }), [tracks, zoom, duration, projectTitle, previewVideoUrl, importId, scale, opacity, volume, editorAspect, selectedTrackItem,
+    appliedFilter, appliedTrans, pipSettings, filterIntensity, chromaSettings, aiCutoutEnabled, personCutoutEnabled, aiBeautyEnabled]);
+  const latestSnapshot = useRef(snapshot); latestSnapshot.current = snapshot;
   useEffect(() => {
-    if (!user) return;
-    let stopped = false;
-    const saved = localStorage.getItem(`video-editor-draft-${user.id}`);
-    if (saved) {
-      void (async () => { try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session || stopped) return;
-        const parsed = await hydrateMediaTree(JSON.parse(saved), new Headers({
-          Authorization: `Bearer ${session.access_token}`, apikey: backendAnonKey,
-        }));
-        if (stopped) return;
-        if (!importId || parsed.importId === importId) {
-          if (parsed.appliedTrans) setAppliedTrans(parsed.appliedTrans);
-          if (parsed.pipSettings) setPipSettings(parsed.pipSettings);
-          if (parsed.filterIntensity) setFilterIntensity(parsed.filterIntensity);
-          if (parsed.chromaSettings) { setChromaSettings(parsed.chromaSettings); setAiCutoutEnabled(Boolean(parsed.aiCutoutEnabled)); }
-          setPersonCutoutEnabled(Boolean(parsed.personCutoutEnabled));
-          if (parsed.aiBeautyEnabled !== undefined) setAiBeautyEnabled(Boolean(parsed.aiBeautyEnabled));
-        }
-        if (importId) {
-          if (parsed.importId === importId) {
-            if (parsed.projectTitle) setProjectTitle(parsed.projectTitle);
-            if (parsed.tracks) {
-              const restoredTracks = stripLegacyGlowFx(parsed.tracks);
-              setTracks(restoredTracks);
-              setTracksHistory([restoredTracks]);
-              setHistoryIndex(0);
-            }
-            if (parsed.zoom !== undefined) setZoom(parsed.zoom);
-            if (parsed.duration) setDuration(parsed.duration);
-            if (parsed.previewVideoUrl) setPreviewVideoUrl(parsed.previewVideoUrl);
-          }
-        } else {
-          if (parsed.projectTitle) setProjectTitle(parsed.projectTitle);
-          if (parsed.tracks) {
-            const restoredTracks = stripLegacyGlowFx(parsed.tracks);
-            setTracks(restoredTracks);
-            setTracksHistory([restoredTracks]);
-            setHistoryIndex(0);
-          }
-          if (parsed.zoom !== undefined) setZoom(parsed.zoom);
-          if (parsed.duration) setDuration(parsed.duration);
-          if (parsed.previewVideoUrl) setPreviewVideoUrl(parsed.previewVideoUrl);
-        }
-      } catch (e) {
-        console.error('Error restoring local draft:', e);
-      } })();
-    }
-    return () => { stopped = true; };
-  }, [user, importId]);
-
-  // Auto-save to localStorage
+    if (!persistence.ready || !user) return;
+    const timer = setTimeout(() => { try { persistence.persist(latestSnapshot.current); } catch {} }, 300);
+    return () => clearTimeout(timer);
+  }, [snapshot, persistence.ready, persistence.persist, user?.id]);
   useEffect(() => {
-    if (user) {
-      const stateToSave = {
-        importId: currentProjectIdRef.current || importId,
-        projectTitle,
-        tracks,
-        zoom,
-        duration,
-        previewVideoUrl, appliedTrans, pipSettings, filterIntensity, chromaSettings, aiCutoutEnabled, personCutoutEnabled, aiBeautyEnabled,
-      };
-      localStorage.setItem(`video-editor-draft-${user.id}`, JSON.stringify(canonicalMediaTree(stateToSave)));
-    }
-  }, [tracks, zoom, duration, projectTitle, previewVideoUrl, importId, user, appliedTrans, pipSettings, filterIntensity, chromaSettings, aiCutoutEnabled, personCutoutEnabled, aiBeautyEnabled]);
+    if (!persistence.ready || !user) return;
+    const flush = () => {
+      try { persistEditorSnapshot(user.id, { ...latestSnapshot.current, importId: currentProjectIdRef.current,
+        pendingCreate: persistence.pendingCreate.current }); } catch {}
+    };
+    window.addEventListener('pagehide', flush);
+    return () => { window.removeEventListener('pagehide', flush); flush(); };
+  }, [persistence.ready, user?.id]);
 
   // Debounced auto-save to database
   useEffect(() => {
     const targetId = currentProjectIdRef.current || importId;
-    if (!targetId || !user) return;
+    if (!targetId || !user || !persistence.ready) return;
 
     const timer = setTimeout(async () => {
       try {
@@ -3101,7 +2954,7 @@ export default function VideoEditPage() {
     }, 2500);
 
     return () => clearTimeout(timer);
-  }, [tracks, zoom, duration, projectTitle, importId, user, appliedTrans, pipSettings, filterIntensity, chromaSettings, aiCutoutEnabled, personCutoutEnabled, aiBeautyEnabled]);
+  }, [snapshot, persistence.ready, user?.id]);
 
 
   // 同步播放/暂停到 video 元素（静音态由片段属性决定，不再强制取消静音）
@@ -3120,100 +2973,10 @@ export default function VideoEditPage() {
     }
   }, [isPlaying, currentVideoSrc, activeVideoClip?.mute]);
 
-  // 播放主时钟：DOM 游标 60FPS 极速渲染，同时节流同步 React 状态，消除整树重渲染卡顿
-  useEffect(() => {
-    if (!isPlaying) return;
-    let rafId = 0;
-    let lastStamp = performance.now();
-    let lastStateSyncTime = performance.now();
-
-    const tick = (stamp: number) => {
-      const delta = Math.min(0.25, (stamp - lastStamp) / 1000);
-      lastStamp = stamp;
-      const v = videoRef.current;
-      const clip = activeVideoClipRef.current;
-      const isVideoPlaying = !!v && !!v.currentSrc && v.readyState >= 2 && !v.seeking && !v.paused;
-
-      let targetTime: number;
-      if (isVideoPlaying && v) {
-        targetTime = clip ? clip.start + (v.currentTime - (clip.sourceStart || 0)) / (clip.speed || 1) : v.currentTime;
-      } else {
-        targetTime = currentTimeRef.current + delta;
-      }
-
-      if (targetTime >= duration) {
-        targetTime = duration;
-        setIsPlaying(false);
-      }
-
-      currentTimeRef.current = targetTime;
-
-      // 1. 直接更新时间轴游标与竖线（原生 60FPS 极速硬件加速渲染，不经过 React 繁重整树 Diff，消除播放卡顿）
-      if (playheadLineRef.current) {
-        playheadLineRef.current.style.left = `${TRACK_CONTENT_OFFSET + targetTime * pxPerSec}px`;
-      }
-      if (rulerPlayheadRef.current) {
-        rulerPlayheadRef.current.style.left = `${targetTime * pxPerSec}px`;
-      }
-      if (timeDisplayRef.current) {
-        timeDisplayRef.current.textContent = formatTime(targetTime);
-      }
-      if (bottomTimeDisplayRef.current) {
-        bottomTimeDisplayRef.current.textContent = formatTime(targetTime);
-      }
-
-      // 2. 时间轴可视区域自动跟进滚动
-      const el = timelineScrollRef.current;
-      if (el) {
-        const playheadX = TRACK_CONTENT_OFFSET + targetTime * pxPerSec;
-        const viewLeft = el.scrollLeft;
-        const viewRight = el.scrollLeft + el.clientWidth;
-        if (playheadX > viewRight - 60) {
-          el.scrollLeft = playheadX - el.clientWidth / 2;
-        } else if (playheadX < viewLeft) {
-          el.scrollLeft = Math.max(0, playheadX - 60);
-        }
-      }
-
-      // 3. 节流同步 React 状态（约每 100ms 一次，减少 85% 无效重渲染，释放 CPU 给视频硬件解码）
-      const now = performance.now();
-      if (now - lastStateSyncTime >= 100 || targetTime >= duration) {
-        lastStateSyncTime = now;
-        setCurrentTime(targetTime);
-      }
-
-      if (targetTime < duration) {
-        rafId = requestAnimationFrame(tick);
-      }
-    };
-
-    rafId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafId);
-  }, [isPlaying, duration, pxPerSec, TRACK_CONTENT_OFFSET]);
-
-  // 暂停或停止时立即将高精时钟同步回 React 状态
-  useEffect(() => {
-    if (!isPlaying) {
-      setCurrentTime(currentTimeRef.current);
-    }
-  }, [isPlaying]);
-
-  // 外部拖拽寻轨或状态变更时同步 ref 与 DOM 样式
-  useEffect(() => {
-    currentTimeRef.current = currentTime;
-    if (playheadLineRef.current) {
-      playheadLineRef.current.style.left = `${TRACK_CONTENT_OFFSET + currentTime * pxPerSec}px`;
-    }
-    if (rulerPlayheadRef.current) {
-      rulerPlayheadRef.current.style.left = `${currentTime * pxPerSec}px`;
-    }
-    if (timeDisplayRef.current) {
-      timeDisplayRef.current.textContent = formatTime(currentTime);
-    }
-    if (bottomTimeDisplayRef.current) {
-      bottomTimeDisplayRef.current.textContent = formatTime(currentTime);
-    }
-  }, [currentTime, pxPerSec, TRACK_CONTENT_OFFSET]);
+  useEditorClock({ playing: isPlaying, time: currentTime, duration, pixelsPerSecond: pxPerSec, offset: TRACK_CONTENT_OFFSET,
+    setTime: setCurrentTime, stop: () => setIsPlaying(false), video: videoRef, clip: activeVideoClipRef,
+    timeRef: currentTimeRef, playhead: playheadLineRef, ruler: rulerPlayheadRef, display: timeDisplayRef,
+    bottomDisplay: bottomTimeDisplayRef, scroll: timelineScrollRef });
 
   // 播放到达时间轴末尾自动暂停（副作用移出 state updater，避免并发渲染下重复触发）
   useEffect(() => {
@@ -3461,9 +3224,15 @@ export default function VideoEditPage() {
     return `00:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
   };
 
+  if (!persistence.ready) return <div className="p-6 space-y-3">
+    {persistence.error ? <p role="alert">{persistence.error}</p> : <p role="status">正在恢复剪辑工程…</p>}
+    {persistence.error && <Button onClick={() => window.location.reload()}>重新加载工程</Button>}
+  </div>;
+
   return (
     // 移动端：MainLayout 对本页隐藏顶部 header 且底部 Tab 栏已移除，直接占满动态视口高度
     <div className="flex flex-col h-screen max-lg:h-[100dvh] w-full bg-zinc-950 text-zinc-300 overflow-hidden">
+      {persistence.error && <p role="alert" className="shrink-0 p-2 text-sm text-rose-300 break-words">{persistence.error}</p>}
       <RecordingDialog open={recordingOpen} onClose={() => setRecordingOpen(false)} onSave={async file => {
         if (!user) throw new Error('请先登录');
         const material = await uploadMaterialAsset(file, user.id, true, 'recording');
@@ -3563,7 +3332,7 @@ export default function VideoEditPage() {
         {/* 中央预览区（min-h-0 保证移动端纵向堆叠时可正常收缩，lg 及以上行为不变） */}
         <div className="flex-1 min-h-0 flex flex-col bg-black relative min-w-0" ref={previewContainerRef}>
           <div className="flex-1 flex items-center justify-center p-4 min-h-0">
-            <div className={`w-auto h-full max-h-full max-w-full bg-zinc-900 border border-zinc-800 shadow-2xl relative overflow-hidden flex items-center justify-center transition-all duration-300 ${editorAspect === 'aspect-[9/16]' ? 'aspect-[9/16]' :
+            <div style={{ containerType: 'inline-size' }} className={`w-auto h-full max-h-full max-w-full bg-zinc-900 border border-zinc-800 shadow-2xl relative overflow-hidden flex items-center justify-center transition-all duration-300 ${editorAspect === 'aspect-[9/16]' ? 'aspect-[9/16]' :
               editorAspect === 'aspect-[3/4]' ? 'aspect-[3/4]' :
                 editorAspect === 'aspect-square' ? 'aspect-square' :
                   'aspect-video'
@@ -3768,12 +3537,12 @@ export default function VideoEditPage() {
 
               {/* 实时字幕浮层 */}
               {activeTextClips.map(activeTextClip => (
-                <div key={activeTextClip.id} className="absolute flex justify-center pointer-events-none z-30 transition-all max-w-[85%]"
+                <div key={activeTextClip.id} className="absolute flex justify-center pointer-events-none z-30 transition-all w-[85%]"
                   style={{ left: `${activeTextClip.x ?? 50}%`, top: `${activeTextClip.y ?? 85}%`, transform: 'translate(-50%, -50%)' }}>
                   <span
-                    className="px-4 py-1.5 rounded-lg max-w-[85%] leading-relaxed select-none shadow-2xl transition-all"
+                    className="px-2 py-1 md:px-4 md:py-1.5 rounded-lg w-full whitespace-pre-wrap break-words leading-relaxed select-none shadow-2xl transition-all"
                     style={{
-                      fontSize: activeTextClip.fontSize ? `${activeTextClip.fontSize}px` : `${Math.max(13, Math.min(24, (activeTextClip.scale ?? 100) * 0.16))}px`,
+                      fontSize: `clamp(10px, ${(activeTextClip.fontSize ?? Math.max(13, Math.min(24, (activeTextClip.scale ?? 100) * .16))) / 6.4}cqw, ${activeTextClip.fontSize ?? Math.max(13, Math.min(24, (activeTextClip.scale ?? 100) * .16))}px)`,
                       fontFamily: resolveTextFont(activeTextClip.fontFamily || activeTextClip.fontStyle?.fontFamily || selectedFont),
                       color: activeTextClip.fontColor || activeTextClip.fontStyle?.color || '#ffffff',
                       backgroundColor: activeTextClip.bgColor || activeTextClip.fontStyle?.bg || 'rgba(0, 0, 0, 0.75)',
@@ -3809,7 +3578,7 @@ export default function VideoEditPage() {
               ))}
 
               {/* 播放控制 */}
-              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-zinc-900/80 backdrop-blur px-6 py-2 rounded-full border border-zinc-700/50 z-30">
+              <div className="absolute top-1/2 -translate-y-1/2 lg:top-auto lg:translate-y-0 lg:bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-zinc-900/80 backdrop-blur px-6 py-2 rounded-full border border-zinc-700/50 z-30">
                 <Button size="icon" variant="ghost" className="w-8 h-8 rounded-full text-zinc-300 hover:text-white hover:bg-zinc-700"
                   onClick={() => { setCurrentTime(0); if (videoRef.current) videoRef.current.currentTime = 0; }}>
                   <SkipBack className="w-4 h-4 fill-current" />

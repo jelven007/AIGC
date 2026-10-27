@@ -1,23 +1,25 @@
-import { supabase } from '@/db/supabase';
 import { backendUrl } from '@/lib/backendConfig';
 import { canonicalMedia, hydrateMediaTree } from '@/lib/privateMedia';
 import { backendAnonKey } from '@/lib/backendConfig';
+import { requireAccountSession, uploadAccountObject } from './accountSession';
 
-export async function mediaPreview(value: string): Promise<string> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw new Error('请先登录');
-  return hydrateMediaTree(value, new Headers({ Authorization: `Bearer ${session.access_token}`, apikey: backendAnonKey }));
+export async function mediaPreview(value: string, userId?: string): Promise<string> {
+  const session = await requireAccountSession(userId);
+  const preview = await hydrateMediaTree(value, new Headers({ Authorization: `Bearer ${session.access_token}`, apikey: backendAnonKey }));
+  await requireAccountSession(session.user.id);
+  return preview;
 }
 export function storedMedia(bucket: string, path: string): string {
   return `${backendUrl}/storage/v1/object/authenticated/${bucket}/${path.split('/').map(encodeURIComponent).join('/')}`;
 }
 export async function uploadPrivateMedia(bucket: string, path: string, file: Blob, upsert = false): Promise<{ reference: string; preview: string }> {
-  const { data, error } = await supabase.storage.from(bucket).upload(path, file, { contentType: file.type, upsert });
-  if (error || !data) throw new Error('素材上传失败');
+  const userId = path.split('/')[0];
+  const data = await uploadAccountObject(userId, bucket, path, file, upsert);
   const reference = storedMedia(bucket, data.path);
-  return { reference, preview: await mediaPreview(reference) };
+  return { reference, preview: await mediaPreview(reference, userId) };
 }
 export async function stableMedia(value: string, userId: string): Promise<string> {
+  await requireAccountSession(userId);
   const canonical = canonicalMedia(value);
   if (canonical !== value || canonical.includes('/storage/v1/object/authenticated/')) return canonical;
   if (!value.startsWith('blob:') && !value.startsWith('data:') && !value.startsWith('/')) return value;

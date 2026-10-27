@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Product } from '@/types/types';
 import { PRODUCT_CATEGORIES, listProducts, productDraft, productRequest, ProductRequestError,
-  readProductMutation, storeProductMutation, pendingProductKey, type ProductMutation, type ProductTranslationResult } from '@/api/products';
+  pendingProductKey, type ProductMutation, type ProductTranslationResult } from '@/api/products';
 import { productCsv, parseProductCsv } from '@/lib/productCsv';
 import { productPrice } from '@/lib/productDisplay';
 import { ProductFields, ProductImage, emptyProduct, type ProductEditor } from '@/components/ProductFields';
@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { useTaskReceipt } from '@/hooks/useTaskReceipt';
 
 const STATUS = { active: '已上架', inactive: '已下架', draft: '草稿' };
 function download(text: string, filename: string) {
@@ -34,14 +35,17 @@ export default function ProductsPage() {
   const [open, setOpen] = useState(false), [importOpen, setImportOpen] = useState(false), [csvOpen, setCsvOpen] = useState(false);
   const [translationOpen, setTranslationOpen] = useState(false), [translationProduct, setTranslationProduct] = useState<Product | null>(null);
   const [editing, setEditing] = useState<Product | null>(null), [draft, setDraft] = useState<ProductEditor>(emptyProduct);
-  const [deleting, setDeleting] = useState<Product[]>([]), [pending, setPending] = useState<ProductMutation | null>(null);
+  const [deleting, setDeleting] = useState<Product[]>([]);
+  const { value: pending, write: saveReceipt, error: storageError } = useTaskReceipt<ProductMutation>(user ? pendingProductKey(user.id) : '',
+    value => value && ['save', 'delete'].includes(value.action) && typeof value.request_key === 'string' && Array.isArray(value.items));
+  const owner = useRef(user?.id); owner.current = user?.id;
   const sequence = useRef(0);
   const load = useCallback(async () => {
     const generation = ++sequence.current;
     if (!user) { setProducts([]); setTotal(0); setLoading(false); return; }
     setLoading(true); setError('');
     try {
-      const listed = await listProducts({ search, category, status, sort, offset: page * 50, limit: 50 });
+      const listed = await listProducts({ search, category, status, sort, offset: page * 50, limit: 50 }, user.id);
       if (generation !== sequence.current) return;
       setProducts(listed.products); setTotal(listed.total);
       setSelected(previous => new Set([...previous].filter(id => listed.products.some(product => product.id === id))));
@@ -51,28 +55,31 @@ export default function ProductsPage() {
   useEffect(() => { const timer = setTimeout(() => { void load(); }, 250); return () => { clearTimeout(timer); sequence.current++; }; }, [load]);
   useEffect(() => { setPage(0); setSelected(new Set()); }, [search, category, status, sort, user?.id]);
   useEffect(() => {
-    setProducts([]); setPending(user ? readProductMutation(user.id) : null); setOpen(false); setDeleting([]);
+    setProducts([]); setOpen(false); setDeleting([]); setBusy(false);
     setTranslationOpen(false); setTranslationProduct(null);
   }, [user?.id]);
   useEffect(() => {
     if (translationJob && user) { setTranslationProduct(null); setTranslationOpen(true); }
   }, [translationJob, user?.id]);
   const execute = async (request: ProductMutation) => {
-    if (!user || busy) return;
+    if (!user || busy || storageError) return;
+    const uid = user.id;
     setBusy(true); setError('');
     try {
-      storeProductMutation(user.id, request); setPending(request);
-      const result = await productRequest(request);
-      localStorage.removeItem(pendingProductKey(user.id)); setPending(null);
+      if (!saveReceipt(request)) return;
+      const result = await productRequest(request, uid);
+      if (owner.current !== uid) return;
+      saveReceipt(null);
       toast.success(result.action === 'delete' ? `已删除${result.count}个商品` : `已保存${result.count}个商品`);
       setOpen(false); setCsvOpen(false); setDeleting([]); setSelected(new Set());
       await load();
     } catch (cause) {
+      if (owner.current !== uid) return;
       setError(cause instanceof Error ? cause.message : '商品操作回执未能确认');
       if (cause instanceof ProductRequestError && cause.outcome === 'rejected') {
-        localStorage.removeItem(pendingProductKey(user.id)); setPending(null);
+        saveReceipt(null);
       }
-    } finally { setBusy(false); }
+    } finally { if (owner.current === uid) setBusy(false); }
   };
   const save = () => {
     try {
@@ -104,7 +111,7 @@ export default function ProductsPage() {
   const select = (id: string, checked: boolean) => setSelected(previous => {
     const next = new Set(previous); checked ? next.add(id) : next.delete(id); return next;
   });
-  const unavailable = busy || uploading || !!pending || !user;
+  const unavailable = busy || uploading || !!pending || !!storageError || !user;
   const actions = (product: Product) => <div className="flex flex-wrap items-center gap-1.5">
     <Button size="sm" className="h-8 text-xs" onClick={() => navigate('/video/create', {
       state: { inputTab: '商品', selectedProduct: product, prefillProductName: product.name } })}><Video className="w-3 h-3 mr-1" />创建视频</Button>
@@ -128,8 +135,8 @@ export default function ProductsPage() {
           <Download className="w-4 h-4 mr-1" />导出当前页</Button>
       </div>
     </div>
-    {error && <div role="alert" className="p-3 rounded-lg bg-destructive/10 text-destructive whitespace-pre-wrap text-sm">
-      {error}<Button variant="ghost" size="sm" disabled={busy} onClick={() => { void load(); }}>刷新商品</Button></div>}
+    {(storageError || error) && <div role="alert" className="p-3 rounded-lg bg-destructive/10 text-destructive whitespace-pre-wrap text-sm">
+      {storageError || error}<Button variant="ghost" size="sm" disabled={busy} onClick={() => { void load(); }}>刷新商品</Button></div>}
     {pending && <div className="p-3 rounded-lg bg-warning/10 space-y-2">
       <p className="text-sm">商品操作回执待确认，原请求已保留。恢复后可继续编辑。</p>
       <Button disabled={busy} onClick={() => { void execute(pending); }}>恢复原商品操作</Button>

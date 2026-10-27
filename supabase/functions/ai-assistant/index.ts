@@ -2,13 +2,17 @@
 // v2: +积分扣费中间件 +内容审核 +情绪NLP +多语言翻译 +封面生成 +LLM缓存 +持久化限流
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import { generateText } from '../_shared/text-provider.ts';
-import { resolveModel, validateEndpoint } from '../_shared/model-registry.ts';
+import { generateText, TextModelUnavailable } from '../_shared/text-provider.ts';
+import { modelFetch, resolveModel, validateEndpoint } from '../_shared/model-registry.ts';
 import { createImageJob } from '../_shared/production-jobs.ts';
 import { boundedText, emotionSegments, structuredText, textList } from '../_shared/structured-analysis.ts';
 import { responseBytes } from '../_shared/audio-provider.ts';
 import { knowledgeContext, knowledgeMessages } from '../_shared/knowledge.ts';
 import { workloadPolicy } from '../_shared/workload-policy.ts';
+import { moderationInput, moderationVerdict } from '../_shared/moderation.ts';
+import { currentModelContext, withModelContext } from '../_shared/model-context.ts';
+import { parseScriptResult } from '../_shared/script-result.ts';
+export { parseScriptResult } from '../_shared/script-result.ts';
 
 // 避免 createClient 的泛型 ReturnType 推导为空 schema。
 function businessClient(url: string, key: string): SupabaseClient {
@@ -31,27 +35,13 @@ function err(message: string, code = 1000, status = 400) {
     { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 }
 
-// ─── EF-03: 简易内存速率限制 ─────────────────────────────────────────────────
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-function checkRateLimit(clientId: string, maxReq = 30, windowMs = 60_000): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(clientId);
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(clientId, { count: 1, resetAt: now + windowMs });
-    return true;
-  }
-  if (entry.count >= maxReq) return false;
-  entry.count++;
-  return true;
-}
-
 // ─── P2-M06: 持久化限流（DB-backed，多实例安全）──────────────────────────────
 async function checkRateLimitDB(
   supabase: ReturnType<typeof businessClient>,
   clientId: string,
   maxReq = 30,
   windowMs = 60_000,
-): Promise<boolean> {
+): Promise<boolean | null> {
   const now = Date.now();
   const windowStart = Math.floor(now / windowMs) * windowMs;
   const windowKey = `${clientId}:${windowStart}`;
@@ -65,10 +55,10 @@ async function checkRateLimitDB(
       p_reset_at: resetAt,
       p_max_req: maxReq,
     });
-    if (error) return checkRateLimit(clientId, maxReq, windowMs); // 降级到内存
-    return Boolean(data);
+    if (error || typeof data !== 'boolean') return null;
+    return data;
   } catch {
-    return checkRateLimit(clientId, maxReq, windowMs);
+    return null;
   }
 }
 
@@ -207,12 +197,13 @@ async function deductCredits(
 async function callLLM(
   messages: Array<{ role: string; content: string }>,
   systemPrompt?: string,
+  allowEmpty = false,
 ): Promise<string> {
   const fullMessages = systemPrompt
     ? [{ role: 'system', content: systemPrompt }, ...messages]
     : messages;
 
-  return generateText(fullMessages);
+  return generateText(fullMessages, { allowEmpty });
 }
 
 // ─── AI-02: 平台级系统 Prompt ────────────────────────────────────────────────
@@ -312,10 +303,14 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
   );
 
+  const modelContext = { db: supabase, userId: '', requestId: crypto.randomUUID(), action: '',
+    versions: { prompt_pipeline: 3 } as Record<string, unknown> };
+  return withModelContext(modelContext, async () => {
   let action = '';
   let userId = '';
   let billedCost = 0;
   let billedChargeId: string | undefined;
+  let scriptRequestId: string | undefined;
   const start = Date.now();
 
   try {
@@ -352,7 +347,17 @@ Deno.serve(async (req) => {
 
     if (!action) return err('缺少 action 参数', 1001);
     if (!userId) return err('该 AI 能力需要登录授权', 4010, 401);
+    modelContext.userId = userId; modelContext.action = action;
     body.user_id = userId;
+    if (action === 'recover_script_four_layer') {
+      const original = await supabase.rpc('read_script_request', { p_user: userId, p_id: body.request_id })
+        .then(value => value, () => ({ data: null, error: { code: '503' } }));
+      if (original.error || !original.data) return err('原脚本请求不存在或暂不可读取', 4031,
+        original.error?.code === '42501' ? 403 : 503);
+      if (original.data.status !== 'result_ready') return ok(scriptReceipt(original.data),
+        original.data.status === 'completed' ? 200 : 202);
+      return saveScriptReceipt(supabase, userId, original.data);
+    }
     for (const [field, table] of [['project_id', 'video_projects'], ['product_id', 'products']] as const) {
       if (!body[field]) continue;
       const owned = await supabase.from(table).select('id').eq('id', body[field]).eq('user_id', userId).maybeSingle();
@@ -407,12 +412,16 @@ Deno.serve(async (req) => {
     // P2-M06: 持久化限流（以安全身份为 key，防止伪造）
     const clientId = userId || req.headers.get('x-forwarded-for') || 'anonymous';
     const rateOk = await checkRateLimitDB(supabase, clientId);
+    if (rateOk === null) return err('限流服务暂不可用，尚未发起模型调用', 5032, 503);
     if (!rateOk) return err('请求过于频繁，请稍后再试', 4290, 429);
 
     // P2-N06: 缓存命中检查（异步高强度 SHA-256）
     let cacheKey = '';
     if (CACHEABLE_ACTIONS.has(action) && userId) {
-      const cacheParams = { ...body, user_id: userId, pipeline_version: 2 };
+      const primary = await supabase.from('model_configs').select('current_version_id,enabled').eq('slot', 'text.primary').maybeSingle();
+      const fallback = await supabase.from('model_configs').select('current_version_id,enabled').eq('slot', 'text.fallback').maybeSingle();
+      const cacheParams = { ...body, user_id: userId, pipeline_version: 3,
+        model_versions: [primary.data?.current_version_id || null, fallback.data?.current_version_id || null] };
       cacheKey = await makeCacheKey(action, cacheParams);
       const cached = await getCachedResponse(supabase, cacheKey);
       if (cached) {
@@ -422,6 +431,27 @@ Deno.serve(async (req) => {
     }
 
     // 只有通过限流且未命中缓存的请求才扣费。
+    if (action === 'generate_script_four_layer') {
+      if (typeof body.request_key !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.request_key))
+        return err('脚本生成需要原 request_key UUID，用于查询与保存恢复', 4000, 400);
+      const input = { product_name: boundedText(body.product_name, 200),
+        category: body.category || '', price_range: body.price_range || '',
+        selling_points: textList(body.selling_points), audience: body.audience || '',
+        pain_points: Array.isArray(body.pain_points) ? body.pain_points : [],
+        platform: body.platform === 'tiktok' ? 'tiktok' : 'douyin', video_length: body.video_length || 30,
+        product_id: body.product_id || null, knowledge_job_id: body.knowledge_job_id || null };
+      const original = await supabase.rpc('begin_script_request', { p_user: userId, p_key: body.request_key, p_body: input });
+      if (original.error || !original.data) throw original.error || new Error('原脚本请求创建暂不可用');
+      const receipt = original.data;
+      scriptRequestId = receipt.id;
+      modelContext.requestId = receipt.id;
+      if (!receipt.created) {
+        if (receipt.status === 'result_ready') return saveScriptReceipt(supabase, userId, receipt);
+        return ok(scriptReceipt(receipt), receipt.status === 'completed' ? 200 : 202);
+      }
+      billedCost = receipt.credits_cost; billedChargeId = receipt.charge_id || undefined;
+      return await generateScriptFourLayer(input, supabase, userId, receipt.id);
+    }
     if (billedActions.has(action)) {
       const estCost = await getActionCost(supabase, action);
       const budget = await checkDailyBudget(supabase, userId, estCost);
@@ -451,8 +481,6 @@ Deno.serve(async (req) => {
         result = await analyzeTraffic(body); break;
       case 'generate_ab_variants':
         result = await generateABVariants(body); break;
-      case 'generate_script_four_layer':
-        result = await generateScriptFourLayer(body, supabase, userId); break;
       case 'knowledge_rag_search':
         result = await knowledgeRagSearch(body, supabase); break;
       case 'analyze_style_deep':
@@ -493,6 +521,25 @@ Deno.serve(async (req) => {
     if (policy) return err(policy.message, policy.status === 403 ? 4003 : 4002, policy.status);
     const msg = e instanceof Error ? e.message : '服务内部错误';
     console.error(`[ai-assistant][${action}]`, msg);
+    if (scriptRequestId) {
+      // 原结果已返回或供应商受理未知，都不能以通用异常分支退积分。
+      // 明确无效结果的补偿与检查点在同一数据库事务完成。
+      await logError(supabase, action, msg, userId);
+      try {
+        if (e instanceof TextModelUnavailable && e.rejected) {
+          const rejected = await supabase.rpc('reject_script_request', { p_user: userId, p_id: scriptRequestId, p_reason: msg });
+          if (!rejected.error && rejected.data?.status === 'invalid') return Response.json({
+            code: 5000, message: '供应商明确拒绝，已补偿原积分', data: scriptReceipt(rejected.data),
+          }, { status: 502, headers: corsHeaders });
+        }
+        await supabase.from('ai_requests').update({ status: 'unknown', updated_at: new Date().toISOString() })
+          .eq('id', scriptRequestId).eq('user_id', userId).eq('status', 'started');
+        const original = await supabase.rpc('read_script_request', { p_user: userId, p_id: scriptRequestId });
+        if (original.data) return ok(scriptReceipt(original.data), original.data.status === 'completed' ? 200 : 202);
+      } catch { /* 保留原UUID；数据库不可达时不推导受理或资金结果 */ }
+      return ok({ request_id: scriptRequestId, status: 'unknown', recoverable: false,
+        message: '原模型请求待核对，请勿重新生成' }, 202);
+    }
     if (billedChargeId) {
       const { error: refundError } = await supabase.rpc('refund_credit_charge', {
         p_user_id: userId, p_charge_id: billedChargeId, p_reason: `AI 请求失败：${msg.slice(0, 160)}`,
@@ -507,6 +554,7 @@ Deno.serve(async (req) => {
     await recordModelCall(supabase, { userId, action, status: 'error', latencyMs: Date.now() - start, creditsCost: billedCost, errorMsg: msg });
     return err(msg, 5000, 500);
   }
+  });
 });
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -522,15 +570,8 @@ async function extractUrlSellingPoints(body: Record<string, string>) {
   const config = await resolveModel('reader.primary');
   const readerEndpoint = `${config.settings.endpoint.replace(/\/+$/, '')}/${encodeURIComponent(url)}`;
   
-  const readerRes = await fetch(readerEndpoint, {
-    method: 'GET',
-    headers: {
-      ...config.headers,
-      'X-Return-Format': 'markdown',
-      'X-Timeout': '15',
-    },
-    redirect: 'error', signal: AbortSignal.timeout(config.settings.timeout_ms),
-  });
+  const readerRes = await modelFetch({ ...config, settings: { ...config.settings, endpoint: readerEndpoint },
+    headers: { ...config.headers, 'X-Return-Format': 'markdown', 'X-Timeout': '15' } }, null, false, undefined, 'GET');
 
   if (!readerRes.ok) {
     throw new Error(`Failed to read URL: ${readerRes.status}`);
@@ -659,6 +700,7 @@ async function generateScriptFourLayer(
   body: Record<string, unknown>,
   supabase: ReturnType<typeof businessClient>,
   userId: string,
+  requestId: string,
 ) {
   const {
     user_id, product_name, category, price_range,
@@ -698,6 +740,11 @@ async function generateScriptFourLayer(
 ②痛点层：匹配目标用户真实痛点与情感共鸣
 ③钩子层：设计平台专属的开场钩子与悬念结构（前3秒留存）
 ④CTA层：构建紧迫感与高转化行动召唤${templateExtra}`;
+  const context = currentModelContext();
+  if (context) {
+    context.versions.prompt_template = templateUsed;
+    context.versions.knowledge_job_id = references?.job_id || null;
+  }
 
   const userPrompt = `请基于「四层Prompt工程」为以下商品生成完整带货视频脚本：
 
@@ -727,48 +774,38 @@ async function generateScriptFourLayer(
   try {
     const content = await callLLM(
       [...(references ? knowledgeMessages(references) : []), { role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+      undefined, true,
     );
 
-    const jsonMatch = content.match(/```json\s*([\s\S]*?)```/);
-    const promptMatch = content.match(/```prompt\s*([\s\S]*?)```/);
-
-    let scenes: unknown[] = [];
-    let promptText = '';
-
-    if (jsonMatch) {
-      try { scenes = JSON.parse(jsonMatch[1].trim()); } catch { /* keep empty */ }
-    }
-    if (promptMatch) {
-      promptText = promptMatch[1].trim();
-    } else {
-      const section = content.split('## AIGC Prompt')[1];
-      if (section) promptText = section.replace(/```.*?```/gs, '').trim();
-    }
-
-    // 写入 DB（以认证身份为准，降级用 body.user_id）
-    const uid = userId || String(user_id || '');
-    if (uid) {
-      await supabase.from('scripts').insert({
-        user_id: uid,
-        product_id: product_id || null,
-        title: `${product_name} 四层脚本`,
-        platform: platform === 'tiktok' ? 'tiktok' : 'douyin',
-        product_name,
-        selling_points: pts,
-        target_audience: String(audience),
-        pain_points: pains,
-        scenes,
-        prompt_text: promptText,
-        full_content: content,
-        status: 'draft',
-      });
-    }
-
-    return { scenes, prompt_text: promptText, full_content: content, prompt_template: templateUsed, knowledge_references: references };
+    let parsed: ReturnType<typeof parseScriptResult> | null = null;
+    try { parsed = parseScriptResult(content); } catch { /* 保留无效原结果再逐笔补偿 */ }
+    const result = parsed ? { ...parsed, prompt_template: templateUsed, knowledge_references: references } : null;
+    const checkpoint = await supabase.rpc('checkpoint_script_result', { p_user: userId, p_id: requestId,
+      p_content: content, p_result: result }).then(value => value, () => ({ data: null, error: { code: '503' } }));
+    if (checkpoint.error || !checkpoint.data) return ok({ request_id: requestId, status: 'unknown', result_persisted: false,
+      result, full_content: content, message: '模型结果已返回，持久回执待核对，请保留原结果；不要重新生成' }, 202);
+    if (!parsed) return new Response(JSON.stringify({ code: 5000, message: '模型未返回有效脚本，原结果已保存并补偿原积分',
+      data: scriptReceipt(checkpoint.data) }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    return saveScriptReceipt(supabase, userId, checkpoint.data);
   } catch (e) {
     console.error('generate_script_four_layer failed:', e);
     throw e;
   }
+}
+
+async function saveScriptReceipt(supabase: ReturnType<typeof businessClient>, userId: string, row: any) {
+  try {
+    const saved = await supabase.rpc('save_script_request', { p_user: userId, p_id: row.id });
+    if (!saved.error && saved.data?.status === 'completed') return ok(scriptReceipt(saved.data));
+  } catch { /* 原结果已持久化，下一次仅恢复保存 */ }
+  return ok(scriptReceipt(row), 202);
+}
+
+function scriptReceipt(row: any) {
+  return { ...row.result, request_id: row.id, request_key: row.request_key, status: row.status,
+    script_id: row.status === 'completed' ? row.script_id : null,
+    full_content: row.raw_content, raw_sha256: row.raw_sha256,
+    recoverable: row.status === 'result_ready' };
 }
 
 // 旧入口只读取已完成任务；Embedding调用和计费均在后台任务中执行。
@@ -803,7 +840,8 @@ async function writeRiskEvent(
       matched_kw: e.matched_kw ?? null,
       confidence: e.confidence ?? null,
       snippet: (e.snippet ?? '').slice(0, 200),
-      reason: e.reason ?? '',
+    reason: e.reason ?? '',
+    request_id: currentModelContext()?.requestId || null,
     });
   } catch { /* 风控落库失败不影响主流程 */ }
 }
@@ -814,8 +852,11 @@ async function contentModeration(
   userId: string,
 ) {
   const { text, image_url } = body as { text?: string; image_url?: string };
-  const snippet = (text || image_url || '');
-  if (!text && !image_url) return { pass: true, result: 'pass', reason: '无待审核内容' };
+  const snippet = (typeof text === 'string' ? text : '').slice(0, 1000);
+  if (text != null && (typeof text !== 'string' || text.length > 12000)
+    || image_url != null && (typeof image_url !== 'string' || image_url.length > 4096)
+    || !text?.trim() && !image_url) return { pass: false, result: 'review_pending', confidence: 0,
+      reason: '待审核内容为空或格式不正确', category: 'system_error' };
 
   // 1. 本地违禁词库毫秒级前置初筛
   if (text) {
@@ -834,34 +875,15 @@ async function contentModeration(
     }
   }
 
-  // 2. LLM 智能风控语义审核
-  const moderationPrompt = `你是内容安全审核员。请审核以下内容是否违规。
-违规类型：色情/暴力/赌博/毒品/政治敏感/诈骗/违禁商品/侮辱性言论。
-${text ? `\n文本内容：${text}` : ''}${image_url ? `\n图片URL：${image_url}（请根据URL路径描述判断）` : ''}
-
-直接输出JSON（仅JSON）：
-{"pass":true,"result":"pass","confidence":0.98,"reason":"内容合规"}
-或
-{"pass":false,"result":"reject","confidence":0.95,"reason":"包含[违规类型]，具体说明","category":"porn|violence|gambling|drug|political|fraud|forbidden_goods|abuse"}`;
-
   try {
-    const content = await callLLM([{ role: 'user', content: moderationPrompt }]);
-    const match = content.match(/\{[\s\S]*\}/);
-    if (match) {
-      const parsed = JSON.parse(match[0]);
-      const pass = Boolean(parsed.pass);
-      const verdict = {
-        pass,
-        result: parsed.result ?? (pass ? 'pass' : 'reject'),
-        confidence: parsed.confidence ?? 0.9,
-        reason: parsed.reason ?? '',
-        category: parsed.category ?? null
-      };
-      if (!pass) {
-        await writeRiskEvent(supabase, { userId, action: 'content_moderation', decision: 'reject', category: verdict.category, confidence: verdict.confidence, snippet, reason: verdict.reason });
-      }
-      return verdict;
-    }
+    const input = await moderationInput(supabase, userId, text || '', image_url);
+    const verdict = moderationVerdict(await generateText(input.messages, { requireVision: !!image_url }));
+    const audit = await supabase.from('risk_events').insert({ user_id: userId, source: 'content_moderation',
+      action: 'content_moderation', decision: verdict.result, category: verdict.category,
+      confidence: verdict.confidence, reason: verdict.reason, request_id: currentModelContext()?.requestId,
+      image_sha256: input.image_sha256 || null });
+    if (audit.error) throw new Error('审核证据保存失败');
+    return { ...verdict, ...(input.image_sha256 ? { image_sha256: input.image_sha256 } : {}) };
   } catch (e) {
     console.error('[content_moderation] LLM 审核调用失败:', e);
   }

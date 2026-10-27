@@ -8,7 +8,8 @@ const session = { access_token: `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringi
   refresh_token: 'fixture', token_type: 'bearer', expires_at: Math.floor(Date.now() / 1000) + 3600, expires_in: 3600,
   user: { id: uid, email: 'local@example.com', app_metadata: {}, user_metadata: {} } };
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_PATH,
-  args: ['--disable-breakpad', '--disable-crash-reporter', `--crash-dumps-dir=${process.cwd()}/.volcengine-build/chrome-crashes`] });
+  args: ['--disable-crashpad-for-testing', '--disable-breakpad', '--disable-crash-reporter', `--crash-dumps-dir=${process.cwd()}/.volcengine-build/chrome-crashes`] });
+let page;
 try {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
   await context.addInitScript(value => localStorage.setItem('sb-ui-fixture-auth-token', JSON.stringify(value)), session);
@@ -42,7 +43,7 @@ try {
     await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data),
       headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*' } });
   });
-  const page = await context.newPage();
+  page = await context.newPage();
   page.setDefaultTimeout(10000); page.on('pageerror', error => errors.push(error.message));
   await page.goto(`${base}/avatars`);
   await page.getByRole('heading', { name: '语音与数字人工作台' }).waitFor();
@@ -80,4 +81,12 @@ try {
   assert.deepEqual(errors, []);
   await page.screenshot({ path: '.volcengine-build/media-mobile.png', fullPage: true });
   console.log('PASS 私有上传、识别结果、克隆授权必选、未知原任务保留及390px布局');
+} catch (cause) {
+  if (page) {
+    console.error(await page.evaluate(() => ({ url: location.href,
+      alerts: [...document.querySelectorAll('[role="alert"]')].map(node => node.textContent),
+      fields: [...document.querySelectorAll('textarea')].map(node => ({ value: node.value, disabled: node.disabled })) })));
+    await page.screenshot({ path: '.volcengine-build/media-regression-failure.png', fullPage: false }).catch(error => console.error(error.message));
+  }
+  throw cause;
 } finally { await browser.close(); }

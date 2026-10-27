@@ -1,6 +1,6 @@
 # 视频任务后台调度
 
-更新：2026-10-22，功能基线`d7e3d38`。当前production模式严格probe22/00062/render4/edit2；旧video-job-worker模式probe1仅覆盖视频。当前操作见正文；以下旧探针为历史。
+更新：2026-10-27。当前production模式严格probe24/00068/render4/edit2，生产/维护两个独立进程共享持久预算；旧video-job-worker模式probe1仅覆盖视频。[执行与能力契约](WORKER_SCHEDULING.md)、[告警投递](ALERT_DELIVERY.md)为当前操作入口，以下旧探针为历史。
 
 ## 历史调度增量
 
@@ -34,13 +34,13 @@ production-worker新增knowledge_index/search轮转执行，与现有视频/图�
 
 官方历史Cron仅旧视频，最近成功证据00031/三函数；管理401后尚未重新确认实时状态。新production轮转依赖常驻调度，火山ECS方案尚未运行验收；扩展Cron需目标确认。
 
-独立 Docker 调度器和 Supabase Cron 配置均已就绪，部署时选择其中一种。调度完全不依赖网页；主机或云端服务必须保持运行。2026-10-21 已创建并接入用户的官方 Supabase `aigcp` 项目，云端 Cron 已启用且完成后台退款验收，见 [部署记录](DEPLOYMENT_AIGCP.md)。当前使用云端 Cron，独立 Docker 调度器未同时启动。
+历史2026-10-21官方Supabase `aigcp`视频Cron已启用并有退款验收记录，见[部署记录](DEPLOYMENT_AIGCP.md)；2026-10-22管理401后未重新核验，不能据此认定当前Cron健康。生产全栈依赖常驻Docker生产/维护进程及独立FFmpeg，仍待目标部署。
 
 新增媒体队列要求00040与production-worker版本2，开启既有production调度后轮转视频/图片/发布/TTS/ASR/即时克隆/照片口播/口型，不需要独立数字人调度器。旧视频Cron仅覆盖视频，不能据其运行推断媒体后台已启用。probe要求voice_clones/五计费项，真实关页、配置变更与原受理未知验收见 [迭代11](ITERATION_11_AUDIO_AVATAR_JOBS.md)；云端最近记录仍是00031/旧函数。
 
 ## 推荐：常驻服务器的 Docker 调度器
 
-最新版须目标缺失00032–00062/全部匹配函数与共享模块，production-worker/probe22、FFmpeg render4/edit2、MCP59/前端一致。Edge配置VIDEO_WORKER_SECRET与MODEL_CONFIG_ENCRYPTION_KEY；调度器只需URL/Worker专用密钥，不需service_role/模型/主密钥。
+最新版须核对目标缺失至00068和全部冻结函数/共享模块，production-worker/probe24、FFmpeg render4/edit2、MCP59/前端身份及镜像一致。Edge配置VIDEO_WORKER_SECRET、模型keyring与发布源码摘要；调度器只需URL/Worker专用密钥，不需service_role/模型/主密钥。
 
 当前官方旧环境仅到 00031、旧 Worker 与 Cron 已运行；不得只替换新版 Worker。缺 00034 时新版 probe 将失败，旧任务还需要核对原账号后绑定版本。升级顺序见 [开发指南](DEVELOPMENT_GUIDE.md)。
 
@@ -54,11 +54,11 @@ python3 scripts/manage_video_scheduler.py status
 python3 scripts/manage_video_scheduler.py logs
 ```
 
-`start` 先构建镜像并调用只读 `probe`，验证目标函数、专用密钥和任务迁移；预检失败不会启动调度。成功后容器以 `restart: unless-stopped` 后台运行，每 10 秒开始一批、最多 4 个并发 Worker 请求。一批未完成不会启动下一批，失败退避最多 300 秒。日志不包含密钥或远端响应内容。
+`start`先构建镜像并调用完整只读probe，预检失败不启动；生产模式同时启动video-scheduler/maintenance-scheduler，同镜像、独立健康文件。生产默认每10秒一批/最多4并发，一批未完成不启下一批，失败最多退避300秒；数据库另限制全局8/普通6/单类2、资金保留2机会。配额是跨进程保护，不代表已验收的吞吐。
 
 `status` 中服务应为运行状态，并最终显示 `healthy`。健康检查依据最近成功派发时间；后台失败会保留错误码。`start` 重跑用于恢复停止的服务，不会创建新 Supabase 项目。
 
-生产调度同时每分钟独立monitor，健康还要求最近三分钟扫描成功。scheduler-alerts持久卷保留连续三次失败及恢复事件/计数，重建容器保留卷；该内部记录未配置外部短信/邮件，完全宿主故障需独立监控。run轮转原视频/图片/媒体/知识/情报/翻译/字幕/编排/发布/指标、原渠道交易退款查询与清理，不自动新发现金退款或重提unknown。
+每分钟独立monitor，健康要求最近三分钟采集成功；生产/维护分别保留故障记录。run仅执行已入队的视频/媒体/知识/情报/翻译/字幕/编排/发布与原渠道交易/退款查询，maintenance独立处理计划、留存/删除、指标，错误互不阻断。alerts profile使用独立进程投递DB及离线卷事件，原事件UUID/渠道回执与未确认历史保留；正式Relay送达和宿主外部监控须另验收，不自动新发现金退款或重提unknown。
 
 ```sh
 python3 scripts/manage_video_scheduler.py stop
@@ -89,11 +89,11 @@ python3 scripts/manage_video_scheduler.py stop
 本地验证：
 
 ```sh
-python3 tests/test_video_scheduler.py
-python3 tests/test_video_schedule_db.py
-npm run test:video
+pnpm test:scheduler
+pnpm test:alert-delivery
+pnpm test:video
 ```
 
 测试包含周期恢复、预检不消费任务、HTTP 异常脱敏、并发限制、Cron 重装、到期派发及过期请求回收。数据库测试使用真实 PostgreSQL 与业务迁移；Cron/pg_net/Vault 使用隔离替身，不连接云端、不调用收费模型。
 
-关闭网页和停用调度不同：浏览器视频query仍可领取，冻结需控制生成/查询入口。监控/恢复见 [运维手册](RUNBOOK.md)，当前验证见 [2026-10-22报告](TEST_REPORT_20261022.md)；目标吞吐、真实恢复/渠道/SMS/模型/平台与外部告警另验收。
+关闭网页和停用调度不同：浏览器视频query仍可领取，冻结需控制生成/查询入口。监控/恢复见[运维手册](RUNBOOK.md)，本轮验证见[实施台账](OPTIMIZATION_IMPLEMENTATION_20261027.md)；目标吞吐、真实恢复/渠道/SMS/模型/平台与外部告警另验收。

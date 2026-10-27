@@ -43,6 +43,20 @@ try {
       }
     } else if (path.includes('/rest/v1/profiles')) data = { id: uid, username: '本地测试', invite_code: 'TEST', role: 'user' };
     else if (path.endsWith('/rpc/get_my_credits')) data = creditSnapshot(uid, { credits_total: 100, credits_left: 100 });
+    else if (path.endsWith('/product-management')) {
+      assert.equal(body.pagination, 'cursor');
+      assert.equal(body.offset, undefined);
+      const cursor = { created_at: '2026-01-01T00:00:00.123456+00:00', id: '90000000-0000-4000-8000-000000000098' };
+      const products = [{ id: productId, name: '超长商品名称用于验证移动端换行保温杯保温杯保温杯保温杯保温杯', category: '杯具', price: 50 }];
+      if (body.cursor) {
+        assert.deepEqual(body.cursor, cursor);
+        data = { products: [{ id: '33333333-3333-4333-8333-333333333333', name: '游标后页商品', category: '杯具', price: 50 }], total: null, next_cursor: null };
+      } else {
+        products.push(...Array.from({ length: 99 }, (_, n) => ({ id: `90000000-0000-4000-8000-${String(n).padStart(12, '0')}`,
+          name: `同时间戳商品${n}`, category: '杯具', price: 50 })));
+        data = { products, total: 101, next_cursor: cursor };
+      }
+    }
     else if (path.includes('/rest/v1/products')) data = [{ id: productId, name: '超长商品名称用于验证移动端换行保温杯保温杯保温杯保温杯保温杯', category: '杯具', price: 50 }];
     await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data),
       headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*' } });
@@ -51,6 +65,13 @@ try {
   page.setDefaultTimeout(10000); page.on('pageerror', error => errors.push(error.message));
   await page.goto(`${base}/batch-create`);
   await page.getByRole('button', { name: '添加商品', exact: true }).click();
+  const laterProduct = page.getByRole('checkbox', { name: '选择游标后页商品', exact: true });
+  await laterProduct.waitFor();
+  await laterProduct.scrollIntoViewIfNeeded();
+  assert.equal(await page.getByRole('checkbox').count(), 101);
+  assert.equal(calls.filter(call => call.path.endsWith('/product-management') && call.method === 'POST').length, 2);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  await page.screenshot({ path: '.volcengine-build/batch-cursor-mobile.png', fullPage: true });
   await page.getByRole('checkbox').first().check();
   await page.getByRole('button', { name: '确认添加', exact: true }).click();
   await page.getByLabel('批次名称', { exact: true }).fill('商品生产批次');
@@ -58,13 +79,16 @@ try {
   await page.getByRole('button', { name: '恢复上次提交', exact: true }).waitFor();
   assert.equal(creates.length, 1);
   const original = creates[0];
+  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem(`shoproai:batch-request:11111111-1111-4111-8111-111111111111`))),
+    { key: original.request_key, input: Object.fromEntries(Object.entries(original).filter(([key]) => !['action', 'request_key'].includes(key))) });
+  await page.evaluate(() => sessionStorage.clear());
   await page.reload();
   await page.getByRole('button', { name: '恢复上次提交', exact: true }).waitFor();
   createFail = false;
   await page.getByRole('button', { name: '恢复上次提交', exact: true }).click();
   await page.getByRole('heading', { name: '商品生产批次', exact: true }).waitFor();
   assert.equal(creates.length, 2); assert.deepEqual(creates[1], original);
-  assert.equal(await page.evaluate(() => sessionStorage.getItem(`shoproai:batch-request:11111111-1111-4111-8111-111111111111`)), null);
+  assert.equal(await page.evaluate(() => localStorage.getItem(`shoproai:batch-request:11111111-1111-4111-8111-111111111111`)), null);
   console.log('PASS 创建故障保留原请求，刷新后恢复相同幂等请求与预算，服务确认后清理回执');
   await page.getByRole('button', { name: '暂停后续提交', exact: true }).click();
   await page.getByRole('button', { name: '恢复', exact: true }).waitFor();

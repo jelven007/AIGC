@@ -1,6 +1,17 @@
 # Shopro AI 技术架构
 
-更新：2026-10-22，功能基线`d7e3d38`。当前架构契约为00062/probe22/render4/edit2，20模型槽、59个MCP工具/19权限、43个生产Edge入口。全部能力与实际验收边界见 [综合基线](RELEASE_BASELINE_20261022.md)。
+更新：2026-10-27。当前架构契约为00068/probe24/render4/edit2，66生产迁移、20模型槽、59个MCP工具/19权限、43个生产Edge入口。迭代01–34见历史基线，本轮变更和本地证据见[实施台账](OPTIMIZATION_IMPLEMENTATION_20261027.md)，真实部署按[发布接受](RELEASE_ACCEPTANCE.md)。
+
+## 本轮架构优化
+
+- 前端使用账号级共享查询与完整持久回执；活跃、未知、终态、页面隐藏采用不同读取策略。编辑历史、工程恢复/串行保存、媒体时钟与缓存按业务状态拆分，首页录音/模型目录/素材恢复按原账号隔离。
+- 同步文本/Reader每次调用先保存attempt，严格脚本结果与审核证据，主备共用总预算；数据库保存失败只恢复原结果和流水。模型现金成本依据供应商凭证登记，未知usage/金额保持未知。
+- PostgreSQL保存20类加权进度和全局8/普通6/单类2额度，资金保留2机会。`run`仅执行已入队任务，`maintenance`独立领取计划/删除/留存/指标；`alive/ready/probe`分别核对入口、轻量就绪与完整能力。
+- FFmpeg使用独占任务磁盘、可信对象下载去重、输入/输出/蒙版预算与停止恢复；HTTPS出口绑定核验的公网数字地址/证书/Host，不接受跳转或隐式代理。MCP限制正文、并发和时间预算。
+- 凭据使用用途绑定v2密文和完整历史keyring。告警采用独立租约/原事件渠道幂等回执；认证归档上传/拉回后在空环境核对原UUID/UNKNOWN/历史密钥/实物。
+- 冻结依赖、四套镜像源码与前端发布身份共同形成全栈回执；真实迁移摘要、Auth/Storage/Edge只读接受与实际运行证据分开。知识检索预存范数保留精确过滤/排序，商品采用稳定时间/UUID游标。
+
+运行细节见[调度](WORKER_SCHEDULING.md)、[资源](MEDIA_WORKER_RESOURCES.md)、[密钥](KEY_ROTATION.md)、[告警](ALERT_DELIVERY.md)、[容量](DATABASE_CAPACITY.md)。
 
 ## 历史演进摘要
 
@@ -71,7 +82,8 @@ flowchart TB
     Settings["管理员统一设置<br/>模型版本 / 平台应用 / 加密凭据"]
     DB[("PostgreSQL<br/>业务 / 积分流水 / video_jobs / production_jobs")]
     Storage[("私有 Storage<br/>用户路径RLS / 稳定引用 / 限时签名")]
-    Scheduler["后台调度<br/>旧Cron仅视频 / 新Docker生产调度待部署"]
+    Scheduler["后台调度<br/>生产 / 独立维护 / 持久预算"]
+    Alerts["独立monitor / 告警投递<br/>原事件·渠道回执"]
     Worker["Edge执行器<br/>视频 / 图片 / 语音 / 数字人 / 发布 / 指标"]
     Renderer["独立FFmpeg容器<br/>专用渲染租约与上传密钥"]
     Models["模型接口<br/>文本主备 / 七视频协议 / 图片 / TTS / ASR / D-ID / Sync / ElevenLabs"]
@@ -89,6 +101,7 @@ flowchart TB
     API --> Platforms
     Payment -->|"验签/原子入账"| API
     Scheduler -->|"VIDEO_WORKER_SECRET"| Worker
+    Alerts -->|"专用密钥 / 原回执"| API
     Worker -->|"领取/续租/结案"| DB
     Worker --> Models
     Worker --> Platforms
@@ -115,14 +128,14 @@ flowchart TB
 | 成片存储 | Supabase Storage | 当前官方 / 可选火山 BaaS | 参考素材、MP4/WebM 成片固定路径 |
 | 模型配置 | `model_configs`、`model_config_versions`、AES-GCM | 本地源码已实现；云端待 00034 | 全部模型接口统一管理、管理员授权、并发保护与任务版本绑定 |
 | 模型 | 文本主备、七种视频、后台图片任务 | 方舟或设置页配置的供应商 | 真实已开通 Model ID / Endpoint ID，服务端协议适配 |
-| 生产队列 | production_jobs / 租约 / checkpoint | 本地00062，官方待00032–00062 | 图片编辑、媒体、分析/字幕、知识、情报、翻译、编排/发布 |
+| 生产队列 | production_jobs / 租约 / checkpoint / 持久预算 | 本地00068，目标核对缺失至00068 | 图片编辑、媒体、分析/字幕、知识、情报、翻译、编排/发布 |
 | 剪辑 Worker | Python 3.12 / FFmpeg / Docker | 独立 ECS 或容器宿主机，待部署 | 时间轴合成、签名素材/上传、H.264/AAC |
 | 平台与指标 | OAuth / 发布状态查询 / 数据快照 | TikTok、抖音正式 API，待账号联调 | 后台发布、审核、官方自然视频指标 |
 | 音频/数字人 | OpenAI/Step、ElevenLabs IVC、D-ID Talks、Sync | 本地实现，00040/API/生产调度待发布 | 配音/识别/声纹/口播/口型队列、私有归档及积分闭环 |
 | MCP | Python FastMCP、Starlette、HTTPX | 可选ECS或本地stdio | 59工具/19权限、原请求与预算、请求ContextVar隔离 |
 | 账号与权益 | AccountScope、独立QueryClient、本人RPC | 本地00059–61 | 当前账号/代次、共享余额、单份订阅、SMS独立验证会话 |
 | 运营/财务 | operations、可信授权/范围、原UUID回执 | 本地00047–58 | 工单/租户/预算/风险、现金退款与分币种供应商账本 |
-| 告警/备份 | service-only monitor、持久卷、AES-GCM归档 | 本地00058与双PG16验证 | 原对象告警/恢复、DB快照/实物/回执/历史密钥、空隔离恢复 |
+| 告警/备份 | 独立monitor/投递租约、持久卷、AES-GCM认证归档 | 本地00067–68与双PG16验证 | 原告警回执、异地上传拉回、DB/实物/历史密钥、空隔离恢复 |
 | 运维发布 | `byted-supabase-cli`、Python 部署脚本 | 开发机/受控发布环境 | SQL、Secrets、函数、Pages 与发布前预检 |
 
 当前不需要 Redis：任务队列使用 PostgreSQL `FOR UPDATE SKIP LOCKED`。旧视频查询可触发一次受控处理，图片/发布依赖新生产调度，FFmpeg依赖独立容器；不能只升级旧视频Cron。上述为源码逻辑架构，实际吞吐/并发容量需部署后测量。
@@ -155,13 +168,13 @@ flowchart TB
 
 ## 文本、音频与 MCP
 
-`text-generation` 使用平台认证、数据库每用户每分钟限流，返回真实 SSE/JSON。此提示词辅助端点目前不扣积分；原 `ai-assistant` 计费 Action 保留原逐笔扣费补偿逻辑。文本主备统一从设置页读取，旧 GLM/DeepSeek/Wenxin/MiniMax 函数只作为兼容入口，不再独立使用 Secrets。
+`text-generation` 使用平台认证和持久限流，依赖故障拒绝，返回真实SSE/JSON。提示词辅助端点保留不扣应用积分的行为，每次真实供应商尝试仍登记原配置/usage。`ai-assistant`付费脚本使用00063原请求/结果/流水事务；文本主备统一设置与总预算，旧独立模型函数仅兼容入口。
 
 `image-generation` 与封面共用持久化图片队列，以 request_key 创建、预占积分并归档到私有 Storage。图片返回后保存证据，归档重试复用原结果。封面统一 `gen_task_id`/`completed` 字段，不再伪造 CTR。音频合成、识别和商品 Reader 也读取同一配置服务。主加密密钥仅保存在 Edge Secrets，管理员凭据不回传；首次授权、旧配置导入与旧任务绑定见 [统一模型配置](MODEL_SETTINGS.md)。
 
 前端删除模型 `VITE_*` 密钥、硬编码兜底密钥、代理回退与虚假文本/ASR 成功输出。构建拒绝非公开 `VITE_*KEY/SECRET/TOKEN/PASSWORD`。音频/数字人通过production-jobs使用JWT或限定scope Key，旧同步音频入口410，浏览器朗读不再冒充生成结果。
 
-MCP HTTP使用每请求JWT/受限Key和ContextVar隔离。59工具覆盖文本/生产/编辑/批次/发布/商品/知识/情报；19权限中batch:create独立。创建显式UUID，收费确认价格及批次预算，固定九入口/2MB/不跟随重定向。断线不重发POST，原键恢复；模型/service_role不配置到MCP，HTTP需TLS和实际域名规则。
+MCP HTTP使用每请求JWT/受限Key和ContextVar隔离。59工具/19权限、显式UUID与收费确认保持；每进程16活跃/同凭据4并发、256KiB正文/10秒读取/165秒工具预算，业务响应2MB上限、固定九入口且不跳转。断线不重发POST，原键恢复；模型/service_role不配置到MCP，公网TLS和域名仍需目标接受。
 
 ## 数据与部署边界
 
@@ -171,7 +184,7 @@ MCP HTTP使用每请求JWT/受限Key和ContextVar隔离。59工具覆盖文本/�
 - Pages 上传的是已构建 ZIP，URL/anon key 在构建前确定。Pages bind 建立 workspace 关联，不会改写 Vite ZIP 内已有常量。
 - `config.toml` 不承担火山函数配置。生产函数清单在 `deploy/volcengine/manifest.json`，回调与 Worker 明确使用 `--no-verify-jwt`，函数内继续验签/验证专用密钥。
 - 迁移排除 00018/00019 演示数据和演示访问策略；部署使用私有 `shopro_deploy.schema_migrations` 记录 SHA-256 回执，发现历史文件修改或无回执的旧业务库则停止重放。
-- `backend/`为历史规格，当前运营入口使用React/Supabase真实事务；43入口清单不含setup-demo。43入口包含兼容/410接口，数量不代表43项可售能力。全部匹配00062/probe22/render4/edit2后再验收MCP与前端。
+- `backend/`为历史规格，当前运营入口使用React/Supabase真实事务；43入口不含setup-demo，包含兼容/410接口，数量不代表43项可售能力。全部匹配00068/probe24/render4/edit2、前端身份与镜像后再做真实接受。
 - 图片、网页 Reader、Kling 等必须在统一设置页配置兼容协议的 HTTPS 地址；运行时不回退旧网关环境变量。部分历史 AI 业务模拟逻辑保留且需要后续治理。
 - 火山账号、BaaS 服务权限、方舟模型开通、SMTP/短信供应商、支付商户凭据和正式域名需目标环境配置。
 

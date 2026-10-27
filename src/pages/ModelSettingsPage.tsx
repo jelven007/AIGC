@@ -58,7 +58,7 @@ export function ModelSettingsEditor({ request = modelSettingsRequest }: { reques
     setSlot(value);
     setCategory(MODEL_SLOTS.find(item => item.id === value)?.category || 'text');
   };
-  const patch = (key: string, value: string | number) => {
+  const patch = (key: string, value: string | number | boolean) => {
     if (!draft) return;
     setDraft({ ...draft, settings: { ...draft.settings, [key]: value } }); setDirty(true); setTestResult(null);
   };
@@ -134,6 +134,14 @@ export function ModelSettingsEditor({ request = modelSettingsRequest }: { reques
                 {definition?.protocols.map(protocol => <option key={protocol} value={protocol}>{protocol}</option>)}
               </select></label>
             </div>
+            {category === 'text' && <div className="rounded-lg border border-border p-4 space-y-2">
+              <label className="flex items-center justify-between gap-3 text-sm">
+                支持图像审核
+                <Switch checked={draft.settings.supports_vision === true}
+                  onCheckedChange={value => patch('supports_vision', value)} aria-label="支持图像审核" />
+              </label>
+              <p className="text-xs text-muted-foreground">确认该模型已开通图片理解能力后启用。未启用时图片转待复核，文本审核仍可使用。</p>
+            </div>}
             <label className="block space-y-2 text-sm">完整调用地址<Input type="url" required={draft.enabled} value={draft.settings.endpoint} onChange={event => patch('endpoint', event.target.value)} placeholder="https://供应商域名/v1/chat/completions" />
               <p className="text-xs text-muted-foreground">填写完整 HTTPS 接口路径。请选择与供应商文档一致的协议。</p></label>
             {slot === 'image.primary' && draft.settings.protocol === 'openai-images' && <label className="block space-y-2 text-sm">图片编辑地址（可选）

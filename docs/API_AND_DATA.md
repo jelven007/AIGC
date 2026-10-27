@@ -1,6 +1,21 @@
 # 接口与数据契约
 
-更新：2026-10-22，功能基线`d7e3d38`，当前00062/probe22/render4/edit2，MCP59/19。完整功能清单见 [发布基线](RELEASE_BASELINE_20261022.md)。
+更新：2026-10-27，当前00068/probe24/render4/edit2、66生产迁移、MCP59/19。当前新增契约见下表，历史迭代保留当时版本；本地证据见[实施台账](OPTIMIZATION_IMPLEMENTATION_20261027.md)。
+
+## 本轮新增契约
+
+| 入口/数据 | 当前约定 |
+| --- | --- |
+| `ai-assistant`脚本 | `request_key`绑定原账号/规范输入/扣费；严格结构校验，返回原request/script ID；保存失败恢复原结果，unknown不重调 |
+| `model_attempts` | 每次文本/Reader尝试的原配置/usage/供应商ID；开始失败零调用，结案未知不走fallback；现金登记使用原attempt和原账单 |
+| `product-management list` | 可选时间倒序游标含完整微秒和UUID；禁止混用OFFSET/其他排序，后续页不重复精确计数；旧OFFSET兼容 |
+| `production-worker` | `run`仅已入队执行，`maintenance`独立计划/留存/删除/指标；持久全局/类别预算保持原任务租约与流水 |
+| `alive / ready / probe` | 专用密钥；零DB/单轻量RPC/单完整能力RPC；完整probe严格24/00068/render4/edit2与missing=[] |
+| 密钥目录 | `v2.key_id.iv.payload`及用途AAD；按原key_id解密，完整历史keyring只在服务端/受控恢复材料 |
+| 告警投递 | 原event/channel唯一、90秒租约、原幂等键/严格回执、退避；只接受通用Worker专用密钥，媒体密钥/业务Key拒绝 |
+| 00066–00068 | 精确知识范数/排序、持久告警投递、最新完整能力校验；历史迁移不修改 |
+
+完整字段/JSON和操作见[脚本与尝试](REPRODUCIBLE_RELEASE.md)、[调度](WORKER_SCHEDULING.md)、[密钥](KEY_ROTATION.md)、[告警](ALERT_DELIVERY.md)。客户端完整回执写入并读回成功后才创建；共享查询固定原账号且取消迟到读取。
 
 ## 历史协议增量
 
@@ -46,7 +61,7 @@ render v1增量见 [迭代16](ITERATION_16_RENDER_EFFECTS.md)：十二transition
 
 增量00041：[素材分析契约](ITERATION_12_GROUNDED_ANALYSIS.md)。production-jobs新增analysis-price与create kind=analysis（video:create），input的mode/title/source_url/confirmed_credit_cost；查询含mode及源指纹/模型版本/可验证结果。专用Worker领取analysis_prepare并提交prepared，模型阶段权限隔离；旧风格/高光入口410。普通同步AI强制JWT身份及关联工程/商品归属校验。
 
-当前官方成功证据仍00031/三旧函数，管理最近401，见 [当前状态](CURRENT_STATE.md)。接入须部署匹配00062全部依赖；示例UUID仅说明，实际使用自建原请求UUID。
+官方已记录成功证据仍00031/三旧函数，2026-10-22管理401，本轮未复核，见[当前状态](CURRENT_STATE.md)。接入须部署匹配00068全部依赖；示例UUID仅说明，实际使用自建原请求UUID。
 
 ## 1. 通用约定
 
@@ -60,7 +75,7 @@ JSON 请求使用 `Content-Type: application/json`，允许的预检由各函数
 
 导出增量00039：production-jobs新增export（render:create）、query-export/exports（jobs:read）。export传request_key、source_project_id、formats[{ratio,height}]；源URL/时长由服务端读取。六画幅含4:5、三短边，最多18组合，全部输出作品/渲染任务同事务；24个未结案渲染共用配额，容量不足429。同键不同参数409，失联503保留原请求；query-export缺本人记录404。返回export包含独立jobs的规格/状态/结果，未返回原始输入或租约。完整兼容见 [多规格导出接口](ITERATION_10_RENDER_EXPORTS.md)。
 
-媒体create支持tts/asr/voice_clone（audio:create）、avatar/lipsync（avatar:create），voices/media-prices需jobs:read；价变409/无配置424/10活跃配额429/未知503保留原回执。声纹原UUID撤销、供应商原版本删除见迭代23。production probe22要求00062/render4/edit2，不消费任务；旧probe2不可用于本次发布。
+媒体create支持tts/asr/voice_clone（audio:create）、avatar/lipsync（avatar:create），voices/media-prices需jobs:read；价变409/无配置424/10活跃配额429/未知503保留原回执。声纹原UUID撤销、供应商原版本删除见迭代23。production probe24要求00068/render4/edit2，不消费任务；旧probe不可用于本次发布。
 
 ## 2. 视频任务
 
@@ -189,7 +204,7 @@ MCP [接入指南](../mcp/mcp.md)的59工具/19权限共用九业务API；HTTP�
 | `report_frontend_error(p_request_key,p_path)` | authenticated、原UUID/路由路径 | 本人10次/分钟，服务端固定REACT_RENDER_CRASH，不接受客户端错误正文/堆栈/查询串 |
 | `operations access/list/mutate` | 个人JWT、可信角色/客户范围，当前版本/原UUID | 工单内部消息/处理人、租户所有权/成员/启停/预算、风险结论/限制、现金凭证/冲销、alert_ack；当前正文16KB |
 | `production-worker monitor` | VIDEO_WORKER_SECRET、scheduler_healthy布尔 | 独立扫描，不领取任务；last_scan_at/stale、原对象告警/自动恢复 |
-| `production-worker probe` | VIDEO_WORKER_SECRET | `{ready,version:22,required_migration:"00062",render_version:4,edit_version:2}`，缺schema503 |
+| `production-worker probe` | VIDEO_WORKER_SECRET | `{ready,version:24,required_migration:"00068",render_version:4,edit_version:2,missing:[]}`，缺schema503；发布接受另核对source_sha256 |
 
 短信Auth OTP使用独立客户端核对原手机/验证会话，成功回执后安装全局会话；发送未知保留冷却/原号码，不使用旧send/verify-sms-code代理（410）。正式VITE_TERMS_URL/VITE_PRIVACY_URL缺失时禁注册。
 

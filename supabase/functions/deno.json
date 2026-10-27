@@ -1,0 +1,10 @@
+{
+  "nodeModulesDir": "none",
+  "compilerOptions": {
+    "types": ["npm:@types/node@22.12.0"]
+  },
+  "imports": {
+    "npm:@supabase/supabase-js@2": "npm:@supabase/supabase-js@2.103.1"
+  },
+  "lock": "./deno.lock"
+}

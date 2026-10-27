@@ -399,8 +399,10 @@ def build_command(spec, media_files, directory):
     return args, (width, height)
 
 
-def render(spec, media_files, directory, progress=None, cancelled=None, timeout=3600):
+def render(spec, media_files, directory, progress=None, cancelled=None, timeout=3600, budget=None):
     validate(spec)
+    if budget:
+        budget.check()
     started = time.monotonic()
     masked_tracks = [item for item in spec["tracks"] if item.get("personMask")]
     if masked_tracks:
@@ -415,7 +417,7 @@ def render(spec, media_files, directory, progress=None, cancelled=None, timeout=
                 raise RenderError("人物分割超过工程执行时限")
             media_files[f"{item['id']}:person-mask"] = create_person_mask(
                 media_files[item["id"]], item, spec["fps"], Path(directory) / f"person-{index}.mkv",
-                model, cancelled or (lambda: False), remaining)
+                model, cancelled or (lambda: False), remaining, budget=budget)
             mask_bytes += Path(media_files[f"{item['id']}:person-mask"]).stat().st_size
             if mask_bytes > 768 * 1024 * 1024:
                 raise RenderError("工程人物蒙版总量超过768MB，请减少人物片段")
@@ -433,12 +435,18 @@ def render(spec, media_files, directory, progress=None, cancelled=None, timeout=
                         raise RenderError("任务已停止或租约失效")
                     if time.monotonic() - started > timeout:
                         raise RenderError("渲染超过最大执行时长")
+                    if budget:
+                        budget.check()
                     if shutil.disk_usage(directory).free < 128 * 1024 * 1024:
                         raise RenderError("渲染临时空间不足，请缩短工程")
                     for key, _ in selector.select(timeout=.5):
                         line = key.fileobj.readline()
                         if line.startswith("out_time_us=") and progress:
-                            progress(min(95, round(int(line.strip().split("=")[1]) / (spec["duration"] * 1000000) * 90)))
+                            try:
+                                timestamp = int(line.strip().partition("=")[2])
+                            except ValueError:
+                                continue  # 编码器开始产生有效时间戳之前会报告N/A。
+                            progress(max(0, min(95, round(timestamp / (spec["duration"] * 1000000) * 90))))
             if process.wait(timeout=30) != 0:
                 raise RenderError("FFmpeg合成失败，请检查轨道参数和媒体格式")
         finally:
@@ -452,7 +460,8 @@ def render(spec, media_files, directory, progress=None, cancelled=None, timeout=
     if output.stat().st_size >= 1024 * 1024 * 1024 or not math.isfinite(actual_duration) or abs(actual_duration - spec["duration"]) > .1 + 1 / spec["fps"]:
         raise RenderError("成片超过1GB或时长与工程不符，请缩短工程")
     thumbnail = Path(directory) / "thumbnail.jpg"
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(output), "-frames:v", "1", str(thumbnail)],
-                   check=True, capture_output=True, timeout=30)
+    from media_process import run_media
+    run_media(["ffmpeg", "-v", "error", "-nostdin", "-y", "-i", str(output),
+               "-frames:v", "1", str(thumbnail)], cancelled or (lambda: False), timeout=30, budget=budget)
     return {"file": output, "thumbnail": thumbnail, "size": output.stat().st_size,
             "duration": actual_duration, "resolution": f"{dimensions[0]}x{dimensions[1]}"}

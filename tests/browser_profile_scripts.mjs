@@ -99,7 +99,8 @@ await context.route(`${backend}/**`, async route => {
       else { data = { ...body, created_at: '2026-10-22T00:00:00Z' }; rows.push(data); }
       if (scripts && state.failScriptResponse) { state.failScriptResponse = false; status = 503; data = { message: 'response lost' }; }
     } else data = rows.find(row => `eq.${row.id}` === parsed.searchParams.get('id') && row.user_id === id) || null;
-  } else if (path.endsWith('/rest/v1/products')) data = [{ id: productId, user_id: id, name: '实际商品', category: '数码电器', price: 12 }];
+  } else if (path.endsWith('/product-management')) data = { products: [{ id: productId, user_id: id, name: '实际商品', category: '数码电器', price: 12 }], total: 1, offset: 0 };
+  else if (path.endsWith('/rest/v1/products')) data = [{ id: productId, user_id: id, name: '实际商品', category: '数码电器', price: 12 }];
   else if (path.endsWith('/model-settings')) data = { configs: [{ slot: 'video.ArkSeedance', category: 'video', name: '已配置模型', provider: 'ArkSeedance', enabled: true }] };
   else if (path.endsWith('/batch-video-jobs')) {
     if (body.action === 'quote') data = { unit_cost: 10, max_items: 50, pipeline_costs: { video: 10, tts: 3, subtitles: 5, render: 0 } };

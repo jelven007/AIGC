@@ -7,7 +7,7 @@ const session = { access_token: `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringi
   refresh_token: 'fixture', token_type: 'bearer', expires_at: Math.floor(Date.now() / 1000) + 3600, expires_in: 3600,
   user: { id: uid, email: 'local@example.com', app_metadata: {}, user_metadata: {} } };
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_PATH,
-  args: ['--disable-breakpad', '--disable-crash-reporter', `--crash-dumps-dir=${process.cwd()}/.volcengine-build/chrome-crashes`] });
+  args: ['--disable-crashpad-for-testing', '--disable-breakpad', '--disable-crash-reporter', `--crash-dumps-dir=${process.cwd()}/.volcengine-build/chrome-crashes`] });
 try {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
   await context.addInitScript(value => localStorage.setItem('sb-ui-fixture-auth-token', JSON.stringify(value)), session);

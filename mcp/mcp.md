@@ -1,6 +1,6 @@
 # MCP 接入指南
 
-更新：2026-10-22，功能基线`d7e3d38`；59个实际SDK工具、19业务权限、固定九入口。当前依赖00062/probe22/render4/edit2及全部匹配API，真实TLS/供应商/平台仍待目标验收。以下迭代目录摘要为历史时点，当前参数由tools.json和正文维护。
+本地优化基线：00065/probe23/render4/edit2；59个实际SDK工具、19业务权限、固定九入口。真实TLS/供应商/平台仍待目标验收。请求/容器资源与健康见[媒体与MCP资源边界](../docs/MEDIA_WORKER_RESOURCES.md)，最新本地证据见[实施记录](../docs/OPTIMIZATION_IMPLEMENTATION_20261027.md)。以下迭代目录摘要为历史时点，当前参数由tools.json和正文维护。
 
 ## 历史目录增量
 
@@ -62,7 +62,7 @@ HTTP ContextVar 在每次请求后重置，无状态传输避免用户会话混�
 
 ## 3. 本地与 Docker 启动
 
-在 mcp 目录建立 Python 3.12 虚拟环境并安装 requirements_mcp.txt。首次复制配置模板，已有 .env 不覆盖；直接 Python 启动前由受控环境加载参数。
+在 mcp 目录建立 Python 3.12 虚拟环境并运行 `pip install --require-hashes -r requirements.lock && pip check`。首次复制配置模板，已有 .env 不覆盖；直接 Python 启动前由受控环境加载参数。
 
 
 default HTTP：python http_server.py，默认 127.0.0.1:8080/mcp。stdio：python mcp_shopro_server_stdio.py，用户 JWT 过期后需安全更新。

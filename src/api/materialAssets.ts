@@ -1,8 +1,8 @@
-import { supabase } from '@/db/supabase';
 import { accessRequest } from './accessControl';
 import { mediaPreview } from './media';
 import { EdgeRequestError } from '@/lib/edgeRequest';
 import type { Material } from '@/types/types';
+import { requireAccountSession, uploadAccountObject } from './accountSession';
 
 export type EditorMaterial = Pick<Material, 'id' | 'name' | 'url' | 'type'> & Partial<Pick<Material, 'duration_sec' | 'tags' | 'user_id'>>;
 interface UploadReceipt { request_key: string; input: Record<string, unknown> }
@@ -17,12 +17,11 @@ function checkRegistration(saved: any) {
   if (saved?.deleted !== true && (!saved?.material?.id || typeof saved.material.url !== 'string')) throw new Error('原素材登记结果待确认，请恢复原上传');
 }
 async function requireUploadOwner(userId: string) {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session || session.user.id !== userId) throw new Error('账号已切换，请在原账号恢复素材上传');
+  await requireAccountSession(userId);
 }
 export function pendingMaterialUploads(userId: string): number { return receipts(userId).length; }
-export async function listMaterialAssets(offset = 0, limit = 30, type?: string, search = ''): Promise<{ materials: Material[]; total: number }> {
-  const data = await accessRequest('material-assets', { action: 'list', offset, limit, search, ...(type ? { type } : {}) });
+export async function listMaterialAssets(offset = 0, limit = 30, type?: string, search = '', userId?: string): Promise<{ materials: Material[]; total: number }> {
+  const data = await accessRequest('material-assets', { action: 'list', offset, limit, search, ...(type ? { type } : {}) }, userId);
   if (!Array.isArray(data.materials) || !Number.isInteger(data.total) || data.total < 0) throw new Error('素材列表格式异常，请重试读取');
   return data;
 }
@@ -59,7 +58,8 @@ export async function recoverMaterialUploads(userId: string): Promise<{ restored
   for (const receipt of receipts(userId)) {
     try {
       await requireUploadOwner(userId);
-      const saved = await accessRequest('material-assets', { action: 'register', ...receipt });
+      const saved = await accessRequest('material-assets', { action: 'register', ...receipt }, userId);
+      await requireUploadOwner(userId);
       checkRegistration(saved);
       forget(userId, receipt.request_key);
       if (saved.deleted) result.deleted++; else result.restored++;
@@ -98,7 +98,8 @@ export async function uploadMaterialAsset(file: File, userId: string, rightsConf
   }
   const register = async () => {
     await requireUploadOwner(userId);
-    const saved = await accessRequest('material-assets', { action: 'register', ...receipt });
+    const saved = await accessRequest('material-assets', { action: 'register', ...receipt }, userId);
+    await requireUploadOwner(userId);
     checkRegistration(saved);
     forget(userId, receipt.request_key);
     if (saved.deleted) throw new Error('原素材已经删除，请重新选择文件上传');
@@ -111,11 +112,13 @@ export async function uploadMaterialAsset(file: File, userId: string, rightsConf
   }
   const path = `${userId}/uploads/${receipt.request_key}.${extension}`;
   await requireUploadOwner(userId);
-  const uploaded = await supabase.storage.from('materials').upload(path, file, { contentType: file.type, upsert: false });
+  let uploadError: unknown;
+  try { await uploadAccountObject(userId, 'materials', path, file); }
+  catch (cause) { uploadError = cause; }
   // 包括响应丢失和已存在：只核对原对象，不生成新路径或覆盖。
   try { return await register(); }
   catch (cause) {
-    if (uploaded.error && cause instanceof EdgeRequestError && cause.status === 404) throw new Error('原文件上传未确认，请重新选择相同文件重试');
+    if (uploadError && cause instanceof EdgeRequestError && cause.status === 404) throw new Error('原文件上传未确认，请重新选择相同文件重试');
     throw cause;
   }
 }

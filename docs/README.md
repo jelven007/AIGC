@@ -1,8 +1,16 @@
 # 项目文档中心
 
-更新：2026-10-22，功能基线`d7e3d38`，迭代01–34。本次按31个尚未同步Gitee的提交统一需求、方案、开发、测试、运营和运维。先读 [全生命周期发布基线](RELEASE_BASELINE_20261022.md) 和 [当前状态](CURRENT_STATE.md)；当前源码00062/probe22/render4/edit2、MCP59/19、模型20槽，官方最新全栈未部署。
+更新：2026-10-27，迭代01–34加本轮本地优化。先读[当前状态](CURRENT_STATE.md)和[实施台账](OPTIMIZATION_IMPLEMENTATION_20261027.md)；当前源码00068/probe24/render4/edit2、66生产迁移、43生产入口、MCP59/19、模型20槽。最新全栈未部署，2026-10-22历史基线保留原时点。
 
-新增：[2026-10-25 项目全面分析与优化方案](PROJECT_ANALYSIS_OPTIMIZATION_20261025.md)。以`9099386`源码及本轮本地验证为依据，包含正确性问题、目标架构、ECS部署取舍、分阶段工作量与验收条件；优化尚未实施，云端现状未在本轮重新核验。
+方案：[2026-10-25 项目全面分析与优化方案](PROJECT_ANALYSIS_OPTIMIZATION_20261025.md)。以当时`9099386`源码为依据，包含正确性问题、目标架构、ECS取舍、工作量与验收条件；当前实施结果以台账为准，云端现状未在本轮重新核验。
+
+实施进度：[2026-10-27 全面优化实施与验证](OPTIMIZATION_IMPLEMENTATION_20261027.md)。记录逐项代码改动、本地回归及未完成事项；优化方案中的历史状态不代表当前实施进度。
+
+开发与发布入口：[可复现安装、全栈回执及脚本恢复](REPRODUCIBLE_RELEASE.md)、[全栈接受与ECS对等运行](RELEASE_ACCEPTANCE.md)。单一pnpm锁、冻结Edge图、Python哈希锁及前端发布身份，包含新增00063–00068。
+
+执行入口：[调度与独立维护](WORKER_SCHEDULING.md)、[媒体与MCP资源边界](MEDIA_WORKER_RESOURCES.md)。包括持久公平预算、单任务空间/下载缓存、退出恢复和受限协议运行。
+
+运维与测量：[密钥轮换](KEY_ROTATION.md)、[告警投递](ALERT_DELIVERY.md)、[异地备份恢复](BACKUP_RECOVERY.md)、[数据库容量](DATABASE_CAPACITY.md)、[模型评估](ai/EVALUATION.md)。本地结果与真实目标接受分别记录。
 
 ## 按职责阅读
 
@@ -12,11 +20,11 @@
 | 方案 | [技术架构](TECHNICAL_ARCHITECTURE.md)、[业务后端](后端.md) | 账号边界、服务端事务、队列/编排、运营和恢复架构 |
 | 开发 | [开发指南](DEVELOPMENT_GUIDE.md)、[API与数据](API_AND_DATA.md) | 环境、修改入口、当前契约、兼容与检查 |
 | 模型 | [模型设置](MODEL_SETTINGS.md)、[AI方案](ai/ai.md) | 20槽不可变配置、图片编辑、实际协议、质量和成本 |
-| 测试 | [测试计划](TEST_PLAN.md)、[2026-10-22报告](TEST_REPORT_20261022.md) | 迭代验证索引、本轮文档检查与真实目标待验收 |
+| 测试 | [测试计划](TEST_PLAN.md)、[2026-10-27实施证据](OPTIMIZATION_IMPLEMENTATION_20261027.md) | 本地专项、最终检查和真实目标待验收 |
 | 运营 | [运营手册](OPERATIONS_GUIDE.md)、[商业化](plan/商业化.md) | 用户培训、工单/风险/租户、权益、实际经营口径 |
 | 财务 | [支付与积分](plan/支付.md) | 收银、两渠道验签/退款、权益/欠额、供应商现金成本 |
-| 运维 | [运行手册](RUNBOOK.md)、[调度](VIDEO_SCHEDULER.md)、[备份恢复](BACKUP_RECOVERY.md) | probe22、独立FFmpeg、持久告警、原任务核对、加密恢复 |
-| 部署 | [官方记录](DEPLOYMENT_AIGCP.md)、[火山方案](VOLCENGINE_DEPLOYMENT.md) | 实际00031旧回执、00032–00062升级、独立迁移工具 |
+| 运维 | [运行手册](RUNBOOK.md)、[调度](VIDEO_SCHEDULER.md)、[备份恢复](BACKUP_RECOVERY.md) | probe24、独立维护/FFmpeg、告警回执、原任务核对、异地恢复 |
+| 部署 | [官方记录](DEPLOYMENT_AIGCP.md)、[火山方案](VOLCENGINE_DEPLOYMENT.md)、[发布接受](RELEASE_ACCEPTANCE.md) | 00031历史回执、目标缺失至00068、独立迁移与ECS对等 |
 | MCP | [接入指南](../mcp/mcp.md)、[工具目录](../mcp/tools.json) | 59真实工具、19权限、原请求/预算/身份/传输边界 |
 | 发布 | [追踪矩阵](CHANGE_TRACEABILITY.md)、[待办](PENDING_CHANGES.md)、[版本管理](VERSION_MANAGEMENT.md) | 全部提交对照、目标差距、GitHub合并和两个历史标签 |
 | 历史 | [2026-10-21测试](TEST_REPORT_20261021.md)、[当日覆盖核验](FUNCTION_COVERAGE_REVIEW_20261021.md)、[当日架构对比](ARCHITECTURE_REVIEW_20261021.md) | 保留原核验时点；当前范围以本次综合基线为准 |

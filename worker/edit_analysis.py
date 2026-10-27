@@ -2,23 +2,9 @@
 import hashlib
 import math
 from pathlib import Path
-import subprocess
-import time
 import numpy as np
 from render import probe, RenderError, numeric
-
-
-def run_media(args, cancelled, timeout=180):
-    with subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) as process:
-        started = time.monotonic()
-        while process.poll() is None:
-            if cancelled() or time.monotonic() - started > timeout:
-                process.kill()
-                process.wait()
-                raise RenderError("音轨预处理已停止、租约失效或超过执行时限")
-            time.sleep(.1)
-        if process.returncode:
-            raise RenderError("音轨预处理失败，请检查素材格式")
+from media_process import run_media
 
 
 def detect_beats(samples, rate=16000):
@@ -68,7 +54,7 @@ def detect_beats(samples, rate=16000):
     return {"beats": beats[:3000], "bpm": bpm, "confidence": confidence, "algorithm": "spectral-flux-v1"}
 
 
-def prepare_edit(source, payload, directory, cancelled=lambda: False):
+def prepare_edit(source, payload, directory, cancelled=lambda: False, budget=None):
     source, directory = Path(source), Path(directory)
     if not source.is_file() or not 0 < source.stat().st_size <= 500 * 1024 * 1024:
         raise RenderError("剪辑分析素材应为1字节–500MB")
@@ -105,7 +91,9 @@ def prepare_edit(source, payload, directory, cancelled=lambda: False):
     audio = directory / "audio.wav"
     run_media(["ffmpeg", "-v", "error", "-nostdin", "-y", "-protocol_whitelist", "file,pipe",
                "-i", str(source), "-vn", "-af", ",".join(filters), "-ac", "1", "-ar", "16000",
-               "-c:a", "pcm_s16le", str(audio)], cancelled)
+               "-c:a", "pcm_s16le", "-fs", str(20 * 1024 * 1024), str(audio)], cancelled, budget=budget)
+    if audio.stat().st_size >= 20 * 1024 * 1024:
+        raise RenderError("识别音轨超过20MB，请分段上传")
     details = {"duration": duration, "source_hash": digest.hexdigest(), "audio": audio}
     if payload.get("mode") == "beats":
         import wave

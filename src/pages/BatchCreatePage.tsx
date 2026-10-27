@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { Layers, Plus, Package, Loader2, RefreshCw, Pause, Play, X, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '@/db/supabase';
+import { listProductPage } from '@/api/products';
+import { useWorkspaceEntry } from '@/hooks/useWorkspaceEntry';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCredits } from '@/hooks/useCredits';
 import { Button } from '@/components/ui/button';
@@ -15,8 +17,11 @@ import { Progress } from '@/components/ui/progress';
 import { modelSettingsRequest, type ModelCatalogEntry } from '@/api/modelSettings';
 import { BatchJobError, controlBatchVideoJob, createBatchVideoJob, listBatchVideoJobs, quoteBatchVideoJobs,
   type BatchInput, type BatchVideoJob } from '@/api/batchVideoJobs';
+import { useTaskQuery } from '@/hooks/useTaskQuery';
+import { useTaskReceipt } from '@/hooks/useTaskReceipt';
+import { readTaskReceipt } from '@/lib/taskReceipt';
 
-interface Product { id: string; name: string; category: string; price: number | null }
+interface Product { id: string; name: string; category: string }
 interface PendingBatch { key: string; input: BatchInput }
 const states: Record<string, string> = { pending: '等待中', processing: '处理中', paused: '已暂停',
   running: '处理中', waiting: '等待依赖', active: '已排队', unknown: '待核对', awaiting_confirmation: '等待预览确认',
@@ -34,16 +39,23 @@ function ProductPicker({ open, onClose, onSelect, excluded }: {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const abort = useRef<AbortController | null>(null);
   const load = useCallback(async () => {
     if (!user) return;
+    abort.current?.abort();
+    const controller = new AbortController(); abort.current = controller;
     setLoading(true); setError('');
-    const result = await supabase.from('products').select('id,name,category,price')
-      .eq('user_id', user.id).order('created_at', { ascending: false }).limit(200);
-    if (result.error) setError('商品库加载失败，请重试');
-    else setProducts(result.data || []);
-    setLoading(false);
+    try {
+      const first = await listProductPage({ limit: 100 }, user.id, controller.signal);
+      const second = first.next_cursor ? await listProductPage({ limit: 100, cursor: first.next_cursor }, user.id, controller.signal) : null;
+      if (!controller.signal.aborted) setProducts([...first.products, ...(second?.products || [])]);
+    } catch (cause) { if (!controller.signal.aborted) setError(message(cause)); }
+    finally { if (!controller.signal.aborted) setLoading(false); }
   }, [user]);
-  useEffect(() => { if (open) { setSelected([]); void load(); } }, [open, load]);
+  useEffect(() => {
+    if (open) { setSelected([]); setProducts([]); setSearch(''); void load(); }
+    return () => abort.current?.abort();
+  }, [open, load]);
   const filtered = products.filter(p => !excluded.includes(p.id) && `${p.name} ${p.category}`.includes(search));
   return <Dialog open={open} onOpenChange={value => { if (!value) onClose(); }}>
     <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-2xl max-h-[85dvh] flex flex-col">
@@ -70,9 +82,16 @@ function ProductPicker({ open, onClose, onSelect, excluded }: {
 
 export default function BatchCreatePage() {
   const { user } = useAuth();
-  const location = useLocation();
+  const entry = useWorkspaceEntry(user?.id);
+  return <BatchWorkspace key={user?.id || 'signed-out'} entry={entry} />;
+}
+
+function BatchWorkspace({ entry }: { entry: any }) {
+  const { user } = useAuth();
+  const activeWorkspace = useRef(false);
+  useEffect(() => { activeWorkspace.current = true; return () => { activeWorkspace.current = false; }; }, []);
   const [scriptInput] = useState(() => {
-    const input = location.state;
+    const input = entry;
     return input?.from === 'script' && Array.isArray(input.scenes) && input.scenes.length >= 2 && input.scenes.length <= 6
       && input.scenes.every((scene: any) => typeof scene.prompt === 'string' && scene.prompt.trim()
         && typeof scene.dialogue === 'string' && scene.dialogue.trim() && Number.isInteger(scene.duration)
@@ -100,70 +119,65 @@ export default function BatchCreatePage() {
     language: scriptInput?.platform === 'tiktok' ? 'en' : 'zh',
   });
   const [overrides, setOverrides] = useState<BatchInput['overrides']>({});
-  const [jobs, setJobs] = useState<BatchVideoJob[]>([]);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
   const [busy, setBusy] = useState('');
-  const [pending, setPending] = useState<PendingBatch | null>(null);
   const submitting = useRef(false);
+  const owner = useRef(user?.id); owner.current = user?.id;
   const storageKey = user ? `shoproai:batch-request:${user.id}` : '';
+  const validReceipt = (saved: any) => saved && typeof saved.key === 'string' && saved.input?.name && Array.isArray(saved.input.product_ids);
+  const { value: pending, write: savePending, error: storageError } = useTaskReceipt<PendingBatch>(storageKey, validReceipt);
+  const [legacyError, setLegacyError] = useState('');
   useEffect(() => {
-    if (!storageKey) { setPending(null); return; }
+    setLegacyError(''); setBusy(''); submitting.current = false; setError('');
+    if (!storageKey) return;
     try {
+      const current = readTaskReceipt<PendingBatch>(storageKey, validReceipt);
+      if (current.error || current.value) return;
       const stored = sessionStorage.getItem(storageKey);
       const saved = stored ? JSON.parse(stored) : null;
-      setPending(saved && typeof saved.key === 'string' && saved.input?.name && Array.isArray(saved.input.product_ids) ? saved : null);
-    } catch { setPending(null); }
-  }, [storageKey]);
-  const loadConfig = useCallback(async () => {
-    setConfigError('');
-    try {
-      const catalog = await modelSettingsRequest<{ configs: ModelCatalogEntry[] }>({ action: 'catalog' });
-      const prices = await quoteBatchVideoJobs();
-      const enabled = catalog.configs.filter(item => item.category === 'video' && item.enabled);
-      setModels(enabled); setQuote(prices.unit_cost);
-      setPipelineCosts(prices.pipeline_costs || null);
-      setProvider(prev => enabled.some(item => item.provider === prev) ? prev : enabled[0]?.provider || '');
-    } catch (cause) { setConfigError(message(cause)); setQuote(null); setPipelineCosts(null); }
-  }, []);
-  const loadJobs = useCallback(async (quiet = false) => {
-    if (!user) return;
-    if (!quiet) setLoading(true);
-    try { setJobs(await listBatchVideoJobs()); setError(''); }
-    catch (cause) { setError(message(cause)); }
-    finally { if (!quiet) setLoading(false); }
-  }, [user]);
-  useEffect(() => { if (user) { void loadConfig(); void loadJobs(); } }, [user, loadConfig, loadJobs]);
-  const hasActive = jobs.some(active);
+      if (!stored) return;
+      if (!validReceipt(saved)) throw new Error('旧批次回执读取失败，请核对原任务后再提交');
+      if (savePending(saved)) sessionStorage.removeItem(storageKey);
+    } catch (cause) { setLegacyError(message(cause)); }
+  }, [storageKey, savePending]);
+  const client = useQueryClient(), listKey = useMemo(() => ['tasks', user?.id, 'batch', 'list'], [user?.id]);
+  const history = useTaskQuery(useMemo(() => ({ queryKey: listKey,
+    queryFn: ({ signal }: { signal: AbortSignal }) => listBatchVideoJobs(user!.id, signal),
+  }), [listKey, user?.id]), 'batch', !!user);
+  const jobs = history.data || [], loading = history.isPending;
+  const setJobs = (update: (previous: BatchVideoJob[]) => BatchVideoJob[]) =>
+    client.setQueryData<BatchVideoJob[]>(listKey, previous => update(previous || []));
+  const config = useQuery({ queryKey: ['batch-config', user?.id], enabled: !!user, staleTime: 300000, retry: false,
+    queryFn: async ({ signal }) => {
+      const [catalog, prices] = await Promise.all([
+        modelSettingsRequest<{ configs: ModelCatalogEntry[] }>({ action: 'catalog' }, user!.id, signal),
+        quoteBatchVideoJobs(user!.id),
+      ]);
+      return { models: catalog.configs.filter(item => item.category === 'video' && item.enabled), prices };
+    } });
   useEffect(() => {
-    if (!hasActive || view !== 'history') return;
-    let stopped = false;
-    let timer: ReturnType<typeof setTimeout>;
-    const refresh = async () => {
-      if (document.visibilityState === 'visible') await loadJobs(true);
-      if (!stopped) timer = setTimeout(refresh, 5000);
-    };
-    timer = setTimeout(refresh, 5000);
-    return () => { stopped = true; clearTimeout(timer); };
-  }, [hasActive, view, loadJobs]);
+    const enabled = config.data?.models || [];
+    setModels(enabled); setQuote(config.data?.prices.unit_cost ?? null);
+    setPipelineCosts(config.data?.prices.pipeline_costs || null);
+    setProvider(prev => enabled.some(item => item.provider === prev) ? prev : enabled[0]?.provider || '');
+    setConfigError(config.error?.message || '');
+  }, [config.data, config.error]);
+  const loadConfig = useCallback(() => config.refetch(), [config.refetch]);
+  const loadJobs = useCallback(async (_quiet = false) => {
+    const uid = owner.current;
+    try { await history.refetch({ throwOnError: true }); if (owner.current === uid) setError(''); }
+    catch (cause) { if (owner.current === uid) setError(message(cause)); }
+  }, [history.refetch]);
   const shotList = shots.split('\n').map(value => value.trim()).filter(Boolean);
   const unitCost = pipelineEnabled ? pipelineCosts
     ? shotList.length * pipelineCosts.video + pipelineCosts.tts + (subtitles ? pipelineCosts.subtitles : 0) : null : quote;
   const total = unitCost == null ? null : products.length * unitCost;
   const pipelineValid = !pipelineEnabled || (shotList.length >= 2 && shotList.length <= 6 && shotList.every(shot => shot.length <= 500)
     && voice.trim() && settings.resolution !== '480P' && products.every(product => overrides[product.id]?.narration?.trim()));
-  const savePending = (value: PendingBatch | null) => {
-    try {
-      if (value) sessionStorage.setItem(storageKey, JSON.stringify(value)); else sessionStorage.removeItem(storageKey);
-      setPending(value); return true;
-    } catch {
-      if (!value) setPending(null);
-      return false;
-    }
-  };
   const submit = async () => {
-    if (!user || submitting.current) return;
+    if (!user || submitting.current || storageError || legacyError) return;
+    const uid = user.id;
     const cleanOverrides = Object.fromEntries(Object.entries(overrides).map(([id, value]) => [id, {
       ...(value.prompt?.trim() ? { prompt: value.prompt.trim() } : {}),
       ...(pipelineEnabled && value.narration?.trim() ? { narration: value.narration.trim() } : {}),
@@ -176,33 +190,36 @@ export default function BatchCreatePage() {
     if (!attempt) { toast.error('请选择商品、模型并确认批次名称和预算'); return; }
     submitting.current = true; setBusy('create');
     if (!savePending(attempt)) {
-      toast.error('无法保存提交回执，请允许会话存储后再提交');
       submitting.current = false; setBusy(''); return;
     }
     try {
-      const batch = await createBatchVideoJob(attempt.key, attempt.input);
+      const batch = await createBatchVideoJob(attempt.key, attempt.input, uid);
+      if (!activeWorkspace.current || owner.current !== uid) return;
       savePending(null); setProducts([]); setOverrides({}); setView('history'); setExpanded(batch.id);
       setJobs(prev => [batch, ...prev.filter(job => job.id !== batch.id)]);
       toast.success(`批次已保存，当前预占 ${batch.reserved_credits} 积分`);
     } catch (cause) {
+      if (!activeWorkspace.current || owner.current !== uid) return;
       toast.error(message(cause));
       // 明确的事务拒绝没有扣费，可以编辑表单；网络/服务故障保留原请求防止重复预占。
       if (cause instanceof BatchJobError && [400, 401, 402, 403, 409, 429].includes(cause.status)) {
         savePending(null);
         if (cause.status === 409) void loadConfig();
       }
-    } finally { submitting.current = false; setBusy(''); }
+    } finally { if (activeWorkspace.current && owner.current === uid) { submitting.current = false; setBusy(''); } }
   };
   const control = async (job: BatchVideoJob, action: 'pause' | 'resume' | 'cancel') => {
-    if (busy) return;
+    if (!user || busy) return;
+    const uid = user.id;
     setBusy(job.id);
     try {
-      const updated = await controlBatchVideoJob(job.id, action);
+      const updated = await controlBatchVideoJob(job.id, action, uid);
+      if (!activeWorkspace.current || owner.current !== uid) return;
       setJobs(prev => prev.map(item => item.id === updated.id ? updated : item));
       toast.success(action === 'pause' ? '后续提交已暂停，已受理任务继续处理'
         : action === 'resume' ? '已恢复后续提交' : `取消已生效，已返还 ${updated.refunded_credits} 积分`);
-    } catch (cause) { toast.error(message(cause)); void loadJobs(true); }
-    finally { setBusy(''); }
+    } catch (cause) { if (owner.current === uid) { toast.error(message(cause)); void loadJobs(true); } }
+    finally { if (owner.current === uid) setBusy(''); }
   };
   return <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-5">
     <div className="flex flex-wrap justify-between gap-3">
@@ -213,6 +230,8 @@ export default function BatchCreatePage() {
         <Button variant={view === 'history' ? 'default' : 'outline'} onClick={() => { setView('history'); void loadJobs(); }}>历史任务</Button>
       </div>
     </div>
+    {(storageError || legacyError || history.error) && <p role="alert" className="text-sm text-destructive break-words">
+      {storageError || legacyError || history.error?.message}</p>}
     {view === 'create' ? <>
       {scriptInput && <div role="status" className="rounded-lg border p-4 text-sm space-y-2">
         <p>已载入 {scriptInput.productName} 的分镜要求。请选择对应商品、填写音色并确认台词和预算。</p>

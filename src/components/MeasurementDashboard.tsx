@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { measurementRequest, numberText, percentText, moneyText, type MeasurementReport, type MeasuredProject } from '@/api/measurements';
 import { platformRequest } from '@/api/platforms';
 import { authenticatedEdgeRequest } from '@/lib/edgeRequest';
+import { excelSheets } from '@/lib/excelExport';
 import { Button } from '@/components/ui/button';
 import { BarChart3, Download, RefreshCw } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
@@ -52,8 +53,9 @@ export default function MeasurementDashboard({ mode }: { mode: 'project' | 'repo
     if (!report) return;
     setBusy(true);
     try {
-      const { utils, writeFile } = await import('xlsx'), workbook = utils.book_new();
-      const sheet = (name: string, rows: unknown[]) => utils.book_append_sheet(workbook, utils.json_to_sheet(rows), name);
+      const { default: writeExcel } = await import('write-excel-file/browser');
+      const sheets: { name: string; rows: Record<string, unknown>[] }[] = [];
+      const sheet = (name: string, rows: Record<string, unknown>[]) => sheets.push({ name, rows });
       sheet('作品明细', report.projects.map(p => ({ 标题: p.title, 状态: p.status, 风格: p.video_style, 时长秒: p.duration, 创建UTC: p.created_at })));
       sheet('官方累计视频指标', report.natural.map(m => ({ 标题: m.title, 平台: m.platform, 视频ID: m.video_id, 播放: m.view_count,
         点赞: m.like_count, 评论: m.comment_count, 分享: m.share_count, 发布时间UTC: m.published_at, 采集时间UTC: m.collected_at })));
@@ -63,9 +65,9 @@ export default function MeasurementDashboard({ mode }: { mode: 'project' | 'repo
       sheet('口径', [{ 时间范围: `最近${days}天UTC`, 作品总数: report.project_count, 作品明细上限: 100, 视频明细上限: 500, 已采集视频数: report.natural_count, 生成时间: report.generated_at,
         自然指标: '发布时间在区间内视频的最后累计快照；非区间新增流量', 投放口径: '按数据源和币种分别汇总；缺失不填零',
         ROI: '未接商品成本和履约费用，利润ROI未知' }]);
-      writeFile(workbook, `经营数据_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      await writeExcel(excelSheets(sheets)).toFile(`经营数据_${new Date().toISOString().slice(0, 10)}.xlsx`);
       toast.success('观测报表已导出');
-    } catch { toast.error('报表导出失败，请重试'); }
+    } catch (cause) { toast.error(cause instanceof Error ? cause.message : '报表导出失败，请重试'); }
     finally { setBusy(false); }
   };
   const askAdvice = async () => {

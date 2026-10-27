@@ -1,7 +1,7 @@
 import { supabase } from '@/db/supabase';
 import { alipayTradeOps } from './alipay';
 import { wechatTradeOps } from './wechat';
-export type OperatorDomain = 'orders' | 'refunds' | 'customers' | 'jobs' | 'risk' | 'audit' | 'operators' | 'tickets' | 'tenants' | 'costs' | 'cost_missing' | 'alerts';
+export type OperatorDomain = 'orders' | 'refunds' | 'customers' | 'jobs' | 'risk' | 'audit' | 'operators' | 'tickets' | 'tenants' | 'costs' | 'cost_missing' | 'model_attempts' | 'alerts';
 export interface OperatorAccess { root: boolean; permissions: string[]; grants: { id: string; role: string; scope_user_id: string | null }[] }
 export interface OperatorPage { items: Record<string, unknown>[]; total: number; page: number; page_size: number; observed_at: string;
   monitor?: { last_scan_at: string; stale: boolean } }

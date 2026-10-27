@@ -11,13 +11,19 @@ import subprocess
 import sys
 import tempfile
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
+from urllib.request import Request, build_opener, HTTPRedirectHandler
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "deploy/volcengine/manifest.json"
 OUTPUT = ROOT / ".volcengine-build"
 LEDGER = "shopro_deploy.schema_migrations"
+CONTRACT = json.loads((ROOT / "scripts/runtime-contract.json").read_text())
+
+
+class NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
 
 
 def migration_files():
@@ -32,6 +38,55 @@ def migration_files():
 
 def checksum(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def release_manifest():
+    """仅记录可从本地源码验证的事实，不推断云端启用或验收状态。"""
+    paths = set()
+    for directory, patterns in {
+        "src": ["*.ts", "*.tsx", "*.css"],
+        "supabase/functions": ["*.ts", "deno.json", "deno.lock"],
+        "supabase/migrations": ["*.sql"],
+        "worker": ["*.py", "*.txt", "*.lock", "Dockerfile"],
+        "mcp": ["*.py", "*.json", "*.txt", "*.lock", "Dockerfile.mcp"],
+        "api": ["*.py", "*.txt", "*.lock"],
+        "scripts": ["*.py", "*.mjs", "runtime-contract.json"],
+        "deploy": ["*.json", "*.yaml", "*.yml", "Dockerfile", "requirements.txt", "*.lock"],
+    }.items():
+        for pattern in patterns:
+            for path in (ROOT / directory).rglob(pattern):
+                if path.name in ("config.json", "alert-delivery.json", "acceptance.json") or path.name.endswith(".local"):
+                    continue
+                paths.add(path)
+    for name in ("package.json", "pnpm-lock.yaml", ".node-version", ".npmrc",
+                 "vite.config.mjs", "supabase/config.toml", "docs/ai/evaluation-v1.json"):
+        paths.add(ROOT / name)
+    files = {str(p.relative_to(ROOT)): checksum(p) for p in sorted(paths)}
+    catalog = json.loads((ROOT / "mcp/tools.json").read_text())
+    tools = catalog["tools"]
+    source_digest = hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest()
+    return {
+        "schema_version": 1,
+        "git_sha": run_local(["git", "rev-parse", "HEAD"]).strip(),
+        "source_sha256": source_digest,
+        "files": files,
+        "functions": [item["name"] for item in json.loads(MANIFEST.read_text())["functions"]],
+        "protocols": {"render": 4, "edit": 2},
+        "worker_contract": CONTRACT,
+        "mcp": {"tool_count": len(tools), "catalog_sha256": checksum(ROOT / "mcp/tools.json")},
+        "runtime": {"node": "22.23.4", "pnpm": "10.34.5", "deno": "2.2.6"},
+    }
+
+
+def check_release_receipt():
+    receipt = json.loads((OUTPUT / "manifest.json").read_text()).get("release", {})
+    current = release_manifest()
+    if receipt.get("source_sha256") != current["source_sha256"] or receipt.get("git_sha") != current["git_sha"]:
+        raise RuntimeError("源码与全栈发布回执不一致，请重新 prepare")
+
+def write_frontend_identity(directory, release):
+    identity = {key: release[key] for key in ("git_sha", "source_sha256", "worker_contract")}
+    (directory / "release-identity.json").write_text(json.dumps(identity, ensure_ascii=False))
 
 
 def migration_sql(files):
@@ -152,6 +207,7 @@ def prepare(args):
     (OUTPUT / "bootstrap.sql").write_text(migration_sql(files))
     receipt = {
         "platform": "volcengine-supabase",
+        "release": release_manifest(),
         "migrations": [{"version": p.name.split("_", 1)[0], "name": p.name, "sha256": checksum(p)} for p in files],
         "functions": json.loads(MANIFEST.read_text())["functions"],
     }
@@ -161,8 +217,9 @@ def prepare(args):
         legal = legal_config(args)
         env = dict(os.environ, VITE_SUPABASE_URL=url, VITE_SUPABASE_ANON_KEY=key,
                    VITE_TERMS_URL=legal["terms"], VITE_PRIVACY_URL=legal["privacy"])
-        run_local(["npm", "run", "typecheck"])
-        run_local(["npm", "run", "build"], env=env)
+        run_local(["pnpm", "run", "typecheck"])
+        run_local(["pnpm", "run", "build"], env=env)
+        write_frontend_identity(ROOT / "dist", receipt["release"])
         receipt["frontend"] = {
             "backend_url": url, "anon_key_sha256": hashlib.sha256(key.encode()).hexdigest(),
             "legal_urls": legal,
@@ -208,6 +265,7 @@ def migrate(args):
 
 
 def functions(args):
+    check_release_receipt()
     for function in json.loads(MANIFEST.read_text())["functions"]:
         command = ["functions", "deploy", function["name"], "--runtime", "deno"]
         if not function["verify_jwt"]:
@@ -242,6 +300,7 @@ def pages(args):
         raise RuntimeError("前端构建配置或归档校验值不匹配，请重新 prepare")
     if receipt.get("legal_urls") != legal_config(args):
         raise RuntimeError("正式协议配置与构建回执不匹配，请重新 prepare")
+    check_release_receipt()
     endpoints = json.loads(cli(args, ["endpoints", "list", "-o", "json"]))
     if not any(value.rstrip("/") == url or value == urlparse(url).hostname for value in strings(endpoints)):
         raise RuntimeError("构建地址不匹配目标 workspace endpoint，禁止发布")
@@ -257,6 +316,7 @@ def pages(args):
 
 
 def verify(args):
+    check_release_receipt()
     applied = query(args, f"SELECT version,sha256 FROM {LEDGER} ORDER BY version;")
     if {row["version"]: row["sha256"] for row in applied} != {
         p.name.split("_", 1)[0]: checksum(p) for p in migration_files()
@@ -269,10 +329,14 @@ def verify(args):
     request = Request(f"{url}/functions/v1/production-worker", data=b'{"action":"probe"}',
                       headers={"Authorization": f"Bearer {secret}", "Content-Type": "application/json"})
     try:
-        with urlopen(request, timeout=30) as response:
-            result = json.load(response)
-        if result.get("ready") is not True or result.get("version") != 22 or result.get("required_migration") != "00062" \
-                or result.get("render_version") != 4 or result.get("edit_version") != 2:
+        with build_opener(NoRedirect).open(request, timeout=30) as response:
+            raw = response.read(65537)
+            if len(raw) > 65536:
+                raise ValueError("invalid response")
+            result = json.loads(raw)
+        prepared = json.loads((OUTPUT / "manifest.json").read_text())["release"]
+        if (result.get("ready") is not True or any(result.get(key) != value for key, value in CONTRACT.items())
+                or result.get("missing") != [] or result.get("source_sha256") != prepared["source_sha256"]):
             raise ValueError("not ready")
     except Exception:
         raise RuntimeError("Worker 只读预检失败，请检查部署与专用密钥") from None

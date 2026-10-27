@@ -1,0 +1,17 @@
+{
+  "environment": "填写核对过的目标环境名称",
+  "isolated": false,
+  "backend_url": "https://填写已验收后端域名",
+  "frontend_url": "https://填写前端域名",
+  "worker_secret_file": "/run/secrets/worker_secret",
+  "service_key_file": "/run/secrets/service_key",
+  "private_buckets": ["materials", "videos", "thumbnails"],
+  "database": {
+    "host": "填写数据库直连域名",
+    "port": 5432,
+    "dbname": "postgres",
+    "user": "postgres",
+    "password_file": "/run/secrets/database_password",
+    "sslmode": "verify-full"
+  }
+}

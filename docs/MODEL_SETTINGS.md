@@ -1,6 +1,8 @@
 # 统一模型接口设置
 
-更新：2026-10-22，功能基线`d7e3d38`，20槽、00062/probe22/render4/edit2。当前配置/启用以正文为准，下面旧计数和探针为历史增量。
+更新：2026-10-27，20槽、00068/probe24/render4/edit2。模型不可变版本、用途绑定keyring、文本尝试/usage与成本核对已本地验证；当前配置/启用以正文和[密钥轮换](KEY_ROTATION.md)为准，旧计数/探针保留历史。
+
+2026-10-27本地优化：文本主备配置新增可选布尔项`supports_vision`，设置页「支持图像审核」默认关闭。只有已开通视觉理解且经实际样本确认的模型可启用；图片审核先按素材ACL读取最大5MB实物，以data URI提供图像并返回SHA-256。没有视觉模型、读取失败或审核结构/判定冲突时返回待复核。详见[实施记录](OPTIMIZATION_IMPLEMENTATION_20261027.md)，尚不表示目标环境已发布。
 
 ## 历史配置增量
 
@@ -18,7 +20,7 @@
 
 新增 [素材分析任务](ITERATION_12_GROUNDED_ANALYSIS.md)复用text.primary与audio.asr，数量仍16槽；任务固定两个旧配置版本。文本模型需真实支持image_url画面，直播ASR须openai-asr/whisper-1及可靠分段；Step只有正文时不能生成高光时间。不要在未验收时宣称视觉模型或声音权限可用。
 
-官方最近成功证据00031/三旧函数/缺model_configs，管理最近401；以下步骤尚未在目标执行。须核对缺失00032–00062与全部匹配函数/镜像，不仅发布设置页，见 [当前状态](CURRENT_STATE.md)。
+官方已记录成功证据00031/三旧函数/缺model_configs，2026-10-22管理401，本轮未复核；以下步骤尚未在目标执行。须重新核对缺失至00068及冻结函数/镜像，见[当前状态](CURRENT_STATE.md)。
 
 入口：侧边栏「模型接口设置」→ `/settings/models`。平台管理员可编辑，普通用户仅看到模型名称与启用状态。所有客户端和 MCP 共用服务端配置。
 
@@ -28,8 +30,8 @@
 
 ## 首次启用
 
-1. 核对缺失00032–00062后按序应用；部署manifest的43生产入口及全部共享模块（不含setup-demo），匹配probe22/render4/edit2。官方按同一入口/鉴权逐项发布，不用火山回执脚本重放旧库。
-2. 在受控终端生成 `openssl rand -hex 32`，将结果配置为 Edge Secret `MODEL_CONFIG_ENCRYPTION_KEY`，备份于凭据管理系统。API Key 使用 AES-GCM 加密；更换主密钥前必须迁移所有历史密文，不能直接覆盖。
+1. 核对缺失至00068后按序应用；部署manifest的43生产入口及冻结共享模块（不含setup-demo），匹配probe24/render4/edit2及发布摘要。官方按同一入口/鉴权发布，不用火山回执脚本重放旧库。
+2. 在受控终端生成 `openssl rand -hex 32`，将结果配置为 Edge Secret `MODEL_CONFIG_ENCRYPTION_KEY`，备份于凭据管理系统。新写入为版本化AES-GCM密文。轮换使用完整`MODEL_CONFIG_KEYRING`保留旧ID/主密钥，先验证全部历史用途，再切换活动ID；步骤见 [密钥轮换](KEY_ROTATION.md)。
 3. 用户完成正常 Auth 注册。通过数据库控制台对实际用户授权：
 
 ```sql

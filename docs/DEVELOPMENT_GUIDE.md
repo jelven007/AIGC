@@ -1,6 +1,6 @@
 # 开发指南
 
-更新：2026-10-22，功能基线`d7e3d38`。当前60个生产迁移（最新00062）、43个生产函数入口、20模型槽、MCP59/19、probe22/render4/edit2。完整需求与交付见 [综合基线](RELEASE_BASELINE_20261022.md)，以下早期摘要保留历史时点。
+更新：2026-10-27。当前66个生产迁移（68文件，最新00068）、43个生产函数入口、20模型槽、MCP59/19、probe24/render4/edit2。本轮变更见[实施台账](OPTIMIZATION_IMPLEMENTATION_20261027.md)，安装/锁/发布身份见[可复现发布](REPRODUCIBLE_RELEASE.md)；以下早期摘要保留历史时点。
 
 ## 历史开发增量
 
@@ -46,11 +46,12 @@ MCP修改见 [迭代17](ITERATION_17_MCP_PRODUCTION.md)：45工具仅调用业�
 
 ## 1. 环境与首次启动
 
-推荐 Node.js 22+、pnpm 10.34.5、Python 3.12、Docker Compose、Git；Edge Functions 使用 Deno，当前验证使用 Deno 2.2.6。数据库隔离测试依赖 Docker PostgreSQL 16。包版本以 [package.json](../package.json) 和锁文件为准。
+使用Node.js 22.23.4（.node-version）、pnpm 10.34.5、Deno 2.2.6、Docker Compose和Git。Worker/MCP/调度镜像为Python3.12，PG16备份镜像当前系统解释器为Python3.13.5，全部使用哈希锁；宿主Python仅启动隔离测试。包版本以[package.json](../package.json)和锁文件为准。
 
 从仓库根目录执行：
 
 ```sh
+npm install --global pnpm@10.34.5
 pnpm install --frozen-lockfile
 cp .env.example .env.local
 pnpm dev
@@ -64,17 +65,17 @@ pnpm dev
 
 ```sh
 docker run --rm -it -p 127.0.0.1:5173:5173 \
-  -v "$PWD:/app" -w /app node:22-alpine \
-  sh -lc 'corepack enable && pnpm install --frozen-lockfile && pnpm dev'
+  -v "$PWD:/app" -w /app node:22.23.4-alpine \
+  sh -lc 'npm install --global pnpm@10.34.5 && pnpm install --frozen-lockfile && pnpm dev'
 ```
 
-容器与宿主架构不同时不共享node_modules。当前本地验证使用Node24；旧Node20 Alpine记录仅是历史执行环境，不能当作最新运行要求。
+容器与宿主架构不同时不共享node_modules。本轮本地验证使用Node22.23.4；旧Node20/24记录保留为历史环境。
 
 ## 2. 后端初始化
 
 | 环境 | 管理工具与入口 | 注意 |
 | --- | --- | --- |
-| 当前官方 Supabase | 官方管理面及受控迁移流程，[部署记录](DEPLOYMENT_AIGCP.md) | 成功证据00031，管理401；核对后升级缺失00032–00062 |
+| 当前官方 Supabase | 官方管理面及受控迁移流程，[部署记录](DEPLOYMENT_AIGCP.md) | 历史成功证据00031/管理401；重新核对后升级缺失至00068 |
 | 火山 BaaS Supabase 版 | `byted-supabase-cli`，[火山指南](VOLCENGINE_DEPLOYMENT.md) | 独立 workspace/branch；不能沿用官方管理令牌或推断已迁移 |
 | 隔离测试数据库 | `tests/test_finance.py` 创建 PG16 与平台替身 | 不提供真实 Auth、Storage SDK、PostgREST 或云端函数运行环境 |
 
@@ -114,7 +115,9 @@ docker run --rm -it -p 127.0.0.1:5173:5173 \
 - 运营使用当前可信范围、原版本/UUID；工单内部消息过滤，现金账本最小币种单位/凭证/追加冲销。媒体删除使用引用索引、墓碑和租约，不能直接删Storage对象。
 - 关键财务与视频状态只走服务端 RPC；Data API CRUD 同时核对显式权限和 RLS。不接受客户端传来的退款金额、用户 ID 或终态作为证据。
 - 新视频使用显式 UUID 幂等键；同一逻辑请求重试复用键和全部参数。创建响应丢失先找回，不能换键重提。
-- 配置保存追加不可变版本；新任务事务绑定版本。改账号、停用或换 Key 不改变旧任务；主密钥轮换需专门密文迁移。
+- 配置保存追加不可变版本；新任务事务绑定版本。改账号、停用或换Key不改变旧任务；主密钥按keyring更换活动ID，先只读预检全部历史用途并备份，旧键保留，见[密钥轮换](KEY_ROTATION.md)。
+- 任务列表/详情使用`taskQueries/useTaskQuery`，每client/key共用计时器，活跃10秒、unknown/错误30秒、终态停询、隐藏取消；新领域回执使用`taskReceipt`写后读回。
+- 剪辑使用`editorHistory/editorPersistence/editorClock`，恢复结束前不自动保存，新工程先持久化完整UUID/正文，原账号串行保存。媒体工作目录使用专用磁盘并配置可信HTTPS域名，不能用tmpfs代替素材盘。
 - Worker 一次有限处理，不在 Edge Function 内持续轮询。上游 POST 受理未知时暂停核对；查询/转存错误重试，明确失败才退款。
 - 用户界面如实区分排队、生成、待核对、成功、退款。模拟数据不能包装成真实模型、真实销量或已发布结果。
 - 添加供应商时新增/扩展协议适配器并验证素材、规格、ID 和失败语义；修改地址本身不能兼容新协议。
@@ -123,22 +126,25 @@ docker run --rm -it -p 127.0.0.1:5173:5173 \
 ## 5. 检查与变更交付
 
 ```sh
-npm run typecheck
-npm run lint
-npm run test:finance
-npm run test:payments
-npm run test:video
-npm run test:models
-npm run test:scheduler
-npm run test:volcengine
-npm run test:mcp
-npm run build
+pnpm lint
+node --test tests/*.test.mjs
+pnpm test:finance
+pnpm test:payments
+pnpm test:models
+pnpm test:scheduler
+pnpm test:release
+pnpm test:acceptance
+pnpm test:alert-delivery
+pnpm test:backup
+pnpm test:mcp
+deno check --frozen --config supabase/functions/deno.json supabase/functions/*/index.ts
+pnpm build
 git diff --check
 ```
 
-MCP先构建`shoproai-mcp:local`；媒体测试先构建`shoproai-render-worker:local`，备份测试先构建`shoproai-backup:local`。按变更选择image-editing/profile/rewards/account-credits/pipeline/operations/alerts/backup等`package.json`入口，UI脚本使用明确本地夹具服务及Chromium。Deno从仅挂载supabase的目录检查；lint包含typecheck/Biome/ast-grep/Tailwind/检查构建，缺工具或检查失败必须如实记录。最新功能证据见 [2026-10-22报告](TEST_REPORT_20261022.md)。
+MCP先构建`shoproai-mcp:local`，媒体和备份先构建各自镜像，调度镜像使用最新runtime-contract.json。按变更选择`package.json`领域入口；UI使用明确本地夹具服务及Chromium。Deno使用公共配置/锁冻结检查全部入口；lint包含类型/Biome/ast-grep/Tailwind/编译。Mac整仓bind可能等待时，复制必要测试材料到隔离容器执行，实际加载镜像/app源码并核对SHA；不以无输出等待视作成功。本轮证据见[实施台账](OPTIMIZATION_IMPLEMENTATION_20261027.md)。
 
-涉及API/身份/状态/权限/收费时同步需求、接口、测试、运营/财务与运维。纯文档变更核对链接/锚点/命令/契约/凭据，无需重复全量业务测试。中文提交，当前明确推送`github`（jelven007/AIGC）并按 [版本管理](VERSION_MANAGEMENT.md)同步已合并主线及两历史版本。
+涉及API/身份/状态/权限/收费时同步需求、接口、测试、运营/财务与运维。纯文档变更核对链接/锚点/命令/契约，无需重复全量业务测试。提交/推送须有本次用户明确授权；本轮优化尚未commit/push，历史仓库规则见[版本管理](VERSION_MANAGEMENT.md)。
 
 ## 6. 发布顺序
 
@@ -146,4 +152,4 @@ MCP先构建`shoproai-mcp:local`；媒体测试先构建`shoproai-render-worker:
 
 不单独部署依赖新 RPC 的前端，不将函数 `version:1` 或健康检查结果当作 Git 提交证明。不可变配置与新增数据库字段优先向前修复；回滚函数前核对签名兼容性，不能删除任务、资金流水或旧密文。
 
-当前完整发布必须匹配00062/probe22/render4/edit2、43入口与共享模块、MCP59、注册法律资源和真实Auth/商户/平台。官方旧库不使用火山迁移回执工具重放；仓库push不执行目标部署。
+当前完整发布必须匹配00068/probe24/render4/edit2、43入口与共享模块、MCP59、前端发布身份、最终镜像、独立维护、法律资源和真实Auth/商户/平台。按[发布接受](RELEASE_ACCEPTANCE.md)核对；官方旧库不使用火山工具盲重放，仓库push不执行目标部署。

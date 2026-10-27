@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { intelligenceRequest, type IntelligenceCatalog, type IntelligenceItem } from '@/api/intelligence';
@@ -10,6 +11,9 @@ import { Input } from '@/components/ui/input';
 import { TASK_STATUSES } from '@/lib/taskCenter';
 import { Download, ExternalLink, Loader2, RefreshCw, Search } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTaskQuery } from '@/hooks/useTaskQuery';
+import { useTaskReceipt } from '@/hooks/useTaskReceipt';
+import { rememberTask } from '@/lib/taskQueries';
 
 const sourceNames: Record<string,string> = { 'intelligence.youtube': 'YouTube 官方公开统计', 'intelligence.ebay': 'eBay 官方商品搜索', 'intelligence.licensed': '授权数据商' };
 const platforms: Record<string,string> = { douyin: '抖音', tiktok: 'TikTok', xiaohongshu: '小红书', kuaishou: '快手', shopee: 'Shopee', lazada: 'Lazada', amazon: 'Amazon' };
@@ -19,63 +23,62 @@ const empty: IntelligenceCatalog = { targets: [], sources: [], prices: {}, jobs:
 const fmt = (n?: number | null) => n == null ? '未提供' : new Intl.NumberFormat('zh-CN').format(n);
 export default function MarketIntelligenceWorkspace({ mode, request = intelligenceRequest }: { mode: 'competitor' | 'products'; request?: typeof intelligenceRequest }) {
   const { user } = useAuth(), navigate = useNavigate(), kind = `intelligence_${mode}`;
-  const [catalog, setCatalog] = useState<IntelligenceCatalog>(empty), [selected, setSelected] = useState('');
+  const [selected, setSelected] = useState('');
   const [source, setSource] = useState(mode === 'competitor' ? 'intelligence.youtube' : 'intelligence.ebay');
   const [subject, setSubject] = useState(''), [name, setName] = useState(''), [platform, setPlatform] = useState('tiktok'), [market, setMarket] = useState('US');
   const [searchMode, setSearchMode] = useState('keyword');
   const [image, setImage] = useState<{ url: string; hash: string; preview: string; name: string } | null>(null);
   const [query, setQuery] = useState(''), [runs, setRuns] = useState(7), [checked, setChecked] = useState<string[]>([]);
-  const [pending, setPending] = useState<Receipt | null>(null), [busy, setBusy] = useState('');
-  const [error, setError] = useState(''), [loading, setLoading] = useState(true);
-  const locked = useRef(false), sequence = useRef(0), loaded = useRef(false);
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
+  const locked = useRef(false), owner = useRef(user?.id); owner.current = user?.id;
   const storageKey = user ? `shopro:intelligence:${mode}:${user.id}` : '';
+  const client = useQueryClient();
+  const { value: pending, write: saveReceipt, error: storageError } = useTaskReceipt<Receipt>(storageKey,
+    value => value && typeof value.request_key === 'string' && ['save_target', 'collect', 'schedule'].includes(value.action));
+  const queryState = useTaskQuery(useMemo(() => ({ queryKey: ['tasks', user?.id, 'intelligence', kind, 'catalog'],
+    queryFn: ({ signal }: { signal: AbortSignal }) => request<IntelligenceCatalog>({ action: 'catalog', kind }, user!.id, signal),
+  }), [user?.id, kind, request]), 'production', !!user);
+  const catalog = queryState.data || empty, loading = queryState.isPending;
+  useEffect(() => {
+    setSelected(value => catalog.targets.some(target => target.id === value) ? value : catalog.targets[0]?.id || '');
+  }, [queryState.data]);
+  useEffect(() => {
+    locked.current = false; setBusy(''); setError(''); setSelected(''); setImage(null);
+  }, [user?.id, kind]);
   const load = useCallback(async () => {
-    const generation = ++sequence.current;
-    if (!user) return;
-    try {
-      const data = await request<IntelligenceCatalog>({ action: 'catalog', kind });
-      if (generation !== sequence.current) return;
-      setCatalog(data); loaded.current = true;
-      setSelected(value => data.targets.some(target => target.id === value) ? value : data.targets[0]?.id || '');
-    } catch (cause) { if (generation === sequence.current) setError(cause instanceof Error ? cause.message : '读取失败'); }
-    finally { if (generation === sequence.current) setLoading(false); }
-  }, [user, kind, request]);
-  useEffect(() => { void load(); return () => { sequence.current++; }; }, [load]);
+    const uid = owner.current;
+    try { await queryState.refetch({ throwOnError: true }); }
+    catch (cause) { if (uid === owner.current) setError(cause instanceof Error ? cause.message : '读取失败'); }
+  }, [queryState.refetch]);
   useEffect(() => () => { if (image) URL.revokeObjectURL(image.preview); }, [image]);
-  useEffect(() => {
-    try {
-      const receipt = JSON.parse(localStorage.getItem(storageKey) || 'null');
-      setPending(receipt && typeof receipt.request_key === 'string' && ['save_target','collect','schedule'].includes(receipt.action) ? receipt : null);
-    } catch { setPending(null); }
-  }, [storageKey]);
-  useEffect(() => {
-    if (!catalog.jobs.some(job => ['pending','running'].includes(job.status)) && !catalog.targets.some(target => target.monitoring)) return;
-    const timer = setInterval(() => { void load(); }, 5000);
-    return () => clearInterval(timer);
-  }, [catalog, load]);
   const target = catalog.targets.find(item => item.id === selected);
   const sample = target?.latest, items = sample?.data.items || [], price = catalog.prices[kind];
   useEffect(() => { setChecked([]); setQuery(''); }, [selected, sample?.job_id]);
-  const available = (slot: string) => loaded.current && catalog.sources.some(item => item.slot === slot && item.enabled);
+  const available = (slot: string) => !!queryState.data && catalog.sources.some(item => item.slot === slot && item.enabled);
   const commit = async (receipt?: Receipt) => {
-    if (!storageKey || locked.current || !loaded.current) return;
+    if (!user || !storageKey || locked.current || !queryState.data || storageError) return;
+    const uid = user.id;
     const body = canonicalMediaTree(pending || receipt) as Receipt | null | undefined;
     if (!body) return;
     locked.current = true; setBusy(body.action); setError('');
     try {
-      localStorage.setItem(storageKey, JSON.stringify(body)); setPending(body);
-      const result = await request<{ target?: { id: string } }>(body);
-      localStorage.removeItem(storageKey); setPending(null);
+      if (!saveReceipt(body)) return;
+      const result = await request<{ target?: { id: string }; job?: IntelligenceCatalog['jobs'][number] }>(body, uid);
+      if (owner.current !== uid) return;
+      if (result.job) rememberTask(client, 'production', uid, result.job);
+      saveReceipt(null);
       if (result.target?.id) setSelected(result.target.id);
       if (body.action === 'save_target') { setName(''); setSubject(''); setImage(null); }
       toast.success(body.action === 'collect' ? '采集任务已提交，后台继续处理' : body.action === 'schedule' ? '监控计划已保存' : '对象已保存，可确认积分后采集');
       await load();
     } catch (cause) {
+      if (owner.current !== uid) return;
       setError(cause instanceof Error ? cause.message : '响应待确认');
       if (cause instanceof EdgeRequestError && [400,401,402,403,409,424,429].includes(cause.status)) {
-        localStorage.removeItem(storageKey); setPending(null);
+        saveReceipt(null);
       }
-    } finally { locked.current = false; setBusy(''); }
+    } finally { if (owner.current === uid) { locked.current = false; setBusy(''); } }
   };
   const save = (event: React.FormEvent) => {
     event.preventDefault();
@@ -88,34 +91,42 @@ export default function MarketIntelligenceWorkspace({ mode, request = intelligen
   };
   const upload = async (file?: File) => {
     if (!file || !user || busy || pending) return;
+    const uid = user.id;
     setBusy('upload'); setError('');
     try {
-      const url = await uploadProductImage(file, user.id);
+      const url = await uploadProductImage(file, uid);
       const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', await file.arrayBuffer()))]
         .map(value => value.toString(16).padStart(2, '0')).join('');
+      if (owner.current !== uid) return;
       setImage({ url: canonicalMediaTree(url), hash, preview: URL.createObjectURL(file), name: file.name });
-    } catch (cause) { setError(cause instanceof Error ? cause.message : '图片上传失败'); }
-    finally { setBusy(''); }
+    } catch (cause) { if (owner.current === uid) setError(cause instanceof Error ? cause.message : '图片上传失败'); }
+    finally { if (owner.current === uid) setBusy(''); }
   };
   const schedule = (count: number) => {
     if (!target || price === undefined) return;
     void commit({ action: 'schedule', request_key: crypto.randomUUID(), target_id: target.id, runs: count, budget: count * price, confirmed_credit_cost: price });
   };
   const remove = async () => {
-    if (!target || busy || pending || !window.confirm(`删除「${target.name}」和采集快照？已创建的商品保留在商品库。`)) return;
+    if (!user || !target || busy || pending || !window.confirm(`删除「${target.name}」和采集快照？已创建的商品保留在商品库。`)) return;
+    const uid = user.id;
     setBusy('delete'); setError('');
-    try { await request({ action: 'delete', target_id: target.id }); await load(); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : '删除失败'); }
-    finally { setBusy(''); }
+    try { await request({ action: 'delete', target_id: target.id }, uid); if (owner.current === uid) await load(); }
+    catch (cause) { if (owner.current === uid) setError(cause instanceof Error ? cause.message : '删除失败'); }
+    finally { if (owner.current === uid) setBusy(''); }
   };
   const importItems = async (ids: string[]) => {
-    if (!sample || busy || !ids.length) return;
+    if (!user || !sample || busy || !ids.length) return;
+    const uid = user.id;
     setBusy('import'); setError(''); let count = 0;
     try {
-      for (const item_id of ids) { await request({ action: 'import_product', sample_id: sample.job_id, item_id }); count++; }
+      for (const item_id of ids) {
+        await request({ action: 'import_product', sample_id: sample.job_id, item_id }, uid);
+        if (owner.current !== uid) return;
+        count++;
+      }
       toast.success(`已加入${count}个商品，请在商品库确认分类与卖点`); setChecked([]);
-    } catch (cause) { setError(`已成功${count}个，其余可按原来源重试。${cause instanceof Error ? cause.message : '导入失败'}`); }
-    finally { setBusy(''); }
+    } catch (cause) { if (owner.current === uid) setError(`已成功${count}个，其余可按原来源重试。${cause instanceof Error ? cause.message : '导入失败'}`); }
+    finally { if (owner.current === uid) setBusy(''); }
   };
   const exportItems = () => {
     if (!sample) return;
@@ -136,7 +147,8 @@ export default function MarketIntelligenceWorkspace({ mode, request = intelligen
         <p className="text-sm text-muted-foreground mt-2">{mode === 'competitor' ? '跟踪授权账号的公开统计，保存采样历史，参考真实标题创作。' : '按市场搜索在售商品，保留原币种和来源，确认后加入商品库。'}</p></div>
       <Button variant="outline" disabled={!!busy} onClick={() => { setError(''); void load(); }}><RefreshCw className="h-4 w-4 mr-2" />刷新情报记录</Button>
     </div>
-    {error && <p role="alert" className="rounded-lg border border-destructive/30 p-3 text-sm text-destructive break-words">{error}</p>}
+    {(storageError || error || queryState.error) && <p role="alert" className="rounded-lg border border-destructive/30 p-3 text-sm text-destructive break-words">
+      {storageError || error || queryState.error?.message}</p>}
     {pending && <div className="border rounded-lg p-4 text-sm space-y-3"><p>上次操作响应待确认。恢复会使用原标识和原预算。</p>
       <Button disabled={!!busy || loading} onClick={() => void commit()}>恢复原情报请求</Button></div>}
     <form onSubmit={save} aria-label="新增情报对象" className="rounded-xl border bg-card p-4 md:p-6 space-y-4">

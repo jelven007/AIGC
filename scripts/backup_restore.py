@@ -25,7 +25,10 @@ SCHEMAS = ("public", "auth", "storage", "extensions", "shopro_deploy", "supabase
 COUNT_TABLES = ("auth.users", "storage.objects", "public.credit_logs", "public.user_plans",
                 "public.orders", "public.video_jobs", "public.production_jobs",
                 "public.model_config_versions", "public.operator_mutations",
-                "public.media_deletions", "public.voice_deletions", "public.operations_alerts")
+                "public.media_deletions", "public.voice_deletions", "public.operations_alerts",
+                "public.operations_alert_events", "public.operations_alert_deliveries",
+                "public.platform_apps", "public.platform_connections", "public.platform_oauth_states",
+                "public.measurement_sources")
 CHUNK = 4 * 1024 * 1024
 
 
@@ -218,17 +221,17 @@ def copy_object(config, obj, target, upload=False):
             outgoing.write(chunk)
 
 
-def counts(connection):
+def counts(connection, tables=COUNT_TABLES):
     result = {}
-    for table in COUNT_TABLES:
+    for table in tables:
         if connection.execute("SELECT to_regclass(%s)", (table,)).fetchone()[0]:
             result[table] = connection.execute(sql.SQL("SELECT count(*) FROM {}").format(sql.Identifier(*table.split(".")))).fetchone()[0]
     return result
 
-def table_hashes(connection):
+def table_hashes(connection, tables=COUNT_TABLES):
     result = {}
     connection.execute("SET LOCAL TIME ZONE 'UTC'")
-    for table in COUNT_TABLES:
+    for table in tables:
         if connection.execute("SELECT to_regclass(%s)", (table,)).fetchone()[0]:
             digest = hashlib.sha256()
             with connection.cursor(name="backup_hash_" + uuid.uuid4().hex) as cursor:
@@ -245,23 +248,88 @@ def objects(connection):
         cursor.execute("SELECT id::text,bucket_id,name,metadata,updated_at::text FROM storage.objects ORDER BY bucket_id,name")
         return cursor.fetchall()
 
-def validate_model_keys(connection, master_file):
-    master = bytes.fromhex(protected_file(master_file).read_text().strip())
-    if len(master) != 32:
-        raise BackupError("invalid_model_master_key")
-    checked = 0
-    if not connection.execute("SELECT to_regclass('public.model_config_versions')").fetchone()[0]:
-        return checked
-    for slot, cipher in connection.execute("SELECT slot,key_ciphertext FROM public.model_config_versions WHERE key_ciphertext IS NOT NULL"):
-        try:
-            iv, payload = cipher.split(".")
-            plain = AESGCM(master).decrypt(base64.b64decode(iv, validate=True), base64.b64decode(payload, validate=True), slot.encode())
-            if not plain:
+def credential_keyring(secrets):
+    try:
+        if secrets.get("model_keyring"):
+            ring = json.loads(protected_file(secrets["model_keyring"]).read_text())
+        else:
+            master = protected_file(secrets["model_master_key"]).read_text().strip()
+            ring = {"active_key_id": "legacy", "legacy_key_id": "legacy", "keys": {"legacy": master}}
+        valid_id = lambda value: isinstance(value, str) and re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", value, re.I)
+        keys = ring["keys"]
+        if (not isinstance(keys, dict) or not 1 <= len(keys) <= 16
+                or any(not valid_id(k) or not isinstance(v, str) or not re.fullmatch(r"[0-9a-f]{64}", v, re.I)
+                       for k, v in keys.items())
+                or not valid_id(ring["active_key_id"]) or ring["active_key_id"] not in keys
+                or ring.get("legacy_key_id") is not None
+                and (not valid_id(ring["legacy_key_id"]) or ring["legacy_key_id"] not in keys)):
+            raise ValueError()
+        if secrets.get("model_keyring") and secrets.get("model_master_key") and ring.get("legacy_key_id"):
+            if protected_file(secrets["model_master_key"]).read_text().strip().lower() != keys[ring["legacy_key_id"]].lower():
                 raise ValueError()
-        except Exception:
-            raise BackupError("historical_model_key_decryption_failed") from None
-        checked += 1
-    return checked
+        return {**ring, "keys": {k: bytes.fromhex(v) for k, v in keys.items()}}
+    except Exception:
+        raise BackupError("invalid_credential_keyring") from None
+
+
+def decrypt_credential(context, cipher, ring):
+    try:
+        if not isinstance(cipher, str) or len(cipher) > 23000:
+            raise ValueError()
+        parts = cipher.split(".")
+        modern = len(parts) == 4 and parts[0] == "v2"
+        if not modern and len(parts) != 2:
+            raise ValueError()
+        key_id = parts[1] if modern else ring.get("legacy_key_id")
+        iv, payload = [base64.b64decode(part, validate=True) for part in (parts[2:] if modern else parts)]
+        if (len(iv) != 12 or not 17 <= len(payload) <= 16400
+                or [base64.b64encode(part).decode() for part in (iv, payload)] != (parts[2:] if modern else parts)):
+            raise ValueError()
+        aad = json.dumps(["v2", key_id, context], ensure_ascii=False, separators=(",", ":")) if modern else context
+        plain = AESGCM(ring["keys"][key_id]).decrypt(iv, payload, aad.encode())
+        if not plain:
+            raise ValueError()
+        plain.decode("utf-8")
+        return key_id
+    except Exception:
+        raise BackupError("historical_credential_decryption_failed") from None
+
+
+def validate_credentials(connection, secrets):
+    ring = credential_keyring(secrets)
+    report = {"checked": 0, "by_table": {}, "by_key_id": {}}
+    queries = {
+        "model_config_versions": "SELECT slot AS context,key_ciphertext AS cipher FROM public.model_config_versions WHERE key_ciphertext IS NOT NULL",
+        "platform_apps": "SELECT 'platform-app:'||platform AS context,secret_ciphertext AS cipher FROM public.platform_apps",
+        "platform_connections": """SELECT 'platform-connection:'||user_id||':'||platform||':'||open_id AS context,
+            token_ciphertext AS cipher,platform,app_snapshot FROM public.platform_connections""",
+        "platform_oauth_states": "SELECT platform,app_snapshot FROM public.platform_oauth_states",
+        "measurement_sources": "SELECT 'measurement:'||id AS context,key_ciphertext AS cipher FROM public.measurement_sources",
+    }
+    for table, query in queries.items():
+        if not connection.execute("SELECT to_regclass(%s)", ("public." + table,)).fetchone()[0]:
+            continue
+        report["by_table"][table] = 0
+        with connection.cursor(name="key_preflight_" + uuid.uuid4().hex, row_factory=psycopg.rows.dict_row) as cursor:
+            cursor.execute(query)
+            for row in cursor:
+                credentials = [(row["context"], row["cipher"])] if "cipher" in row else []
+                if "app_snapshot" in row:
+                    snapshot = row["app_snapshot"]
+                    if not isinstance(snapshot, dict) or snapshot.get("platform") != row["platform"] or not snapshot.get("secret_ciphertext"):
+                        raise BackupError("historical_app_snapshot_invalid")
+                    credentials.append(("platform-app:" + row["platform"], snapshot["secret_ciphertext"]))
+                for context, cipher in credentials:
+                    key_id = decrypt_credential(context, cipher, ring)
+                    report["checked"] += 1
+                    report["by_table"][table] += 1
+                    report["by_key_id"][key_id] = report["by_key_id"].get(key_id, 0) + 1
+    return report
+
+
+def validate_model_keys(connection, master_file):
+    # 兼容旧工具/format=1归档；新归档统一验证所有业务密文。
+    return validate_credentials(connection, {"model_master_key": master_file})["by_table"].get("model_config_versions", 0)
 
 
 def file_hash(path):
@@ -335,9 +403,10 @@ def backup(config, key, output):
                 if objects(current) != [{k: v for k, v in obj.items() if k != "file"} for obj in manifest["objects"]]:
                     raise BackupError("storage_changed_during_backup")
             secrets = config.get("secrets", {})
-            if "model_master_key" not in secrets:
-                raise BackupError("model_master_key_backup_required")
-            manifest["model_keys_checked"] = validate_model_keys(connection, secrets["model_master_key"])
+            if not secrets.get("model_master_key") and not secrets.get("model_keyring"):
+                raise BackupError("credential_keyring_backup_required")
+            manifest["credentials_checked"] = validate_credentials(connection, secrets)
+            manifest["model_keys_checked"] = manifest["credentials_checked"]["by_table"].get("model_config_versions", 0)
             for name, path in secrets.items():
                 if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", name):
                     raise BackupError("invalid_secret_name")
@@ -435,7 +504,8 @@ def restore(config, key, artifact, output):
                              "--use-list=" + str(toc_path),
                              "--dbname=" + config["database"]["dbname"], str(stage / "database.dump.enc")])
             with psycopg.connect(**pg_parameters(config)) as connection:
-                if (counts(connection) != manifest["counts"] or table_hashes(connection) != manifest["table_hashes"]
+                if (counts(connection, manifest["counts"]) != manifest["counts"]
+                        or table_hashes(connection, manifest["table_hashes"]) != manifest["table_hashes"]
                         or evidence(connection) != manifest["ledger"]):
                     raise BackupError("restored_database_mismatch")
             for index, obj in enumerate(manifest["objects"]):
@@ -452,12 +522,15 @@ def restore(config, key, artifact, output):
                 shutil.copyfile(stage / secret["file"], secrets / secret["name"])
                 (secrets / secret["name"]).chmod(0o600)
             with psycopg.connect(**pg_parameters(config)) as connection:
-                checked = validate_model_keys(connection, secrets / "model_master_key")
-                if checked != manifest["model_keys_checked"]:
+                report = validate_credentials(connection, {s["name"]: str(secrets / s["name"]) for s in manifest["secrets"]})
+                checked = report["by_table"].get("model_config_versions", 0)
+                if checked != manifest["model_keys_checked"] or (
+                        "credentials_checked" in manifest and report != manifest["credentials_checked"]):
                     raise BackupError("restored_model_keys_mismatch")
             receipt = {"id": manifest["id"], "objects": len(manifest["objects"]), "counts_verified": True,
                        "ledger_verified": True, "storage_verified": True, "secrets_verified": True,
-                       "model_keys_checked": checked, "isolated": True, "duration_seconds": round(time.time() - started, 3)}
+                       "model_keys_checked": checked, "credentials_checked": report,
+                       "isolated": True, "duration_seconds": round(time.time() - started, 3)}
             (output / "receipt.json").write_text(json.dumps(receipt, ensure_ascii=False))
             (output / "receipt.json").chmod(0o600)
             return receipt
@@ -468,12 +541,19 @@ def restore(config, key, artifact, output):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("backup", "verify", "restore"))
+    parser.add_argument("action", choices=("backup", "verify", "restore", "key-preflight"))
     parser.add_argument("--config", required=True)
     parser.add_argument("--output")
     parser.add_argument("--artifact")
     args = parser.parse_args()
     try:
+        if args.action == "key-preflight":
+            config = json.loads(protected_file(args.config).read_text())
+            with psycopg.connect(**pg_parameters(config)) as connection:
+                connection.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+                receipt = validate_credentials(connection, config.get("secrets", {}))
+            print(json.dumps(receipt, ensure_ascii=False))
+            return 0
         config, key = load_config(args.config)
         if args.action == "backup" and args.output:
             receipt = backup(config, key, Path(args.output))

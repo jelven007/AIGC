@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -7,6 +8,9 @@ import { createProductionJob, productionRequest, ProductionJobError, type Produc
 import { canonicalMediaTree } from '@/lib/privateMedia';
 import type { EditRequest } from '../../../supabase/functions/_shared/edit-contract';
 import type { EditResult } from '@/lib/editTimeline';
+import { taskDetailKey, rememberTask } from '@/lib/taskQueries';
+import { useTaskQuery } from '@/hooks/useTaskQuery';
+import { useTaskReceipt } from '@/hooks/useTaskReceipt';
 
 interface SourceClip {
   id: string; type: string; name: string; url?: string; start: number; duration: number; sourceStart?: number; speed?: number;
@@ -19,16 +23,36 @@ export function EditAnalysisDialog({ mode, onClose, userId, projectKey, tracks, 
   restoreJobId?: string | null; onRestoreMode: (mode: 'beats' | 'subtitles') => void;
 }) {
   const [job, setJob] = useState<ProductionJob | null>(null);
-  const [prices, setPrices] = useState<Record<string, number>>({});
   const [sourceId, setSourceId] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const receipt = useRef<Receipt | null>(null), locked = useRef(false), generation = useRef(0);
+  const locked = useRef(false), generation = useRef(0), restored = useRef('');
+  const client = useQueryClient();
   const key = `shopro:edit-analysis:${userId}:${projectKey}`;
-  const write = (value: Receipt | null) => {
-    receipt.current = value;
-    try { if (value) localStorage.setItem(key, JSON.stringify(value)); else localStorage.removeItem(key); } catch {}
-  };
+  const saved = useTaskReceipt<Receipt>(userId ? key : '', value => value && typeof value.request_key === 'string'
+    && ['beats', 'subtitles'].includes(value.input?.mode) && typeof value.input?.source?.id === 'string');
+  const receipt = saved.receipt, write = saved.write, original = saved.value;
+  const queryOriginal = restoreJobId && restored.current !== restoreJobId ? null : original;
+  const price = useQuery({ queryKey: ['task-prices', userId, 'edit'], enabled: !!userId, retry: false, staleTime: 300000,
+    queryFn: async ({ signal }): Promise<Record<string, number>> => (await productionRequest({ action: 'edit-prices' }, userId, signal)).costs });
+  const prices = price.data || {};
+  const queryId = restoreJobId && restored.current !== restoreJobId ? restoreJobId : job?.id;
+  const detail = useTaskQuery(useMemo(() => ({
+    queryKey: taskDetailKey('production', userId, queryId ? { job_id: queryId }
+      : queryOriginal ? { request_key: queryOriginal.request_key } : { job_id: '' }),
+    queryFn: async ({ signal }: { signal: AbortSignal }): Promise<ProductionJob> => {
+      let current: ProductionJob;
+      try { current = (await productionRequest({ action: 'query', ...(queryId
+        ? { job_id: queryId } : { request_key: queryOriginal!.request_key }) }, userId, signal)).job; }
+      catch (cause) {
+        if (!(cause instanceof ProductionJobError) || cause.status !== 404 || !queryOriginal) throw cause;
+        current = await createProductionJob('edit_analysis', queryOriginal.request_key, queryOriginal.input, queryOriginal.project_id, userId, signal);
+      }
+      if (current.kind !== 'edit_analysis' || !current.edit_request || !current.edit_mode) throw new Error('原剪辑分析不存在');
+      return current;
+    },
+  }), [userId, queryOriginal, queryId]), 'production', !!userId && !!(queryOriginal || queryId) && !busy);
+  const problem = saved.error || error || detail.error?.message || price.error?.message;
   const sources = tracks.filter(track => ['video', 'audio'].includes(track.type) && track.url && track.duration >= .1);
   useEffect(() => {
     if (mode) setSourceId(receipt.current?.input.mode === mode ? receipt.current.input.source.id
@@ -38,42 +62,23 @@ export function EditAnalysisDialog({ mode, onClose, userId, projectKey, tracks, 
     if (mode) setSourceId(current => current || sources[0]?.id || '');
   }, [mode, tracks]);
   useEffect(() => {
-    let stopped = false, timer: ReturnType<typeof setTimeout>, requested = false;
     generation.current++; locked.current = false;
-    setJob(null); setError(''); setPrices({}); setBusy(false);
-    try { receipt.current = JSON.parse(localStorage.getItem(key) || 'null'); } catch { receipt.current = null; }
-    const restore = async () => {
-      if (stopped || !userId) return;
-      try {
-        if (restoreJobId && !requested) {
-          const current = (await productionRequest({ action: 'query', job_id: restoreJobId })).job as ProductionJob;
-          if (stopped) return;
-          if (current.kind !== 'edit_analysis' || !current.edit_request || !current.edit_mode) throw new Error('原剪辑分析不存在');
-          requested = true;
-          write({ request_key: current.request_key, input: canonicalMediaTree(current.edit_request),
-            project_id: current.project_id || undefined });
-          setJob(current); setSourceId(current.edit_request.source.id); onRestoreMode(current.edit_mode);
-        }
-        const original = receipt.current;
-        if (original && !locked.current) {
-          let current: ProductionJob;
-          try { current = (await productionRequest({ action: 'query', request_key: original.request_key })).job; }
-          catch (cause) {
-            if (!(cause instanceof ProductionJobError) || cause.status !== 404) throw cause;
-            current = await createProductionJob('edit_analysis', original.request_key, original.input, original.project_id);
-          }
-          if (!stopped && receipt.current?.request_key === original.request_key) { setJob(current); setError(''); }
-        }
-      } catch (cause) { if (!stopped) setError(cause instanceof Error ? cause.message : '原剪辑分析恢复失败'); }
-      if (!stopped) timer = setTimeout(restore, 6000);
-    };
-    void productionRequest({ action: 'edit-prices' }).then(data => { if (!stopped) setPrices(data.costs); })
-      .catch(cause => { if (!stopped) setError(cause.message); });
-    void restore();
-    return () => { stopped = true; clearTimeout(timer); };
-  }, [key, userId, restoreJobId, onRestoreMode]);
+    restored.current = ''; setJob(null); setError(''); setBusy(false);
+    return () => { generation.current++; };
+  }, [key, restoreJobId]);
+  useEffect(() => {
+    const current = detail.data;
+    if (!current || !userId || busy) return;
+    setJob(current); setError(''); rememberTask(client, 'production', userId, current);
+    if (restoreJobId && restored.current !== restoreJobId) {
+      restored.current = restoreJobId;
+      if (receipt.current?.request_key !== current.request_key) write({ request_key: current.request_key, input: canonicalMediaTree(current.edit_request!),
+        project_id: current.project_id || undefined });
+      setSourceId(current.edit_request!.source.id); onRestoreMode(current.edit_mode!);
+    }
+  }, [detail.data, userId, busy, client, restoreJobId, write, onRestoreMode]);
   const submit = async () => {
-    if (!mode || !userId || locked.current || pending(job) || receipt.current && !job) return;
+    if (!mode || !userId || locked.current || saved.error || pending(job) || receipt.current && !job) return;
     const source = sources.find(track => track.id === sourceId);
     if (!source?.url || !['video', 'audio'].includes(source.type) || !Number.isInteger(prices[mode])) return;
     const original: Receipt = { request_key: crypto.randomUUID(), project_id: projectKey === 'draft' ? undefined : projectKey, input: canonicalMediaTree({
@@ -82,11 +87,12 @@ export function EditAnalysisDialog({ mode, onClose, userId, projectKey, tracks, 
       confirmed_credit_cost: prices[mode],
     }) };
     const revision = generation.current;
-    locked.current = true; setBusy(true); setError(''); setJob(null); write(original);
+    if (!write(original)) return;
+    locked.current = true; setBusy(true); setError(''); setJob(null);
     try {
-      const current = await createProductionJob('edit_analysis', original.request_key, original.input, original.project_id);
+      const current = await createProductionJob('edit_analysis', original.request_key, original.input, original.project_id, userId);
       if (revision !== generation.current) return;
-      setJob(current); toast.info('分析已保存，关闭页面后仍会继续');
+      setJob(current); rememberTask(client, 'production', userId, current); toast.info('分析已保存，关闭页面后仍会继续');
     } catch (cause) {
       if (revision !== generation.current) return;
       setError(cause instanceof Error ? cause.message : '创建结果待确认，正在恢复原请求');
@@ -126,9 +132,9 @@ export function EditAnalysisDialog({ mode, onClose, userId, projectKey, tracks, 
         {job.result?.segments && <p>{job.result.segments.length} 条真实分段字幕</p>}
         {job.error_message && <p className="text-amber-300">{job.error_message}</p>}
       </div>}
-      {error && <p role="alert" className="text-sm text-amber-300">{error}</p>}
+      {problem && <p role="alert" className="text-sm text-amber-300">{problem}</p>}
       <div className="flex flex-wrap gap-2">
-        <Button onClick={submit} disabled={busy || pending(job) || !!receipt.current && !job || !sourceId || !mode || !Number.isInteger(prices[mode])}>
+        <Button onClick={submit} disabled={busy || !!saved.error || pending(job) || !!receipt.current && !job || !sourceId || !mode || !Number.isInteger(prices[mode])}>
           {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}确认价格并分析
         </Button>
         {job?.status === 'completed' && job.result && !job.result.media_deleted && <Button onClick={apply} disabled={busy}>

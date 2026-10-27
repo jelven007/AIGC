@@ -1,4 +1,4 @@
-import { supabase } from '@/db/supabase';
+import { authenticatedEdgeJSON, EdgeRequestError } from '@/lib/edgeRequest';
 
 export interface BatchInput {
   name: string;
@@ -62,35 +62,34 @@ function batchResult(value: any): BatchVideoJob {
   }
   return value;
 }
-async function invoke(body: Record<string, unknown>) {
-  const { data, error } = await supabase.functions.invoke('batch-video-jobs', { body });
-  if (error) {
-    const response = 'context' in error && error.context instanceof Response ? error.context : null;
-    const payload = await response?.json().catch(() => null);
-    throw new BatchJobError(payload?.error || error.message || '批量任务服务暂不可用', response?.status || 0);
-  }
+async function invoke(body: Record<string, unknown>, userId?: string, signal?: AbortSignal) {
+  let data;
+  try { data = await authenticatedEdgeJSON('batch-video-jobs', { method: 'POST',
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal }, userId); }
+  catch (cause) { throw new BatchJobError(cause instanceof Error ? cause.message : '批量任务服务暂不可用',
+    cause instanceof EdgeRequestError ? cause.status : 0); }
   if (data?.error) throw new BatchJobError(data.error, 400);
   if (!data || typeof data !== 'object') throw new BatchJobError('批次响应无效，请核对后端版本', 503);
   return data;
 }
-export async function createBatchVideoJob(requestKey: string, input: BatchInput): Promise<BatchVideoJob> {
-  const result = await invoke({ action: 'create', request_key: requestKey, ...input });
+export async function createBatchVideoJob(requestKey: string, input: BatchInput, userId?: string): Promise<BatchVideoJob> {
+  const result = await invoke({ action: 'create', request_key: requestKey, ...input }, userId);
   const batch = batchResult(result.batch);
   window.dispatchEvent(new CustomEvent('credits_changed'));
   return batch;
 }
-export async function listBatchVideoJobs(): Promise<BatchVideoJob[]> {
-  const result = await invoke({ action: 'list' });
+export async function listBatchVideoJobs(userId?: string, signal?: AbortSignal): Promise<BatchVideoJob[]> {
+  const result = await invoke({ action: 'list' }, userId, signal);
   if (!Array.isArray(result.batches)) throw new BatchJobError('批次响应无效，请核对后端版本', 503);
   return result.batches.map(batchResult);
 }
-export async function controlBatchVideoJob(batchId: string, action: 'pause' | 'resume' | 'cancel'): Promise<BatchVideoJob> {
-  const result = await invoke({ action, batch_id: batchId });
+export async function controlBatchVideoJob(batchId: string, action: 'pause' | 'resume' | 'cancel', userId?: string): Promise<BatchVideoJob> {
+  const result = await invoke({ action, batch_id: batchId }, userId);
   const batch = batchResult(result.batch);
   window.dispatchEvent(new CustomEvent('credits_changed'));
   return batch;
 }
-export async function quoteBatchVideoJobs(): Promise<{ unit_cost: number; max_items: number;
+export async function quoteBatchVideoJobs(userId?: string): Promise<{ unit_cost: number; max_items: number;
   pipeline_costs: { video: number; tts: number; subtitles: number; render: number } | null }> {
-  return invoke({ action: 'quote' });
+  return invoke({ action: 'quote' }, userId);
 }

@@ -1,6 +1,20 @@
 # 测试与验收计划
 
-更新：2026-10-22，功能基线`d7e3d38`。当前00062/probe22/render4/edit2，MCP59/19。本次文档验证与最新功能执行证据分别见 [2026-10-22报告](TEST_REPORT_20261022.md)。下面摘要为各轮时点，后文用例按当前契约执行。
+更新：2026-10-27，当前00068/probe24/render4/edit2、66生产迁移、MCP59/19。本轮本地命令、失败基线及最终结果见[实施台账](OPTIMIZATION_IMPLEMENTATION_20261027.md)。下面历史索引保留各轮时点，实际操作按当前契约。
+
+## 本轮优化回归
+
+| 范围 | 执行入口与核对内容 |
+| --- | --- |
+| 冻结全栈 | `pnpm install --frozen-lockfile`、`pnpm lint`、`pnpm build`、全部Edge `deno check --frozen`、`node --test tests/*.test.mjs` |
+| 审核/脚本/身份 | `pnpm test:safety`、`test_ai_requests.py`、`model_attempts/text_attempts/script_result`；严格结果、限流故障零调用、原账号/UUID/attempt/保存恢复 |
+| 共享查询/剪辑 | `browser_domain_queries/browser_task_queries`、`pnpm test:editor`、`pnpm test:editor-ui`；错时去重/隐藏取消/存储满零提交、首撤销/完整草稿/串行保存 |
+| 调度/容量 | `pnpm test:scheduler`、`pnpm test:knowledge`、`test_products.py`；预算/fencing/维护隔离、精确排序/权限/旧库升级/稳定游标 |
+| 媒体/MCP | 当前镜像资源/渲染/音轨/分析/编排/出口回归、`pnpm test:mcp`；实际加载镜像/app、源码SHA/非root/磁盘与网络约束 |
+| 密钥/恢复/告警 | `pnpm test:keyring`、`pnpm test:backup`、`pnpm test:alert-delivery`；跨语言AAD/完整历史目录、真实本地Relay/归档网关、原UNKNOWN/流水/实物 |
+| 发布 | `pnpm test:release`、`pnpm test:acceptance`、完整prepare与ZIP身份/来源核对；真实00065→00068事务和六项只读技术接受 |
+
+依赖镜像须先构建并记录身份；Mac整仓挂载受阻可打包必要测试材料，实际从镜像/app读取生产源码，不削弱资源/媒体断言。浏览器插件本轮不可用，使用Playwright和本机Chrome，实际查看桌面/390px截图。质量评估32例见[评估指南](ai/EVALUATION.md)，数据库P95和媒体短样本见专项文档；夹具、单次成片或技术就绪不代表真实生产接受。
 
 ## 历史专项索引
 
@@ -92,11 +106,11 @@ MCP 需安装 `mcp/requirements_mcp.txt`。按实际修改选择回归：计费/
 
 多规格导出启用还需验证：00039与匹配API/FFmpeg镜像已部署，私有源作品六画幅/三分辨率实际编码和下载播放，关页同键恢复、部分失败/独立发布、队列容量429、旧回执恢复。Sora按官方退役信息检查，不调用关闭API。新增要求对应REQ-RENDER-02/REQ-MODEL-04；本地夹具不代替此验收。
 
-媒体启用需实际OpenAI/Step配音识别、ElevenLabs验证与原账号删除、D-ID/Sync私有输入/MP4、双用户/原请求账单/换价/关页/旧配置/unknown。当前production probe必须22/00062/render4/edit2；专业训练/动作控制不在交付范围。
+媒体启用需实际OpenAI/Step配音识别、ElevenLabs验证与原账号删除、D-ID/Sync私有输入/MP4、双用户/原请求账单/换价/关页/旧配置/unknown。当前production probe必须24/00068/render4/edit2；专业训练/动作控制不在交付范围。
 
 | ID | 前置与操作 | 预期结果/证据 | 需求 |
 | --- | --- | --- | --- |
-| AT-01 | 记录URL/迁移/43入口/Git/镜像/唯一调度，调用probe | 00062全部结构/权限就绪；probe22/render4/edit2；不消费任务 | OPS-01 |
+| AT-01 | 记录URL/迁移SHA/43入口/源码摘要/镜像/前端身份/唯一生产与维护调度，调用probe | 00068全部结构/权限就绪；probe24/render4/edit2；六项只读接受不消费任务，生产接受另验 | OPS-01 |
 | AT-02 | 新邮箱注册、验证与登录；重复回调/初始化 | 一份用户套餐，默认 20 赠分一次；未登录无法读业务 | AUTH-01 |
 | AT-03 | A/B 两用户读取修改商品、素材、任务与订单 | B 无法读取/覆盖 A；关键 RPC 不能由普通用户执行 | ASSET-01 |
 | AT-04 | 普通用户、伪造 user_metadata、真实管理员访问设置 | 仅管理员可 list/save/import/test；任何响应无 Key/密文 | MODEL-01 |

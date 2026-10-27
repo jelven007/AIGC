@@ -2,11 +2,11 @@
 import hashlib
 import math
 from pathlib import Path
-import subprocess
 from render import probe, RenderError
+from media_process import run_media
 
 
-def prepare_video(source, directory, cancelled=lambda: False):
+def prepare_video(source, directory, cancelled=lambda: False, budget=None):
     source, directory = Path(source), Path(directory)
     if not source.is_file() or not 0 < source.stat().st_size <= 100 * 1024 * 1024:
         raise RenderError("分析视频应为1字节–100MB")
@@ -25,13 +25,8 @@ def prepare_video(source, directory, cancelled=lambda: False):
     directory.mkdir(parents=True, exist_ok=True)
 
     def ffmpeg(options):
-        if cancelled():
-            raise RenderError("分析任务已停止或租约失效")
-        try:
-            subprocess.run(["ffmpeg", "-v", "error", "-nostdin", "-y", "-protocol_whitelist", "file,pipe",
-                            *options], check=True, capture_output=True, timeout=90)
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
-            raise RenderError("视频预处理失败，请检查媒体格式") from exc
+        run_media(["ffmpeg", "-v", "error", "-nostdin", "-y", "-protocol_whitelist", "file,pipe",
+                   *options], cancelled, timeout=90, budget=budget)
 
     frames = []
     for index in range(8):
@@ -46,8 +41,9 @@ def prepare_video(source, directory, cancelled=lambda: False):
     has_audio = any(stream.get("codec_type") == "audio" for stream in metadata["streams"])
     audio = directory / "audio.wav"
     if has_audio:
-        ffmpeg(["-i", str(source), "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(audio)])
-        if audio.stat().st_size > 20 * 1024 * 1024:
+        ffmpeg(["-i", str(source), "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le",
+                "-fs", str(20 * 1024 * 1024), str(audio)])
+        if audio.stat().st_size >= 20 * 1024 * 1024:
             raise RenderError("识别音轨超过20MB，请分段上传")
     return {"duration": duration, "source_hash": digest.hexdigest(), "has_audio": has_audio,
             "frames": frames, "audio": audio if has_audio else None}

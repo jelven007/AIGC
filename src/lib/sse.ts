@@ -1,6 +1,7 @@
 import { createParser } from 'eventsource-parser';
 import { authenticatedEdgeRequest } from '@/lib/edgeRequest';
 import { transcribeAudio, synthesizeSpeech, base64ToBlob } from '@/services/audio';
+import { requireAccountSession } from '@/api/accountSession';
 
 export interface DeepSeekStreamOptions {
   messages: Array<{ role: string; content: string }>;
@@ -11,6 +12,7 @@ export interface DeepSeekStreamOptions {
   onComplete: () => void;
   onError: (error: Error) => void;
   signal?: AbortSignal;
+  expectedUserId?: string;
 }
 
 /** 方舟及备用通道由服务端配置；中断或失败不会用模板伪造成模型结果。 */
@@ -18,12 +20,13 @@ export async function sendDeepSeekStreamRequest(options: DeepSeekStreamOptions):
   const { messages, max_tokens, temperature, onData, onComplete, onError, signal } = options;
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
   try {
+    const userId = (await requireAccountSession(options.expectedUserId)).user.id;
     const response = await authenticatedEdgeRequest('text-generation', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages, max_tokens, temperature, stream: true, knowledge_job_id: options.knowledge_job_id }),
       signal,
-    });
+    }, '', userId);
     if (!response.body) throw new Error('AI 服务未返回响应');
     reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -52,6 +55,7 @@ export async function sendDeepSeekStreamRequest(options: DeepSeekStreamOptions):
     });
     while (!done) {
       const chunk = await reader.read();
+      await requireAccountSession(userId);
       if (chunk.done) break;
       parser.feed(decoder.decode(chunk.value, { stream: true }));
     }
@@ -60,6 +64,7 @@ export async function sendDeepSeekStreamRequest(options: DeepSeekStreamOptions):
     if (streamError) throw streamError;
     if (!received) throw new Error('模型未返回正文，请检查模型配置');
     if (!done) throw new Error('文本生成连接中断，请重试');
+    await requireAccountSession(userId);
     onComplete();
   } catch (cause) {
     if (!signal?.aborted) onError(cause instanceof Error ? cause : new Error('文本生成失败'));
@@ -73,6 +78,7 @@ export const sendStepFlashStreamRequest = sendDeepSeekStreamRequest;
 
 export interface StepASROptions {
   audioData: string;
+  expectedUserId?: string;
   format?: { type: string; codec: string; rate: number; bits: number; channel: number };
   language?: string;
   onData: (text: string) => void;
@@ -87,6 +93,7 @@ export async function sendStepAudioASR(options: StepASROptions): Promise<void> {
       file: base64ToBlob(options.audioData, 'audio/wav'),
       signal: options.signal,
       language: options.language,
+      expectedUserId: options.expectedUserId,
     });
     if (options.signal?.aborted) return;
     if (!result.text.trim()) throw new Error('未识别到清晰语音，请重试或键入提示词');

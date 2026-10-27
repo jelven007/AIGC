@@ -1,4 +1,4 @@
-class AudioRecorder {
+export class AudioRecorder {
   private audioContext: AudioContext | null = null;
   private processor: ScriptProcessorNode | null = null;
   private mediaStream: MediaStream | null = null;
@@ -8,12 +8,22 @@ class AudioRecorder {
   private sampleRate = 16000;
   private recognition: any = null;
   private recognizedText = '';
+  private generation = 0;
 
   async start() {
+    this.cancel();
+    const generation = this.generation;
     this.leftchannel = [];
     this.recordingLength = 0;
     this.recognizedText = '';
 
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    if (generation !== this.generation) {
+      stream.getTracks().forEach(track => track.stop());
+      throw new Error('录音已取消');
+    }
+    this.mediaStream = stream;
+    try {
     // 初始化浏览器原生 Web Speech API (如果支持)
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SpeechRecognition) {
@@ -40,9 +50,6 @@ class AudioRecorder {
       }
     }
 
-    // 请求麦克风权限
-    this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
     // 创建 16000Hz AudioContext
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
     this.audioContext = new AudioContextClass({ sampleRate: this.sampleRate });
@@ -60,6 +67,19 @@ class AudioRecorder {
 
     this.input.connect(this.processor);
     this.processor.connect(this.audioContext.destination);
+    } catch (cause) { this.cancel(); throw cause; }
+  }
+
+  cancel() {
+    this.generation++;
+    try { this.recognition?.stop(); } catch {}
+    this.recognition = null;
+    if (this.processor) { this.processor.onaudioprocess = null; this.processor.disconnect(); }
+    this.input?.disconnect();
+    void this.audioContext?.close().catch(() => {});
+    this.mediaStream?.getTracks().forEach(track => track.stop());
+    this.processor = null; this.input = null; this.audioContext = null; this.mediaStream = null;
+    this.leftchannel = []; this.recordingLength = 0;
   }
 
   getRecognizedText(): string {
@@ -140,10 +160,12 @@ class AudioRecorder {
     }
     const base64 = btoa(binary);
 
-    return {
+    const result = {
       base64,
       recognizedText: this.recognizedText,
     };
+    this.cancel();
+    return result;
   }
 
   private writeString(view: DataView, offset: number, string: string) {
@@ -154,4 +176,3 @@ class AudioRecorder {
 }
 
 export const audioRecorder = new AudioRecorder();
-

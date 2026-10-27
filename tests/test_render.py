@@ -100,6 +100,16 @@ class RenderTest(unittest.TestCase):
         with self.assertRaisesRegex(RenderError, "最大执行"):
             render(self.spec, files, self.root / "timeout", timeout=0)
 
+    def test_real_worker_progress_ignores_unknown_timestamp_until_media_is_encoded(self):
+        self.spec["tracks"] = [{"id": str(index), "type": "video", "start": index * .25,
+                                "duration": .25, "sourceStart": index * .25} for index in range(8)]
+        progress = []
+        result = render(self.spec, {str(index): self.root / "red.mp4" for index in range(8)},
+                        self.root / "progress", progress=progress.append)
+        self.assertAlmostEqual(result["duration"], 2, delta=.1)
+        self.assertTrue(result["thumbnail"].is_file())
+        self.assertTrue(all(isinstance(value, int) and 0 <= value <= 95 for value in progress))
+
     def test_four_five_real_encoding_preserves_short_edge(self):
         self.spec["ratio"] = "4:5"
         self.spec["duration"] = 1

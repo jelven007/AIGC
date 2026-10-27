@@ -1,9 +1,14 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import { beginModelAttempt, trackedModelResponse } from './model-context.ts';
+export { withModelContext } from './model-context.ts';
 import { createServiceClient } from './auth.ts';
 import { MODEL_SLOTS, defaultSettings, type ModelSettings } from './model-catalog.ts';
 import { GPT_IMAGE_EDIT_MODELS } from './image-contract.ts';
 
 export class ConfigError extends Error {}
+export class ModelRequestError extends Error {
+  constructor(message: string, public outcome: 'rejected' | 'unknown') { super(message); }
+}
 export function publicHttpsUrl(value: string): URL {
   let url: URL;
   try { url = new URL(value); } catch { throw new ConfigError('接口地址格式不正确'); }
@@ -52,6 +57,10 @@ export async function validateSettings(slot: string, raw: unknown, enabled: bool
   if (!(definition.protocols as readonly string[]).includes(result.protocol) || !result.name) {
     throw new ConfigError('模型名称或协议不正确');
   }
+  if (definition.category === 'text') {
+    if (input.supports_vision != null && typeof input.supports_vision !== 'boolean') throw new ConfigError('视觉能力配置须为布尔值');
+    result.supports_vision = input.supports_vision === true;
+  }
   if (!['Authorization', 'X-Gateway-Authorization', 'api-key', 'x-api-key', 'xi-api-key', 'x-goog-api-key'].includes(String(input.auth_header))
     || !['Bearer', 'raw', 'Basic'].includes(String(input.auth_scheme))) throw new ConfigError('认证方式不正确');
   result.auth_header = input.auth_header as ModelSettings['auth_header'];
@@ -91,26 +100,61 @@ export async function validateSettings(slot: string, raw: unknown, enabled: bool
   }
   return result;
 }
-async function encryptionKey(): Promise<CryptoKey> {
-  const value = Deno.env.get('MODEL_CONFIG_ENCRYPTION_KEY') || '';
-  if (!/^[0-9a-f]{64}$/i.test(value)) throw new ConfigError('请先配置服务端模型配置加密主密钥');
-  const bytes = Uint8Array.from(value.match(/../g)!, part => Number.parseInt(part, 16));
+interface EncryptionKeyring {
+  active_key_id: string;
+  legacy_key_id: string | null;
+  keys: Record<string, string>;
+}
+function encryptionKeyring(): EncryptionKeyring {
+  const raw = Deno.env.get('MODEL_CONFIG_KEYRING');
+  if (!raw) {
+    const value = Deno.env.get('MODEL_CONFIG_ENCRYPTION_KEY') || '';
+    if (!/^[0-9a-f]{64}$/i.test(value)) throw new ConfigError('请先配置服务端模型配置加密主密钥');
+    return { active_key_id: 'legacy', legacy_key_id: 'legacy', keys: { legacy: value } };
+  }
+  try {
+    const ring = JSON.parse(raw);
+    const validId = (id: unknown): id is string => typeof id === 'string' && /^[a-z0-9][a-z0-9_-]{0,63}$/i.test(id);
+    if (!ring || Array.isArray(ring) || !validId(ring.active_key_id) || !ring.keys
+      || typeof ring.keys !== 'object' || Array.isArray(ring.keys)
+      || Object.keys(ring.keys).length < 1 || Object.keys(ring.keys).length > 16
+      || Object.entries(ring.keys).some(([id, key]) => !validId(id) || typeof key !== 'string' || !/^[0-9a-f]{64}$/i.test(key))
+      || !Object.hasOwn(ring.keys, ring.active_key_id)
+      || ring.legacy_key_id != null && (!validId(ring.legacy_key_id) || !Object.hasOwn(ring.keys, ring.legacy_key_id))) throw new Error();
+    return { active_key_id: ring.active_key_id, legacy_key_id: ring.legacy_key_id ?? null, keys: ring.keys };
+  } catch { throw new ConfigError('服务端加密密钥目录不完整或格式不正确'); }
+}
+async function encryptionKey(id: string, ring: EncryptionKeyring): Promise<CryptoKey> {
+  if (!Object.hasOwn(ring.keys, id)) throw new ConfigError('历史加密密钥版本不可用');
+  const bytes = Uint8Array.from(ring.keys[id].match(/../g)!, part => Number.parseInt(part, 16));
   return crypto.subtle.importKey('raw', bytes, 'AES-GCM', false, ['encrypt', 'decrypt']);
 }
 export async function encryptKey(slot: string, value: string): Promise<string> {
   if (!value || value.length > 4096 || /[\r\n]/.test(value)) throw new ConfigError('API Key 格式不正确');
+  const ring = encryptionKeyring(), id = ring.active_key_id;
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const data = new Uint8Array(await crypto.subtle.encrypt({
-    name: 'AES-GCM', iv, additionalData: new TextEncoder().encode(slot),
-  }, await encryptionKey(), new TextEncoder().encode(value)));
-  return `${btoa(String.fromCharCode(...iv))}.${btoa(String.fromCharCode(...data))}`;
+    name: 'AES-GCM', iv, additionalData: new TextEncoder().encode(JSON.stringify(['v2', id, slot])),
+  }, await encryptionKey(id, ring), new TextEncoder().encode(value)));
+  return `v2.${id}.${btoa(String.fromCharCode(...iv))}.${btoa(String.fromCharCode(...data))}`;
 }
 export async function decryptKey(slot: string, value: string): Promise<string> {
   try {
-    const [iv, data] = value.split('.').map(part => Uint8Array.from(atob(part), c => c.charCodeAt(0)));
+    if (typeof value !== 'string' || value.length > 23000) throw new Error();
+    const ring = encryptionKeyring(), parts = value.split('.');
+    const modern = parts.length === 4 && parts[0] === 'v2';
+    if (!modern && parts.length !== 2) throw new Error();
+    const id = modern ? parts[1] : ring.legacy_key_id;
+    if (!id) throw new Error();
+    const [iv, data] = (modern ? parts.slice(2) : parts).map(part => {
+      const bytes = Uint8Array.from(atob(part), c => c.charCodeAt(0));
+      if (btoa(String.fromCharCode(...bytes)) !== part) throw new Error();
+      return bytes;
+    });
+    if (iv.length !== 12 || data.length < 17 || data.length > 16400) throw new Error();
     return new TextDecoder().decode(await crypto.subtle.decrypt({
-      name: 'AES-GCM', iv, additionalData: new TextEncoder().encode(slot),
-    }, await encryptionKey(), data));
+      name: 'AES-GCM', iv, additionalData: new TextEncoder().encode(modern ? JSON.stringify(['v2', id, slot]) : slot),
+    }, await encryptionKey(id, ring), data));
   } catch { throw new ConfigError('模型密钥无法解密，请核对服务端主密钥'); }
 }
 export interface ResolvedModel {
@@ -138,15 +182,27 @@ export async function resolveModel(slot: string, db: SupabaseClient = createServ
   return { slot, version_id: data.id, settings, headers };
 }
 // 网络错误不暴露供应商原始响应和请求头。
-export async function modelFetch(config: ResolvedModel, body: BodyInit, json = true): Promise<Response> {
+export async function modelFetch(config: ResolvedModel, body: BodyInit | null, json = true, signal?: AbortSignal,
+  method: 'POST' | 'GET' = 'POST'): Promise<Response> {
   await validateEndpoint(config.settings.endpoint);
+  signal?.throwIfAborted();
+  const finish = await beginModelAttempt(config);
   let response: Response;
   try {
     response = await fetch(config.settings.endpoint, {
-      method: 'POST', headers: { ...config.headers, ...(json ? { 'Content-Type': 'application/json' } : {}) },
-      body, redirect: 'error', signal: AbortSignal.timeout(config.settings.timeout_ms),
+      method, headers: { ...config.headers, ...(json ? { 'Content-Type': 'application/json' } : {}) },
+      body, redirect: 'error', signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(config.settings.timeout_ms)])
+        : AbortSignal.timeout(config.settings.timeout_ms),
     });
-  } catch { throw new Error('模型连接失败或超时'); }
-  if (!response.ok) throw new Error(`模型返回 HTTP ${response.status}`);
-  return response;
+  } catch {
+    if (finish) await finish('unknown', null, null, '模型连接失败或超时');
+    throw new ModelRequestError('模型连接失败或超时', 'unknown');
+  }
+  if (!response.ok) {
+    const rejected = [400, 401, 403, 404, 405, 413, 415, 422, 429].includes(response.status);
+    await response.body?.cancel();
+    if (finish) await finish(rejected ? 'error' : 'unknown', response.headers.get('x-request-id'), null, `HTTP ${response.status}`);
+    throw new ModelRequestError(`模型返回 HTTP ${response.status}`, rejected ? 'rejected' : 'unknown');
+  }
+  return finish ? trackedModelResponse(response, finish) : response;
 }

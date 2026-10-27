@@ -9,8 +9,10 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import urllib.error
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
 spec = importlib.util.spec_from_file_location("video_scheduler", ROOT / "scripts/run_video_worker.py")
 scheduler = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(scheduler)
@@ -84,7 +86,7 @@ class SchedulerTest(unittest.TestCase):
     def test_production_probe_requires_current_schema_and_protocol(self):
         config = scheduler.Config("https://project.example/functions/v1/production-worker",
             self.secret, 4, 10, 150, self.config.state_path)
-        good = {"ready": True, "version": 22, "required_migration": "00062", "render_version": 4, "edit_version": 2}
+        good = {"ready": True, **scheduler.CONTRACT, "missing": []}
         with patch.object(scheduler.urllib.request, "build_opener") as mock:
             mock.return_value.open.return_value = Response(good)
             self.assertEqual(scheduler.call_worker(config, "probe"), 0)
@@ -184,17 +186,45 @@ class SchedulerTest(unittest.TestCase):
                 if json.loads(request.data)["action"] == "monitor":
                     self.assertTrue(json.loads(request.data)["scheduler_healthy"])
                     return Response({"active": 1, "opened": 1, "resolved": 0})
-                self.assertEqual(json.loads(request.data), {"action": "metrics"})
-                return Response({"collected": 1})
+                self.fail("生产调度不能运行指标或留存维护")
         with patch.object(scheduler, "call_worker", return_value=0), \
              patch.object(scheduler, "run_cycle", return_value={"processed": 1, "errors": 0, "error_codes": []}), \
              patch.object(scheduler.urllib.request, "build_opener", return_value=Opener()), \
              patch.object(scheduler, "log"):
             scheduler.serve(config, Stop())
         state = json.loads(config.state_path.read_text())
-        self.assertGreater(state["last_metrics"], 0)
         self.assertGreater(state["last_monitor"], 0)
         self.assertTrue(scheduler.healthy(config))
+
+    def test_maintenance_daemon_has_independent_failure_state_and_no_production_dispatch(self):
+        self.config.endpoint = "https://project.example/functions/v1/production-worker"
+        class Stop:
+            stopped = False
+            def is_set(self):
+                return self.stopped
+            def wait(self, _):
+                self.stopped = True
+        actions = []
+        def call(_config, action="run"):
+            actions.append(action)
+            return 1
+        with patch.object(scheduler, "call_worker", side_effect=call), \
+             patch.object(scheduler, "run_cycle") as production, patch.object(scheduler, "monitor") as monitor, \
+             patch.object(scheduler, "log"):
+            scheduler.serve(self.config, Stop(), maintenance=True)
+        production.assert_not_called()
+        monitor.assert_not_called()
+        self.assertEqual(actions, ["probe", "maintenance"])
+        self.assertTrue(scheduler.healthy(self.config))
+
+    def test_lightweight_readiness_and_maintenance_failure_are_validated(self):
+        self.config.endpoint = "https://project.example/functions/v1/production-worker"
+        with patch.object(scheduler.urllib.request, "build_opener") as mock:
+            mock.return_value.open.return_value = Response({"ready": True})
+            self.assertEqual(scheduler.call_worker(self.config, "ready"), 0)
+            mock.return_value.open.return_value = Response({"processed": 0, "errors": 1})
+            with self.assertRaisesRegex(scheduler.WorkerError, "maintenance_failed"):
+                scheduler.call_worker(self.config, "maintenance")
 
     def test_persistent_outage_recovery_and_restart_do_not_duplicate_alerts(self):
         state = {"failures": 3, "monitor_failures": 3}

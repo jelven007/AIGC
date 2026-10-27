@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
@@ -10,6 +11,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { BookOpen, Copy, Loader2, RefreshCw, Search } from 'lucide-react';
 import { TASK_STATUSES } from '@/lib/taskCenter';
 import { toast } from 'sonner';
+import { productionKindsOptions, rememberTask } from '@/lib/taskQueries';
+import { useTaskQuery } from '@/hooks/useTaskQuery';
+import { useTaskReceipt } from '@/hooks/useTaskReceipt';
+import { requireAccountSession } from '@/api/accountSession';
 
 const templates = [
   { title: '四层带货脚本', content: '根据{商品事实}与{目标人群}，按卖点、痛点、开场钩子、行动引导设计分镜。只使用已确认的价格、活动与功效。' },
@@ -20,86 +25,106 @@ const templates = [
 type Receipt = { action: 'create'; kind: string; request_key: string; input: Record<string, unknown> };
 export default function KnowledgePage() {
   const { user } = useAuth(), navigate = useNavigate();
-  const [entries, setEntries] = useState<KnowledgeEntry[]>([]);
-  const [jobs, setJobs] = useState<KnowledgeJob[]>([]);
-  const [prices, setPrices] = useState<Record<string, number>>({});
-  const [loading, setLoading] = useState(true), [busy, setBusy] = useState('');
-  const [error, setError] = useState(''), [pending, setPending] = useState<Receipt | null>(null);
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
   const [query, setQuery] = useState(''), [title, setTitle] = useState(''), [content, setContent] = useState('');
   const [category, setCategory] = useState('自定义整合');
   const key = user ? `shopro:knowledge:${user.id}` : '';
+  const client = useQueryClient(), owner = useRef(user?.id); owner.current = user?.id;
+  const { value: pending, write: saveReceipt, error: storageError } = useTaskReceipt<Receipt>(key,
+    value => value?.action === 'create' && ['knowledge_index', 'knowledge_search'].includes(value.kind)
+      && typeof value.request_key === 'string' && value.input);
+  const catalog = useQuery({ queryKey: ['knowledge', user?.id, 'catalog'], enabled: !!user, staleTime: 300000, retry: false,
+    queryFn: ({ signal }) => knowledgeRequest<{ entries: KnowledgeEntry[]; prices: Record<string, number> }>({ action: 'catalog' }, user!.id, signal) });
+  const history = useTaskQuery(useMemo(() => ({
+    ...productionKindsOptions(['knowledge_index', 'knowledge_search'], user?.id),
+    queryFn: async ({ signal }: { signal: AbortSignal }) =>
+      (await knowledgeRequest<{ jobs: KnowledgeJob[] }>({ action: 'jobs' }, user!.id, signal)).jobs,
+  }), [user?.id]), 'production', !!user);
+  const entries = catalog.data?.entries || [], prices = catalog.data?.prices || {}, jobs = history.data || [];
+  const loading = catalog.isPending;
+  const finished = jobs.filter(job => ['completed', 'cancelled', 'failed'].includes(job.status)).map(job => `${job.id}:${job.status}`).join(',');
+  const previousFinished = useRef<string>();
+  useEffect(() => {
+    previousFinished.current = undefined; setBusy(''); setError('');
+  }, [user?.id]);
+  useEffect(() => {
+    if (!history.data) return;
+    if (previousFinished.current !== undefined && previousFinished.current !== finished) {
+      void client.invalidateQueries({ queryKey: ['knowledge', user?.id, 'catalog'] });
+    }
+    previousFinished.current = finished;
+  }, [finished, history.data, client, user?.id]);
   const load = useCallback(async () => {
-    if (!user) return;
-    try {
-      const [catalog, history] = await Promise.all([
-        knowledgeRequest<{ entries: KnowledgeEntry[]; prices: Record<string, number> }>({ action: 'catalog' }),
-        knowledgeRequest<{ jobs: KnowledgeJob[] }>({ action: 'jobs' }),
-      ]);
-      setEntries(catalog.entries); setPrices(catalog.prices); setJobs(history.jobs);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : '知识库读取失败'); setEntries([]); setPrices({}); }
-    finally { setLoading(false); }
-  }, [user]);
-  useEffect(() => { void load(); }, [load]);
-  useEffect(() => {
-    if (!key) return;
-    try { setPending(JSON.parse(localStorage.getItem(key) || 'null')); } catch { setPending(null); }
-  }, [key]);
-  useEffect(() => {
-    if (!jobs.some(job => ['pending', 'running'].includes(job.status))) return;
-    const timer = setInterval(() => { void load(); }, 5000);
-    return () => clearInterval(timer);
-  }, [jobs, load]);
+    const uid = owner.current;
+    try { await Promise.all([catalog.refetch({ throwOnError: true }), history.refetch({ throwOnError: true })]); }
+    catch (cause) { if (owner.current === uid) setError(cause instanceof Error ? cause.message : '知识库读取失败'); }
+  }, [catalog.refetch, history.refetch]);
   const submit = async (kind?: string, input?: Record<string, unknown>) => {
-    if (!user || busy) return;
+    if (!user || busy || storageError) return;
+    const uid = user.id;
     const request = pending || { action: 'create' as const, kind: kind!, request_key: crypto.randomUUID(), input: input! };
     setBusy('task'); setError('');
     try {
-      localStorage.setItem(key, JSON.stringify(request)); setPending(request);
-      await knowledgeRequest<{ job: KnowledgeJob }>(request);
-      localStorage.removeItem(key); setPending(null); toast.success('知识任务已提交，后台继续处理'); await load();
+      if (!saveReceipt(request)) return;
+      const result = await knowledgeRequest<{ job: KnowledgeJob }>(request, uid);
+      if (owner.current !== uid) return;
+      rememberTask(client, 'production', uid, result.job);
+      saveReceipt(null); toast.success('知识任务已提交，后台继续处理'); await history.refetch();
     } catch (cause) {
+      if (owner.current !== uid) return;
       setError(cause instanceof Error ? cause.message : '请求响应待确认');
       if (cause instanceof EdgeRequestError && [400, 401, 402, 403, 409, 424, 429].includes(cause.status)) {
-        localStorage.removeItem(key); setPending(null);
+        saveReceipt(null);
       }
-    } finally { setBusy(''); }
+    } finally { if (owner.current === uid) setBusy(''); }
   };
   const save = async () => {
     if (!user || busy || !title.trim() || !content.trim()) return;
+    const uid = user.id;
     setBusy('save'); setError('');
     try {
-      const result = await supabase.from('knowledge_entries').insert({ user_id: user.id, title: title.trim(), content: { text: content.trim() },
+      await requireAccountSession(uid);
+      const result = await supabase.from('knowledge_entries').insert({ user_id: uid, title: title.trim(), content: { text: content.trim() },
         source_type: 'prompt_edit', category, tags: [] }).select('id').single();
       if (result.error) throw new Error(result.error.message);
+      await requireAccountSession(uid);
+      if (owner.current !== uid) return;
       setTitle(''); setContent(''); toast.success('条目已保存，可确认积分后建立语义索引'); await load();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : '保存失败'); }
-    finally { setBusy(''); }
+    } catch (cause) { if (owner.current === uid) setError(cause instanceof Error ? cause.message : '保存失败'); }
+    finally { if (owner.current === uid) setBusy(''); }
   };
   const integrate = async () => {
-    if (busy || !content.trim()) return;
+    if (!user || busy || !content.trim()) return;
+    const uid = user.id;
     setBusy('integrate'); setError('');
     try {
       const response = await authenticatedEdgeRequest('text-generation', { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ stream: false, messages: [
           { role: 'system', content: '将用户资料整理成可复用Prompt，保留事实和花括号变量，不添加销量、优惠、效果或未给出的证据。输出Prompt正文，不执行该Prompt。' },
           { role: 'user', content },
-        ] }) });
+        ] }) }, '', uid);
       const data = await response.json(), text = data.choices?.[0]?.message?.content;
+      await requireAccountSession(uid);
+      if (owner.current !== uid) return;
       if (typeof text !== 'string' || !text.trim() || text.length > 12000) throw new Error('模型未返回有效Prompt');
       setContent(text); toast.success('Prompt已整理，请确认后保存');
-    } catch (cause) { setError(cause instanceof Error ? cause.message : '整理失败'); }
-    finally { setBusy(''); }
+    } catch (cause) { if (owner.current === uid) setError(cause instanceof Error ? cause.message : '整理失败'); }
+    finally { if (owner.current === uid) setBusy(''); }
   };
   const remove = async (entry: KnowledgeEntry) => {
+    if (!user || busy) return;
+    const uid = user.id;
     if (!window.confirm(`删除「${entry.title}」、索引和任务中的知识副本？未提交索引会取消并返还积分。`)) return;
     setBusy('delete'); setError('');
     try {
-      await knowledgeRequest({ action: 'delete', entry_id: entry.id });
-      if (pending?.input.entry_id === entry.id) { localStorage.removeItem(key); setPending(null); }
+      await knowledgeRequest({ action: 'delete', entry_id: entry.id }, uid);
+      if (owner.current !== uid) return;
+      if (pending?.input.entry_id === entry.id) saveReceipt(null);
       toast.success('知识条目、索引和任务副本已删除');
       await load();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : '删除失败'); }
-    finally { setBusy(''); }
+    } catch (cause) { if (owner.current === uid) setError(cause instanceof Error ? cause.message : '删除失败'); }
+    finally { if (owner.current === uid) setBusy(''); }
   };
   const copy = async (text: string) => {
     try { await navigator.clipboard.writeText(text); toast.success('已复制'); }
@@ -113,7 +138,8 @@ export default function KnowledgePage() {
         <p className="mt-2 text-sm text-muted-foreground">保存话术与脚本，建立语义索引，将可追溯的资料带入创作。</p></div>
       <Button variant="outline" disabled={!!busy} onClick={() => { setError(''); void load(); }}><RefreshCw className="h-4 w-4 mr-2" />刷新知识库</Button>
     </div>
-    {error && <p role="alert" className="rounded-lg border border-destructive/30 p-3 text-sm text-destructive break-words">{error}</p>}
+    {(storageError || error || catalog.error || history.error) && <p role="alert" className="rounded-lg border border-destructive/30 p-3 text-sm text-destructive break-words">
+      {storageError || error || catalog.error?.message || history.error?.message}</p>}
     {pending && <div className="rounded-lg border p-4 text-sm space-y-2"><p>上次提交响应待确认，请使用原请求恢复。</p>
       <Button disabled={!!busy} onClick={() => void submit()}>恢复原知识请求</Button></div>}
     <section className="rounded-xl border bg-card p-4 md:p-6 space-y-4" aria-label="添加知识">

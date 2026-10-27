@@ -26,6 +26,7 @@ for (const action of ['support', 'tenant', 'cost_report']) {
   assert.equal((await handleOperations(request(body, 'ak_live_bad'))).status, 401);
 }
 console.log('PASS 工单/租户/成本读取强制个人身份，客户端actor不成为RPC主体');
+assert.equal((await handleOperations(request({ action: 'list', domain: 'model_attempts' }))).status, 200);
 const valid = {
   ticket_create: { title: '真实问题', category: 'task', body: '原任务没有结果' },
   ticket_reply: { ticket_id: id, expected: 1, body: '补充说明', internal: false },
@@ -44,6 +45,8 @@ for (const [operation, payload] of Object.entries(valid)) {
   assert.deepEqual(calls.at(-1), { name: 'operator_mutate', args: { p_actor: uid, p_key: key, p_action: operation, p_payload: payload } });
 }
 console.log('PASS 九种持久操作保留完整原UUID/参数，现金以分币种整数提交');
+assert.equal((await handleOperations(request({ action: 'mutate', operation: 'cost_record', request_key: key,
+  payload: { ...valid.cost_record, job_type: 'model_attempt' } }))).status, 200);
 for (const [operation, payload] of [
   ['ticket_reply', { ...valid.ticket_reply, internal: 'true' }], ['ticket_update', { ...valid.ticket_update, expected: undefined }],
   ['tenant_update', { ...valid.tenant_update, max_members: 0 }], ['restriction', { ...valid.restriction, restricted: 1 }],

@@ -8,7 +8,7 @@ const session = { access_token: `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringi
   refresh_token: 'fixture', token_type: 'bearer', expires_at: Math.floor(Date.now()/1000)+3600, expires_in: 3600,
   user: { id: uid, email: 'local@example.com', app_metadata: {}, user_metadata: {} } };
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_PATH,
-  args: ['--disable-breakpad', '--disable-crash-reporter', `--crash-dumps-dir=${process.cwd()}/.volcengine-build/chrome-crashes`] });
+  args: ['--disable-crashpad-for-testing', '--disable-breakpad', '--disable-crash-reporter', `--crash-dumps-dir=${process.cwd()}/.volcengine-build/chrome-crashes`] });
 const contexts = [];
 async function fixture() {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, reducedMotion: 'reduce' });
@@ -46,8 +46,8 @@ async function fixture() {
         if (state.loseCreate) { state.loseCreate = false; status = 503; data = { error: '创建响应待确认' }; } else data = { job };
       }
     } else if (path.includes('/rest/v1/video_projects')) {
-      if (req.method() === 'PATCH') { state.saved.push(body); Object.assign(state.project, body); data = state.project; }
-      else data = new URL(req.url()).searchParams.has('id') ? state.project : [];
+      if (req.method() === 'PATCH') { state.saved.push(body); Object.assign(state.project, body); data = [state.project]; }
+      else data = new URL(req.url()).searchParams.has('id') ? [state.project] : [];
     } else if (path.includes('/rest/v1/profiles')) data = { id: uid, username: '测试', invite_code: 'TEST' };
     else if (path.endsWith('/rpc/get_my_credits')) data = creditSnapshot(uid, { credits_total: 100, credits_left: 100 });
     await route.fulfill({ status, contentType: type, body: type === 'application/json' ? JSON.stringify(data) : data,
@@ -67,8 +67,10 @@ try {
   await page.goto(`${base}/video/edit?importId=${projectId}`);
   await page.getByText('实际音轨工程', { exact: true }).first().waitFor();
   await open(page, '时间分段字幕');
+  const lostResponse = page.waitForResponse(response => response.url().endsWith('/production-jobs')
+    && response.request().method() === 'POST' && response.request().postDataJSON()?.action === 'create' && response.status() === 503);
   await page.getByRole('button', { name: '确认价格并分析', exact: true }).click();
-  await page.getByRole('alert').getByText('创建响应待确认', { exact: true }).waitFor();
+  await lostResponse;
   await page.reload();
   await open(page, '时间分段字幕');
   await page.getByRole('button', { name: '应用原任务结果并保存', exact: true }).click();

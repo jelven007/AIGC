@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { creditSnapshot } from './browser_credit_fixture.mjs';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { loadEdge } from './edge-loader.mjs';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
@@ -12,10 +12,10 @@ const publishKey = crypto.randomUUID(), project = crypto.randomUUID();
 globalThis.Deno = { env: { get: key => key === 'SUPABASE_URL' ? backend : undefined }, serve() {} };
 const { pipelinePayload } = await loadEdge('supabase/functions/_shared/batch-pipeline.ts', 'pipeline-browser-source');
 mkdirSync('.volcengine-build', { recursive: true });
-execFileSync('docker', ['run', '--rm', '-v', `${resolve('.volcengine-build')}:/fixtures`, '--entrypoint', 'ffmpeg',
+const videoBytes = execFileSync('docker', ['run', '--rm', '--entrypoint', 'ffmpeg',
   'shoproai-render-worker:local', '-v', 'error', '-f', 'lavfi', '-i', 'color=c=red:s=160x284:r=24:d=10',
-  '-c:v', 'libx264', '-movflags', '+faststart', '-y', '/fixtures/pipeline-preview.mp4'], { timeout: 45000 });
-const videoBytes = readFileSync('.volcengine-build/pipeline-preview.mp4');
+  '-c:v', 'libx264', '-movflags', 'frag_keyframe+empty_moov', '-f', 'mp4', 'pipe:1'], { timeout: 45000, maxBuffer: 20 * 1024 * 1024 });
+writeFileSync('.volcengine-build/pipeline-preview.mp4', videoBytes);
 const audioBytes = Buffer.alloc(44 + 16000 * 6.3 * 2);
 audioBytes.write('RIFF'); audioBytes.writeUInt32LE(audioBytes.length - 8, 4); audioBytes.write('WAVEfmt ', 8);
 audioBytes.writeUInt32LE(16, 16); audioBytes.writeUInt16LE(1, 20); audioBytes.writeUInt16LE(1, 22);
@@ -80,10 +80,11 @@ try {
     } else if (path.endsWith('/production-jobs')) data = { jobs: [] };
     else if (path.endsWith('/material-assets')) data = { materials: [], total: 0 };
     else if (path.includes('/rest/v1/video_projects')) {
-      if (request.method() === 'PATCH') { saved.push(body); Object.assign(sourceProject, body); data = sourceProject; }
-      else data = new URL(request.url()).searchParams.has('id') ? sourceProject : [];
+      if (request.method() === 'PATCH') { saved.push(body); Object.assign(sourceProject, body); data = [sourceProject]; }
+      else data = new URL(request.url()).searchParams.has('id') ? [sourceProject] : [];
     } else if (path.includes('/rest/v1/profiles')) data = { id: uid, username: '本地测试', role: 'user' };
     else if (path.endsWith('/rpc/get_my_credits')) data = creditSnapshot(uid);
+    else if (path.endsWith('/product-management')) data = { products: [{ id: product, name: '移动端多镜头商品', category: '商品', price: 50 }], total: 1, offset: 0 };
     else if (path.includes('/rest/v1/products')) data = [{ id: product, name: '移动端多镜头商品', category: '商品', price: 50 }];
     await route.fulfill({ status, contentType, body: contentType === 'application/json' ? JSON.stringify(data) : data,
       headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*' } });
@@ -102,9 +103,17 @@ try {
   await page.getByText('单个商品 25 积分 · 本批预占 25 积分', { exact: true }).waitFor();
   await page.evaluate(() => { window.__blockBatchReceipt = true; });
   await page.getByRole('button', { name: '确认预算并创建批次' }).click();
-  await page.getByText('无法保存提交回执，请允许会话存储后再提交', { exact: true }).waitFor();
+  await page.getByRole('alert').filter({ hasText: '回执无法保存' }).first().waitFor();
   assert.equal(creates.length, 0);
   await page.evaluate(() => { window.__blockBatchReceipt = false; });
+  await page.reload();
+  await page.getByRole('checkbox', { name: '启用多镜头配音与合成', exact: true }).check();
+  await page.getByRole('button', { name: '添加商品', exact: true }).click();
+  await page.getByRole('checkbox', { name: '选择移动端多镜头商品', exact: true }).check();
+  await page.getByRole('button', { name: '确认添加', exact: true }).click();
+  await page.getByLabel('供应商音色ID', { exact: true }).fill('alloy');
+  await page.getByLabel('目标语言配音正文（必填）', { exact: true }).fill('真实商品介绍，用户确认的配音台词。');
+  await page.getByLabel('交付方式', { exact: true }).selectOption('publish');
   await page.getByRole('button', { name: '确认预算并创建批次' }).click();
   await page.getByRole('button', { name: '恢复上次提交' }).waitFor();
   assert.equal(creates[0].pipeline.shots.length, 2);

@@ -1,4 +1,4 @@
-import { authenticatedEdgeRequest } from '@/lib/edgeRequest';
+import { authenticatedEdgeJSON } from '@/lib/edgeRequest';
 import type { ProductionJob } from './productionJobs';
 export interface IntelligenceItem {
   id: string; title: string; url: string; price?: string; currency?: string; seller?: string | null;
@@ -21,6 +21,6 @@ export interface IntelligenceTarget {
 export interface IntelligenceCatalog {
   targets: IntelligenceTarget[]; sources: { slot: string; enabled: boolean }[]; prices: Record<string,number>; jobs: ProductionJob[];
 }
-export async function intelligenceRequest<T>(body: Record<string,unknown>): Promise<T> {
-  return (await authenticatedEdgeRequest('market-intelligence', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json();
+export async function intelligenceRequest<T>(body: Record<string,unknown>, userId?: string, signal?: AbortSignal): Promise<T> {
+  return authenticatedEdgeJSON('market-intelligence', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal }, userId);
 }
