@@ -17,6 +17,8 @@
 
 任务保持原账号、UUID、价格/配置、账务/租约/未知请求证据。本地状态和备份独立于源码；ECS原数据卷与容量profile保持。本次仅保留当前发布，旧发布和历史代码在新发布验收后清理，数据与加密快照独立保留。当前源码、文档和交付不包含部署凭据；完整Git祖先与作者元数据尚未重写，不能称为已脱敏。
 
+最终核对：两环境旧运行代码目录已清理，仅有`current -> v1.0.1`；GitHub v1.0.0发布与旧Git引用待确认，尚未删除。完整发布包独立下载SHA256一致，原数据和健康在清理后再次核验通过，详见[执行回执](releases/V1_0_1_EXECUTION_20261031.md)。
+
 未接入的真实模型、支付、短信、邮件和外部平台权限需要经营配置与独立接受。公网IP为自签证书，正式域名证书、外部值班通知和异地备份调度继续列为接入条件。当前单机没有多机高可用或实测SLA承诺。
 
 阅读顺序：[需求](prd/PRD.md)→[技术架构](architecture/TECHNICAL_ARCHITECTURE.md)→[开发](development/DEVELOPMENT_GUIDE.md)→[测试](testing/TEST_PLAN.md)→[运营](operations/OPERATIONS_GUIDE.md)→[运维](deployment/SELF_HOSTED_ECS_RUNBOOK.md)→[版本与保留](releases/VERSION_MANAGEMENT.md)。
