@@ -12,8 +12,8 @@
 
 ```sh
 python3 scripts/self_hosted_snapshot.py backup \
-  --state-dir /opt/shopro/state --key-file /opt/shopro/backup.key \
-  --output /opt/shopro/backups/before-v1.0.0
+  --state-dir /opt/shopro/state --key-file /opt/shopro/private/snapshot.key \
+  --output /opt/shopro/backups/before-next-version
 python3 scripts/self_hosted.py upgrade \
   --release "$PWD" --state-dir /opt/shopro/state
 python3 scripts/self_hosted.py check --state-dir /opt/shopro/state
@@ -25,9 +25,15 @@ python3 scripts/self_hosted.py check --state-dir /opt/shopro/state
 
 完成原数据/健康核验后切换`releases/current`指针。保留当前加最多两份历史代码版本，先检查所有容器挂载和回退来源，再清理未使用的旧候选及临时包。数据库/素材备份按独立恢复规则保留。
 
+本次v1.0.0升级已完成：两环境66迁移/43入口与原数据验收通过，本地11健康服务、线上26健康容器/16执行器和容量参数保持。ECS冷快照为`/opt/shopro/backups/before-v1.0.0`，本地为工作区`.local/shopro-production/backups/local-before-v1.0.0`；已有快照目录不能覆盖。源码与公开身份固定`fffb8e3`/`5b473986…557c9`。本地迁移路径后发现虚拟机保留旧载荷绑定，重新同步冻结frontend/edge并重建proxy/functions后再验收。
+
+当前回退源码位于`releases/history-20261031-source`。原配置副本`state/receipts/upgrade-runtime.env`已更新回退源码路径；冷快照原配置保持原样，恢复时根据私有`rollback-path-map.json`映射旧路径。回退必须同时恢复匹配的前端/Edge副本和镜像ID，不能只替换版本标签。停止验收容器已移除，恢复状态和密钥位于`backups/legacy-acceptance`，原数据卷保持。
+
+GitHub v1.0.0附件是AMD64源码/前端/Edge和镜像ID清单，未包含镜像二进制或`release-manifest.json`。已有实例在加载清单镜像后使用`upgrade`；首次完全离线安装须额外生成含镜像的完整离线包，不能把源码附件直接交给`install`。
+
 安装 Docker Engine 与 Compose v2、Python 3。建议至少 4 核、16GB 内存和 100GB 数据盘；渲染器单容器内存上限 4GB，其余服务也有明确上限。公网仅开放 SSH 和 HTTPS；数据库、认证、文件服务及执行器端口不对公网发布。
 
-`https://118.196.122.161` 已部署完整应用，默认账号`admin/<REDACTED_CREDENTIAL>`。ECS为Ubuntu24.04/x86_64，Docker29.1.3/Compose2.40.3已启用自启动；项目`shopro-ecs`、源码`/opt/shopro/releases/.selfhost-ecs-source-20261031`、状态`/opt/shopro/state`。当前容量配置为11类常驻服务、26个容器，其中16个独立渲染器；66迁移、43入口及原业务协议保持。初次自托管的真实业务/权限/成片/重启、38公网页面及Realtime隔离见[实际验收](../testing/SELF_HOSTED_ACCEPTANCE_20261031.md)。
+`https://118.196.122.161` 已部署完整应用，默认账号`admin/<REDACTED_CREDENTIAL>`。ECS为Ubuntu24.04/x86_64，Docker29.1.3/Compose2.40.3已启用自启动；项目`shopro-ecs`、源码`/opt/shopro/releases/v1.0.0`、状态`/opt/shopro/state`。当前容量配置为11类常驻服务、26个容器，其中16个独立渲染器；66迁移、43入口及原业务协议保持。初次自托管的真实业务/权限/成片/重启、38公网页面及Realtime隔离见[实际验收](../testing/SELF_HOSTED_ACCEPTANCE_20261031.md)。
 
 当前使用独立CA签发的IP SAN自签证书，30天有效，首次浏览器访问有证书提示。公网/宿主/Docker严格TLS校验通过；正式长期使用请配置指向ECS的域名和有效证书完整链/私钥。
 
@@ -52,7 +58,7 @@ python3 scripts/self_hosted.py install \
 
 **CPU架构必须匹配。** 开发机交付为 `linux/arm64`，本轮ECS为 `linux/amd64`，在ECS本机重新构建、测试并导出。安装器会拒绝架构不同的交付。基础组件清单使用不可变多架构上游摘要。
 
-本次实际amd64归档`/opt/shopro/releases/shopro-selfhost-amd64-20261031.tar.gz`（2184530346字节），校验文件同名加`.sha256`。含11镜像、1499文件及镜像运行源码摘要。已从归档重新解压，在独立项目`shopro-ecs-offline`、新状态`/opt/shopro/offline-state-20261031`完成安装：新随机凭据、新默认admin UUID、66迁移、43入口、11服务与40MiB真实Storage往返通过。辅助项目已停止，原实例恢复。回执`offline-release.json`和`offline-install-checks.json`；归档自身不可修改，最新验收以源目录中的实际验收报告为准。
+当日早期实际amd64归档为2184530346字节，含11镜像、1499文件及镜像运行源码摘要；重新解压后在独立项目`shopro-ecs-offline`完成新随机凭据、新默认admin UUID、66迁移、43入口、11服务与40MiB真实Storage往返验收。v1.0.0滚动清理保留解压产物`/opt/shopro/releases/history-20261031-offline-amd64`，移除重复压缩包和停止的验收容器；恢复状态迁入`/opt/shopro/backups/legacy-acceptance/offline-state-20261031`。回执`offline-release.json`和`offline-install-checks.json`保留；该历史产物不是v1.0.0镜像包。
 
 源代码环境的调度器、渲染器、MCP、备份镜像分别使用：
 
@@ -145,12 +151,12 @@ python3 scripts/self_hosted.py up --state-dir /srv/shopro/state
 
 ```bash
 docker compose --env-file /opt/shopro/state/runtime.env \
-  -f /opt/shopro/releases/.selfhost-ecs-source-20261031/deploy/self-hosted/compose.yaml \
+  -f /opt/shopro/releases/v1.0.0/deploy/self-hosted/compose.yaml \
   --profile execution stop
 python3 scripts/self_hosted.py up --state-dir /opt/shopro/state
 ```
 
-模型与发布平台在管理员“模型接口设置”页配置。初始化未填密钥的槽保持关闭，界面明确提示未配置。SMTP/SMS、支付商户与平台授权需实际经营方配置，不能以本地协议测试替代真实模型效果、到账或发布回执。
+模型槽在管理员“模型接口”页配置，发布平台和第三方经营连接在“第三方集成”配置。初始化未填密钥的槽保持关闭，界面明确提示未配置。SMTP/SMS、支付商户与平台授权需实际经营方配置，不能以本地协议测试替代真实模型效果、到账或发布回执。
 
 ## 一致性加密快照与恢复
 
