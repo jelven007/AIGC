@@ -15,10 +15,10 @@ parser.add_argument("--component", choices=("backup", "scheduler", "renderer", "
 parser.add_argument("--image", help="独立候选镜像标签，默认保留原本地构建标签")
 args = parser.parse_args()
 dockerfile, context, image, python_image = {
-    "backup": ("deploy/backup/Dockerfile", ROOT, "shoproai-backup:local", PYTHON),
-    "scheduler": ("deploy/video-scheduler/Dockerfile", ROOT, "shoproai-video-scheduler:local", ALPINE),
-    "renderer": ("worker/Dockerfile", ROOT, "shoproai-render-worker:local", PYTHON),
-    "mcp": ("mcp/Dockerfile.mcp", ROOT / "mcp", "shoproai-mcp:local", PYTHON),
+    "backup": ("infra/backup/Dockerfile", ROOT, "shoproai-backup:local", PYTHON),
+    "scheduler": ("infra/video-scheduler/Dockerfile", ROOT, "shoproai-video-scheduler:local", ALPINE),
+    "renderer": ("services/media-worker/Dockerfile", ROOT, "shoproai-render-worker:local", PYTHON),
+    "mcp": ("services/mcp/Dockerfile.mcp", ROOT / "services/mcp", "shoproai-mcp:local", PYTHON),
 }[args.component]
 image = args.image or image
 result = subprocess.run(["docker", "build", "--build-arg", "PYTHON_IMAGE=" + python_image,

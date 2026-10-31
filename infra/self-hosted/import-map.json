@@ -1,0 +1,5 @@
+{
+  "imports": {
+    "npm:@supabase/supabase-js@2": "file:///workspace/infra/self-hosted/supabase-client.ts"
+  }
+}

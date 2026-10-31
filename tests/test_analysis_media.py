@@ -5,7 +5,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "worker"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "services/media-worker"))
 from analyze import prepare_video
 from render import render, probe, RenderError
 

@@ -13,7 +13,7 @@
 
 [accept_release.py](../../scripts/accept_release.py)读取0600配置与本次prepare清单，检查迁移版本/原SHA-256、PG能力、Edge源码声明与完整协议、Auth设置、指定私有Storage桶和前端发布身份。数据库使用只读可重复读事务；HTTP只执行设置/桶查询和`probe`，不创建用户、对象、任务或交易。HTTPS及禁止跳转保护专用凭据。
 
-复制[配置模板](../../deploy/backup/acceptance.example.json)为`acceptance.json`，映射真实的只读密钥文件，运行备份/验收镜像：
+复制[配置模板](../../infra/backup/acceptance.example.json)为`acceptance.json`，映射真实的只读密钥文件，运行备份/验收镜像：
 
 ```sh
 docker run --rm --read-only --cap-drop ALL \

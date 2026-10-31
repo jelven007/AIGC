@@ -13,8 +13,8 @@ globalThis.__frontendDB = { auth: { getSession: async () => ({ data: {
 } }) } };
 let requests = 0;
 globalThis.fetch = async () => { requests++; return Response.json({ jobs: [{ id: 'one', status: 'running' }] }); };
-const queries = await loadFrontend('src/lib/taskQueries.ts', 'task-queries');
-const receipts = await loadFrontend('src/lib/taskReceipt.ts', 'task-receipts');
+const queries = await loadFrontend('apps/web/src/lib/taskQueries.ts', 'task-queries');
+const receipts = await loadFrontend('apps/web/src/lib/taskReceipt.ts', 'task-receipts');
 test('同账号同时挂载的列表读取共用一次真实API请求', async () => {
   requests = 0;
   const client = new QueryClient();

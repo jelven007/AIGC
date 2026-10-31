@@ -3,7 +3,7 @@ import test from 'node:test';
 import { execFileSync } from 'node:child_process';
 import writeExcel from 'write-excel-file/browser';
 import { loadFrontend } from './frontend-loader.mjs';
-const { excelSheets } = await loadFrontend('src/lib/excelExport.ts', 'excel-export');
+const { excelSheets } = await loadFrontend('apps/web/src/lib/excelExport.ts', 'excel-export');
 const read = bytes => JSON.parse(execFileSync('python3', ['tests/xlsx_reader.py'], { input: bytes, maxBuffer: 16 * 1024 * 1024 }));
 test('导出保留中文、数字、空值和长编号，用户公式文本从未成为Excel公式', async () => {
   const sheets = excelSheets([{ name: '授权交易', rows: [{ 标题: '中文商品', 编号: '001234567890123456',

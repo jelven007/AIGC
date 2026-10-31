@@ -157,14 +157,14 @@ def image_receipts(release):
         "scheduler": ("shoproai-video-scheduler:local", {
             f"scripts/{name}": f"/app/{name}" for name in ("run_video_worker.py", "alert_delivery.py", "runtime-contract.json")}),
         "renderer": ("shoproai-render-worker:local", {
-            str(p.relative_to(ROOT)): f"/app/{p.name}" for p in (ROOT / "worker").iterdir()
+            str(p.relative_to(ROOT)): f"/app/{p.name}" for p in (ROOT / "services/media-worker").iterdir()
             if p.suffix in (".py", ".lock", ".txt")}),
         "mcp": ("shoproai-mcp:local", {
-            str(p.relative_to(ROOT)): f"/app/{p.name}" for p in (ROOT / "mcp").iterdir()
+            str(p.relative_to(ROOT)): f"/app/{p.name}" for p in (ROOT / "services/mcp").iterdir()
             if p.suffix == ".py" or p.name in ("tools.json", "requirements.lock")}),
         "backup": ("shoproai-backup:local", {
             **{f"scripts/{name}": f"/app/scripts/{name}" for name in ("backup_restore.py", "backup_archive.py", "accept_release.py")},
-            "deploy/backup/requirements.lock": "/app/requirements.lock",
+            "infra/backup/requirements.lock": "/app/requirements.lock",
             **{str(p.relative_to(ROOT)): f"/app/supabase/migrations/{p.name}" for p in (ROOT / "supabase/migrations").glob("*.sql")}}),
     }
     receipts = {}
@@ -234,7 +234,7 @@ def prepare():
         files = migration_files()
         manifest = {"platform": "official-supabase", "release": release,
             "migrations": [{"version": p.name.split("_")[0], "name": p.name, "sha256": checksum(p)} for p in files],
-            "functions": json.loads((ROOT / "deploy/volcengine/manifest.json").read_text())["functions"],
+            "functions": json.loads((ROOT / "infra/volcengine/manifest.json").read_text())["functions"],
             "frontend": {"backend_url": base, "anon_key_sha256": hashlib.sha256(key.encode()).hexdigest(),
                 "archive_sha256": checksum(work / "frontend.zip"),
                 "registration_configured": bool(build_values["VITE_TERMS_URL"] and build_values["VITE_PRIVACY_URL"])},

@@ -1,7 +1,7 @@
 id: button-outline-text-foreground-contrast
 language: tsx
 files:
-  - src/**/*.tsx
+  - apps/web/src/**/*.tsx
 message: "Outline button with text-foreground class causes invisible text. The outline variant has a transparent background, making text-foreground color blend with the background and become unreadable. Use text-primary or another contrasting color instead."
 rule:
   kind: jsx_element
@@ -37,7 +37,7 @@ rule:
 id: button-default-text-primary-contrast
 language: tsx
 files:
-  - src/**/*.tsx
+  - apps/web/src/**/*.tsx
 message: "Default button with text-primary class causes poor contrast. The default variant has a primary-colored background, making text-primary color blend with the background and become hard to read. Remove the text-primary class or specify a different variant like 'outline' or 'ghost'."
 rule:
   kind: jsx_element
@@ -69,7 +69,7 @@ rule:
 id: button-outline-white-gray-contrast
 language: tsx
 files:
-  - src/**/*.tsx
+  - apps/web/src/**/*.tsx
 message: "Outline button with white/gray text color has poor contrast. Remove the text color class and use the default button text color."
 rule:
   kind: jsx_element

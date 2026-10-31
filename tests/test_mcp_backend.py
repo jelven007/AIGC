@@ -8,7 +8,7 @@ import sys
 import unittest
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "mcp"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "services/mcp"))
 from starlette.testclient import TestClient
 import httpx
 import backend_client
@@ -96,7 +96,7 @@ class MCPTest(unittest.TestCase):
 
     def test_sdk_catalog_and_required_fields_reject_legacy_tts(self):
         tools = asyncio.run(server.mcp.list_tools())
-        exported = json.loads((Path(__file__).resolve().parents[1] / "mcp/tools.json").read_text())
+        exported = json.loads((Path(__file__).resolve().parents[1] / "services/mcp/tools.json").read_text())
         self.assertEqual(exported["tools"], [tool.model_dump(mode="json", exclude_none=True) for tool in tools])
         by_name = {tool.name: tool for tool in tools}
         self.assertGreaterEqual(len(tools), 40)

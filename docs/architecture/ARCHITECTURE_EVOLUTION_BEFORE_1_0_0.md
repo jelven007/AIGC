@@ -4,7 +4,7 @@
 
 产品核心是视频生成，围绕创意输入、分镜、生成任务、媒体制作、导出与作品发布组织业务模块。商品资料与效果观测作为创作辅助模块。
 
-更新：2026-10-31。当前应用已在火山ECS `https://ecs.example.com` 全部自托管运行，默认账号`[管理员账号]/[已脱敏]`。架构契约为00068/probe24/render4/edit2，66生产迁移、20模型槽、59个MCP工具/19权限、43个生产Edge入口。当前11类服务/26常驻容器，16个FFmpeg执行器；100个独立普通账号五分钟29044次业务请求、0错误、P95 17.52ms，100份10秒720p本地成片74.768秒排空，见[容量验收](../testing/SELF_HOSTED_CAPACITY_100_20261031.md)。原完整函数加载、真实权限/商品/MCP/FFmpeg成片、全组件重启、38公网页面和Realtime隔离见[自托管实施](SELF_HOSTED_ECS_IMPLEMENTATION.md)及[初次验收](../testing/SELF_HOSTED_ACCEPTANCE_20261031.md)，安装与恢复见[运行手册](../deployment/SELF_HOSTED_ECS_RUNBOOK.md)。目录/模块边界见[综合技术方案](PROJECT_ANALYSIS_AND_TECHNICAL_PLAN_20261030.md)和[ADR-001](decisions/ADR-001-modular-business-boundaries.md)。原官方云端记录独立保留；实际模型效果、收款和平台发布需经营凭据联调。
+更新：2026-10-31。当前应用已在火山ECS `https://ecs.example.com` 全部自托管运行，默认账号`[管理员账号]/[已脱敏]`。架构契约为00068/probe24/render4/edit2，66生产迁移、20模型槽、59个MCP工具/19权限、43个生产Edge入口。当前11类服务/26常驻容器，16个FFmpeg执行器；100个独立普通账号五分钟29044次业务请求、0错误、P95 17.52ms，100份10秒720p本地成片74.768秒排空，见[容量验收](../testing/SELF_HOSTED_CAPACITY_100_20261031.md)。原完整函数加载、真实权限/商品/MCP/FFmpeg成片、全组件重启、38公网页面和Realtime隔离见[自托管实施](../archive/before-v1.1.0/docs/architecture/SELF_HOSTED_ECS_IMPLEMENTATION.md)及[初次验收](../testing/SELF_HOSTED_ACCEPTANCE_20261031.md)，安装与恢复见[运行手册](../deployment/SELF_HOSTED_ECS_RUNBOOK.md)。目录/模块边界见[综合技术方案](../archive/before-v1.1.0/docs/architecture/PROJECT_ANALYSIS_AND_TECHNICAL_PLAN_20261030.md)和[ADR-001](decisions/ADR-001-modular-business-boundaries.md)。原官方云端记录独立保留；实际模型效果、收款和平台发布需经营凭据联调。
 
 ## 当前单机部署
 
@@ -230,7 +230,7 @@ MCP HTTP使用每请求JWT/受限Key和ContextVar隔离。59工具/19权限、�
 - 当前ECS私有桶/RLS与限时签名已通过；若接管原官方云端的旧对象，需要另外核对归属和迁移，不能直接公开原桶。
 - 调度默认使用 ECS Docker，不将火山支持 pg_cron、pg_net、Vault 作为上线前提。现有 Cron SQL 仅在目标环境确认这些扩展后可选使用。
 - 当前ECS前端通过公开runtime-config.js绑定本实例API/anon；历史Pages ZIP在构建前确定URL/anon，Pages bind不修改ZIP常量。
-- 当前43个Edge入口来自`deploy/volcengine/manifest.json`并冻结为离线bundle，由自托管Edge Runtime加载；函数内继续验签及验证专用Worker密钥。官方/火山托管发布工具使用各自配置与回执。
+- 当前43个Edge入口来自`infra/volcengine/manifest.json`并冻结为离线bundle，由自托管Edge Runtime加载；函数内继续验签及验证专用Worker密钥。官方/火山托管发布工具使用各自配置与回执。
 - 迁移排除 00018/00019 演示数据和演示访问策略；部署使用私有 `shopro_deploy.schema_migrations` 记录 SHA-256 回执，发现历史文件修改或无回执的旧业务库则停止重放。
 - `archive/legacy-backend/`为历史规格，当前运营入口使用React/Supabase真实事务；43入口不含setup-demo，包含兼容/410接口，数量不代表43项可售能力。全部匹配00068/probe24/render4/edit2、前端身份与镜像后再做真实接受。
 - 图片、网页 Reader、Kling 等必须在统一设置页配置兼容协议的 HTTPS 地址；运行时不回退旧网关环境变量。部分历史 AI 业务模拟逻辑保留且需要后续治理。

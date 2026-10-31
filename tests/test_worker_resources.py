@@ -11,7 +11,7 @@ import time
 import unittest
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "worker"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "services/media-worker"))
 import main as worker
 from render import RenderError
 

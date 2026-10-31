@@ -70,7 +70,7 @@ def prepare(state, output):
             raise SelfHostError("源码敏感内容检查未通过：" + str(path.relative_to(ROOT)))
     output.mkdir(mode=0o700)
     # 明确白名单；不导出实例配置、密钥、数据库或测试素材。
-    for name in ("scripts", "deploy", "supabase", "worker", "mcp", "src", "public", "tests", "docs", ".rules", ".github"):
+    for name in ("scripts", "infra", "supabase", "services", "apps", "tests", "docs", ".rules", ".github"):
         def ignore(directory, names):
             return [name for name in names if name in ("__pycache__", "node_modules", ".temp", "secrets")
                     or name.endswith((".pyc", ".local", ".key", ".env"))
@@ -100,13 +100,13 @@ def create(state, output):
     for key in sorted(name for name in values if name.endswith("_IMAGE")):
         info = json.loads(command(["docker", "image", "inspect", values[key]]))[0]
         sources = {}
-        folder = {"RENDERER_IMAGE": "worker", "MCP_IMAGE": "mcp"}.get(key)
+        folder = {"RENDERER_IMAGE": "services/media-worker", "MCP_IMAGE": "services/mcp"}.get(key)
         if folder:
             sources = {path.name: digest(path) for path in (ROOT / folder).glob("*.py")}
         elif key == "SCHEDULER_IMAGE":
             sources = {name: digest(ROOT / "scripts" / name) for name in
                 ("run_video_worker.py", "first_party_http.py", "alert_delivery.py", "runtime-contract.json")}
-            sources["backend_tls.py"] = digest(ROOT / "mcp/backend_tls.py")
+            sources["backend_tls.py"] = digest(ROOT / "services/mcp/backend_tls.py")
         if sources:
             actual = json.loads(command(["docker", "run", "--rm", "--network", "none", "--entrypoint", "python",
                 info["Id"], "-c", "import hashlib,json,sys; from pathlib import Path; "

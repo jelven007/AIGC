@@ -15,7 +15,7 @@ dist
 dist-ssr
 *.local
 package-lock.json
-!deploy/self-hosted/edge-dependencies/package-lock.json
+!infra/self-hosted/edge-dependencies/package-lock.json
 
 # Editor directories and files
 .vscode/*
@@ -43,12 +43,12 @@ key.txt
 *.key
 
 # 独立视频调度器运行凭据
-deploy/video-scheduler/video_worker_secret
-deploy/video-scheduler/.env
-deploy/video-scheduler/relay_secret
-deploy/video-scheduler/alert-delivery.json
-deploy/volcengine/secrets.env
-deploy/volcengine/.env
+infra/video-scheduler/video_worker_secret
+infra/video-scheduler/.env
+infra/video-scheduler/relay_secret
+infra/video-scheduler/alert-delivery.json
+infra/volcengine/secrets.env
+infra/volcengine/.env
 /.volcengine-build/
 /.supabase-build/
 /.supabase-tools/
@@ -56,22 +56,22 @@ deploy/volcengine/.env
 /.selfhost-*/
 /.selfhost-*.tar.gz
 /.selfhost-*.tar.gz.sha256
-deploy/production/runtime.env
-deploy/production/secrets/
-deploy/production/acceptance.json
+infra/production/runtime.env
+infra/production/secrets/
+infra/production/acceptance.json
 __pycache__/
 *.pyc
 
 # Supabase CLI 本地链接与缓存
 supabase/.temp/
-deploy/render-worker/render_worker_secret
-deploy/render-worker/.env
+infra/render-worker/render_worker_secret
+infra/render-worker/.env
 
 # 加密备份及隔离恢复材料
 /backups/
 /restore-results/
 /.local/
 /.pnpm-store/
-deploy/backup/config.json
-deploy/backup/acceptance.json
-deploy/backup/secrets/
+infra/backup/config.json
+infra/backup/acceptance.json
+infra/backup/secrets/

@@ -10,7 +10,7 @@ import urllib.request
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "worker"))
+sys.path.insert(0, str(ROOT / "services/media-worker"))
 from edit_analysis import detect_beats, prepare_edit
 from person_mask import PersonModel, MODEL_SHA256, create_person_mask
 from render import render, RenderError, probe

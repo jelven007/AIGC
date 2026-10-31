@@ -4,12 +4,8 @@ import containerQuery from '@tailwindcss/container-queries';
 export default {
     darkMode: ['class'],
     content: [
-        './index.html',
-        './pages/**/*.{ts,tsx}',
-        './components/**/*.{ts,tsx}',
-        './app/**/*.{ts,tsx}',
-        './src/**/*.{ts,tsx}',
-        './node_modules/streamdown/dist/**/*.js'
+        './apps/web/index.html',
+        './apps/web/src/**/*.{ts,tsx}'
     ],
     safelist: ['border', 'border-border'],
     prefix: '',

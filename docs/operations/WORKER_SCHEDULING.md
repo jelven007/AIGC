@@ -10,7 +10,7 @@
 
 ```sh
 PRODUCTION_WORKER_ENABLED=true docker compose --profile production \
-  -f deploy/video-scheduler/compose.yaml --env-file deploy/video-scheduler/.env up -d
+  -f infra/video-scheduler/compose.yaml --env-file infra/video-scheduler/.env up -d
 ```
 
 `pnpm scheduler:start` 读取Compose解析后的生产开关，预检通过后在生产模式同时启动两个进程；`scheduler:stop` 同时停止两个进程。旧视频模式保留单进程。两个服务使用同一匹配镜像。

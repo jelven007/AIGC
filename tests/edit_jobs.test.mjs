@@ -23,9 +23,9 @@ console.log('PASS 原素材、速度、裁剪和时间戳协议，节拍不足�
 
 const js = text => ts.transpileModule(text, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
 const uri = text => `data:text/javascript;base64,${Buffer.from(text).toString('base64')}`;
-const media = uri(js(readFileSync('src/lib/privateMedia.ts', 'utf8').replace(
+const media = uri(js(readFileSync('apps/web/src/lib/privateMedia.ts', 'utf8').replace(
   "import { backendUrl } from './backendConfig';", "const backendUrl = 'https://db.example';")));
-const timeline = await import(uri(js(readFileSync('src/lib/editTimeline.ts', 'utf8').replace(
+const timeline = await import(uri(js(readFileSync('apps/web/src/lib/editTimeline.ts', 'utf8').replace(
   "'@/lib/privateMedia'", JSON.stringify(media)))));
 const tracks = [{ id: 'main', type: 'video', trackId: 'video', name: '主视频', start: 0, duration: 6,
   url: own('main.mp4'), sourceStart: 2, speed: 1.5 }, { ...source, trackId: 'audio', name: '节拍' }];

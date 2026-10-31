@@ -18,11 +18,11 @@
 
 这是至少一次投递。HTTP成功但响应不明会重试同一事件；Relay必须实现持久去重，不能据此重复通知。已确认回执与事件关联，故障、恢复和接手是不同原事件。连接端`isolated:true`仅供本地localhost/127.0.0.1 HTTP演练。
 
-复制[配置模板](../../deploy/video-scheduler/alert-delivery.example.json)为`deploy/video-scheduler/alert-delivery.json`，设0600；`relay_secret`设0600。文件映射为Compose secrets，发送容器与调度共用命名持久卷：
+复制[配置模板](../../infra/video-scheduler/alert-delivery.example.json)为`infra/video-scheduler/alert-delivery.json`，设0600；`relay_secret`设0600。文件映射为Compose secrets，发送容器与调度共用命名持久卷：
 
 ```sh
 PRODUCTION_WORKER_ENABLED=true docker compose --profile production --profile alerts \
-  -f deploy/video-scheduler/compose.yaml --env-file deploy/video-scheduler/.env up -d
+  -f infra/video-scheduler/compose.yaml --env-file infra/video-scheduler/.env up -d
 ```
 
 正式启用前应先完成[发布验收](../releases/RELEASE_ACCEPTANCE.md)，用受控演练事件核对Relay回执和最终值班送达。容器限制128MiB/0.25CPU/64PID、非root/只读/去cap；错误写结构化计数，容器运行不代表渠道已送达。数据库故障期间的离线待送卷也纳入宿主备份和磁盘观测。

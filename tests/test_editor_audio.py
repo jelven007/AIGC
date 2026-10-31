@@ -6,7 +6,7 @@ import sys
 import tempfile
 import unittest
 import numpy as np
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "worker"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "services/media-worker"))
 from render import render, RenderError
 
 

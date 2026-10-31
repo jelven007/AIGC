@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { loadEdge } from './edge-loader.mjs';
 
 const { mergeCenterTasks, videoCenterTask, productionCenterTask, publishCenterTask, taskDestination } =
-  await loadEdge('src/lib/taskCenter.ts', 'task-center');
+  await loadEdge('apps/web/src/lib/taskCenter.ts', 'task-center');
 const video = { id: 'video', project_id: 'project', provider: 'Wan3', status: 'processing',
   submission_state: 'submitted', billing_state: 'reserved', credit_cost: 10, progress: 23,
   video_url: null, needs_attention: false, error_message: null, created_at: '2026-10-21T02:00:00Z' };

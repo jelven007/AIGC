@@ -1,13 +1,174 @@
 {
   "schema_version": 1,
-  "verified_on": "2026-10-31",
+  "verified_on": "2026-11-01",
   "documents": [
-    {"path":"docs/prd/PRD.md","owner":"仓库维护者","verified_on":"2026-10-31","review_trigger":"每次行为发布","sources":["src/App.tsx","src/pages","supabase/functions"]},
-    {"path":"docs/architecture/TECHNICAL_ARCHITECTURE.md","owner":"技术维护者","verified_on":"2026-10-31","review_trigger":"运行边界或协议变化","sources":["scripts/runtime-contract.json","deploy/self-hosted/compose.yaml","mcp/tools.json"]},
-    {"path":"docs/development/DEVELOPMENT_GUIDE.md","owner":"开发维护者","verified_on":"2026-10-31","review_trigger":"工具链或路径变化","sources":["package.json","pnpm-lock.yaml","scripts/dev_environment.py"]},
-    {"path":"docs/testing/TEST_PLAN.md","owner":"测试维护者","verified_on":"2026-10-31","review_trigger":"每次发布","sources":["tests","scripts/test_browser_flows.mjs",".github/workflows/ci.yml"]},
-    {"path":"docs/operations/OPERATIONS_GUIDE.md","owner":"运营维护者","verified_on":"2026-10-31","review_trigger":"权限、账务或工单流程变化","sources":["src/pages/operations/OperationsPage.tsx","src/api/operations.ts","supabase/functions/operations/index.ts"]},
-    {"path":"docs/deployment/SELF_HOSTED_ECS_RUNBOOK.md","owner":"运维维护者","verified_on":"2026-10-31","review_trigger":"每次部署或每30天","sources":["scripts/self_hosted.py","scripts/self_hosted_snapshot.py","deploy/self-hosted/capacity-100.json"]},
-    {"path":"docs/releases/VERSION_MANAGEMENT.md","owner":"发布维护者","verified_on":"2026-10-31","review_trigger":"每次版本变动","sources":["package.json","scripts/self_hosted_release.py","scripts/deploy_volcengine.py"]}
+    {
+      "path": "docs/development/UI_STANDARDS.md",
+      "owner": "前端维护者",
+      "verified_on": "2026-11-01",
+      "review_trigger": "每次页面或共享样式变化",
+      "sources": [
+        "apps/web/src/index.css",
+        "apps/web/src/components/layouts/MainLayout.tsx",
+        "apps/web/src/components/ui/card.tsx",
+        "apps/web/src/components/ui/dialog.tsx",
+        "tests/page_heading_conventions.test.mjs",
+        "tests/browser_navigation_style.mjs"
+      ],
+      "cadence": "每次发布；运营/运维另加30天",
+      "staleness_signal": "所列源码、协议或操作变更而正文未同步",
+      "quadrant": "reference"
+    },
+    {
+      "path": "docs/prd/PRD.md",
+      "owner": "仓库维护者",
+      "verified_on": "2026-11-01",
+      "review_trigger": "每次行为发布",
+      "sources": [
+        "apps/web/src/App.tsx",
+        "apps/web/src/pages",
+        "supabase/functions"
+      ],
+      "cadence": "每次发布；运营/运维另加30天",
+      "staleness_signal": "所列源码、协议或操作变更而正文未同步",
+      "quadrant": "reference"
+    },
+    {
+      "path": "docs/architecture/TECHNICAL_ARCHITECTURE.md",
+      "owner": "技术维护者",
+      "verified_on": "2026-11-01",
+      "review_trigger": "运行边界或协议变化",
+      "sources": [
+        "scripts/runtime-contract.json",
+        "infra/self-hosted/compose.yaml",
+        "services/mcp/tools.json"
+      ],
+      "cadence": "每次发布；运营/运维另加30天",
+      "staleness_signal": "所列源码、协议或操作变更而正文未同步",
+      "quadrant": "explanation"
+    },
+    {
+      "path": "docs/development/DEVELOPMENT_GUIDE.md",
+      "owner": "开发维护者",
+      "verified_on": "2026-11-01",
+      "review_trigger": "工具链或路径变化",
+      "sources": [
+        "package.json",
+        "pnpm-lock.yaml",
+        "scripts/dev_environment.py"
+      ],
+      "cadence": "每次发布；运营/运维另加30天",
+      "staleness_signal": "所列源码、协议或操作变更而正文未同步",
+      "quadrant": "tutorial"
+    },
+    {
+      "path": "docs/testing/TEST_PLAN.md",
+      "owner": "测试维护者",
+      "verified_on": "2026-11-01",
+      "review_trigger": "每次发布",
+      "sources": [
+        "tests",
+        "scripts/test_browser_flows.mjs",
+        ".github/workflows/ci.yml"
+      ],
+      "cadence": "每次发布；运营/运维另加30天",
+      "staleness_signal": "所列源码、协议或操作变更而正文未同步",
+      "quadrant": "how-to"
+    },
+    {
+      "path": "docs/operations/OPERATIONS_GUIDE.md",
+      "owner": "运营维护者",
+      "verified_on": "2026-11-01",
+      "review_trigger": "权限、账务或工单流程变化",
+      "sources": [
+        "apps/web/src/pages/operations/OperationsPage.tsx",
+        "apps/web/src/api/operations.ts",
+        "supabase/functions/operations/index.ts"
+      ],
+      "cadence": "每次发布；运营/运维另加30天",
+      "staleness_signal": "所列源码、协议或操作变更而正文未同步",
+      "quadrant": "how-to"
+    },
+    {
+      "path": "docs/deployment/SELF_HOSTED_ECS_RUNBOOK.md",
+      "owner": "运维维护者",
+      "verified_on": "2026-11-01",
+      "review_trigger": "每次部署或每30天",
+      "sources": [
+        "scripts/self_hosted.py",
+        "scripts/self_hosted_snapshot.py",
+        "infra/self-hosted/capacity-100.json"
+      ],
+      "cadence": "每次发布；运营/运维另加30天",
+      "staleness_signal": "所列源码、协议或操作变更而正文未同步",
+      "quadrant": "how-to"
+    },
+    {
+      "path": "docs/releases/VERSION_MANAGEMENT.md",
+      "owner": "发布维护者",
+      "verified_on": "2026-11-01",
+      "review_trigger": "每次版本变动",
+      "sources": [
+        "package.json",
+        "scripts/self_hosted_release.py",
+        "scripts/deploy_volcengine.py"
+      ],
+      "cadence": "每次发布；运营/运维另加30天",
+      "staleness_signal": "所列源码、协议或操作变更而正文未同步",
+      "quadrant": "reference"
+    },
+    {
+      "path": "docs/development/PROJECT_STRUCTURE.md",
+      "owner": "仓库维护者",
+      "verified_on": "2026-11-01",
+      "review_trigger": "每次源码/契约/发布变化",
+      "sources": [
+        "scripts/check_project_layout.mjs",
+        "tests/test_production_layout.py"
+      ],
+      "quadrant": "reference",
+      "cadence": "每次发布",
+      "staleness_signal": "当前实现变化未同步"
+    },
+    {
+      "path": "docs/development/API_AND_DATA.md",
+      "owner": "仓库维护者",
+      "verified_on": "2026-11-01",
+      "review_trigger": "每次源码/契约/发布变化",
+      "sources": [
+        "apps/web/src/api",
+        "supabase/functions/_shared",
+        "supabase/migrations"
+      ],
+      "quadrant": "reference",
+      "cadence": "每次发布",
+      "staleness_signal": "当前实现变化未同步"
+    },
+    {
+      "path": "docs/development/MODEL_SETTINGS.md",
+      "owner": "仓库维护者",
+      "verified_on": "2026-11-01",
+      "review_trigger": "每次源码/契约/发布变化",
+      "sources": [
+        "supabase/functions/_shared/model-catalog.ts",
+        "apps/web/src/pages/settings"
+      ],
+      "quadrant": "reference",
+      "cadence": "每次发布",
+      "staleness_signal": "当前实现变化未同步"
+    },
+    {
+      "path": "docs/CURRENT_STATE.md",
+      "owner": "仓库维护者",
+      "verified_on": "2026-11-01",
+      "review_trigger": "每次源码/契约/发布变化",
+      "sources": [
+        "scripts/runtime-contract.json",
+        "package.json"
+      ],
+      "quadrant": "reference",
+      "cadence": "每次发布",
+      "staleness_signal": "当前实现变化未同步"
+    }
   ]
 }

@@ -90,7 +90,7 @@ def run_checks(session):
     require(probe.get("ready") is True and probe.get("missing") == []
             and all(probe.get(key) == value for key, value in contract.items()), "完整Worker迁移/协议探针不匹配")
     checks["worker_contract"] = probe
-    functions = json.loads((ROOT / "deploy/volcengine/manifest.json").read_text())["functions"]
+    functions = json.loads((ROOT / "infra/volcengine/manifest.json").read_text())["functions"]
     for function in functions:
         result = api("/functions/v1/" + function["name"], method="OPTIONS",
                      headers={"x-shopro-function-probe": os.environ["VIDEO_WORKER_SECRET"]})

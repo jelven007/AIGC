@@ -4,7 +4,7 @@
 > 后续工作区变更另见 [待验收开发](../../PENDING_CHANGES.md)，不能追记为历史迭代已完成。
 
 > **分析对象**：历史视频平台仓库
-> **分析范围**：商家创作端 `src/`、厂商运营中台 `backend/`、AI 服务与数据层 `supabase/` + `mcp/` + `api/`
+> **分析范围**：商家创作端 `apps/web/src/`、厂商运营中台 `backend/`、AI 服务与数据层 `supabase/` + `services/mcp/` + `api/`
 > **分析方式**：全量静态代码走查（含 Git 追踪状态、密钥扫描、RLS/SQL 审计），未修改任何业务代码
 > **报告日期**：2026-09-26
 
@@ -38,7 +38,7 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  商家创作端 src/  (React 18 + TS + Vite + Tailwind + shadcn)      │
+│  商家创作端 apps/web/src/  (React 18 + TS + Vite + Tailwind + shadcn)      │
 │  42 个页面 / 46,278 行 ── 直接调用 Supabase Client + Edge Function │
 └───────────────────────────┬──────────────────────────────────────┘
                             │  supabase-js (anon key)
@@ -65,7 +65,7 @@
 └──────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────┐
-│  MCP 开放生态 mcp/ + api/  (Python FastMCP)                       │
+│  MCP 开放生态 services/mcp/ + api/  (Python FastMCP)                       │
 │  主服务 7 工具 + 备份服务 3 工具 ── httpx 真实调用上游             │
 │  ⚠ 0.0.0.0:8080、零鉴权、公网暴露 https://f.playe.top/mcp         │
 └──────────────────────────────────────────────────────────────────┘
@@ -75,11 +75,11 @@
 
 | 模块 | 文件数 | 代码行数 | 说明 |
 |---|---:|---:|---|
-| `src/`（商家端） | 134 | **46,278** | 42 个页面 + 56 个 UI 原子组件 |
+| `apps/web/src/`（商家端） | 134 | **46,278** | 42 个页面 + 56 个 UI 原子组件 |
 | `backend/src/`（厂商中台） | 76 | **9,217** | 14 个页面 + 48 个 Mock 端点 |
 | `supabase/functions/` | 17 个目录 | — | Deno Edge Functions |
 | `supabase/migrations/` | 23 个 SQL | — | 另有 234KB `schema.sql`（已过期） |
-| `mcp/` + `api/` | 6 个 .py | — | FastMCP 服务与 Vercel 适配层 |
+| `services/mcp/` + `api/` | 6 个 .py | — | FastMCP 服务与 Vercel 适配层 |
 | **合计（不含 dist/node_modules）** | — | **≈ 5.5 万行** | — |
 
 ### 1.3 文档 vs 实现的一致性核查（实测）
@@ -103,7 +103,7 @@
 
 ---
 
-## 二、前端层（商家创作端 `src/`）
+## 二、前端层（商家创作端 `apps/web/src/`）
 
 ### 2.1 现状
 
@@ -131,9 +131,9 @@
 
 | # | 问题 | 证据位置 | 严重度 |
 |---|---|---|---|
-| F1 | SiliconFlow API Key **明文硬编码进源码**（2 处） | `src/lib/sse.ts:237`、`src/services/audio/index.ts:9` | 🔴 高 |
+| F1 | SiliconFlow API Key **明文硬编码进源码**（2 处） | `apps/web/src/lib/sse.ts:237`、`apps/web/src/services/audio/index.ts:9` | 🔴 高 |
 | F2 | `VITE_` 前缀第三方密钥（DeepSeek/Cdance/SiliconFlow）**打入前端产物**，任何人可提取盗刷 | `.env:6-20`、`lib/sse.ts:125`、`lib/vectrust/index.ts:11-14` | 🔴 高 |
-| F3 | Supabase anon key 硬编码兜底 | `src/db/supabase.ts:3-4` | 🔴 高 |
+| F3 | Supabase anon key 硬编码兜底 | `apps/web/src/db/supabase.ts:3-4` | 🔴 高 |
 | F4 | 权限仅靠**客户端字符串匹配**（`planName.includes('pro')`），仅 2 个路由生效，可绕过 | `components/PlanGate.tsx:28-32`、`App.tsx:252/256` | 🔴 高 |
 | F5 | `Profile.role` 类型定义了但**从未参与任何鉴权判断** | `types/types.ts:9`，全局零引用 | 🔴 高 |
 | F6 | `ABTestPage` 写入随机假数据污染真实数据集 | `pages/ABTestPage.tsx:83-86` | 🔴 高 |
@@ -143,7 +143,7 @@
 | F10 | **零测试**（无 test/spec、无 Storybook、无 test 脚本） | `package.json:6-10` | 🔴 高 |
 | F11 | 超长单文件，单组件 2,000–4,700 行，状态数十个 useState | `VideoEditPage.tsx`(4743)、`ProductSelectionPage.tsx`(3354)、`HomePage.tsx`(2732) | 🔴 高 |
 | F12 | `react-query` 已安装并挂 Provider，但**全库零处 `useQuery`**，全站手写 `setInterval` 轮询 | `App.tsx:185/273`；`HomePage.tsx:855/877/928/1144` | 🟡 中 |
-| F13 | **无统一 API 封装层**，`src/services/` 仅 `audio/index.ts` | — | 🟡 中 |
+| F13 | **无统一 API 封装层**，`apps/web/src/services/` 仅 `audio/index.ts` | — | 🟡 中 |
 | F14 | 数据请求普遍不检查 `error` 返回，`catch (err: any)` 泛滥 | `WorksPage.tsx:771/804`、`AnalyticsPage.tsx:240` | 🟡 中 |
 | F15 | 仅 1 个 ErrorBoundary，且错误上报依赖登录态（未登录必失败） | `App.tsx:83, 104, 119` | 🟡 中 |
 | F16 | 约 65 处 `any`，数据模型未覆盖真实表导致各页内联重复 interface | `VideoEditPage.tsx`(9)、`VideoCreatePage.tsx`(8)、`ABTestPage.tsx:25-40` | 🟡 中 |
@@ -162,8 +162,8 @@
 | P3 | **清除假数据污染真实链路** | ① `ABTestPage` 新建变体去掉随机数，改为 0 初值；② `HomePage` 未接真实模型的 4 个分支改为明确"即将上线"禁用态，禁止写库标 `completed`；③ 删除 `WorksPage:762` 硬编码删表；④ 移除 `WorksPage:687` 的测试用户种子逻辑 | P0 | 1.5 天 |
 | P4 | **积分扣减改为单一原子路径** | 删除 `useCredits.ts:181-233` 的 read-modify-write 降级，RPC 失败即失败并提示；移除硬编码 `planId`；补充幂等键防重复扣费 | P0 | 1 天 |
 | P5 | **补齐测试基建** | 引入 Vitest + React Testing Library，优先覆盖：积分扣减、支付流程、AuthContext、路由守卫、关键数据转换函数；目标首期 30% 行覆盖率 | P1 | 5 天 |
-| P6 | **建立统一数据访问层** | 新建 `src/api/` 统一封装：`client.ts`（超时/重试/错误归一/401 处理）+ 按域拆分的 `products.ts`/`video.ts`/`credits.ts`；**同时启用 react-query** 替换手写轮询 | P1 | 5 天 |
-| P7 | **拆分超长组件** | `VideoEditPage`(4743 行) → 按轨道/面板/时间轴拆为 6–8 个子组件 + 自定义 hooks；`HomePage`/`ProductSelectionPage` 同理；把 `mockVideos`/`MOCK_SELECTOR_PRODUCTS` 等常量抽到 `src/mocks/` 并标注仅 Demo 用 | P1 | 8 天 |
+| P6 | **建立统一数据访问层** | 新建 `apps/web/src/api/` 统一封装：`client.ts`（超时/重试/错误归一/401 处理）+ 按域拆分的 `products.ts`/`video.ts`/`credits.ts`；**同时启用 react-query** 替换手写轮询 | P1 | 5 天 |
+| P7 | **拆分超长组件** | `VideoEditPage`(4743 行) → 按轨道/面板/时间轴拆为 6–8 个子组件 + 自定义 hooks；`HomePage`/`ProductSelectionPage` 同理；把 `mockVideos`/`MOCK_SELECTOR_PRODUCTS` 等常量抽到 `apps/web/src/mocks/` 并标注仅 Demo 用 | P1 | 8 天 |
 | P8 | **统一错误处理与兜底** | ① 全局 `QueryClient` 错误回调 + 统一 toast；② 所有 `.select()/.insert()` 检查 `error`；③ ErrorBoundary 上报改为不依赖登录态（先本地队列，登录后补报）；④ `catch (err: unknown)` + 类型收窄替换 `any` | P1 | 3 天 |
 | P9 | **数据模型归一** | 把各页内联的 `ab_test_variants`/`teams`/`api_keys`/`publish_tasks` 等 interface 收敛进 `types/types.ts`；建议引入 `supabase gen types typescript` 自动生成数据库类型 | P2 | 2 天 |
 | P10 | **清理死代码** | 删除 6 个未路由页面或补上路由；移除 `App.tsx:21` 死导入；`PublishPage` 若要保留需明确与 `ExportFormatsPage` 的职责边界 | P2 | 1 天 |
@@ -205,7 +205,7 @@
 | B6 | 无 token/刷新机制，用户对象（含权限数组）**明文存 localStorage**，启动不校验会话 | `stores/auth.ts:36`；`getCurrentAdmin` 零调用 | 🔴 高 |
 | B7 | 变更类操作大量缺 catch，失败时用户看不到任何提示 | `OrderListView.vue:335-361,385-411`、`WorkflowDetailView.vue:207-221` | 🔴 高 |
 | B8 | 登录为演示逻辑，**密码完全被忽略**，未知邮箱回退超管 | `mocks/handlers/auth.ts:14-20` | 🔴 高 |
-| B9 | 前端扣费降级直更 `user_plans`，与 `00022:8-27` 的 RLS 收紧**冲突 → 静默失败** | `src/hooks/useCredits.ts:230-233` vs `00022:8-27` | 🟡 中 |
+| B9 | 前端扣费降级直更 `user_plans`，与 `00022:8-27` 的 RLS 收紧**冲突 → 静默失败** | `apps/web/src/hooks/useCredits.ts:230-233` vs `00022:8-27` | 🟡 中 |
 | B10 | `credit_logs` **双轨字段**（`type`/`action`、`credits_after`/`balance_after`），三处代码各写一套 | `00002:113`、`00022:66-74`、`useCredits.ts:245-260` | 🟡 中 |
 | B11 | `supabase/schema.sql`（234KB）**与迁移严重漂移**，仍保留旧全权限策略 | `schema.sql:7424-7427` | 🟡 中 |
 | B12 | `refund_credits` 无 `FOR UPDATE` 行锁，并发退款可叠加 | `00022:85-88` | 🟡 中 |
@@ -231,11 +231,11 @@
 | Q7 | **消除契约不一致** | ① Mock 端的关键字检索改为按指定字段匹配，并显式声明可检索字段；② `pageSize` 加上限（如 100）并做参数校验；③ 时间过滤改用规范化 `timestamptz` 比较；④ 统一为 `Authorization: Bearer` | P1 | 2 天 |
 | Q8 | **数据层一致性治理** | ① 删除 `supabase/schema.sql`（已过期，易误导）或改为仅用于冷启动；② `credit_logs` 双轨字段做一次性收敛（保留 `action`/`balance_after`，删除旧列并更新所有写入点）；③ `refund_credits` 增加行锁 | P1 | 2 天 |
 | Q9 | **文档纠偏** | 重写 `archive/legacy-backend/README.md`：如实说明"当前为 Mock 演示实现、无生产后端"；删除 Spring Boot / JWT / Redis 等未落地描述；修正端口与页面数 | P1 | 0.5 天 |
-| Q10 | **补充 403 页面与国际化预留** | 路由守卫改为返回 403 页并提示缺失权限码；文案抽到 `src/locales/zh-CN.ts` 为后续 i18n 预留 | P2 | 1.5 天 |
+| Q10 | **补充 403 页面与国际化预留** | 路由守卫改为返回 403 页并提示缺失权限码；文案抽到 `apps/web/src/locales/zh-CN.ts` 为后续 i18n 预留 | P2 | 1.5 天 |
 
 ---
 
-## 四、AI 服务层（`supabase/functions/` + `mcp/` + `api/`）
+## 四、AI 服务层（`supabase/functions/` + `services/mcp/` + `api/`）
 
 ### 4.1 现状
 
@@ -315,7 +315,7 @@
 | 风险点 | 具体证据 | 影响 |
 |---|---|---|
 | 密钥入库 | 5 个 `key.txt` 被 Git 追踪，含真实 JWT 与 API Key | 任何拿到仓库的人可直接消耗平台全部 AI 额度 |
-| 源码硬编码 | `src/lib/sse.ts:237`、`src/services/audio/index.ts:9` 明文 `sk-fvaew...` | 前端产物可逆向提取 |
+| 源码硬编码 | `apps/web/src/lib/sse.ts:237`、`apps/web/src/services/audio/index.ts:9` 明文 `sk-fvaew...` | 前端产物可逆向提取 |
 | 前端持有密钥 | `.env` 的 `VITE_DEEPSEEK_API_KEY`/`VITE_CDANCE_API_KEY`/`VITE_SILICONFLOW_API_KEY` | 打包进 bundle，等同公开 |
 | 文档虚假声明 | `docs/完善.md:181,195` 声称"明文 key 已全部消除 ✅" | 掩盖风险，延误处置 |
 
@@ -363,7 +363,7 @@
 | 序号 | 任务 | 产出 | 预估 |
 |---|---|---|---|
 | 6 | 后端选型决策 + API 契约冻结（OpenAPI 3.0） | 技术方案文档 + 契约文件 | 1 周 |
-| 7 | 前端统一数据访问层 + 启用 react-query | `src/api/**` | 1 周 |
+| 7 | 前端统一数据访问层 + 启用 react-query | `apps/web/src/api/**` | 1 周 |
 | 8 | 测试基建（Vitest）+ CI 门禁（typecheck/lint/test/build） | CI 流水线 | 1 周 |
 | 9 | 异步视频任务可靠化（落库 + 定时轮询 + 失败退款） | `video_jobs` 闭环 | 1 周 |
 | 10 | 共享中间件抽取 + CORS 白名单 + 可观测性 | `_shared/**` + 日志看板 | 1 周 |
@@ -382,12 +382,12 @@
 
 ## 七、分层总结表（现状 / 问题 / 改进建议）
 
-### 7.1 前端层（商家创作端 `src/`）
+### 7.1 前端层（商家创作端 `apps/web/src/`）
 
 | 维度 | 现状 | 主要问题 | 改进建议 |
 |---|---|---|---|
 | 页面与路由 | 42 个页面 / 46,278 行；路由懒加载 + ErrorBoundary；6 个页面未被路由 | 约 1,300 行死代码；`DashboardPage` 死导入 | 删除或补路由（P10） |
-| 数据链路 | 直接调 Supabase Client + Edge Function；无统一 API 层 | 12–15 个页面真实，约 12 个含 Mock，3 个纯静态 | 建 `src/api/**` 统一层（P6） |
+| 数据链路 | 直接调 Supabase Client + Edge Function；无统一 API 层 | 12–15 个页面真实，约 12 个含 Mock，3 个纯静态 | 建 `apps/web/src/api/**` 统一层（P6） |
 | 状态管理 | 已装 react-query 但零使用；全站手写 `setInterval` 轮询 | 无缓存/去重/重试；响应不一致 | 启用 react-query（P6） |
 | 权限控制 | `PlanGate` 客户端字符串匹配；仅 2 个路由受控 | `role` 字段从未使用；34 个路由无套餐校验；可绕过 | 权限下沉服务端（P2） |
 | 计费 | `deductUserCredits` 封装较完整，含 Realtime 同步 | 降级路径竞态；硬编码 planId；写入随机假数据污染 A/B | 单一原子路径（P4）+ 清假数据（P3） |
@@ -408,7 +408,7 @@
 | 工程质量 | TS `strict: true`；`any` 仅 1 处 ✅ | **零测试 / 无 lint / 无 CI**；变更操作大量无 catch | 测试+lint+CI（Q5）+ 错误提示（Q6） |
 | 文档 | `archive/legacy-backend/README.md` 详尽 | 宣称 Spring Boot/JWT/Redis、"20+ 页面"均不实 | 文档纠偏（Q9） |
 
-### 7.3 AI 服务层（`supabase/functions/` + `mcp/` + `api/`）
+### 7.3 AI 服务层（`supabase/functions/` + `services/mcp/` + `api/`）
 
 | 维度 | 现状 | 主要问题 | 改进建议 |
 |---|---|---|---|
@@ -418,7 +418,7 @@
 | 支付 | `create-payment-order` 官方 SDK 真实下单 ✅ | **webhook 未验签**；异常静默吞掉恒返 200 | 补验签（R2） |
 | 异步任务 | `ai-assistant` 有 setTimeout 轮询 | 可能被运行时回收；超时不退款；`seedance/kling/sora` 无状态落库 | 任务可靠化（R6） |
 | MCP 生态 | 主服务 7 工具真实调用 ✅；备份服务 3 工具 | **零鉴权 + 0.0.0.0 + 关闭 DNS Rebinding + 公网暴露** | MCP 加固（R4） |
-| `api/` 适配层 | `mcp.py`/`dxkp.py` 为 Vercel ASGI 入口 | `dxkp.py` 无鉴权密钥代理；依赖清单与 `mcp/` 不一致 | 鉴权 + 依赖统一（R4） |
+| `api/` 适配层 | `mcp.py`/`dxkp.py` 为 Vercel ASGI 入口 | `dxkp.py` 无鉴权密钥代理；依赖清单与 `services/mcp/` 不一致 | 鉴权 + 依赖统一（R4） |
 | 可维护性 | — | CORS/JWT/错误处理 17 份重复实现；无共享模块 | 抽 `_shared/**`（R7） |
 | 可观测性 | 有 `error_logs`/`model_calls` 台账 ✅ | 无结构化日志规范、无告警、无 trace 串联 | 可观测性补强（R8） |
 | 契约与文档 | README/docs 详尽 | **函数数/迁移数/action 表/模型标注全部不符** | 契约真相化（R9）+ 文档纠偏（R10） |
@@ -429,7 +429,7 @@
 
 | 核实项 | 命令 / 方式 | 结果 |
 |---|---|---|
-| 前端页面数 | `ls src/pages/*.tsx \| wc -l` | **42** |
+| 前端页面数 | `ls apps/web/src/pages/*.tsx \| wc -l` | **42** |
 | 前端代码行数 | `find src -name "*.tsx" -o -name "*.ts" \| xargs wc -l` | **46,278** |
 | 厂商中台代码行数 | `find backend/src -name "*.ts" -o -name "*.vue" \| xargs wc -l` | **9,217** |
 | Edge Functions 数量 | `ls -d supabase/functions/*/ \| wc -l` | **17**（README 称 16） |

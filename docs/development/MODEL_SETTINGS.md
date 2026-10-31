@@ -1,5 +1,9 @@
 # 统一模型接口设置
 
+类型：reference。读者：模型管理员与开发者。责任：开发维护者。核验：2026-11-01。来源：supabase/functions/_shared/model-catalog.ts、model-settings、apps/web/src/pages/settings及services/mcp/tools.json。每次槽、协议或配置变化复核；可见槽与真实目录不同即过期。
+
+当前20个服务槽分为16模型接口和4第三方集成，界面分别为/settings/models与/settings/integrations。v1.1.0统一页头、操作区与内容起点，不添加重复平台设置标题。不可变配置版本、只读权限、密钥用途绑定、旧任务保留原版本与价格均保持。当前00068/probe24/render4/edit2、MCP59/19；旧迭代槽数按历史阅读。
+
 2026-10-31页面职责拆分：`/settings/models`仅管理16项模型API（文本2、向量1、图片1、视频7、音频3、数字人2）。YouTube统计、eBay搜索、授权情报数据商和Jina网页读取4项移至`/settings/integrations`「第三方集成」，TikTok/抖音发布应用也在此配置。普通用户在模型页只读模型启用状态，集成页不展示管理员表单。
 
 此调整沿用20项底层配置及原版本，无需迁移已有数据。设置页对列表、保存、连接检查和历史导入发送`scope=models`或`scope=integrations`；后端限定返回目录与导入范围，跨范围保存/检查返回400。业务端不传scope时仍兼容原完整目录。连接检查只验证只读GET接口，不等于模型已开通生成权限。页面地址及导入范围验证：`pnpm test:models`、`pnpm test:settings-scope-ui`和现有模型/发布应用表单回归。

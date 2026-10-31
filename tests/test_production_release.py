@@ -57,8 +57,8 @@ class ProductionReleaseTest(unittest.TestCase):
         files = deploy_volcengine.release_manifest()["files"]
         self.assertFalse(any("node_modules" in Path(name).parts for name in files),
                          "Build cache must not change the production source identity")
-        for name in ("deploy/self-hosted/nginx.conf.template", "worker/model-assets/person.onnx",
-                     "deploy/self-hosted/edge-dependencies/package-lock.json", "docs/lifecycle.json"):
+        for name in ("infra/self-hosted/nginx.conf.template", "services/media-worker/model-assets/person.onnx",
+                     "infra/self-hosted/edge-dependencies/package-lock.json", "docs/lifecycle.json"):
             self.assertIn(name, files)
 
 

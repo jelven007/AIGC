@@ -132,7 +132,7 @@ def measure(worker_directory, expect_legacy_progress_failure=False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--worker-directory", type=Path, default=Path(__file__).resolve().parents[1] / "worker")
+    parser.add_argument("--worker-directory", type=Path, default=Path(__file__).resolve().parents[1] / "services/media-worker")
     parser.add_argument("--expect-legacy-progress-failure", action="store_true",
                         help="只用于隔离的旧源码：必须复现确切N/A异常与原retry，不表示旧任务成功")
     arguments = parser.parse_args()

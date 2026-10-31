@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { loadFrontend } from './frontend-loader.mjs';
-const { loginEmail, validLoginIdentity } = await loadFrontend('src/lib/loginIdentity.ts', 'selfhost-private-login');
+const { loginEmail, validLoginIdentity } = await loadFrontend('apps/web/src/lib/loginIdentity.ts', 'selfhost-private-login');
 
 test('自托管用户名在服务端解析，前端不需要账号邮箱映射', () => {
   assert.equal(loginEmail(' operator-fixture ', 'login', true), 'operator-fixture');

@@ -5,7 +5,7 @@
 本地流程已在双PG16和HTTP对象服务执行，详见 [迭代29](../archive/iterations/ITERATION_29_ALERTS_RECOVERY.md)。目标平台尚未执行备份调度或恢复验收，不承诺生产RPO/RTO。
 
 1. 核对实际平台、数据库直连、PG主版本、Storage URL、迁移回执和凭据负责人。使用PG16镜像只处理支持的源/目标版本；官方托管平台Auth/Storage系统迁移另走官方流程。
-2. 将 [配置模板](../../deploy/backup/config.example.json)复制为deploy/backup/config.json并设0600，secrets目录0700、每个文件0600。备份加密密钥为独立32字节hex；使用单主密钥时保留model_master_key并移除尚不存在的model_keyring项，使用版本目录时备份完整model_keyring。轮换与只读历史预检见 [密钥轮换](KEY_ROTATION.md)。将商户证书/私钥、签名Key、历史主密钥等所有运行必需材料按secrets名称加入，归档不替代凭据系统。
+2. 将 [配置模板](../../infra/backup/config.example.json)复制为deploy/backup/config.json并设0600，secrets目录0700、每个文件0600。备份加密密钥为独立32字节hex；使用单主密钥时保留model_master_key并移除尚不存在的model_keyring项，使用版本目录时备份完整model_keyring。轮换与只读历史预检见 [密钥轮换](KEY_ROTATION.md)。将商户证书/私钥、签名Key、历史主密钥等所有运行必需材料按secrets名称加入，归档不替代凭据系统。
 3. 停止对象上传/覆盖/删除和清理派发，等在途请求结束。数据库使用导出快照，Storage必须保证备份窗口内对象不变；变化或大小不符整份拒绝。unknown与原现金交易证据完整保留。
 4. 执行backup和verify，结果保管到独立受控存储；备份密钥另存，不与归档一起上传。定期调度由目标运维系统执行此命令，只有退出码0/verify通过才算成功，失败纳入值班流程。
 5. 恢复必须准备新空隔离PG及隔离Storage，isolated=true并核对域名，源生产配置不能用于restore。认证材料后恢复扩展/DB/Storage，核对回执/内容/历史解密；FAILED存在时保持环境隔离，另建空目标排查，不直接重放到部分恢复库。
@@ -18,7 +18,7 @@
 构建与执行示例：
 
 ```sh
-docker build -t shoproai-backup:local -f deploy/backup/Dockerfile .
+docker build -t shoproai-backup:local -f infra/backup/Dockerfile .
 docker run --rm --read-only --tmpfs /tmp:rw,noexec,nosuid,size=16m \
   -v "$PWD/deploy/backup:/run/backup:ro" -v "$PWD/backups:/backups" \
   shoproai-backup:local backup --config /run/backup/config.json --output /backups/发布前归档

@@ -66,8 +66,8 @@
 | 原五步向导与批量生成 | 批量服务端执行已新增，旧向导停用 | 1–50商品整批预算/套餐/配置版本、幂等与暂停取消；自动多镜头混剪发布仍待补齐 | BatchCreatePage、batch-video-jobs、00038、ITERATION_09 |
 | 图片与封面 | 已实现并强化 | 两种图片协议、后台恢复、结果证据、真实归档、原子选封面；编辑、扩图、掩码仍未实现 | image-provider、production-jobs、CoverCandidates、00035 |
 | 私有素材/作品库 | 新增核心保护，部分迁移边界待处理 | 三桶私有、用户路径RLS、稳定引用与签名；外部URL/静态样例不被转为私有，旧路径核对，团队共享未实现 | private-media、privateMedia、00035 |
-| 多轨剪辑/成片 | 已实现一部分真实渲染 | 裁剪/拼接/变速、图片、PIP、字幕、翻转/旋转/调色、音轨、关键帧；不是全部原编辑器效果 | VideoEditPage、render-spec、worker/render.py |
-| 转场/字幕动画/抠像 | 部分覆盖 | 淡入淡出/叠化、四种字幕动画、八滤镜RGB变换及强度；特殊转场、抠像、非正常混合拒绝；全部素材色彩一致性待验收 | VideoEditPage、render-spec、worker/render.py |
+| 多轨剪辑/成片 | 已实现一部分真实渲染 | 裁剪/拼接/变速、图片、PIP、字幕、翻转/旋转/调色、音轨、关键帧；不是全部原编辑器效果 | VideoEditPage、render-spec、services/media-worker/render.py |
+| 转场/字幕动画/抠像 | 部分覆盖 | 淡入淡出/叠化、四种字幕动画、八滤镜RGB变换及强度；特殊转场、抠像、非正常混合拒绝；全部素材色彩一致性待验收 | VideoEditPage、render-spec、services/media-worker/render.py |
 | 格式导出 | 多规格真实编码已新增 | MP4 H.264/AAC，六画幅含4:5/三档短边，多选最多18组合；全部输出事务创建、共享24任务上限、刷新同键恢复、独立下载发布，云端待验收 | ExportFormatsPage、render-exports、00039、ITERATION_10 |
 | TTS/ASR | 后台任务已新增，待供应商验收 | OpenAI/Step、幂等/版本/计费/归档恢复，真实正文与可用分段，旧同步入口410 | media-jobs/audio-provider、services/audio、00040 |
 | 数字人选择/克隆/口型 | 即时克隆/照片口播/视频口型已新增 | ElevenLabs IVC及原版本配音、D-ID照片口播、Sync口型、私有归档与积分；专业声纹/全身训练/动作控制未实现 | MediaJobsPanel、media-jobs、00040、ITERATION_11 |
@@ -80,10 +80,10 @@
 | Prompt知识库/RAG | 私有向量链已新增，待供应商与容量验收 | 真实保存/整理、17槽Embedding、后台分块/查询、精确余弦/用户与版本隔离/正文失效、真实脚本引用；200条/24块边界，不是自动训练 | KnowledgePage、knowledge-base/knowledge.ts、00043、text-handler/四层脚本、ITERATION_14 |
 | 团队空间/RBAC/共享 | 部分界面/业务记录 | 团队/邀请/成员处理存在且UI有本地降级；私有素材授权只认user，不认team，缺团队计费与共享闭环 | TeamSpacePage、phase3-assistant、00015/00035 |
 | OpenAPI Key/沙箱 | 页面保留，实际鉴权未覆盖 | Key记录/生成UI有本地模拟；业务函数用Auth.getUser校验JWT，不读取api_keys；页面示例generate_script也非现有Action | OpenAPIPage、auth.ts、phase3-assistant |
-| MCP | 47真实SDK工具已接业务链 | JWT/受限Key、16权限、图片/渲染/导出/五媒体/分析/批次/发布组/指标/知识/情报；原UUID/价格与网页一致，真实云端/TLS/供应商仍待验收 | mcp/tools.json、mcp_shopro_server.py、ITERATION_17/18 |
+| MCP | 47真实SDK工具已接业务链 | JWT/受限Key、16权限、图片/渲染/导出/五媒体/分析/批次/发布组/指标/知识/情报；原UUID/价格与网页一致，真实云端/TLS/供应商仍待验收 | services/mcp/tools.json、mcp_shopro_server.py、ITERATION_17/18 |
 | 活动/邀请/通知/缓存 | 基础保留 | 活动原子奖励、邀请/通知/缓存页面与数据；不等于自动增长营销或完备消息交付 | ActivitiesPage、InvitePage、NotificationsPage、LLMCachePage |
 | 厂商运营后台 | 未覆盖 | 原backend/也缺核心src；规格描述不是运行系统，未有完整租户、成本、工单、风控和财务后台 | backend/、docs/后端.md |
-| 部署与后台运维 | 新增工程支持，待运行验收 | Docker调度/渲染、专用密钥、迁移回执、部署清单；全栈云端、告警、备份恢复、压测仍未验收 | deploy/、scripts/、docs/RUNBOOK.md |
+| 部署与后台运维 | 新增工程支持，待运行验收 | Docker调度/渲染、专用密钥、迁移回执、部署清单；全栈云端、告警、备份恢复、压测仍未验收 | infra/、scripts/、docs/RUNBOOK.md |
 
 ## 这次校验发现的具体缺口
 

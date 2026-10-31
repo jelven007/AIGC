@@ -37,7 +37,7 @@ def auth_api(path, key, body=None, method=None):
 
 def apply_migrations(db):
     with db.transaction():
-        db.execute((ROOT / "deploy/self-hosted/db/extensions.sql").read_text(), prepare=False)
+        db.execute((ROOT / "infra/self-hosted/db/extensions.sql").read_text(), prepare=False)
     files = migration_files()
     with db.transaction():
         tracked = db.execute("SELECT to_regclass('shopro_deploy.schema_migrations') IS NOT NULL AS tracked,"
@@ -58,7 +58,7 @@ def apply_migrations(db):
         # 原发布工具生成的事务、锁、摘要回执；不使用tests/db平台替身。
         db.execute(migration_sql(pending), prepare=False)
     with db.transaction():
-        db.execute((ROOT / "deploy/self-hosted/db/business-compat.sql").read_text(), prepare=False)
+        db.execute((ROOT / "infra/self-hosted/db/business-compat.sql").read_text(), prepare=False)
         db.execute("NOTIFY pgrst,'reload schema'")
     return len(files), len(pending)
 

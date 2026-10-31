@@ -68,7 +68,8 @@ try {
   await page.screenshot({ path: '.volcengine-build/knowledge-mobile.png', fullPage: true });
   await page.getByRole('button', { name: '携带引用创作脚本', exact: true }).click();
   await page.getByRole('button', { name: '移除知识引用', exact: true }).waitFor();
-  assert.ok((await page.locator('main').innerText()).includes(id));
+  await page.locator('[data-floating-notice]').filter({ hasText: '已带入知识库资料' }).waitFor();
+  await page.waitForFunction(id => JSON.parse(localStorage.getItem('script-draft-11111111-1111-4111-8111-111111111111'))?.knowledgeJobId === id, id);
   assert.equal(await page.getByText('官方旗舰店活动，今天下单直接买一发二！点击左下角赶紧抢吧！', { exact: true }).count(), 0);
   await page.getByRole('button', { name: '移除知识引用', exact: true }).click();
   await page.getByRole('button', { name: '移除知识引用', exact: true }).waitFor({ state: 'detached' });

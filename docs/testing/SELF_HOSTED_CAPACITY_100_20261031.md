@@ -68,7 +68,7 @@
 
 多副本工作目录回归先失败再通过15项，实际FFmpeg回归13项，出口7+5、数据库公平租约6、MCP22、容量配置/回滚2、原配置5、调度2项通过。最新容量池配置回归2项、完整`pnpm lint`及新增脚本语法检查通过；无新增schema迁移、提交或推送。
 
-源码：`deploy/self-hosted/capacity-100.json`、`compose.yaml`、`nginx.conf.template`、`worker/task_workspace.py`、`worker/main.py`、`worker/render.py`、`mcp/http_server.py`。验收/交付工具：`scripts/self_hosted_capacity*.py/.mjs`。私有证据：`/opt/shopro/capacity-20261031`；原配置回滚点`runtime-before-capacity.env`，空闲池修复前配置`runtime-before-idle-fix.env`，原快照`/opt/shopro/backups/20261031-before-capacity100`。
+源码：`infra/self-hosted/capacity-100.json`、`compose.yaml`、`nginx.conf.template`、`services/media-worker/task_workspace.py`、`services/media-worker/main.py`、`services/media-worker/render.py`、`services/mcp/http_server.py`。验收/交付工具：`scripts/self_hosted_capacity*.py/.mjs`。私有证据：`/opt/shopro/capacity-20261031`；原配置回滚点`runtime-before-capacity.env`，空闲池修复前配置`runtime-before-idle-fix.env`，原快照`/opt/shopro/backups/20261031-before-capacity100`。
 
 新渲染镜像：`sha256:d5b59ddb480e20930224554f887fdfdb38ebe17c63ff376313bb205aa78cbc5b`；新MCP镜像：`sha256:2646a7979c51f703673d7785e1334b3b70e23e05e498a546cd0c09e3d0fb45f2`。构建输入、依赖锁、原镜像与候选身份保存在`build-inputs-and-rollback.json`，仅晋级容量代码。
 

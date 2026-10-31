@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { loadFrontend } from './frontend-loader.mjs';
-const errors = await loadFrontend('src/api/modelSettings.ts', 'model-settings-errors', {
-  'src/lib/edgeRequest.ts': `export class EdgeRequestError extends Error {
+const errors = await loadFrontend('apps/web/src/api/modelSettings.ts', 'model-settings-errors', {
+  'apps/web/src/lib/edgeRequest.ts': `export class EdgeRequestError extends Error {
     constructor(message, status) { super(message); this.status = status; }
   }
   export async function authenticatedEdgeJSON() { throw new EdgeRequestError('NOT_FOUND', 404); }`,

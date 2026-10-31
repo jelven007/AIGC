@@ -13,8 +13,8 @@ import zipfile
 from deploy_supabase import DeployError, NoRedirect, env_file
 
 ROOT = Path(__file__).resolve().parents[1]
-COMPOSE = ROOT / "deploy/production/compose.yaml"
-sys.path.insert(0, str(ROOT / "mcp"))
+COMPOSE = ROOT / "infra/production/compose.yaml"
+sys.path.insert(0, str(ROOT / "services/mcp"))
 from host_config import parse_allowed_hosts
 
 
@@ -60,7 +60,7 @@ def verify_bundle(directory):
         raise DeployError("前端发布身份不匹配")
     # 接受快照中的运行配置；ECS无需保留.git或从Git版本推断产物。
     for name, expected in release["files"].items():
-        if (name.startswith(("scripts/", "deploy/production/")) or name == "mcp/host_config.py") and sha(ROOT / name) != expected:
+        if (name.startswith(("scripts/", "infra/production/")) or name == "services/mcp/host_config.py") and sha(ROOT / name) != expected:
             raise DeployError("实际运行脚本/Compose与发布快照不同")
     return manifest
 
@@ -109,8 +109,8 @@ def worker_probe(values, manifest):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["check", "start", "status", "stop"])
-    parser.add_argument("--env-file", default=str(ROOT / "deploy/production/runtime.env"))
-    parser.add_argument("--acceptance", default=str(ROOT / "deploy/production/acceptance.json"))
+    parser.add_argument("--env-file", default=str(ROOT / "infra/production/runtime.env"))
+    parser.add_argument("--acceptance", default=str(ROOT / "infra/production/acceptance.json"))
     parser.add_argument("--old-dispatch-disabled", action="store_true",
                         help="仅在已查询确认原云端Cron/旧主机派发停止后使用")
     args = parser.parse_args()

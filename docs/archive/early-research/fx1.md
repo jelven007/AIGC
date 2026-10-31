@@ -14,12 +14,12 @@
 
 | 层级 | 位置 | 当前规模与确认状态 |
 | --- | --- | --- |
-| 商家创作端 | `src/`（React 18 + TS + Vite + Tailwind + shadcn/ui） | 43 个页面；路由懒加载、错误边界、登录门禁、草稿保存、积分 Realtime 已具备；**类型检查不通过**（见第 7 节） |
+| 商家创作端 | `apps/web/src/`（React 18 + TS + Vite + Tailwind + shadcn/ui） | 43 个页面；路由懒加载、错误边界、登录门禁、草稿保存、积分 Realtime 已具备；**类型检查不通过**（见第 7 节） |
 | 运营后台 | `backend/`（声明 Vue 3 + Element Plus + Pinia） | **`backend/src` 缺失**（本次 `Test-Path` 再次确认为 False），`index.html` 引用的入口不存在；README 宣称的页面/接口无法从当前检出构建 |
 | 业务后端 | `supabase/functions/`（23 个函数 + `_shared`）、`supabase/migrations/`（26 份） | Edge Functions + PostgreSQL/RLS/RPC；含 AI 网关、积分、订单、微信/支付宝通知、团队等；迁移链一致性问题仍待处理 |
-| Python 网关与 MCP | `api/`、`mcp/` | Vercel ASGI 代理与 MCP 工具服务；身份、计费与平台尚未统一 |
-| 视频合成引擎 | `clipforge/` | Git 子模块（10-02 引入），**本地未初始化、`src/` 中无任何引用**，与主站尚未集成 |
-| AI 接入 | `src/lib/`、`src/services/audio/`、Edge Functions | 文本主通道 GLM-5.3-Flash（Sophnet → dxkp → SiliconFlow 降级链）；视频经 Tokendance 网关（MiniMax H3 / Wan3.0 / HappyHorse / Kling / Seedance 2.0 Mini）；浏览器直连与服务端代理多路径并存 |
+| Python 网关与 MCP | `api/`、`services/mcp/` | Vercel ASGI 代理与 MCP 工具服务；身份、计费与平台尚未统一 |
+| 视频合成引擎 | `clipforge/` | Git 子模块（10-02 引入），**本地未初始化、`apps/web/src/` 中无任何引用**，与主站尚未集成 |
+| AI 接入 | `apps/web/src/lib/`、`apps/web/src/services/audio/`、Edge Functions | 文本主通道 GLM-5.3-Flash（Sophnet → dxkp → SiliconFlow 降级链）；视频经 Tokendance 网关（MiniMax H3 / Wan3.0 / HappyHorse / Kling / Seedance 2.0 Mini）；浏览器直连与服务端代理多路径并存 |
 
 **总体判断**：自 `fx.md` 以来新增约 21 个提交，几乎全部集中在视频剪辑工作台的**播放体验与 UI**（rAF 主时钟、Blob 预载、60FPS 游标、三轨专属设置面板、导出进度控制台），方向正确；但通过对 `VideoEditPage.tsx` 导出流程（约 L4408–L4525）的再次核验，**“导出渲染”仍是前端 setTimeout 模拟阶段 + fire-and-forget 调用 `generate_video`，最终 `video_url` 直接复用原始素材**，真实媒体渲染并未闭环。当前阶段最高价值的投入仍是：收敛账号/计费/权限边界 → 打通一条真实可验证的生成与导出链路 → 再扩展功能面。
 
@@ -56,7 +56,7 @@
 | P0-3 | 退款仅校验本用户与 1–100 数额，无任务 ID/原扣费/幂等键绑定（`ai-assistant` 退款分支） | 可重复“退回”历史消耗 | 以原扣费流水+job ID 核验，同笔最多退一次 |
 | P0-4 | 计费顺序：先扣费后限流/缓存；异常成本记 0 且不自动退（`ai-assistant` 主流程） | 被限流/参数错误仍扣费、台账失衡 | 鉴权→校验→限流→缓存→原子“建任务+预占积分”→执行→结算/补偿 |
 | P0-5 | RLS 迁移策略清理不彻底：`00022` 删除的策略名与实际不符，旧宽松策略（用户可写 `credit_logs`、自改 `user_plans`、自管 job）可能仍生效；且托管 Supabase 上 git push 不会自动应用迁移，线上实际策略需逐表核验 | 用户可直接 REST 篡改余额/任务态/伪造流水 | 查线上真实策略清单并按表收紧；普通用户对财务与执行态只读 |
-| P0-6 | 平台共享密钥进浏览器：`src/lib/sse.ts`、视频 adapter、`src/services/audio/` 读取 `VITE_*_API_KEY`；用户凭证组件明文 localStorage | 密钥暴露、共享设备串号 | 供应商密钥全部迁服务端；已暴露密钥轮换 |
+| P0-6 | 平台共享密钥进浏览器：`apps/web/src/lib/sse.ts`、视频 adapter、`apps/web/src/services/audio/` 读取 `VITE_*_API_KEY`；用户凭证组件明文 localStorage | 密钥暴露、共享设备串号 | 供应商密钥全部迁服务端；已暴露密钥轮换 |
 | P0-7 | 微信回调仅检查签名头“存在”未验签；支付宝通知先写去重事件再发权益、非同一事务 | 支付来源不可信；paid 但权益未到账且重试被去重拦截 | 原始通知体验签+金额/商户核验；权益入账改同事务或 outbox |
 | P0-8 | “演示成功”混入真实履约：导出模拟渲染（本次复核 `executeExportTask`）、多格式导出复用原 URL、发布失败仍报成功、示例视频分支 | 用户获得“成功”但没有交付物，污染统计 | demo/production 显式分离；无真实能力的选项目前标记不可用 |
 | P0-9 | Python 代理/MCP：`archive/legacy-api/dxkp.py`、`archive/legacy-api/mcp.py` 未配网关密钥时完全开放 | 共享上游额度被任意消耗 | 缺配置即拒绝服务；统一身份传递与配额审计 |
@@ -70,7 +70,7 @@
 | F3 | 任务与作品一致性 | 统一以 `video_jobs` 为事实源：排队/运行/成功/失败/取消中状态、job ID 刷新恢复、重试前提示是否重新计费；收敛 HomePage / VideoCreatePage / VideoEditPage 三处各自更新 `video_projects` 的写法 | P1 | 关闭浏览器后任务可恢复；状态不回退；重试不产生重复扣费 |
 | F4 | 类型与契约治理 | 修复 tsc 全部报错（见第 7 节）：统一 `ScriptScene.audio`、`Avatar.description`、`StyleReport` 字段、`TrackItem.keyframes` 结构等；前端类型由数据库 schema 生成，禁止断言掩盖 | P1 | `tsc --noEmit` 通过并纳入 build 前置 |
 | F5 | 草稿与工程隔离 | 草稿 key 加入 user ID + project ID + 版本号；导出前强制落盘当前编辑状态；双库联动（works/materials）写入失败要可见可重试 | P1 | 同账号两项目互不覆盖；材料表写入失败不再被空 `catch {}` 吞掉 |
-| F6 | 统一 API 响应处理 | `src/api/client.ts` 统一解包 envelope 与 `code != 0` 业务失败；杜绝“请求失败仍 toast 成功”（发布页、直播高光页现状） | P1 | 业务失败必现于 UI；错误附 trace ID 可定位 |
+| F6 | 统一 API 响应处理 | `apps/web/src/api/client.ts` 统一解包 envelope 与 `code != 0` 业务失败；杜绝“请求失败仍 toast 成功”（发布页、直播高光页现状） | P1 | 业务失败必现于 UI；错误附 trace ID 可定位 |
 | F7 | 模型选择 | 能力配置驱动时长/比例/分辨率/参考图上限，显示供应商可用状态与预计积分（Tokendance 各模型参数差异大，曾致 400 静默降级——需前端拦截不合法组合） | P1 | 不支持的组合无法提交 |
 | F8 | 商品导入 | URL 解析结果先预览再确认入库；标字段来源与缺失值；重复链接/SKU 检测；逐行导入错误报告 | P1 | 重复导入可识别；部分失败不丢成功记录 |
 | F9 | 素材上传 | 服务端校验 MIME/大小/配额；真实上传进度与断点/重试；被引用素材删除前提示影响 | P1 | 无存储孤儿；引用不静默失效 |

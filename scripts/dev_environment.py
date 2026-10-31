@@ -12,7 +12,7 @@ import urllib.request
 from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
-COMPOSE = ROOT / "deploy/development/compose.yaml"
+COMPOSE = ROOT / "infra/development/compose.yaml"
 IMAGE = "node:22-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da"
 DEPENDENCIES = "shoproai-development-dependencies"
 OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -34,9 +34,13 @@ def public_environment():
         raise RuntimeError("公开后端配置无效")
     if parsed.scheme != "https" and parsed.hostname not in ("127.0.0.1", "localhost"):
         raise RuntimeError("远端后端必须使用HTTPS")
+    username_login = values.get("VITE_USERNAME_LOGIN", "false")
+    if username_login not in ("true", "false"):
+        raise RuntimeError("VITE_USERNAME_LOGIN必须为true或false")
     env = dict(os.environ)
     # 只从已核对的项目公开配置注入，不继承旧容器或宿主VITE覆盖。
-    env.update(SHOPRO_DEV_BACKEND_URL=url, SHOPRO_DEV_ANON_KEY=key)
+    env.update(SHOPRO_DEV_BACKEND_URL=url, SHOPRO_DEV_ANON_KEY=key,
+               SHOPRO_DEV_USERNAME_LOGIN=username_login)
     return url, key, env
 
 

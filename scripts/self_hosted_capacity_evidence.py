@@ -87,8 +87,8 @@ def main():
         "renderer_image": values["RENDERER_IMAGE"], "mcp_image": values["MCP_IMAGE"],
         "renderer_replicas": int(values["RENDERER_REPLICAS"])}
     report["configuration_sha256"] = {path: hashlib.sha256((ROOT / path).read_bytes()).hexdigest() for path in
-        ("deploy/self-hosted/compose.yaml", "deploy/self-hosted/capacity-100.json",
-         "deploy/self-hosted/nginx.conf", "deploy/self-hosted/nginx.conf.template")}
+        ("infra/self-hosted/compose.yaml", "infra/self-hosted/capacity-100.json",
+         "infra/self-hosted/nginx.conf", "infra/self-hosted/nginx.conf.template")}
     recovery = args.state_dir / "receipts/capacity-recovery.json"
     if recovery.exists():
         report["recovery"] = json.loads(recovery.read_text())

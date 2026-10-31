@@ -13,7 +13,7 @@ function walk(directory) {
     return entry.isDirectory() ? walk(path) : entry.isFile() ? [path] : [];
   });
 }
-const source = walk(resolve(root, 'src')).filter(path => /\.(ts|tsx)$/.test(path));
+const source = walk(resolve(root, 'apps/web/src')).filter(path => /\.(ts|tsx)$/.test(path));
 const contracts = new Set([
   'api-scopes.ts', 'edit-contract.ts', 'image-contract.ts', 'model-catalog.ts',
   'product-contract.ts', 'publish-contract.ts', 'render-effects.ts', 'video-branding.ts',
@@ -38,7 +38,7 @@ function imports(path) {
 function localDependency(path, name) {
   const clean = name.split('?')[0];
   if (!clean.startsWith('@/') && !clean.startsWith('.')) return null;
-  const target = clean.startsWith('@/') ? resolve(root, 'src', clean.slice(2)) : resolve(dirname(path), clean);
+  const target = clean.startsWith('@/') ? resolve(root, 'apps/web/src', clean.slice(2)) : resolve(dirname(path), clean);
   const choices = [target, ...['.ts', '.tsx', '.mjs', '.js', '.css'].map(ext => target + ext),
     ...['index.ts', 'index.tsx', 'index.mjs', 'index.js'].map(name => resolve(target, name))];
   const found = choices.find(path => existsSync(path) && extname(path));
@@ -51,19 +51,19 @@ for (const path of source) {
     const dependency = localDependency(path, specifier);
     if (!dependency) continue;
     dependencies.push(dependency);
-    if (/^src\/(?:components|hooks|contexts|api|lib|db|types|services)\//.test(name) &&
-      dependency.startsWith('src/pages/')) {
+    if (/^apps\/web\/src\/(?:components|hooks|contexts|api|lib|db|types|services)\//.test(name) &&
+      dependency.startsWith('apps/web/src/pages/')) {
       errors.push(`${name}: 共享层反向依赖页面 ${dependency}`);
     }
-    if (/^src\/(?:api|lib|db|types|services)\//.test(name) &&
-      /^src\/(?:components|hooks|pages)\//.test(dependency)) {
+    if (/^apps\/web\/src\/(?:api|lib|db|types|services)\//.test(name) &&
+      /^apps\/web\/src\/(?:components|hooks|pages)\//.test(dependency)) {
       errors.push(`${name}: 数据/工具层依赖界面层 ${dependency}`);
     }
-    if (!dependency.startsWith('src/') && !contracts.has(dependency)) {
+    if (!dependency.startsWith('apps/web/src/') && !contracts.has(dependency)) {
       errors.push(`${name}: 跨运行时依赖未经声明 ${dependency}`);
     }
   }
-  graph.set(name, dependencies.filter(name => name.startsWith('src/')));
+  graph.set(name, dependencies.filter(name => name.startsWith('apps/web/src/')));
 }
 // 声明的跨运行时模块必须保持纯契约，不能间接带入 SDK 或服务端能力。
 for (const contract of contracts) {
@@ -88,8 +88,8 @@ function visit(name) {
   stack.pop(); active.delete(name); done.add(name);
 }
 for (const name of graph.keys()) visit(name);
-for (const entry of readdirSync(resolve(root, 'src/pages'), { withFileTypes: true })) {
-  if (entry.isFile()) errors.push(`页面须按业务域归组: src/pages/${entry.name}`);
+for (const entry of readdirSync(resolve(root, 'apps/web/src/pages'), { withFileTypes: true })) {
+  if (entry.isFile()) errors.push(`页面须按业务域归组: apps/web/src/pages/${entry.name}`);
 }
 for (const directory of ['backend', 'api', 'scratch', 'doc', 'skill-creator']) {
   if (existsSync(resolve(root, directory))) errors.push(`历史目录须归档: ${directory}`);
@@ -103,7 +103,7 @@ for (const path of nodeConfig.include) {
   if (!existsSync(resolve(root, path))) errors.push(`Node 类型检查目标不存在: ${path}`);
 }
 const markdown = ['README.md', 'AGENTS.md'].map(path => resolve(root, path));
-for (const directory of ['docs', 'mcp', 'tools']) {
+for (const directory of ['docs', 'services/mcp', 'tools']) {
   markdown.push(...walk(resolve(root, directory)).filter(path => path.endsWith('.md')));
 }
 const lifecycle = JSON.parse(readFileSync(resolve(root, 'docs/lifecycle.json'), 'utf8'));

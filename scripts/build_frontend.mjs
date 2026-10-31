@@ -1,5 +1,6 @@
 import { parseArgs } from 'node:util';
 import { build } from 'vite';
+import { resolve } from 'node:path';
 import configure from '../vite.config.mjs';
 
 const { values } = parseArgs({ options: {
@@ -13,6 +14,6 @@ await build({ ...config, mode: values.mode, configFile: false,
   ...(values.logLevel ? { logLevel: values.logLevel } : {}),
   build: { ...config.build,
     ...(values.minify ? { minify: values.minify === 'false' ? false : values.minify } : {}),
-    ...(values.outDir ? { outDir: values.outDir } : {}),
+    ...(values.outDir ? { outDir: resolve(values.outDir) } : {}),
   },
 });

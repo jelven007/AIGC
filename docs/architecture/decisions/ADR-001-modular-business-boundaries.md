@@ -1,6 +1,6 @@
 # ADR-001：沿现有事务与任务协议建立模块边界
 
-日期：2026-10-30。状态：本轮仓库整理已实施；后续领域切片按[技术方案](../PROJECT_ANALYSIS_AND_TECHNICAL_PLAN_20261030.md)分阶段推进。
+日期：2026-10-30。状态：本轮仓库整理已实施；后续领域切片按[技术方案](../../archive/before-v1.1.0/docs/architecture/PROJECT_ANALYSIS_AND_TECHNICAL_PLAN_20261030.md)分阶段推进。
 
 ## 背景与决策驱动
 

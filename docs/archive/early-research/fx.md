@@ -19,18 +19,18 @@
 
 | 层级 | 当前代码位置 | 已确认的实现与边界 |
 | --- | --- | --- |
-| 用户前端 | `src/`、`src/App.tsx` | React、TypeScript、Vite、Supabase SDK；已有创作、商品、素材、脚本、作品、积分、团队、分析等页面；已配置路由懒加载、错误边界和登录态门禁。 |
+| 用户前端 | `apps/web/src/`、`apps/web/src/App.tsx` | React、TypeScript、Vite、Supabase SDK；已有创作、商品、素材、脚本、作品、积分、团队、分析等页面；已配置路由懒加载、错误边界和登录态门禁。 |
 | 运营后台前端 | `backend/` | 声明使用 Vue、Element Plus、Pinia、MSW；当前目录及 Git 跟踪文件中未找到 `backend/src/`，`index.html` 却引用 `/src/main.ts`。文档中的 14 个页面、48 个接口不能据此认定为当前可构建实现。 |
 | 业务后端 | `supabase/functions/`、`supabase/migrations/` | Edge Functions + PostgreSQL/RLS/RPC；已有 AI 网关、积分、订单、支付通知、团队等服务代码，迁移之间的兼容性仍需核查。 |
-| Python 网关与 MCP | `api/`、`mcp/` | Vercel ASGI 代理、MCP 工具接口以及独立运行入口；与 Supabase 的用户身份、计费、审计尚未完全统一。 |
-| AI 接入 | `src/lib/`、`src/services/audio/`、Edge Functions | 前端直连、代理、Edge Function 和 MCP 多条路径并存；有文本、视频、语音、自定义模型接入及多种降级路径。 |
+| Python 网关与 MCP | `api/`、`services/mcp/` | Vercel ASGI 代理、MCP 工具接口以及独立运行入口；与 Supabase 的用户身份、计费、审计尚未完全统一。 |
+| AI 接入 | `apps/web/src/lib/`、`apps/web/src/services/audio/`、Edge Functions | 前端直连、代理、Edge Function 和 MCP 多条路径并存；有文本、视频、语音、自定义模型接入及多种降级路径。 |
 | 部署与质量门禁 | `vercel.json`、Vite 配置、`.rules/`、package scripts | 有构建和静态检查配置；生产路由、环境变量、迁移重放、真实服务测试需分别验证。 |
 
 总体判断：项目已经覆盖较完整的视频生成平台界面，但真实履约、演示能力与商业化控制混合存在。当前应先收敛身份鉴权、计费、任务状态和数据真实性，再完善既有编辑、发布、分析与协作功能，避免继续以新增页面数量替代功能闭环。
 
 ### 2.1 已有基础值得保留
 
-- 当前 `src/pages/` 有 43 个 TSX 页面文件；`supabase/functions/` 有 22 个函数目录（不含 `_shared`）；有 26 个 SQL 迁移文件。这些是文件数量，不是可用功能数量。
+- 当前 `apps/web/src/pages/` 有 43 个 TSX 页面文件；`supabase/functions/` 有 22 个函数目录（不含 `_shared`）；有 26 个 SQL 迁移文件。这些是文件数量，不是可用功能数量。
 - 已有路由懒加载、React Error Boundary、响应式组件、草稿保存、作品列表、素材上传、套餐门禁和积分 Realtime 订阅，无须整体重写前端。
 - 已有 JWT 校验辅助函数、按用户隔离的 RLS 设计、带行锁的扣费 RPC、退款 RPC，以及错误日志、模型调用和风险事件表。应修正缺口并统一接入，而不是再建立平行体系。
 - 已有文本流式输出、多视频供应商适配、TTS/ASR、模板版本字段、缓存、限流及预算雏形。主要不足在于入口分散、契约不一致、异步履约和实际效果校验。
@@ -42,26 +42,26 @@
 
 | 模块 | 当前已有功能 | 实现状态 | 当前主要缺口 | 主要证据 |
 | --- | --- | --- | --- | --- |
-| 账号与个人中心 | Supabase 登录态、个人资料、短信发送/验证、邀请入口 | 真实链路 / 部分闭环 | 会话与 profile 加载不同步；短信端点只是上游代理；邀请展示与实际奖励需要端到端核对 | `src/contexts/AuthContext.tsx`、`src/pages/auth/LoginPage.tsx`、`src/pages/account/InvitePage.tsx` |
-| 商品与选品 | 商品 CRUD、链接提取、卖点、规格、图片、筛选与选品页面 | 真实链路 / 演示混合 | 外链解析质量、AI 提取结果确认、公共示例与私有商品隔离、批量导入错误定位 | `src/pages/catalog/ProductsPage.tsx`、`src/pages/catalog/ProductSelectionPage.tsx` |
-| 创作工作台 | 文生/图生视频、参考素材、模型选择、提示词增强、图片生成 | 演示混合 | 多种浏览器直连路径；非真实模型分支可走本地模拟；失败与降级表现不一致 | `src/pages/HomePage.tsx:982`、`:1006`、`:1692` |
-| 脚本创作 | 四层脚本、分镜、Prompt、语音、脚本保存 | 真实链路 / 部分闭环 | 生成 JSON 缺少严格校验；页面和后端类型不一致；脚本与商品事实约束不足 | `src/pages/production/ScriptPage.tsx`、`supabase/functions/ai-assistant/index.ts:926` |
-| 数字人与模板 | 数字人资源、视频模板、提示词模板的浏览与选择 | 真实数据 / 演示资源混合 | 资源选择不等于数字人训练或合成完成；模板能力要对应实际生成参数和可用供应商 | `src/pages/production/AvatarsPage.tsx`、`src/pages/production/TemplatesPage.tsx`、`src/pages/production/PromptTemplatesPage.tsx` |
-| 素材库 | 图片/视频上传、预览、筛选、删除与下载 | 真实链路 | 已有 50 MB 前端限制；需补服务端校验、私有资源策略、失败文件清理和断点恢复 | `src/pages/MaterialsPage.tsx:160`、`supabase/migrations/00001_init_auth_and_tables.sql:172` |
-| 作品库与任务 | 作品筛选、详情、生成进度、任务重试、Realtime 订阅 | 部分闭环 | 不同生成入口分别更新项目；任务和项目映射、刷新恢复、取消及退款未统一 | `src/pages/production/WorksPage.tsx`、`src/pages/production/TaskQueuePage.tsx` |
-| 视频编辑 | 时间线、音频/文字/画面设置、撤销、草稿与项目保存 | 编辑界面已实现，导出未闭环 | 导出只提交 `generate_video + project_id`；后端不读取编辑时间线，不能保证导出与预览一致 | `src/pages/VideoEditPage.tsx:3999`、`supabase/functions/ai-assistant/index.ts:658` |
-| 多格式导出 | 选择项目、比例/平台格式、进度和下载 | 演示实现 | 多个格式经过定时进度后使用同一个原视频 URL，没有真实转码 | `src/pages/ExportFormatsPage.tsx:347` |
-| 批量创作 | 选择多个商品、批次配置、扣费、批次记录、暂停/恢复/取消 | 部分闭环 | 当前服务目录未找到消费 `batch_jobs/batch_job_items` 的 worker；创建记录不代表开始执行 | `src/pages/BatchCreatePage.tsx:245`、`supabase/migrations/00017_create_batch_tables.sql` |
-| 发布管理 | 多平台授权 UI、发布草稿、定时字段、发布状态 | 演示混合 | 随机授权、模拟平台 ID；导出页请求失败仍提示发布成功；未找到定时发布消费者 | `src/pages/PublishPage.tsx:103`、`src/pages/ExportFormatsPage.tsx:561`、`supabase/functions/phase3-assistant/index.ts:372` |
-| 数据与 A/B | 作品分析、投放反馈、图表、变体管理、显著性展示 | 演示混合 / 部分闭环 | 随机曝光/转化/预测分数不能作为经营数据；实验缺少可信的分流和采集闭环 | `src/pages/DataFeedbackPage.tsx:73`、`src/pages/WorksPage.tsx:680`、`src/pages/ABTestPage.tsx:43` |
-| 风格、竞品、热点 | 风格分析、竞品账号/快照、热点模式、个性化偏好 | 真实调用 / 演示混合 | 风格降级含随机维度；无爬虫配置时写模拟快照；需标记来源与抓取时间 | `src/pages/StyleCopyPage.tsx:59`、`supabase/functions/phase3-assistant/index.ts:58`、`src/pages/intelligence/TrendingPatternsPage.tsx` |
-| 直播高光 | 回放链接、分析片段、勾选、清单下载 | 演示混合 | 未见完整媒体下载→ASR 时间戳→实际裁剪链；当前导出为 TXT 清单 | `src/pages/LiveHighlightPage.tsx:156`、`:187`、`supabase/functions/phase3-assistant/index.ts:123` |
-| 知识与 Prompt | Prompt 卡片、搜索、变量提取、内容整合；后端关键词检索 | 部分闭环 | 页面写 `prompt_knowledge`，后端检索 `knowledge_entries`；“智能整合”实际为本地拼接 | `src/pages/KnowledgePage.tsx:159`、`:214`、`supabase/functions/ai-assistant/index.ts:1109` |
-| 积分与支付 | 套餐、积分流水、前置余额检查、微信订单、支付宝支付/回跳/查单/退款 | 真实链路 / 待联调 | 客户端掌握计费动作；扣费退款缺少任务绑定；支付确认和权益入账非事务 | `src/hooks/useCredits.ts`、`supabase/functions/_shared/alipay.ts:140` |
-| 团队与开放 API | 团队创建/邀请/角色、Key 创建/撤销、调用示例 | 部分闭环 | 前端有本地演示回退；未找到完整接受邀请流程或 `ak_` Key 的服务端鉴权消费链 | `src/pages/account/TeamSpacePage.tsx`、`src/pages/OpenAPIPage.tsx:35`、`supabase/functions/phase3-assistant/index.ts:201` |
-| 通知、活动、邀请 | 分类通知、活动和邀请展示、部分数据读取 | 部分闭环 | 通知偏好仍有“即将上线”入口；须验证已读持久化、事件来源、奖励唯一性 | `src/pages/NotificationsPage.tsx:413`、`src/pages/account/ActivitiesPage.tsx`、`src/pages/account/InvitePage.tsx` |
+| 账号与个人中心 | Supabase 登录态、个人资料、短信发送/验证、邀请入口 | 真实链路 / 部分闭环 | 会话与 profile 加载不同步；短信端点只是上游代理；邀请展示与实际奖励需要端到端核对 | `apps/web/src/contexts/AuthContext.tsx`、`apps/web/src/pages/auth/LoginPage.tsx`、`apps/web/src/pages/account/InvitePage.tsx` |
+| 商品与选品 | 商品 CRUD、链接提取、卖点、规格、图片、筛选与选品页面 | 真实链路 / 演示混合 | 外链解析质量、AI 提取结果确认、公共示例与私有商品隔离、批量导入错误定位 | `apps/web/src/pages/catalog/ProductsPage.tsx`、`apps/web/src/pages/catalog/ProductSelectionPage.tsx` |
+| 创作工作台 | 文生/图生视频、参考素材、模型选择、提示词增强、图片生成 | 演示混合 | 多种浏览器直连路径；非真实模型分支可走本地模拟；失败与降级表现不一致 | `apps/web/src/pages/HomePage.tsx:982`、`:1006`、`:1692` |
+| 脚本创作 | 四层脚本、分镜、Prompt、语音、脚本保存 | 真实链路 / 部分闭环 | 生成 JSON 缺少严格校验；页面和后端类型不一致；脚本与商品事实约束不足 | `apps/web/src/pages/production/ScriptPage.tsx`、`supabase/functions/ai-assistant/index.ts:926` |
+| 数字人与模板 | 数字人资源、视频模板、提示词模板的浏览与选择 | 真实数据 / 演示资源混合 | 资源选择不等于数字人训练或合成完成；模板能力要对应实际生成参数和可用供应商 | `apps/web/src/pages/production/AvatarsPage.tsx`、`apps/web/src/pages/production/TemplatesPage.tsx`、`apps/web/src/pages/production/PromptTemplatesPage.tsx` |
+| 素材库 | 图片/视频上传、预览、筛选、删除与下载 | 真实链路 | 已有 50 MB 前端限制；需补服务端校验、私有资源策略、失败文件清理和断点恢复 | `apps/web/src/pages/MaterialsPage.tsx:160`、`supabase/migrations/00001_init_auth_and_tables.sql:172` |
+| 作品库与任务 | 作品筛选、详情、生成进度、任务重试、Realtime 订阅 | 部分闭环 | 不同生成入口分别更新项目；任务和项目映射、刷新恢复、取消及退款未统一 | `apps/web/src/pages/production/WorksPage.tsx`、`apps/web/src/pages/production/TaskQueuePage.tsx` |
+| 视频编辑 | 时间线、音频/文字/画面设置、撤销、草稿与项目保存 | 编辑界面已实现，导出未闭环 | 导出只提交 `generate_video + project_id`；后端不读取编辑时间线，不能保证导出与预览一致 | `apps/web/src/pages/VideoEditPage.tsx:3999`、`supabase/functions/ai-assistant/index.ts:658` |
+| 多格式导出 | 选择项目、比例/平台格式、进度和下载 | 演示实现 | 多个格式经过定时进度后使用同一个原视频 URL，没有真实转码 | `apps/web/src/pages/ExportFormatsPage.tsx:347` |
+| 批量创作 | 选择多个商品、批次配置、扣费、批次记录、暂停/恢复/取消 | 部分闭环 | 当前服务目录未找到消费 `batch_jobs/batch_job_items` 的 worker；创建记录不代表开始执行 | `apps/web/src/pages/BatchCreatePage.tsx:245`、`supabase/migrations/00017_create_batch_tables.sql` |
+| 发布管理 | 多平台授权 UI、发布草稿、定时字段、发布状态 | 演示混合 | 随机授权、模拟平台 ID；导出页请求失败仍提示发布成功；未找到定时发布消费者 | `apps/web/src/pages/PublishPage.tsx:103`、`apps/web/src/pages/ExportFormatsPage.tsx:561`、`supabase/functions/phase3-assistant/index.ts:372` |
+| 数据与 A/B | 作品分析、投放反馈、图表、变体管理、显著性展示 | 演示混合 / 部分闭环 | 随机曝光/转化/预测分数不能作为经营数据；实验缺少可信的分流和采集闭环 | `apps/web/src/pages/DataFeedbackPage.tsx:73`、`apps/web/src/pages/WorksPage.tsx:680`、`apps/web/src/pages/ABTestPage.tsx:43` |
+| 风格、竞品、热点 | 风格分析、竞品账号/快照、热点模式、个性化偏好 | 真实调用 / 演示混合 | 风格降级含随机维度；无爬虫配置时写模拟快照；需标记来源与抓取时间 | `apps/web/src/pages/StyleCopyPage.tsx:59`、`supabase/functions/phase3-assistant/index.ts:58`、`apps/web/src/pages/intelligence/TrendingPatternsPage.tsx` |
+| 直播高光 | 回放链接、分析片段、勾选、清单下载 | 演示混合 | 未见完整媒体下载→ASR 时间戳→实际裁剪链；当前导出为 TXT 清单 | `apps/web/src/pages/LiveHighlightPage.tsx:156`、`:187`、`supabase/functions/phase3-assistant/index.ts:123` |
+| 知识与 Prompt | Prompt 卡片、搜索、变量提取、内容整合；后端关键词检索 | 部分闭环 | 页面写 `prompt_knowledge`，后端检索 `knowledge_entries`；“智能整合”实际为本地拼接 | `apps/web/src/pages/KnowledgePage.tsx:159`、`:214`、`supabase/functions/ai-assistant/index.ts:1109` |
+| 积分与支付 | 套餐、积分流水、前置余额检查、微信订单、支付宝支付/回跳/查单/退款 | 真实链路 / 待联调 | 客户端掌握计费动作；扣费退款缺少任务绑定；支付确认和权益入账非事务 | `apps/web/src/hooks/useCredits.ts`、`supabase/functions/_shared/alipay.ts:140` |
+| 团队与开放 API | 团队创建/邀请/角色、Key 创建/撤销、调用示例 | 部分闭环 | 前端有本地演示回退；未找到完整接受邀请流程或 `ak_` Key 的服务端鉴权消费链 | `apps/web/src/pages/account/TeamSpacePage.tsx`、`apps/web/src/pages/OpenAPIPage.tsx:35`、`supabase/functions/phase3-assistant/index.ts:201` |
+| 通知、活动、邀请 | 分类通知、活动和邀请展示、部分数据读取 | 部分闭环 | 通知偏好仍有“即将上线”入口；须验证已读持久化、事件来源、奖励唯一性 | `apps/web/src/pages/NotificationsPage.tsx:413`、`apps/web/src/pages/account/ActivitiesPage.tsx`、`apps/web/src/pages/account/InvitePage.tsx` |
 | 运营后台 | 文档声明看板、用户、任务、退款、风控、审批、RBAC | 待恢复 | 当前没有 `backend/src/`；未发现 `/api/admin/**` 的真实服务实现，不能按 README 承诺直接交付 | `archive/legacy-backend/README.md`、`backend/index.html:2`、`api/` |
-| MCP 服务 | 卖点、脚本、翻译、语音、提示词、视频提交/查询工具 | 有实现，鉴权与业务集成不完整 | 配置密钥后工具内部仍可能拒绝；未配置则放行；未接平台统一积分及任务所有权 | `archive/legacy-api/mcp.py`、`mcp/mcp_shopro_server.py:39`、`:336` |
+| MCP 服务 | 卖点、脚本、翻译、语音、提示词、视频提交/查询工具 | 有实现，鉴权与业务集成不完整 | 配置密钥后工具内部仍可能拒绝；未配置则放行；未接平台统一积分及任务所有权 | `archive/legacy-api/mcp.py`、`services/mcp/mcp_shopro_server.py:39`、`:336` |
 
 ## 4. 必须优先处理的具体问题
 
@@ -75,7 +75,7 @@
 | Q03 / P0 | 迁移 `00025:174` 将服务端视频费用设为 0，实际依赖前端扣 10；`VideoEditPage.tsx:4033` 直接提交生成；独立 `seedance` 入口未整合统一计费 | 可绕过前置扣费；不同入口、模型、批量任务收费不一致 | 建立唯一服务端“创建任务+确认报价+预占积分”入口；页面只展示报价 | 跳过页面直接请求也必须扣费或拒绝；同一幂等请求不重复收费 |
 | Q04 / P0 | `00022` 删除的策略名与原策略不同：未删除 `00002:100` 的 `user_plans_self`、`00004:24` 的 `users_manage_own_jobs`；`credit_logs_insert` 仍允许用户写流水 | 按迁移叠加后，旧宽松策略可能继续允许修改余额、任务态或伪造流水 | 按数据库实际策略名清理；普通用户只读账本/执行态；服务端承担资金与状态写入 | 直接 REST 修改余额、任务完成态、插入财务流水均被拒绝；逐表验证真实策略 |
 | Q05 / P0 | `ai-assistant/index.ts:395–506` 只对部分 action 强制登录；`knowledgeRagSearch:1113` 信任 body.user_id；`retryVideoJob:1483`、`generateVideo:658` 未按 JWT 校验项目归属 | service-role 客户端可能读取或修改其他用户资源；平台外层 JWT 设置不能代替对象授权 | 所有业务 action 默认登录；把认证上下文传入 handler；项目/任务/素材/知识均验证 owner/team 权限 | 两个测试用户交叉读取、重试、生成、封面更新全部拒绝；匿名只可访问明确公共能力 |
-| Q06 / P0 | `src/lib/sse.ts:273`、视频适配器和 `src/services/audio/index.ts:8` 在浏览器读取供应商 `VITE_*_API_KEY`；`customModel.ts:37` 和平台凭证组件明文写 localStorage | 配置真实共享密钥后会暴露给客户端；共享设备还存在账号间凭证残留 | 平台供应商密钥迁到服务端；浏览器仅携带用户令牌；用户自带密钥采用明确的安全存储方案、最小作用域及撤销机制 | 构建产物、网络请求、localStorage 不含平台共享密钥；已暴露密钥完成轮换 |
+| Q06 / P0 | `apps/web/src/lib/sse.ts:273`、视频适配器和 `apps/web/src/services/audio/index.ts:8` 在浏览器读取供应商 `VITE_*_API_KEY`；`customModel.ts:37` 和平台凭证组件明文写 localStorage | 配置真实共享密钥后会暴露给客户端；共享设备还存在账号间凭证残留 | 平台供应商密钥迁到服务端；浏览器仅携带用户令牌；用户自带密钥采用明确的安全存储方案、最小作用域及撤销机制 | 构建产物、网络请求、localStorage 不含平台共享密钥；已暴露密钥完成轮换 |
 | Q07 / P0 | 微信通知只检查签名头“存在”，没有签名验证步骤；解密结果只保留支付状态和订单号（`wechat-payment-webhook/index.ts`） | 无法完成支付来源、商户和实付金额的一致性验证 | 对原始通知体验签，核验商户/应用/金额/币种/交易号，再进入业务事务；错误不能确认成功 | 篡改通知体、错误签名/商户/金额均拒绝；合法重试只入账一次 |
 | Q08 / P0 | 支付宝通知 `alipay-payment-notify:94` 先去重写事件，再发权益；`finalizePaidOrder:146` 和微信回调先改 paid，再分步写套餐/流水；部分写入不检查 error | paid 但权益未到账；重试被去重拦住；并发加油包读改写可能丢积分 | 通知处理状态、订单、权益、流水在同一数据库事务或可恢复 outbox 中提交；把“已收事件”和“已完成权益”分开 | 任一步失败后重试可补齐；同订单只发一次；并发两笔充值累加准确 |
 | Q09 / P0 | `archive/legacy-api/dxkp.py` / `archive/legacy-api/mcp.py` 仅在配置网关密钥时鉴权；`mcp_shopro_server.py:47` 内部参数默认无 key，而工具调用未传认证上下文 | 不配密钥时开放共享上游额度；配了密钥又可能“HTTP 验证通过、工具拒绝” | 非显式 demo 模式缺配置即拒绝启动/服务；统一从请求上下文获取身份并传至工具；接入额度、权限与审计 | 未配密钥返回配置错误；无效请求拒绝；有效请求能实际通过全部鉴权层 |
@@ -90,7 +90,7 @@
 | 编号 | 现有模块 / 主要证据 | 完善建议 | 优先级 | 验收标准 |
 | --- | --- | --- | --- | --- |
 | F01 | 账号、路由；`AuthContext.tsx`、`App.tsx` | 分离 session/profile 初始化状态；登录过期保留返回路径；未知路由显示真实 404；切换账号清理余额、草稿、团队及平台授权缓存 | P1 | 不出现上一个用户的数据闪现；登录后返回原编辑任务；profile 失败可重试 |
-| F02 | API 与错误反馈；`src/api/client.ts`、`LiveHighlightPage.tsx:161` | 全部业务复用响应解包，统一处理 HTTP error、`code != 0` 和业务 `success:false`；直播页正确读取 `{code,data}`，不把外层 envelope 当结果 | P1 | 业务失败不弹成功；错误码/trace ID 可定位；直播真实返回可展示片段 |
+| F02 | API 与错误反馈；`apps/web/src/api/client.ts`、`LiveHighlightPage.tsx:161` | 全部业务复用响应解包，统一处理 HTTP error、`code != 0` 和业务 `success:false`；直播页正确读取 `{code,data}`，不把外层 envelope 当结果 | P1 | 业务失败不弹成功；错误码/trace ID 可定位；直播真实返回可展示片段 |
 | F03 | 多创作入口；`App.tsx`、`HomePage.tsx`、`VideoCreatePage.tsx` | `/video/create` 实际指向 HomePage；核对旧 VideoCreatePage 的引用和入口，提取公共生成 controller、报价、任务提交及订阅 hook | P1 | 首页、编辑、批量入口共用任务/计费契约；同一缺陷无需多页重复修复 |
 | F04 | 模型选择、自定义模型 | 能力配置驱动时长、比例、分辨率、参考图数量；显示供应商可用状态及预计积分；普通聊天回复中的 URL 不能直接认定为生成媒体 | P1 | 不支持的组合无法提交；成品 URL 验证通过才进入完成态 |
 | F05 | 商品、选品；`ProductsPage.tsx`、`ProductSelectionPage.tsx` | 解析结果先预览再入库；标明字段来源与缺失值；补重复链接/SKU 检查、逐行导入错误、服务端分页和删除确认 | P1 | 同一来源重复导入可识别；部分失败不丢失已成功记录；价格/规格人工可确认 |
@@ -166,7 +166,7 @@
 | A06 | RAG；`knowledgeRagSearch:1109`、`00007` | 当前是 FTS/标题模糊检索，`embedding_text` 不是向量检索。先统一知识来源、补中文检索和正文切片，再按效果需求引入向量/混合检索、重排及引用；所有检索带租户权限 | P1 | 用户可看到答案引用的原文；无证据时明确说明；中文查询能命中正文；跨用户知识不能被检索 |
 | A07 | 视频生成与重试；`generateVideo`、各 query 函数 | 输出统一 job/result 协议；检查实际成品存在、可读、时长、尺寸；缺 URL 不返回示例片；持久化 attempt 和供应商错误；对未知结果先查单再决定重试/退款 | P1 | 供应商“完成但没媒体”不算成功；避免网络超时后重复创建已被上游接受的任务 |
 | A08 | 图片与封面；`HomePage.tsx:982`、`ai-assistant:1315` | 真实生成适配与样例展示拆开；校验图片 MIME/尺寸/访问权；封面评分区分启发式评分和基于曝光结果的预测，不使用随机 CTR 分数 | P1/P2 | 输出图片与输入任务有关；失败不替换随机图片充当产物；评分有来源和版本 |
-| A09 | ASR/TTS；`src/services/audio/index.ts`、`stepaudio`、`siliconflow-audio` | 统一服务端入口；按真实编码/采样率处理音频，限制时长/大小；统一字幕时间戳、语种与音色能力；检查合成语音和分镜时长；生成 Blob URL 及时释放 | P1 | 上传不同格式得到正确转写；字幕不越界；音频失败有明确原因；音色参数不会被供应商静默忽略 |
+| A09 | ASR/TTS；`apps/web/src/services/audio/index.ts`、`stepaudio`、`siliconflow-audio` | 统一服务端入口；按真实编码/采样率处理音频，限制时长/大小；统一字幕时间戳、语种与音色能力；检查合成语音和分镜时长；生成 Blob URL 及时释放 | P1 | 上传不同格式得到正确转写；字幕不越界；音频失败有明确原因；音色参数不会被供应商静默忽略 |
 | A10 | 直播与风格分析；`phase3-assistant:123`、`StyleCopyPage.tsx:59` | 先获取媒体及带时间戳转写，再抽帧/音频分析；结果关联原始时间点和证据；只有读取了媒体才能声称视频理解；定量评分需固定规则或校准集 | P1 | 同视频重复分析可解释；不因 URL/标题不同就虚构观看人数和高光时间；裁剪产物与建议一致 |
 | A11 | 内容审核；`contentModeration:1168` | 保留关键词初筛及异常转人工的方向；图片 URL 文本判断不能替代图片审核；采用真实多模态输入、严格 boolean/schema 校验，并在生成前及发布前强制挂接 | P0（作为安全门禁时）/P1 | 未审核或审核失败的内容不能发布；字符串 false 不被转成 true 放行；风险记录与实际任务一致 |
 | A12 | LLM 缓存；`makeCacheKey:103`、缓存逻辑 `:427` | 修复顶层 keys 数组作为 JSON replacer 导致嵌套字段丢失；采用递归规范化；key 包含租户范围、模型、模板版本、语言、参数和知识版本；明确缓存收费与过期清理 | P1；若含私有资料则 P0 | 不同嵌套商品/素材输入产生不同 key；私有上下文不跨租户命中；版本升级不会误用旧答案 |
@@ -232,7 +232,7 @@
 | `StyleCopyPage.tsx:431` | StyleReport 缺少 pacing_label、tags 等字段 | 服务端返回结构与前端转换统一并校验 |
 | `VideoCreatePage.tsx:1847/:1874` | 使用的 Location 类型没有 state | 明确路由 location 来源并清理失效旧入口 |
 | `VideoEditPage.tsx:943/:1595/:1799/:2786/:3146/:4322` 等 | keyframes 数组/映射混用、duration 缺失、AudioSettings 缺字段、font 数据结构冲突 | 先建立统一编辑项目 schema，再逐模块修正，而非禁用检查 |
-| `src/services/audio/index.ts:41` | 数组推断为 never[]，写入 Uint8Array 不匹配 | 明确音频 chunk 类型，补编码与拼接验证 |
+| `apps/web/src/services/audio/index.ts:41` | 数组推断为 never[]，写入 Uint8Array 不匹配 | 明确音频 chunk 类型，补编码与拼接验证 |
 
 构建产物观察：本次主入口 JS 约 **617.15 kB**（gzip **185.65 kB**）、XLSX chunk 约 **429.03 kB**、图表公共 chunk 约 **350.12 kB**。这些是本次构建输出，不等同于真实网络首屏体积；应通过页面加载测量决定进一步分包。
 

@@ -22,8 +22,8 @@ globalThis.fetch = async (_url, init) => {
   if (mode === 'switch') response.json = async () => { owner = second; return value; };
   return response;
 };
-const api = await loadFrontend('src/api/operations.ts', 'operations-session', process.env.OPERATIONS_BASELINE_FILE
-  ? { 'src/api/operations.ts': readFileSync(process.env.OPERATIONS_BASELINE_FILE, 'utf8') } : {});
+const api = await loadFrontend('apps/web/src/api/operations.ts', 'operations-session', process.env.OPERATIONS_BASELINE_FILE
+  ? { 'apps/web/src/api/operations.ts': readFileSync(process.env.OPERATIONS_BASELINE_FILE, 'utf8') } : {});
 const request = { action: 'mutate', operation: 'budget', request_key: crypto.randomUUID(),
   payload: { user_id: first, amount: 25, expected: 0 } };
 

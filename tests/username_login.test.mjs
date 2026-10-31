@@ -3,7 +3,7 @@ import test from 'node:test';
 import { loadFrontend } from './frontend-loader.mjs';
 
 test('用户名登录只转发真实Auth会话，公开错误不泄露私有身份', async () => {
-  const { usernameLogin } = await loadFrontend('deploy/self-hosted/main/username_login.ts', 'private-username');
+  const { usernameLogin } = await loadFrontend('infra/self-hosted/main/username_login.ts', 'private-username');
   const identity = { username: 'operator-fixture', email: 'operator@example.com' };
   let forwarded;
   const upstream = async (url, options) => {

@@ -6,7 +6,7 @@ from pathlib import Path
 import subprocess
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument("--manifest", default=str(Path(__file__).resolve().parents[1] / "deploy/self-hosted/images.json"))
+parser.add_argument("--manifest", default=str(Path(__file__).resolve().parents[1] / "infra/self-hosted/images.json"))
 args = parser.parse_args()
 images = json.loads(Path(args.manifest).read_text())
 

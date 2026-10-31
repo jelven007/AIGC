@@ -10,6 +10,7 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(`${process.env.UI_TEST_URL || 'http://127.0.0.1:5173'}/tests/ui/model-settings.html?failure=empty`);
   await page.getByRole('heading', { name: '模型接口', exact: true }).waitFor();
+  assert.equal(await page.getByText('平台设置', { exact: true }).count(), 0);
   await page.getByRole('status').filter({ hasText: '正在加载配置' }).waitFor({ state: 'hidden' });
   if (process.env.SETTINGS_BASELINE_SCREENSHOT) await page.screenshot({
     path: process.env.SETTINGS_BASELINE_SCREENSHOT, fullPage: true,
@@ -32,6 +33,7 @@ try {
 
   await page.goto(`${process.env.UI_TEST_URL || 'http://127.0.0.1:5173'}/tests/ui/model-settings.html?scope=integrations`);
   await page.getByRole('heading', { name: '第三方集成', exact: true }).waitFor();
+  assert.equal(await page.getByText('平台设置', { exact: true }).count(), 0);
   await page.getByRole('status').filter({ hasText: '正在加载配置' }).waitFor({ state: 'hidden' });
   assert.equal(await page.getByRole('navigation', { name: '数据服务类别' }).getByRole('button').count(), 4);
   assert.equal(await page.getByLabel('模型 ID', { exact: true }).count(), 0);

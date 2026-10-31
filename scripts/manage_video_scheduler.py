@@ -6,7 +6,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-DIRECTORY = ROOT / "deploy/video-scheduler"
+DIRECTORY = ROOT / "infra/video-scheduler"
 
 
 def main():
@@ -16,7 +16,7 @@ def main():
     compose = ["docker", "compose", "-f", str(DIRECTORY / "compose.yaml"),
                "--env-file", str(DIRECTORY / ".env")]
     if not (DIRECTORY / ".env").is_file() or not (DIRECTORY / "video_worker_secret").is_file():
-        print("缺少 deploy/video-scheduler/.env 或 video_worker_secret；参见 docs/operations/VIDEO_SCHEDULER.md",
+        print("缺少 infra/video-scheduler/.env 或 video_worker_secret；参见 docs/operations/VIDEO_SCHEDULER.md",
               file=sys.stderr)
         return 1
     try:

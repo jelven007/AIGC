@@ -83,10 +83,10 @@
 
 ### F03 / P0：异步配音入口未固定发起账号
 
-- **证据：E1 + E2。** `src/services/audio/index.ts:24–51` 先生成账号回执键，再等待价格查询；创建和后续查询没有传入原 `expectedUserId`。
+- **证据：E1 + E2。** `apps/web/src/services/audio/index.ts:24–51` 先生成账号回执键，再等待价格查询；创建和后续查询没有传入原 `expectedUserId`。
 - **已复现结果：** A 账号生成回执键 → 等待价格期间切换至 B → B 身份创建请求；原账号回执和请求主体不一致。此复现没有真实扣费，也不等于已证明数据库 RLS 越权。
 - **修复：** 操作开始时捕获账号、代次和请求上下文，价格、上传、创建、查询与迟到响应都核对原身份。复用现有 `accountSession` / `productionRequest` 的约束，回执绑定原账号；账号切换后中止后续步骤。
-- **扩展检查：** `src/api/videoJobs.ts`、`src/api/materialAssets.ts`、`MediaJobsPanel` 等还有未普遍固定原身份的异步入口，需要逐一验证，不能直接把配音复现结论推广到全部入口。
+- **扩展检查：** `apps/web/src/api/videoJobs.ts`、`apps/web/src/api/materialAssets.ts`、`MediaJobsPanel` 等还有未普遍固定原身份的异步入口，需要逐一验证，不能直接把配音复现结论推广到全部入口。
 - **验收：** 在价格、上传、提交和查询阶段分别切换账号；新账号收到的旧操作创建请求和旧结果写入均为 0。原账号再次登录可查询原任务，不能误清另一个账号的回执。
 
 ### F04 / P0：持久限流不可用时继续调用付费外部资源
@@ -107,7 +107,7 @@
 
 ### 4.1 共享任务查询与持久回执
 
-`src/hooks/useProductionJob.ts:14–16` 吞掉 localStorage 写入异常，仍允许提交；内存中存在原 UUID，但刷新后可能丢失恢复线索。`:52` 即使终态也每 10 秒继续恢复，回执为空时重新请求整个任务列表。部分任务面板每 5 秒独立轮询，取消、页面可见性和账号边界没有统一策略。
+`apps/web/src/hooks/useProductionJob.ts:14–16` 吞掉 localStorage 写入异常，仍允许提交；内存中存在原 UUID，但刷新后可能丢失恢复线索。`:52` 即使终态也每 10 秒继续恢复，回执为空时重新请求整个任务列表。部分任务面板每 5 秒独立轮询，取消、页面可见性和账号边界没有统一策略。
 
 建议把现有账号级 React Query 用到任务状态，按 `(account, kind, job_id/request_key)` 共享读取；任务中心负责列表，详情负责单任务。活跃任务轮询按类型设置，终态停止，页面隐藏退避，重新可见立即回源。Realtime 只作为状态变化提示，断线后仍查询数据库权威状态，不把它做成不可替代的执行条件。
 
@@ -203,7 +203,7 @@
 
 ### 7.1 下载去重与临时空间预算
 
-`worker/main.py:115–121` 对每个轨道下载素材，同一 URL 可重复下载，工程输入合计上限 2 GB。`worker/render.py` 还允许人物蒙版合计 768 MB、输出约 1 GB；`deploy/render-worker/docker-compose.yml` 同时设置 4G tmpfs 与 4g 容器内存。
+`services/media-worker/main.py:115–121` 对每个轨道下载素材，同一 URL 可重复下载，工程输入合计上限 2 GB。`services/media-worker/render.py` 还允许人物蒙版合计 768 MB、输出约 1 GB；`infra/render-worker/docker-compose.yml` 同时设置 4G tmpfs 与 4g 容器内存。
 
 tmpfs 消耗内存，输入、蒙版、输出加上 FFmpeg/模型工作集会竞争同一资源。现有文件上限不能证明峰值内存安全；本轮未实测 OOM。
 

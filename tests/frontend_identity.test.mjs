@@ -50,14 +50,14 @@ globalThis.fetch = async (url, init = {}) => {
   if (path === 'https://media.example/audio.mp3') return new Response(new Uint8Array([1, 2, 3]));
   return Response.json({ job: completed, jobs: [] });
 };
-const audio = await loadFrontend('src/services/audio/index.ts', 'identity-audio');
-const video = await loadFrontend('src/api/videoJobs.ts', 'identity-video');
-const material = await loadFrontend('src/api/materialAssets.ts', 'identity-material');
-const products = await loadFrontend('src/api/products.ts', 'identity-products');
-const knowledge = await loadFrontend('src/api/knowledge.ts', 'identity-knowledge');
-const production = await loadFrontend('src/api/productionJobs.ts', 'identity-production');
-const intelligence = await loadFrontend('src/api/intelligence.ts', 'identity-intelligence');
-const batches = await loadFrontend('src/api/batchVideoJobs.ts', 'identity-batch');
+const audio = await loadFrontend('apps/web/src/services/audio/index.ts', 'identity-audio');
+const video = await loadFrontend('apps/web/src/api/videoJobs.ts', 'identity-video');
+const material = await loadFrontend('apps/web/src/api/materialAssets.ts', 'identity-material');
+const products = await loadFrontend('apps/web/src/api/products.ts', 'identity-products');
+const knowledge = await loadFrontend('apps/web/src/api/knowledge.ts', 'identity-knowledge');
+const production = await loadFrontend('apps/web/src/api/productionJobs.ts', 'identity-production');
+const intelligence = await loadFrontend('apps/web/src/api/intelligence.ts', 'identity-intelligence');
+const batches = await loadFrontend('apps/web/src/api/batchVideoJobs.ts', 'identity-batch');
 function reset(at) { owner = 'account-a'; calls = []; switchAt = at; values.clear(); }
 const isCreation = call => call.body?.action === 'create';
 

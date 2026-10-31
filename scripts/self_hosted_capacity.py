@@ -6,7 +6,7 @@ from pathlib import Path
 
 from self_hosted import ROOT, SelfHostError, command, read_env, write_private
 
-PROFILE = ROOT / "deploy/self-hosted/capacity-100.json"
+PROFILE = ROOT / "infra/self-hosted/capacity-100.json"
 
 
 def apply_profile(env, backup, image, mcp_image=None):

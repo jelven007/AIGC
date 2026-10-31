@@ -1,8 +1,8 @@
 id: supabase-edge-function-get-with-body
 language: ts
 files:
-  - src/**/*.ts
-  - src/**/*.tsx
+  - apps/web/src/**/*.ts
+  - apps/web/src/**/*.tsx
 severity: error
 message: |
   ❌ GET 请求不能携带 body：supabase.functions.invoke 使用 method: 'GET' 时参数必须拼接在 URL 里

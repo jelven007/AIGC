@@ -41,13 +41,13 @@ python3 scripts/deploy_supabase.py functions --release .supabase-build/本次SHA
 
 ## 常驻全栈运行
 
-[生产Compose](../../deploy/production/compose.yaml)统一静态前端、生产调度、独立维护、FFmpeg与MCP。静态服务镜像固定digest，前端和MCP默认只绑定本机8081/8082，由目标HTTPS反向代理接入。执行服务全部只读、非root、去能力、限制CPU/内存/PID并配置停止宽限；告警卷和媒体专用磁盘持久保存。
+[生产Compose](../../infra/production/compose.yaml)统一静态前端、生产调度、独立维护、FFmpeg与MCP。静态服务镜像固定digest，前端和MCP默认只绑定本机8081/8082，由目标HTTPS反向代理接入。执行服务全部只读、非root、去能力、限制CPU/内存/PID并配置停止宽限；告警卷和媒体专用磁盘持久保存。
 
-将[运行模板](../../deploy/production/runtime.env.example)复制为`runtime.env`并设置0600；填写本次release目录、匹配镜像ID/目标digest、公开URL/anon和专用媒体磁盘。专用Worker密钥单独写到`RUNTIME_SECRETS_DIR/video_worker_secret`，普通文件0600。不得加入PAT或service_role到运行env。
+将[运行模板](../../infra/production/runtime.env.example)复制为`runtime.env`并设置0600；填写本次release目录、匹配镜像ID/目标digest、公开URL/anon和专用媒体磁盘。专用Worker密钥单独写到`RUNTIME_SECRETS_DIR/video_worker_secret`，普通文件0600。不得加入PAT或service_role到运行env。
 
-2026-10-31新增：填写`MCP_ALLOWED_HOSTS`为代理实际保留的精确Host及需要的端口，包含本地`127.0.0.1:8080`。空值、URL、通配符、非法端口或缺正式Host均被启动前拒绝。真实代理认证initialize需独立接受，healthz只证明进程。本次MCP含新增host_config，旧镜像不可沿用；生成新候选后核对实际镜像ID。正式Compose的operations profile可单独启动共享原spool的投递，步骤见[运行接受清单](../operations/OPTIMIZATION_ACCEPTANCE_20261031.md)，不另起另一套调度。
+2026-10-31新增：填写`MCP_ALLOWED_HOSTS`为代理实际保留的精确Host及需要的端口，包含本地`127.0.0.1:8080`。空值、URL、通配符、非法端口或缺正式Host均被启动前拒绝。真实代理认证initialize需独立接受，healthz只证明进程。本次MCP含新增host_config，旧镜像不可沿用；生成新候选后核对实际镜像ID。正式Compose的operations profile可单独启动共享原spool的投递，步骤见[运行接受清单](../archive/before-v1.1.0/docs/operations/OPTIMIZATION_ACCEPTANCE_20261031.md)，不另起另一套调度。
 
-使用[只读接受](RELEASE_ACCEPTANCE.md)得到真实原目标回执。配置中的`environment`必须为`official-supabase-bbqqhkukgbgpebqpesub`，`isolated=false`；目标前端须已在受控入口提供本次identity。完整六项检查通过后，回执以0600保存到`deploy/production/acceptance.json`：
+使用[只读接受](RELEASE_ACCEPTANCE.md)得到真实原目标回执。配置中的`environment`必须为`official-supabase-bbqqhkukgbgpebqpesub`，`isolated=false`；目标前端须已在受控入口提供本次identity。完整六项检查通过后，回执以0600保存到`infra/production/acceptance.json`：
 
 ```sh
 python3 scripts/production_runtime.py check

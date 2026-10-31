@@ -15,7 +15,7 @@ from urllib.request import Request, build_opener, HTTPRedirectHandler
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-MANIFEST = ROOT / "deploy/volcengine/manifest.json"
+MANIFEST = ROOT / "infra/volcengine/manifest.json"
 OUTPUT = ROOT / ".volcengine-build"
 LEDGER = "shopro_deploy.schema_migrations"
 CONTRACT = json.loads((ROOT / "scripts/runtime-contract.json").read_text())
@@ -44,13 +44,13 @@ def release_manifest():
     """仅记录可从本地源码验证的事实，不推断云端启用或验收状态。"""
     paths = set()
     for directory, patterns in {
-        "src": ["*.ts", "*.tsx", "*.css"],
+        "apps/web/src": ["*.ts", "*.tsx", "*.css"],
         "supabase/functions": ["*.ts", "deno.json", "deno.lock"],
         "supabase/migrations": ["*.sql"],
-        "worker": ["*.py", "*.txt", "*.lock", "*.onnx", "LICENSE", "NOTICE", "Dockerfile"],
-        "mcp": ["*.py", "*.json", "*.txt", "*.lock", "Dockerfile.mcp"],
+        "services/media-worker": ["*.py", "*.txt", "*.lock", "*.onnx", "LICENSE", "NOTICE", "Dockerfile"],
+        "services/mcp": ["*.py", "*.json", "*.txt", "*.lock", "Dockerfile.mcp"],
         "scripts": ["*.py", "*.mjs", "*.sh", "runtime-contract.json"],
-        "deploy": ["*.json", "*.yaml", "*.yml", "*.conf", "*.template", "*.example", "*.sql", "*.ts", "Dockerfile", "Dockerfile.*", "requirements.txt", "*.lock"],
+        "infra": ["*.json", "*.yaml", "*.yml", "*.conf", "*.template", "*.example", "*.sql", "*.ts", "Dockerfile", "Dockerfile.*", "requirements.txt", "*.lock"],
     }.items():
         for pattern in patterns:
             for path in (ROOT / directory).rglob(pattern):
@@ -60,17 +60,17 @@ def release_manifest():
                     continue
                 paths.add(path)
     for name in ("package.json", "pnpm-lock.yaml", ".node-version", ".npmrc", ".dockerignore", ".env.example",
-                 "index.html",
+                 "apps/web/index.html",
                  "vite.config.mjs", "vite.config.dev.ts", "tsconfig.check.json",
                  "tailwind.config.js", "postcss.config.js",
                  "supabase/config.toml", "docs/ai/evaluation-v1.json", "docs/lifecycle.json"):
         paths.add(ROOT / name)
     # 静态资源也进入产物；只记录TS/CSS会漏掉首页、字体和图片变化。
-    paths.update(p for p in (ROOT / "public").rglob("*") if p.is_file())
+    paths.update(p for p in (ROOT / "apps/web/public").rglob("*") if p.is_file())
     for pattern in ("*.svg", "*.png", "*.jpg", "*.json", "*.woff", "*.woff2"):
-        paths.update((ROOT / "src").rglob(pattern))
+        paths.update((ROOT / "apps/web/src").rglob(pattern))
     files = {str(p.relative_to(ROOT)): checksum(p) for p in sorted(paths)}
-    catalog = json.loads((ROOT / "mcp/tools.json").read_text())
+    catalog = json.loads((ROOT / "services/mcp/tools.json").read_text())
     tools = catalog["tools"]
     source_digest = hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest()
     return {
@@ -82,7 +82,7 @@ def release_manifest():
         "functions": [item["name"] for item in json.loads(MANIFEST.read_text())["functions"]],
         "protocols": {"render": 4, "edit": 2},
         "worker_contract": CONTRACT,
-        "mcp": {"tool_count": len(tools), "catalog_sha256": checksum(ROOT / "mcp/tools.json")},
+        "mcp": {"tool_count": len(tools), "catalog_sha256": checksum(ROOT / "services/mcp/tools.json")},
         "runtime": {"node": "22.23.4", "pnpm": "10.34.5", "deno": "2.2.6"},
     }
 

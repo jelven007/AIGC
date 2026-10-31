@@ -9,7 +9,7 @@ const forbidden = String.fromCodePoint(0x7535, 0x5546);
 const oldBrand = new RegExp('(?<![\\w./:-])' + String.fromCharCode(115, 104, 111, 112, 114, 111)
   + '(?:[\\s_-]*ai)?(?![\\w./:-])', 'i');
 const { platformPromptTemplate } = await loadEdge('supabase/functions/_shared/video-branding.ts', 'video-branding');
-const { videoTemplateIndustry } = await loadFrontend('src/lib/videoTemplates.ts', 'video-template-industry');
+const { videoTemplateIndustry } = await loadFrontend('apps/web/src/lib/videoTemplates.ts', 'video-template-industry');
 const sql = readFileSync('supabase/migrations/00023_ai_service_governance.sql', 'utf8');
 const seeds = [...sql.matchAll(/\('([^']+)', 'script', 'douyin',\s*'([^']+)',\s*true, 'generate_script_four_layer', 1, true, '([AB])'\)/g)]
   .map(([, title, content, variant]) => ({ title, content, variant, is_system: true, user_id: null, version: 1, action_key: 'generate_script_four_layer' }));
@@ -37,7 +37,7 @@ test('legacy and current product template categories share the visible filter la
   assert.equal(videoTemplateIndustry('教育'), '教育');
 });
 test('source and project descriptions use the video platform positioning', () => {
-  const files = ['index.html', 'README.md'];
+  const files = ['apps/web/index.html', 'README.md'];
   const walk = directory => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const path = join(directory, entry.name);
@@ -45,10 +45,10 @@ test('source and project descriptions use the video platform positioning', () =>
       else if (entry.isFile() && /\.(?:tsx?|css|js|mjs|md|html|svg|py|json)$/.test(entry.name)) files.push(path);
     }
   };
-  for (const directory of ['src', 'supabase/functions', 'public', 'docs', 'mcp', 'tools/documents']) walk(directory);
+  for (const directory of ['apps/web/src', 'supabase/functions', 'apps/web/public', 'docs', 'services/mcp', 'tools/documents']) walk(directory);
   const violations = files.filter(path => readFileSync(path, 'utf8').includes(forbidden));
   assert.deepEqual(violations, []);
-  assert.ok(readFileSync('index.html', 'utf8').includes('<title>视频生成平台</title>'));
+  assert.ok(readFileSync('apps/web/index.html', 'utf8').includes('<title>视频生成平台</title>'));
   const descriptionFiles = files.filter(path => /\.md$/.test(path));
   const displayedDescriptions = descriptionFiles.map(path => [path, readFileSync(path, 'utf8')
     .replace(/```[\s\S]*?```/g, '').replace(/`[^`]*`/g, '')

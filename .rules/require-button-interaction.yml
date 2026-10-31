@@ -1,8 +1,8 @@
 id: require-button-interaction
 language: Tsx
 files:
-  - src/**/*.tsx
-  - src/**/*.jsx
+  - apps/web/src/**/*.tsx
+  - apps/web/src/**/*.jsx
 rule:
   kind: jsx_opening_element
   all:

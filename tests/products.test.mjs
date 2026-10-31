@@ -4,7 +4,7 @@ const env = { SUPABASE_URL: 'https://db.example', SUPABASE_ANON_KEY: 'anon', SUP
 globalThis.Deno = { env: { get: key => env[key] }, resolveDns: async () => ['8.8.8.8'], serve() {} };
 const contract = await loadEdge('supabase/functions/_shared/product-contract.ts', 'products-contract');
 const parser = await loadEdge('supabase/functions/_shared/product-import.ts', 'products-import');
-const csv = await loadEdge('src/lib/productCsv.ts', 'products-csv');
+const csv = await loadEdge('apps/web/src/lib/productCsv.ts', 'products-csv');
 const draft = contract.productDraft({ name: '真实"杯子"\n第二行', category: '家居用品', original_price: '0', stock: '', currency: 'USD' });
 assert.equal(draft.original_price, 0); assert.equal(draft.stock, null); assert.equal(draft.sales_count, null);
 for (const changes of [{ original_price: '-1' }, { original_price: '12abc' }, { stock: 1.5 }, { stock: true },

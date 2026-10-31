@@ -61,4 +61,4 @@
 
 先部署匹配00068/冻结模块/管理员/历史keyring，验收真实模型和原配置；失败不得用模板冒充成功。现有生产/私有素材/渲染/发布/数据已有本地执行器；按模型分层定价、更多供应商/平台、长媒体质量和容量另验收。
 
-照片口播/口型、私有有界RAG和多镜头合成已有本地验证；专业训练/全身动作、自动学习投放/销量优化、企业账套和商业资源交易未交付。技术结构见 [架构](../architecture/TECHNICAL_ARCHITECTURE.md)，MCP见 [接入](../../mcp/mcp.md)，最新证据见 [报告](../archive/reviews/TEST_REPORT_20261022.md)。
+照片口播/口型、私有有界RAG和多镜头合成已有本地验证；专业训练/全身动作、自动学习投放/销量优化、企业账套和商业资源交易未交付。技术结构见 [架构](../architecture/TECHNICAL_ARCHITECTURE.md)，MCP见 [接入](../../services/mcp/mcp.md)，最新证据见 [报告](../archive/reviews/TEST_REPORT_20261022.md)。

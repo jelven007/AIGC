@@ -2,7 +2,7 @@
 id: radix-trigger-formcontrol-nesting
 language: tsx
 files:
-  - src/**/*.tsx
+  - apps/web/src/**/*.tsx
 message: |
   ❌ 检测到危险的 Slot 嵌套：Radix UI Trigger (asChild) 内包裹 FormControl
 

@@ -1,5 +1,11 @@
 # 接口与数据契约
 
+类型：reference。读者：接口/数据维护者。责任：开发维护者。核验：2026-11-01。来源：apps/web/src/api、supabase/functions/_shared及68迁移。每次字段、权限或状态变化复核；正文与源码不符即过期。
+
+当前契约00068/probe24/render4/edit2、66生产迁移、43生产入口、16模型+4集成槽、MCP59/19。v1.1.0目录变更不改变API URL/数据库协议；前端客户端在apps/web/src/api，MCP在services/mcp，基础设施在infra。用户名登录为受限网关能力，私有映射由infra/self-hosted/main/username_login.ts读取。
+
+分镜页面按账号/版本校验草稿有效内容，空/无效数据不提示已恢复；原脚本保存/受理未知仍恢复原UUID。所有价格、权限、租约与财务不变量保持。后文“历史协议增量”保留各轮版本，当前最新定义由源码与本段优先。
+
 更新：2026-10-27，当前00068/probe24/render4/edit2、66生产迁移、MCP59/19。当前新增契约见下表，历史迭代保留当时版本；本地证据见[实施台账](../archive/reviews/OPTIMIZATION_IMPLEMENTATION_20261027.md)。
 
 ## 本轮新增契约
@@ -49,7 +55,7 @@
 
 00045新增 [发布组契约](../archive/iterations/ITERATION_18_PUBLISH_GROUPS.md)：platform-publish/create_group接受原UUID、project_id、稳定source_url/真实duration、内容/时间与1–10个targets，各target完整options/consent。publish:create创建、publish:read/query_group核对；202返回组与独立任务，list新增20组/100任务。409明确区分publish_group_rejected与publish_group_conflict，超时503保留原键。组表/RPC仅服务身份可用，API绑定当前用户。
 
-新增 [MCP与Key契约](../archive/iterations/ITERATION_17_MCP_PRODUCTION.md)：45工具定义由真实SDK导出，媒体create强制工具层UUID/confirmed_credit_cost。16权限共用目录；knowledge-base读/写、market-intelligence读/写、platform-publish取消/指标同步和platform-accounts安全读取接入Key范围，账号授权/撤销/应用设置仍JWT。错误脱敏并保留原键，不自动重发POST。完整参数见[MCP指南](../../mcp/mcp.md)。
+新增 [MCP与Key契约](../archive/iterations/ITERATION_17_MCP_PRODUCTION.md)：45工具定义由真实SDK导出，媒体create强制工具层UUID/confirmed_credit_cost。16权限共用目录；knowledge-base读/写、market-intelligence读/写、platform-publish取消/指标同步和platform-accounts安全读取接入Key范围，账号授权/撤销/应用设置仍JWT。错误脱敏并保留原键，不自动重发POST。完整参数见[MCP指南](../../services/mcp/mcp.md)。
 
 render v1增量见 [迭代16](../archive/iterations/ITERATION_16_RENDER_EFFECTS.md)：十二transition标识、可选transitionDuration(0.02–2s)，视觉轨blendMode八模式、chromaKey六位RGB/容差0.01–1/平滑0–1。前后交接按时长收缩，不延长工程；转场主轨不得重叠，画中画可叠加。API/Worker双校验，沿原production-jobs/request_key/私有引用提交；项目整数duration上取整，style_data保存精确时长。
 
@@ -191,7 +197,7 @@ stateDiagram-v2
 
 支付接口、验签、权益快照与对账见 [支付方案](../plan/支付.md)。支付宝查询是 GET `alipay-trade-query?order_no=...`，不能用 POST 或页面跳转直接认定支付成功。
 
-MCP [接入指南](../../mcp/mcp.md)的59工具/19权限共用九业务API；HTTP每请求JWT/Key隔离，原UUID/价格/批次预算与网页一致，不自动重发POST。当前图片编辑页面协议已实现；MCP图片工具保留原参数，不宣称已有独立掩码工具。
+MCP [接入指南](../../services/mcp/mcp.md)的59工具/19权限共用九业务API；HTTP每请求JWT/Key隔离，原UUID/价格/批次预算与网页一致，不自动重发POST。当前图片编辑页面协议已实现；MCP图片工具保留原参数，不宣称已有独立掩码工具。
 
 ## 8. 当前身份、运营与恢复契约
 

@@ -143,7 +143,7 @@ try {
   await page.getByText('领取结果尚未确认，请恢复原请求', { exact: true }).waitFor();
   const original = state.claims.at(-1).body.p_request_key;
   await page.reload();
-  await page.getByRole('button', { name: '恢复原领取', exact: true }).click();
+  await page.getByRole('button', { name: '恢复原领取', exact: true }).first().click();
   await page.getByText('原领取已确认：5 积分已入账', { exact: true }).waitFor();
   assert.equal(state.receipts.filter(row => row.user === first).length, 1);
   assert.equal(state.claims.at(-1).body.p_request_key, original);

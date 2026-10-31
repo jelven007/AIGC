@@ -18,14 +18,14 @@ python3 tests/test_ai_requests.py
 
 Edge 的 `deno.json` 将 SDK 固定到 `2.103.1`，显式固定 Node 兼容类型，`deno.lock` 保留整个 npm 依赖图。部署函数时必须携带公共配置与锁；绕过锁的单文件发布不能被视作同一发布。
 
-Python 的 `mcp/requirements.lock`、`worker/requirements.lock`、`deploy/backup/requirements.lock` 固定完整传递图和发行包SHA-256；API复用MCP锁。镜像安装使用 `pip install --require-hashes` 并运行 `pip check`。对应 `.txt` 为直接依赖输入，不能绕过锁安装。锁由 `uv 0.9.30` 生成，目标Python3.12并包含平台条件。Docker基础镜像固定到已通过仓库核验的摘要，当前本机为arm64；CI的Edge和媒体使用arm64 runner。其他目标架构需先核对对应清单与构建，不能直接推导对等。
+Python 的 `services/mcp/requirements.lock`、`services/media-worker/requirements.lock`、`infra/backup/requirements.lock` 固定完整传递图和发行包SHA-256；API复用MCP锁。镜像安装使用 `pip install --require-hashes` 并运行 `pip check`。对应 `.txt` 为直接依赖输入，不能绕过锁安装。锁由 `uv 0.9.30` 生成，目标Python3.12并包含平台条件。Docker基础镜像固定到已通过仓库核验的摘要，当前本机为arm64；CI的Edge和媒体使用arm64 runner。其他目标架构需先核对对应清单与构建，不能直接推导对等。
 
 ```sh
 docker run --rm -i --entrypoint uv \
   ghcr.io/astral-sh/uv:0.9.30-python3.11-bookworm-slim@sha256:4f5d923c9dcea037f57bda425dd209f3ec643da2f0b74227f68d09dab0b3bb36 \
   pip compile --python /usr/local/bin/python3 --python-version 3.12 --no-python-downloads \
   --universal --generate-hashes --no-emit-index-url --no-emit-find-links - \
-  < worker/requirements.txt > worker/requirements.lock
+  < services/media-worker/requirements.txt > services/media-worker/requirements.lock
 ```
 
 同一命令可对MCP和备份输入生成各自锁。显式使用已有解释器，避免无关解释器下载阻断锁生成。基础镜像/系统包更新时重新构建、记录最终镜像身份与系统包清单并运行协议测试；源码和Python锁不替代镜像系统包核对。Worker人物模型仍核对固定SHA-256。本机BuildKit读取元数据持续等待，本轮使用经典构建器验证相同Dockerfile与已核验摘要。四套最终镜像已完成：媒体44组及真实短成片、MCP21组/59工具、备份双PG/归档/旧库接受、调度/投递源码与probe24；ID和实际边界见[实施台账](../archive/reviews/OPTIMIZATION_IMPLEMENTATION_20261027.md)。备份为PG16系统Python3.13.5，哈希锁安装和pip check通过；不把本机ID写成远端digest。

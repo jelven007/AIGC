@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { loadFrontend } from './frontend-loader.mjs';
 
 test('empty project first edit can undo; new branch discards redo', async () => {
-  const { createHistory, changeHistory } = await loadFrontend('src/lib/editorHistory.ts', 'editor-history');
+  const { createHistory, changeHistory } = await loadFrontend('apps/web/src/lib/editorHistory.ts', 'editor-history');
   let state = createHistory([]);
   const clip = { id: 'clip', start: 0 };
   state = changeHistory(state, { type: 'edit', update: previous => [...previous, clip] });
@@ -17,7 +17,7 @@ test('empty project first edit can undo; new branch discards redo', async () => 
 });
 
 test('history is bounded, shares untouched clips, skips unchanged arrays, reset clears old project', async () => {
-  const { createHistory, changeHistory, HISTORY_LIMIT } = await loadFrontend('src/lib/editorHistory.ts', 'editor-history');
+  const { createHistory, changeHistory, HISTORY_LIMIT } = await loadFrontend('apps/web/src/lib/editorHistory.ts', 'editor-history');
   const untouched = { id: 'still' };
   let state = createHistory([untouched, { id: 'moving', start: 0 }]);
   for (let n = 1; n <= 500; n++) state = changeHistory(state, {
@@ -32,7 +32,7 @@ test('history is bounded, shares untouched clips, skips unchanged arrays, reset 
 });
 
 test('one continuous slider gesture produces one undo entry; cancelled gesture preserves redo', async () => {
-  const { createHistory, changeHistory } = await loadFrontend('src/lib/editorHistory.ts', 'editor-history');
+  const { createHistory, changeHistory } = await loadFrontend('apps/web/src/lib/editorHistory.ts', 'editor-history');
   let state = createHistory([{ id: 'clip', scale: 100 }]);
   state = changeHistory(state, { type: 'begin' });
   for (let scale = 101; scale < 200; scale++) state = changeHistory(state, {
@@ -55,7 +55,7 @@ globalThis.__frontendDB = { auth: { getSession: async () => ({
 }) } };
 
 test('editor save uses original JWT, canonical media and verifies returned row ownership', async () => {
-  const { saveEditorProject } = await loadFrontend('src/api/editorProjects.ts', 'editor-projects');
+  const { saveEditorProject } = await loadFrontend('apps/web/src/api/editorProjects.ts', 'editor-projects');
   current = 'owner';
   let outgoing;
   globalThis.fetch = async (url, init) => {
@@ -75,7 +75,7 @@ test('editor save uses original JWT, canonical media and verifies returned row o
 });
 
 test('late editor response cannot be applied under another account, aborted read makes zero calls', async () => {
-  const { loadEditorProject } = await loadFrontend('src/api/editorProjects.ts', 'editor-projects');
+  const { loadEditorProject } = await loadFrontend('apps/web/src/api/editorProjects.ts', 'editor-projects');
   current = 'owner';
   let calls = 0;
   globalThis.fetch = async () => {
@@ -90,7 +90,7 @@ test('late editor response cannot be applied under another account, aborted read
 });
 
 test('editor writes serialize snapshots and failed write does not strand subsequent save', async () => {
-  const { EditorSaveQueue } = await loadFrontend('src/lib/editorPersistence.ts', 'editor-persistence');
+  const { EditorSaveQueue } = await loadFrontend('apps/web/src/lib/editorPersistence.ts', 'editor-persistence');
   const queue = new EditorSaveQueue(), trace = [];
   let release;
   const first = queue.run(async () => { trace.push('start-1'); await new Promise(resolve => { release = resolve; }); trace.push('end-1'); throw Error('lost'); });
@@ -105,7 +105,7 @@ test('editor writes serialize snapshots and failed write does not strand subsequ
 });
 
 test('matching empty local draft restores without database overwrite; broken storage stops restoration', async () => {
-  const { restoreEditorSnapshot } = await loadFrontend('src/lib/editorPersistence.ts', 'editor-persistence');
+  const { restoreEditorSnapshot } = await loadFrontend('apps/web/src/lib/editorPersistence.ts', 'editor-persistence');
   current = 'owner';
   const saved = JSON.stringify({ importId: 'project', projectTitle: '本地空工程', tracks: [], duration: 5 });
   globalThis.localStorage = { getItem: () => saved };
@@ -121,7 +121,7 @@ test('matching empty local draft restores without database overwrite; broken sto
 });
 
 test('leaving recording before permission resolves stops late microphone stream', async () => {
-  const { AudioRecorder } = await loadFrontend('src/lib/audioRecorder.ts', 'recorder-cleanup');
+  const { AudioRecorder } = await loadFrontend('apps/web/src/lib/audioRecorder.ts', 'recorder-cleanup');
   let allow, stopped = 0;
   globalThis.window = {};
   Object.defineProperty(globalThis, 'navigator', { configurable: true, value: {
@@ -136,7 +136,7 @@ test('leaving recording before permission resolves stops late microphone stream'
 });
 
 test('voice transcription with a captured owner cannot start under a switched account', async () => {
-  const { transcribeAudio } = await loadFrontend('src/services/audio/index.ts', 'editor-voice-owner');
+  const { transcribeAudio } = await loadFrontend('apps/web/src/services/audio/index.ts', 'editor-voice-owner');
   current = 'other';
   globalThis.localStorage = { getItem: () => null };
   let calls = 0;
@@ -146,7 +146,7 @@ test('voice transcription with a captured owner cannot start under a switched ac
 });
 
 test('playback converts trimmed double-speed media to timeline time and clamps ends and pauses', async () => {
-  const { editorClockTime } = await loadFrontend('src/lib/editorClock.ts', 'editor-clock');
+  const { editorClockTime } = await loadFrontend('apps/web/src/lib/editorClock.ts', 'editor-clock');
   const video = { currentSrc: 'clip.mp4', readyState: 2, seeking: false, paused: false, currentTime: 5 };
   assert.equal(editorClockTime(10, .02, 30, video, { start: 10, sourceStart: 3, speed: 2 }), 11);
   assert.equal(editorClockTime(10, 1, 30, { ...video, paused: true }), 10.25);
@@ -155,7 +155,7 @@ test('playback converts trimmed double-speed media to timeline time and clamps e
 });
 
 test('lost project create response recovers the same UUID, never resets completed media', async () => {
-  const { createEditorProject } = await loadFrontend('src/api/editorProjects.ts', 'editor-projects');
+  const { createEditorProject } = await loadFrontend('apps/web/src/api/editorProjects.ts', 'editor-projects');
   current = 'owner';
   const calls = [];
   globalThis.fetch = async (url, init) => {

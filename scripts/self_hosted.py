@@ -16,7 +16,7 @@ import time
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
-COMPOSE = ROOT / "deploy/self-hosted/compose.yaml"
+COMPOSE = ROOT / "infra/self-hosted/compose.yaml"
 
 
 class SelfHostError(RuntimeError):
@@ -96,7 +96,7 @@ def configure(directory, origin, *, project="shopro-selfhost", bind="127.0.0.1",
     for folder in ("tls", "frontend", "edge", "receipts", "media", "secrets"):
         (directory / folder).mkdir(mode=0o700)
     secret = secrets.token_hex(32)
-    images = json.loads((ROOT / "deploy/self-hosted/images.json").read_text())
+    images = json.loads((ROOT / "infra/self-hosted/images.json").read_text())
     values = {
         "COMPOSE_PROJECT_NAME": project, "SOURCE_DIR": str(ROOT), "STATE_DIR": str(directory),
         "PUBLIC_ORIGIN": origin.rstrip("/"), "PUBLIC_HOST": url.hostname, "HTTPS_PORT": str(url.port or 443),

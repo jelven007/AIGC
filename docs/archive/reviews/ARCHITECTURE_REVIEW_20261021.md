@@ -30,7 +30,7 @@
 
 1. `glm-5-3-flash`、`deepseek-v4-pro`、`wenxin-text-generation`、`minimax-chat` 仍独立读取供应商环境变量，未共用主文本配置。
 2. `stepaudio`、`siliconflow-audio` 的 endpoint/model/voice 分散在各函数中。
-3. `src/lib/customModel.ts` 与工作台弹窗将 API Key 放进 localStorage；失败后工作台仍展示随机现成图片并提示生成成功。
+3. `apps/web/src/lib/customModel.ts` 与工作台弹窗将 API Key 放进 localStorage；失败后工作台仍展示随机现成图片并提示生成成功。
 4. 视频只保存 provider 名称，执行和查询都重新读当前环境配置。修改账号、网关或模型后，旧任务可能查错上游。
 5. `CoverCandidates` 读取 `task_id`，数据库与服务端使用 `gen_task_id`；组件期望 `completed`，旧服务端返回 `SUCCESS`。旧封面接口还生成随机 CTR 分数。
 6. 火山资源、模型权限、稳定域名和后台调度运行验收尚未完成；完成代码配置页不能作为已云端上线的证据。

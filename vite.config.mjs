@@ -18,6 +18,8 @@ export default defineConfig(({ mode }) => {
     }
   }
   return {
+  root: path.resolve(__dirname, 'apps/web'),
+  envDir: __dirname,
   // 多个本地后端/测试服务共享依赖时，预构建缓存不能互相覆盖。
   cacheDir: path.resolve(__dirname, '.vite_cache', mode, new URL(env.VITE_SUPABASE_URL).hostname),
   server: { watch: { ignored: ['**/.volcengine-build/**'] } },
@@ -33,10 +35,12 @@ export default defineConfig(({ mode }) => {
   ],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(__dirname, "./apps/web/src"),
     },
   },
   build: {
+    outDir: path.resolve(__dirname, 'dist'),
+    emptyOutDir: true,
     manifest: true,
     rollupOptions: {
       output: {

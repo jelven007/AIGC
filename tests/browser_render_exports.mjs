@@ -49,7 +49,7 @@ try {
   const page = await context.newPage();
   page.setDefaultTimeout(10000); page.on('pageerror', error => errors.push(error.message));
   await page.goto(`${base}/export-formats`);
-  await page.getByRole('heading', { name: '跨平台格式导出', exact: true }).waitFor();
+  await page.getByRole('heading', { name: '跨平台导出', exact: true }).waitFor();
   await page.getByLabel('选择成片', { exact: true }).selectOption(projectId);
   await page.getByLabel('4:5', { exact: true }).check();
   await page.getByLabel('720p', { exact: true }).check();

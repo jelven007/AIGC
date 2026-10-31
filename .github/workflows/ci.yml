@@ -71,16 +71,16 @@ jobs:
           node-version-file: .node-version
       - run: npm install --global pnpm@10.34.5
       - run: pnpm install --frozen-lockfile
-      - run: docker build -t shoproai-render-worker:local -f worker/Dockerfile .
-      - run: docker build -t shoproai-mcp:local -f mcp/Dockerfile.mcp mcp
-      - run: docker build -t shoproai-backup:local -f deploy/backup/Dockerfile .
-      - run: docker build -t shoproai-video-scheduler:local -f deploy/video-scheduler/Dockerfile .
+      - run: docker build -t shoproai-render-worker:local -f services/media-worker/Dockerfile .
+      - run: docker build -t shoproai-mcp:local -f services/mcp/Dockerfile.mcp services/mcp
+      - run: docker build -t shoproai-backup:local -f infra/backup/Dockerfile .
+      - run: docker build -t shoproai-video-scheduler:local -f infra/video-scheduler/Dockerfile .
       - run: pnpm test:keyring
       - run: python3 tests/test_backup_archive.py
       - run: python3 tests/test_release_acceptance.py
       - run: pnpm test:worker-egress
       - run: docker run --rm -v "$PWD:/workspace:ro" -w /workspace shoproai-mcp:local python tests/test_mcp_backend.py
-      - run: docker run --rm -v "$PWD:/workspace:ro" -w /workspace shoproai-mcp:local python mcp/export_tools.py --check
+      - run: docker run --rm -v "$PWD:/workspace:ro" -w /workspace shoproai-mcp:local python services/mcp/export_tools.py --check
       - run: docker run --rm -v "$PWD:/workspace:ro" -w /workspace shoproai-render-worker:local python tests/test_worker_resources.py
       - run: docker run --rm -v "$PWD:/workspace:ro" -w /workspace shoproai-render-worker:local python tests/test_edit_media.py
       - run: docker run --rm -v "$PWD:/workspace:ro" -w /workspace shoproai-render-worker:local python tests/test_batch_pipeline_media.py

@@ -12,7 +12,7 @@
 
 ## 真实剪辑
 
-`worker/` 使用 Python + FFmpeg，在独立容器下载已签名素材后合成 H.264/AAC MP4 与封面。支持裁剪/源起点、拼接、变速、多层画中画、图片、中文字幕及背景/描边、翻转/旋转/调色、音量/声像/变调/淡变/降噪/混响、六类线性关键帧。默认淡入淡出与叠化转场保持工程时长；字幕支持淡入/下滑进入及淡出/上滑退出。
+`services/media-worker/` 使用 Python + FFmpeg，在独立容器下载已签名素材后合成 H.264/AAC MP4 与封面。支持裁剪/源起点、拼接、变速、多层画中画、图片、中文字幕及背景/描边、翻转/旋转/调色、音量/声像/变调/淡变/降噪/混响、六类线性关键帧。默认淡入淡出与叠化转场保持工程时长；字幕支持淡入/下滑进入及淡出/上滑退出。
 
 输出协议限制 1–80 元素、0.1–600 秒、720/1080/2160 短边、24/25/30/60fps 与五种画幅。单素材 500MB、工程素材总量 2GB，发布成片上限 50MB。Worker 每 30 秒续租，失去租约或关闭时终止 FFmpeg，默认最多运行一小时。FFmpeg 禁用网络协议，成片通过专用签名上传，Worker 不持 service_role。未接入的抠像、特殊转场和混合模式会明确拒绝导出；不等同于原编辑器所有演示工具均可生产使用。
 
@@ -36,10 +36,10 @@
 ## 启用顺序与回滚
 
 1. 备份数据库与对象权限，应用未部署的 `00034–00036`（依现有回执增量执行）。新迁移只在新版本后端就绪时切换私有桶；旧前端公开 URL 在切换后将无法直接播放。
-2. 按 `deploy/volcengine/manifest.json` 或官方 Supabase 部署新函数。production-worker 与 platform-oauth-callback 不要求平台 JWT，分别在函数内校验专用密钥和一次性 state。
+2. 按 `infra/volcengine/manifest.json` 或官方 Supabase 部署新函数。production-worker 与 platform-oauth-callback 不要求平台 JWT，分别在函数内校验专用密钥和一次性 state。
 3. 配置 `MODEL_CONFIG_ENCRYPTION_KEY`、`VIDEO_WORKER_SECRET`、独立 `RENDER_WORKER_SECRET`。可选 `PLATFORM_SITE_URL` 指向真实 HTTPS 前端。应用回调固定为当前后端 `/functions/v1/platform-oauth-callback`。
 4. 调度器 `.env` 设置 `PRODUCTION_WORKER_ENABLED=true`。已有旧 video-job-worker Cron 只处理视频，图片/发布需新增生产调度；不要以浏览器查询代替后台部署。
-5. `deploy/render-worker/.env` 填后端；将渲染密钥保存到该目录 `render_worker_secret`，权限 600。执行 `docker compose -f deploy/render-worker/docker-compose.yml up -d --build`。推荐按资源扩容容器数量，数据库租约防止重复领取。
+5. `infra/render-worker/.env` 填后端；将渲染密钥保存到该目录 `render_worker_secret`，权限 600。执行 `docker compose -f infra/render-worker/docker-compose.yml up -d --build`。推荐按资源扩容容器数量，数据库租约防止重复领取。
 6. 发布前端并配置图片模型及平台应用；重新授权补足新 Scope。分别做真实图片关闭页面恢复、剪辑成片下载、公开发布及指标回流验收。
 
 暂停新任务可停调度/渲染容器或禁用模型/平台应用，但保留数据库证据与原密钥以核对旧任务。`unknown` 仅在上游账单/平台作品核对后处置，由 service_role 调用 `reconcile_production_job` 并提供不少于10字的核对说明：已受理传原图片结果/平台标识继续归档或查询，确认未受理传 null 进入原子退款。核对写审计日志，不能直接清空证据重置 ready。回滚前端需兼容私有签名；不要为恢复旧 URL 将桶整体重新公开。

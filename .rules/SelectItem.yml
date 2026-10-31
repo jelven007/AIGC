@@ -1,7 +1,7 @@
 id: selectItemWithEmptyValue
 language: Tsx
 files:
-  - src/**/*.tsx
+  - apps/web/src/**/*.tsx
 rule:
   kind: jsx_opening_element
   all:

@@ -15,7 +15,7 @@ class ProductionOperationsTest(unittest.TestCase):
                       SUPABASE_URL="https://ui-fixture.example", SUPABASE_ANON_KEY="fixture",
                       RUNTIME_SECRETS_DIR="/tmp/fixture-secrets", RENDER_WORKSPACE_PATH="/tmp/fixture-media",
                       MCP_ALLOWED_HOSTS="mcp.example.org,127.0.0.1:8080")
-        result = subprocess.run(["docker", "compose", "-f", str(ROOT / "deploy/production/compose.yaml"),
+        result = subprocess.run(["docker", "compose", "-f", str(ROOT / "infra/production/compose.yaml"),
                                  "--profile", "execution", "--profile", "operations", "config", "--format", "json"],
                                 env=values, check=True, capture_output=True, text=True)
         services = json.loads(result.stdout)["services"]

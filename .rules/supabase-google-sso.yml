@@ -1,7 +1,7 @@
 id: supabase-google-sso
 language: Tsx
 files:
-  - src/**/*.tsx
+  - apps/web/src/**/*.tsx
 rule:
   pattern: |
     $AUTH.signInWithOAuth({ provider: 'google', $$$ })

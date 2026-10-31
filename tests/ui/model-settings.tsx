@@ -1,11 +1,11 @@
 // 隔离 UI 验收：真实表单、内存配置，无生产登录或网络写入。
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { ModelSettingsEditor } from '../../src/pages/settings/ModelSettingsPage';
-import ServiceConfigEditor from '../../src/components/ServiceConfigEditor';
-import { MODEL_SLOTS, defaultSettings, type ModelConfigView, type modelSettingsRequest } from '../../src/api/modelSettings';
-import { Toaster } from '../../src/components/ui/sonner';
-import '../../src/index.css';
+import { ModelSettingsEditor } from '../../apps/web/src/pages/settings/ModelSettingsPage';
+import ServiceConfigEditor from '../../apps/web/src/components/ServiceConfigEditor';
+import { MODEL_SLOTS, defaultSettings, type ModelConfigView, type modelSettingsRequest } from '../../apps/web/src/api/modelSettings';
+import { Toaster } from '../../apps/web/src/components/ui/sonner';
+import '../../apps/web/src/index.css';
 
 const configs: ModelConfigView[] = MODEL_SLOTS.map(item => ({
   slot: item.id, settings: defaultSettings(item.id), enabled: false, version_id: null, has_key: false,

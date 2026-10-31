@@ -83,7 +83,7 @@ byted-supabase-cli db advisors --workspace-id "$SHOPRO_WORKSPACE_ID"
 
 ## 3. 服务端密钥与函数
 
-复制 `deploy/volcengine/secrets.env.example` 为 `secrets.env`，权限设为 600，填入：
+复制 `infra/volcengine/secrets.env.example` 为 `secrets.env`，权限设为 600，填入：
 
 - `MODEL_CONFIG_KEYRING`：当前ID、历史ID/32字节键及legacy映射；或兼容旧单主密钥`MODEL_CONFIG_ENCRYPTION_KEY`。轮换先[历史预检与完整备份](../operations/KEY_ROTATION.md)；
 - `RELEASE_SOURCE_SHA256`：本次prepare的`release.source_sha256`，与实际函数部署产物共同核对；
@@ -93,7 +93,7 @@ byted-supabase-cli db advisors --workspace-id "$SHOPRO_WORKSPACE_ID"
 模型 API Key、地址、Model ID、音色在 `/settings/models` 配置。首次管理员授权与历史 Secrets 导入见 [统一模型配置](../development/MODEL_SETTINGS.md)。没有必要的功能保持关闭；未配置视频模型在扣积分前拒绝。模型 ID 和 Endpoint ID 必须来自当前火山账号。
 
 ```sh
-byted-supabase-cli secrets set --env-file deploy/volcengine/secrets.env --workspace-id "$SHOPRO_WORKSPACE_ID"
+byted-supabase-cli secrets set --env-file infra/volcengine/secrets.env --workspace-id "$SHOPRO_WORKSPACE_ID"
 python3 scripts/deploy_volcengine.py functions --workspace-id "$SHOPRO_WORKSPACE_ID"
 ```
 
@@ -107,7 +107,7 @@ python3 scripts/deploy_volcengine.py functions --workspace-id "$SHOPRO_WORKSPACE
 
 ## 5. ECS 后台调度
 
-在常驻火山 ECS 部署代码，复制 `deploy/video-scheduler/.env.example` 为 `.env`，写目标 BaaS URL，将专用 Worker 密钥写入 `video_worker_secret` 文件。调度器不需要模型/数据库管理员密钥。
+在常驻火山 ECS 部署代码，复制 `infra/video-scheduler/.env.example` 为 `.env`，写目标 BaaS URL，将专用 Worker 密钥写入 `video_worker_secret` 文件。调度器不需要模型/数据库管理员密钥。
 
 ```sh
 python3 scripts/manage_video_scheduler.py start
@@ -125,15 +125,15 @@ python3 scripts/manage_video_scheduler.py logs
 
 ```sh
 byted-supabase-cli endpoints list --workspace-id "$SHOPRO_WORKSPACE_ID" -o json
-byted-supabase-cli projects api-keys --reveal --workspace-id "$SHOPRO_WORKSPACE_ID" -o json > deploy/volcengine/keys.local
+byted-supabase-cli projects api-keys --reveal --workspace-id "$SHOPRO_WORKSPACE_ID" -o json > infra/volcengine/keys.local
 ```
 
-从本地文件提取 **anon** key 到 `deploy/volcengine/anon.local`，设置权限 600。`keys.local` 可能同时含 service_role，处理后删除或保存在受控凭据位置；它不属于前端产物。应用 `.env.local` 只配置 `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`。
+从本地文件提取 **anon** key 到 `infra/volcengine/anon.local`，设置权限 600。`keys.local` 可能同时含 service_role，处理后删除或保存在受控凭据位置；它不属于前端产物。应用 `.env.local` 只配置 `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`。
 
 ```sh
 python3 scripts/deploy_volcengine.py prepare \
   --backend-url "$SHOPRO_BACKEND_URL" \
-  --anon-key-file deploy/volcengine/anon.local \
+  --anon-key-file infra/volcengine/anon.local \
   --terms-url "$SHOPRO_TERMS_URL" \
   --privacy-url "$SHOPRO_PRIVACY_URL"
 ```
@@ -154,8 +154,8 @@ python3 scripts/deploy_volcengine.py pages \
   --workspace-id "$SHOPRO_WORKSPACE_ID" \
   --pages-project-id "$SHOPRO_PAGES_ID" \
   --backend-url "$SHOPRO_BACKEND_URL" \
-  --anon-key-file deploy/volcengine/anon.local \
-  --worker-secret-file deploy/video-scheduler/video_worker_secret
+  --anon-key-file infra/volcengine/anon.local \
+  --worker-secret-file infra/video-scheduler/video_worker_secret
 byted-supabase-cli pages deploy list "$SHOPRO_PAGES_ID" -o json
 byted-supabase-cli pages binding --workspace-id "$SHOPRO_WORKSPACE_ID" -o json
 ```

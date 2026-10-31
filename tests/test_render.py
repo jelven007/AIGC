@@ -6,7 +6,7 @@ import subprocess
 import unittest
 import array
 import math
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "worker"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "services/media-worker"))
 from render import render, probe, RenderError
 
 

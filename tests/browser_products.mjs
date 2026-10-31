@@ -58,22 +58,23 @@ try {
   await page.getByLabel('原价', { exact: true }).fill('0');
   await page.getByLabel('币种', { exact: true }).fill('USD');
   await page.getByRole('button', { name: '保存商品', exact: true }).click();
-  await page.getByRole('button', { name: '恢复原商品操作', exact: true }).waitFor();
+  await page.getByRole('dialog').getByRole('button', { name: '恢复原商品操作', exact: true }).waitFor();
   assert.equal(submissions[0].items[0].draft.stock, null);
   assert.equal(submissions[0].items[0].draft.original_price, 0);
   await page.reload(); failSave = false;
-  await page.getByRole('button', { name: '恢复原商品操作', exact: true }).click();
+  await page.locator('[data-floating-notice]').getByRole('button', { name: '恢复原商品操作', exact: true }).click();
   await page.getByText('USD 0.00', { exact: true }).waitFor();
   assert.deepEqual(submissions[0], submissions[1]); assert.equal(products.length, 1);
   console.log('PASS 商品空态、零价/原币种/未知库存，保存503刷新按原UUID恢复');
 
-  await page.getByRole('button', { name: '删除真实杯子', exact: true }).click();
+  await page.getByRole('button', { name: '真实杯子更多操作', exact: true }).click();
+  await page.getByRole('menuitem', { name: '删除真实杯子', exact: true }).click();
   await page.getByRole('button', { name: '确认删除', exact: true }).click();
-  await page.getByRole('button', { name: '恢复原商品操作', exact: true }).waitFor();
+  await page.getByRole('dialog').getByRole('button', { name: '恢复原商品操作', exact: true }).waitFor();
   assert.equal(products.length, 1);
   await page.getByRole('button', { name: '取消', exact: true }).click();
   await page.getByText('USD 0.00', { exact: true }).waitFor();
-  failDelete = false; await page.getByRole('button', { name: '恢复原商品操作', exact: true }).click();
+  failDelete = false; await page.locator('[data-floating-notice]').getByRole('button', { name: '恢复原商品操作', exact: true }).click();
   await page.getByText('暂无商品，请添加或导入商品资料', { exact: true }).waitFor();
   assert.deepEqual(submissions[2], submissions[3]);
   assert.equal(await page.evaluate(() => localStorage.getItem('shopro_deleted_product_ids')), null);

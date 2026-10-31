@@ -11,11 +11,11 @@
 
 知识/情报接口新增scopes，调用仍由当前账号归属的RPC检查对象与预算，不改变数据库权限模型。平台账号接口仅list/creator接受publish:read；platform-publish的cancel复用publish:create，sync独立metrics:sync。共享`api-scopes.ts`同时用于签发、业务路由和开放接口页面。production-jobs支持按情报kind过滤。没有新迁移，当前schema仍到00044。
 
-完整工具参数与调用顺序见 [MCP指南](../../../mcp/mcp.md)，[tools.json](../../../mcp/tools.json)从实际SDK导出。新配音必填request_key/confirmed_credit_cost，旧客户端必须升级；空音色由管理员配置决定。原视频工具保留，并新增provider/尾帧/参考素材和按原UUID恢复。
+完整工具参数与调用顺序见 [MCP指南](../../../services/mcp/mcp.md)，[tools.json](../../../services/mcp/tools.json)从实际SDK导出。新配音必填request_key/confirmed_credit_cost，旧客户端必须升级；空音色由管理员配置决定。原视频工具保留，并新增provider/尾帧/参考素材和按原UUID恢复。
 
 ## 开发与验收
 
-先构建`docker build -t shoproai-mcp:local -f mcp/Dockerfile.mcp mcp`，再运行`npm run test:mcp`。工具变更运行`python mcp/export_tools.py`生成目录，`--check`发现漂移则失败。生产Docker使用Python3.12及非root用户。
+先构建`docker build -t shoproai-mcp:local -f services/mcp/Dockerfile.mcp mcp`，再运行`npm run test:mcp`。工具变更运行`python services/mcp/export_tools.py`生成目录，`--check`发现漂移则失败。生产Docker使用Python3.12及非root用户。
 
 AT-MCP-02–05覆盖实际SDK初始化/调用、旧配音参数拒绝、各模态/导出/批量/发布/知识/情报载荷、并发用户与Key隔离、跨用户拒绝、响应丢失后原请求恢复、权限拒绝及传输边界。后端/上游依赖在夹具中替代；幂等扣费及Key限流另由实际PG迁移测试验证。
 

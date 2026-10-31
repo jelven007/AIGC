@@ -6,14 +6,14 @@
 
 | 状态 / 需求 | 实现 | 验证 / 后续 |
 | --- | --- | --- |
-| 未提交 / 目录职责 | 181文件迁移、47页/13域、当前与历史文档归组、旧服务/实验/tool边界、459日志保留 | [目录规范](development/PROJECT_STRUCTURE.md)、[迁移清单](development/directory-migration-20261030.json) |
-| 未提交 / 依赖与配置 | editor共享类型、零反向页面依赖、AST目录门禁、Vite/TS/shadcn路径及运行指纹 | [本轮验证](testing/STRUCTURE_OPTIMIZATION_20261030.md)；原迁移与业务URL保持 |
-| 未提交 / 技术方案 | 模块化事务/任务边界、ADR、风险/验收函数、S1环境→S2全栈接受→S3领域切片 | [综合方案](architecture/PROJECT_ANALYSIS_AND_TECHNICAL_PLAN_20261030.md)；正式目标仍待实际接受 |
+| 未提交 / 目录职责 | 181文件迁移、47页/13域、当前与历史文档归组、旧服务/实验/tool边界、459日志保留 | [目录规范](development/PROJECT_STRUCTURE.md)、[迁移清单](archive/before-v1.1.0/docs/development/directory-migration-20261030.json) |
+| 未提交 / 依赖与配置 | editor共享类型、零反向页面依赖、AST目录门禁、Vite/TS/shadcn路径及运行指纹 | [本轮验证](archive/before-v1.1.0/docs/testing/STRUCTURE_OPTIMIZATION_20261030.md)；原迁移与业务URL保持 |
+| 未提交 / 技术方案 | 模块化事务/任务边界、ADR、风险/验收函数、S1环境→S2全栈接受→S3领域切片 | [综合方案](archive/before-v1.1.0/docs/architecture/PROJECT_ANALYSIS_AND_TECHNICAL_PLAN_20261030.md)；正式目标仍待实际接受 |
 | 未提交 / 环境固化 | 固定Node/锁/Compose、命名依赖卷、dev_environment.py、TRAE Run、仅公开配置注入 | 真实admin登录/资料、刷新与重启保持；[环境矩阵](development/DEVELOPMENT_GUIDE.md#固定开发入口与环境矩阵) |
-| 未提交 / 官方全栈发布 | 官方CLI2.122.0固定包、禁网冻结prepare、静态/源码摘要、原账事务保护、函数分步回执、生产Compose/接受门禁 | [官方入口](releases/OFFICIAL_SUPABASE_DEPLOYMENT.md)、[本轮发布验证](testing/ENVIRONMENT_RELEASE_20261030.md)；云端401及ECS身份受阻，未上线 |
+| 未提交 / 官方全栈发布 | 官方CLI2.122.0固定包、禁网冻结prepare、静态/源码摘要、原账事务保护、函数分步回执、生产Compose/接受门禁 | [官方入口](releases/OFFICIAL_SUPABASE_DEPLOYMENT.md)、[本轮发布验证](archive/before-v1.1.0/docs/testing/ENVIRONMENT_RELEASE_20261030.md)；云端401及ECS身份受阻，未上线 |
 | 未提交 / O01/O03/O04 | 分层Auth/业务/Worker、精确Host配置与预检、正式告警独立投递共用原卷 | `test_environment_layers`、`test_mcp_hosts`、`test_production_operations`与真实SDK/告警回归；正式代理/人员送达待接受 |
 | 未提交 / O05/O06/O07 | 平台权威保存和失败恢复、媒体库/作品卡片职责切片、固定隔离浏览器启动器与第四CI job | 七套浏览器和11项编辑状态通过；[首批切片决策](architecture/decisions/ADR-002-production-ui-slices.md) |
-| 准备材料 / O08–O14 | 原商品/任务/版本/现金试点、日常原账队列、同数据测量及退出/独立需求 | [接受清单](operations/OPTIMIZATION_ACCEPTANCE_20261031.md)、ADR003–005；未虚构实际人员/阈值或真实质量/账单 |
+| 准备材料 / O08–O14 | 原商品/任务/版本/现金试点、日常原账队列、同数据测量及退出/独立需求 | [接受清单](archive/before-v1.1.0/docs/operations/OPTIMIZATION_ACCEPTANCE_20261031.md)、ADR003–005；未虚构实际人员/阈值或真实质量/账单 |
 
 ## 1. 迭代与实现
 

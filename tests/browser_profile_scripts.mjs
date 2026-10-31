@@ -28,7 +28,7 @@ const scenes = [
   { order: 1, scene: '真实商品外观', visual: '展示已登记商品外观', dialogue: '这是确认后的商品描述。', duration: 5, prompt: 'Show the actual registered product in natural light.', layer: 'selling_point' },
   { order: 2, scene: '实际使用场景', visual: '展示商品使用过程', dialogue: '查看实际使用方法。', duration: 5, prompt: 'Show the actual product being used in a realistic setting.', layer: 'cta' },
 ];
-const responseText = `## 分镜脚本\n\`\`\`json\n${JSON.stringify(scenes)}\n\`\`\`\n## AIGC Prompt\n\`\`\`prompt\nActual product video prompt.\n\`\`\``;
+const responseText = `## 分镜脚本\n\`\`\`json\n${JSON.stringify(scenes)}\n\`\`\`\n## AIGC 提示词\n\`\`\`prompt\nActual product video prompt.\n\`\`\``;
 const profiles = Object.fromEntries([uid, otherId].map(id => [id, { id, username: id === uid ? '第一位用户' : '第二位用户',
   notification_enabled: false, role: 'user', created_at: '2026-10-01T00:00:00Z', avatar_url: null }]));
 const state = { errors: [], forbidden: [], reads: [], held: [], holdOld: true, failProfile: false, failOverview: false,
@@ -193,7 +193,7 @@ try {
   await page.getByText('脚本生成完成，请检查画面、台词和未标注的结构', { exact: true }).waitFor();
   await page.getByPlaceholder('场景名称', { exact: true }).first().waitFor();
   assert.equal(await page.getByPlaceholder('场景名称', { exact: true }).first().inputValue(), '真实商品外观');
-  const prompt = page.getByPlaceholder('Prompt 文案...', { exact: true });
+  const prompt = page.getByPlaceholder('提示词文案...', { exact: true });
   assert.equal(await prompt.inputValue(), 'Actual product video prompt.');
   state.text = '```json\n[{"visual":"缺少正文"}]\n```';
   await page.getByRole('button', { name: '重新生成', exact: true }).click();
@@ -223,7 +223,7 @@ try {
   console.log('PASS 实际SSE正文解码、合法/无效分镜与失败保留、原UUID保存恢复/不重复知识记录、Prompt传入视频、跨账号路由状态清除和草稿恢复');
 
   await page.getByRole('button', { name: '生成多镜头配音成片', exact: true }).click();
-  await page.getByText('已载入 实际商品 的分镜要求。请选择对应商品、填写音色并确认台词和预算。', { exact: true }).waitFor();
+  await page.locator('[data-floating-notice]').getByText('已载入 实际商品 的分镜要求', { exact: true }).waitFor();
   await page.getByRole('button', { name: '添加商品', exact: true }).click();
   await page.getByRole('checkbox', { name: '选择实际商品', exact: true }).check();
   await page.getByRole('button', { name: '确认添加', exact: true }).click();

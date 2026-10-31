@@ -136,7 +136,8 @@ try {
         } else {
           await page.goto(`${base}/products`, { waitUntil: 'domcontentloaded' });
           if (scenario === 'translation') {
-            await page.getByRole('button', { name: '翻译', exact: true }).click();
+            await page.locator('[data-product-id]:visible').first().getByRole('button', { name: /更多操作$/ }).click();
+            await page.getByRole('menuitem', { name: '翻译商品', exact: true }).click();
             await page.getByRole('button', { name: '确认翻译 · 2积分', exact: true }).click();
           } else {
             await page.getByRole('button', { name: '链接与资料导入', exact: true }).click();

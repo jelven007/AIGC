@@ -10,8 +10,8 @@ const output = process.argv[2];
 if (!output) throw new Error('需要独立输出目录');
 const require = createRequire(import.meta.url);
 const { build } = createRequire(require.resolve('vite'))('esbuild');
-const payments = createRequire(resolve(root, 'deploy/self-hosted/edge-dependencies/package.json'));
-const manifest = JSON.parse(await readFile(resolve(root, 'deploy/volcengine/manifest.json')));
+const payments = createRequire(resolve(root, 'infra/self-hosted/edge-dependencies/package.json'));
+const manifest = JSON.parse(await readFile(resolve(root, 'infra/volcengine/manifest.json')));
 const receipts = [];
 for (const { name } of manifest.functions) {
   const directory = resolve(output, name);
@@ -26,7 +26,7 @@ for (const { name } of manifest.functions) {
       name: 'frozen-selfhost-dependencies',
       setup(build) {
         build.onResolve({ filter: /^npm:/ }, ({ path }) => {
-          if (path === 'npm:@supabase/supabase-js@2') return { path: resolve(root, 'deploy/self-hosted/supabase-client.ts') };
+          if (path === 'npm:@supabase/supabase-js@2') return { path: resolve(root, 'infra/self-hosted/supabase-client.ts') };
           if (path === 'npm:@supabase/supabase-js@2.103.1') return { path: require.resolve('@supabase/supabase-js').replace(/\.cjs$/, '.mjs') };
           if (path === 'npm:alipay-sdk@4.14.0') return { path: payments.resolve('alipay-sdk') };
           throw new Error(`未冻结依赖：${path}`);

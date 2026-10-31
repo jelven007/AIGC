@@ -1,9 +1,9 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { PlatformAppEditor } from '../../src/components/PlatformAppSettings';
-import type { platformRequest, PlatformApplication } from '../../src/api/platforms';
-import { Toaster } from '../../src/components/ui/sonner';
-import '../../src/index.css';
+import { PlatformAppEditor } from '../../apps/web/src/components/PlatformAppSettings';
+import type { platformRequest, PlatformApplication } from '../../apps/web/src/api/platforms';
+import { Toaster } from '../../apps/web/src/components/ui/sonner';
+import '../../apps/web/src/index.css';
 
 const mode = new URLSearchParams(location.search).get('failure');
 let reads = 0, writes = 0;

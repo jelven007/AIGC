@@ -4,7 +4,7 @@
 
 ## 媒体工作目录
 
-`deploy/render-worker/docker-compose.yml` 使用 `RENDER_WORKSPACE_PATH` 绑定 `/work`。在宿主的专用磁盘建立目录并赋予 UID/GID `10001:10001` 写权限，随后在受控环境配置该绝对路径、`SUPABASE_URL` 与专用租约密钥文件。宿主目录应使用独立文件系统或磁盘配额；Docker bind 本身不会产生容量配额。容器只读、4 GiB 内存、2 CPU、256 PID，`/tmp` 仅为 64 MiB tmpfs，素材不会再占用 4 GiB tmpfs 与模型/FFmpeg 竞争内存。
+`infra/render-worker/docker-compose.yml` 使用 `RENDER_WORKSPACE_PATH` 绑定 `/work`。在宿主的专用磁盘建立目录并赋予 UID/GID `10001:10001` 写权限，随后在受控环境配置该绝对路径、`SUPABASE_URL` 与专用租约密钥文件。宿主目录应使用独立文件系统或磁盘配额；Docker bind 本身不会产生容量配额。容器只读、4 GiB 内存、2 CPU、256 PID，`/tmp` 仅为 64 MiB tmpfs，素材不会再占用 4 GiB tmpfs 与模型/FFmpeg 竞争内存。
 
 每个进程只执行一个本地媒体任务。每个工作目录使用独占锁；第二个进程不能领取或清理活跃目录。启动取得锁后只清理 `shopro-render-*` 残留目录，其他文件保留。强制终止后的业务恢复仍依赖原数据库租约到期与 fencing，残留文件清理不生成新任务。
 
@@ -28,7 +28,7 @@ Uvicorn 限制连接并发 64、backlog 64、keepalive 5 秒、退出 170 秒，
 
 - `python tests/test_worker_resources.py`：任务缓存、磁盘/部分文件、预处理子进程、阻塞蒙版、SIGTERM、原上传未知、工作目录独占和健康。
 - `pnpm test:worker-egress`：实际锁镜像内可信域名/公网DNS、连接地址绑定、真实TLS、Host/SNI及拒绝重定向。
-- `python tests/test_mcp_backend.py`：真实 SDK、正文/慢请求/并发、账号及原 UUID；`python mcp/export_tools.py --check` 拒绝目录漂移。
+- `python tests/test_mcp_backend.py`：真实 SDK、正文/慢请求/并发、账号及原 UUID；`python services/mcp/export_tools.py --check` 拒绝目录漂移。
 - `python scripts/measure_media_worker.py`：真实 FFmpeg，固定同一 MP4 的 8 个裁剪轨道，本地下载/上传/租约夹具；输出下载字节、空间高水位、Python/子进程 RSS 和成片摘要。在同一 Linux 镜像中以 `--worker-directory` 选择隔离的历史源码，可复核前后；不会连接外部服务。旧源码还须显式 `--expect-legacy-progress-failure`，必须复现确切 `N/A` 异常与原 `retry`，不会把旧中止任务记作成功。
 
 测量报告写入 [本轮实施记录](../archive/reviews/OPTIMIZATION_IMPLEMENTATION_20261027.md)。固定夹具一次运行不是生产峰值、P95 或容量承诺。

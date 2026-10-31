@@ -10,8 +10,8 @@ export async function loadFrontend(entry, suite, substitutes = {}) {
   mkdirSync(directory, { recursive: true });
   const compiled = new Map();
   const replacements = {
-    'src/db/supabase.ts': 'export const supabase = globalThis.__frontendDB;',
-    'src/lib/backendConfig.ts': `export const backendUrl = 'https://db.example';
+    'apps/web/src/db/supabase.ts': 'export const supabase = globalThis.__frontendDB;',
+    'apps/web/src/lib/backendConfig.ts': `export const backendUrl = 'https://db.example';
       export const backendAnonKey = 'anon';
       export const edgeFunctionUrl = name => backendUrl + '/functions/v1/' + name;`,
     ...substitutes,
@@ -25,7 +25,7 @@ export async function loadFrontend(entry, suite, substitutes = {}) {
     const source = ts.transpileModule(replacement ?? readFileSync(absolute, 'utf8'), {
       compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, jsx: ts.JsxEmit.ReactJSX },
     }).outputText.replace(/(['"])(@\/[^'"]+|\.\.?\/[^'"]+)\1/g, (_, quote, specifier) => {
-      let dependency = specifier.startsWith('@/') ? resolve('src', specifier.slice(2)) : resolve(dirname(absolute), specifier);
+      let dependency = specifier.startsWith('@/') ? resolve('apps/web/src', specifier.slice(2)) : resolve(dirname(absolute), specifier);
       if (!/\.(?:tsx|ts)$/.test(dependency)) dependency += '.ts';
       return `${quote}${pathToFileURL(compile(dependency)).href}${quote}`;
     });

@@ -16,11 +16,14 @@ const suites = [
   'tests/browser_editor_state.mjs', 'tests/browser_editor_assets.mjs', 'tests/browser_edit_analysis.mjs',
   'tests/browser_image_editing.mjs', 'tests/browser_account_credits.mjs',
   'tests/browser_storyboard_style.mjs',
+  'tests/browser_script_notices.mjs',
+  'tests/browser_catalog_layout.mjs',
+  'tests/browser_page_headers.mjs',
 ];
 let server;
 try {
   if (process.env.UI_TEST_EXTERNAL_SERVER !== '1') {
-    server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--config', 'vite.config.dev.ts',
+    server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--config', 'vite.config.ui-tests.mjs',
       '--host', url.hostname, '--port', '5197', '--strictPort'], { env, stdio: 'inherit' });
     server.on('error', error => { console.error(error.message); });
   }
