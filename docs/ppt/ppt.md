@@ -1,6 +1,6 @@
-# Shopro AI 产品演示提纲
+# 视频生成平台产品演示提纲
 
-更新：2026-10-27。当前00068/probe24/render4/edit2、20槽、MCP59/19；本轮本地优化与证据见[实施台账](../OPTIMIZATION_IMPLEMENTATION_20261027.md)，正式公网/真实模型全栈尚未验收。范围依[当前状态](../CURRENT_STATE.md)。
+更新：2026-10-27。当前00068/probe24/render4/edit2、20槽、MCP59/19；本轮本地优化与证据见[实施台账](../archive/reviews/OPTIMIZATION_IMPLEMENTATION_20261027.md)，正式公网/真实模型全栈尚未验收。范围依[当前状态](../CURRENT_STATE.md)。
 
 ## 演示页与证据
 
@@ -21,10 +21,10 @@
 
 使用当前真实目标 URL 与会话，检查账号/预算/素材授权/模型配置。遮蔽凭据与个人数据；准备可复现任务输入、作品与失败证据。第三方演示视频不能冒充该任务结果，健康探针不能代替成片播放。
 
-尚无真实模型环境时展示架构、接口与测试报告，明确没有执行生成；不使用内存后端/录屏演示宣称云端上线。答疑见 [项目说明](../ok/答辩.md)。
+尚无真实模型环境时展示架构、接口与测试报告，明确没有执行生成；不使用内存后端/录屏演示宣称云端上线。答疑见 [项目说明](../archive/presentations/答辩.md)。
 
 ## 对外内容规范
 
 不加入无来源竞品评分、转化提升、三年收入、融资估值、虚构团队经历、个人推广或未经验证模型价。已部署/已实现/已验证/待验收分别标注；素材使用真实授权内容，规划以规划呈现。
 
-主资料：[文档中心](../README.md)、[PRD](../prd/PRD.md)、[技术架构](../TECHNICAL_ARCHITECTURE.md)、[实施证据](../OPTIMIZATION_IMPLEMENTATION_20261027.md)、[商业化](../plan/商业化.md)、[版本管理](../VERSION_MANAGEMENT.md)。
+主资料：[文档中心](../README.md)、[PRD](../prd/PRD.md)、[技术架构](../architecture/TECHNICAL_ARCHITECTURE.md)、[实施证据](../archive/reviews/OPTIMIZATION_IMPLEMENTATION_20261027.md)、[商业化](../plan/商业化.md)、[版本管理](../releases/VERSION_MANAGEMENT.md)。

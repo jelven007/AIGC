@@ -1,0 +1,38 @@
+name: shoproai-development
+services:
+  web:
+    image: node:22-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da
+    container_name: shoproai-web
+    working_dir: /app
+    command: ["bash", "scripts/start_development_web.sh"]
+    ports: ["127.0.0.1:5173:5173"]
+    environment:
+      VITE_SUPABASE_URL: ${SHOPRO_DEV_BACKEND_URL:?请运行scripts/dev_environment.py}
+      VITE_SUPABASE_ANON_KEY: ${SHOPRO_DEV_ANON_KEY:?请配置.env.local}
+      COREPACK_NPM_REGISTRY: https://registry.npmmirror.com
+      npm_config_registry: https://registry.npmmirror.com
+      PNPM_HOME: /opt/pnpm
+    volumes:
+      - ../..:/app
+      - dependencies:/app/node_modules
+      - corepack:/root/.cache/node/corepack
+      - package-store:/pnpm/store
+    init: true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5173/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 5s
+      start_period: 120s
+      retries: 3
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+volumes:
+  dependencies:
+    name: shoproai-development-dependencies
+    external: true
+  corepack:
+    name: shoproai-development-corepack
+  package-store:
+    name: shoproai-development-package-store

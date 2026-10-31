@@ -1,0 +1,93 @@
+map $http_upgrade $shopro_connection {
+  default upgrade;
+  '' close;
+}
+log_format shopro '$remote_addr $request_method $uri $status $body_bytes_sent';
+upstream shopro_auth { server auth:9999; keepalive 32; }
+upstream shopro_rest { server rest:3000; keepalive 64; }
+upstream shopro_storage { server storage:5000; keepalive 32; }
+upstream shopro_functions { server functions:9000; keepalive 64; }
+# 普通凭据的突发允许20次；后台执行器另有独立数据库配额。
+map $request_method $shopro_api_rate_key { OPTIONS ""; default $http_authorization; }
+limit_req_zone $shopro_api_rate_key zone=shopro_functions_per_credential:10m rate=5r/s;
+server {
+  listen ${HTTPS_PORT} ssl;
+  server_name ${PUBLIC_HOST};
+  ssl_certificate /certs/server.crt;
+  ssl_certificate_key /certs/server.key;
+  ssl_protocols TLSv1.2 TLSv1.3;
+  root /site;
+  index index.html;
+  client_max_body_size 500m;
+  proxy_read_timeout 160s;
+  proxy_connect_timeout 10s;
+  proxy_http_version 1.1;
+  proxy_set_header Connection "";
+  proxy_next_upstream off;
+  limit_req_status 429;
+  limit_req_log_level notice;
+  access_log /dev/stdout shopro;
+  add_header X-Content-Type-Options nosniff always;
+  add_header Referrer-Policy strict-origin-when-cross-origin always;
+  location = /healthz { access_log off; return 200 'ok'; }
+  location = /runtime-config.js { add_header Cache-Control "no-store"; }
+  location /auth/v1/ {
+    proxy_pass http://shopro_auth/;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-Host $http_host;
+  }
+  location /rest/v1/ {
+    proxy_pass http://shopro_rest/;
+    proxy_set_header Connection "";
+    # PostgREST的Content-Location会回显批量UUID过滤；100账号观测超过默认4KiB响应头。
+    proxy_buffer_size 16k;
+    proxy_buffers 8 16k;
+    proxy_set_header Authorization $http_authorization;
+    proxy_set_header X-Forwarded-Proto https;
+  }
+  location /storage/v1/ {
+    proxy_pass http://shopro_storage/;
+    proxy_set_header Connection "";
+    # 流式上传，避免500MiB素材耗尽代理32MiB临时目录。
+    proxy_http_version 1.1;
+    proxy_request_buffering off;
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-Prefix /storage/v1;
+    proxy_set_header X-Forwarded-Path $request_uri;
+  }
+  location /functions/v1/ {
+    limit_req zone=shopro_functions_per_credential burst=20 nodelay;
+    proxy_pass http://shopro_functions/;
+    proxy_set_header Connection "";
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Forwarded-Proto https;
+  }
+  location = /functions/v1/production-worker {
+    proxy_pass http://shopro_functions/production-worker;
+    proxy_set_header Connection "";
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Forwarded-Proto https;
+  }
+  location /realtime/v1/ {
+    proxy_pass http://realtime:4000/socket/;
+    proxy_http_version 1.1;
+    proxy_set_header Host realtime-dev;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $shopro_connection;
+    proxy_set_header Authorization "Bearer ${ANON_KEY}";
+    proxy_read_timeout 3600s;
+  }
+  location ~ ^/mcp(?:/|$) {
+    resolver 127.0.0.11 ipv6=off valid=10s;
+    set $shopro_mcp http://mcp:8080;
+    proxy_pass $shopro_mcp$request_uri;
+    proxy_http_version 1.1;
+    proxy_set_header Host $http_host;
+    proxy_buffering off;
+    proxy_read_timeout 180s;
+  }
+  location / { try_files $uri $uri/ /index.html; }
+}

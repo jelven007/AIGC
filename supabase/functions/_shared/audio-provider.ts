@@ -1,4 +1,5 @@
-import { modelFetch, validateEndpoint, type ResolvedModel } from './model-registry.ts';
+import { modelFetch, type ResolvedModel } from './model-registry.ts';
+import { mediaFetch, validateMediaEndpoint } from './media-endpoint.ts';
 
 export async function responseBytes(response: Response, max: number): Promise<Uint8Array> {
   if (!response.body) throw new Error('接口返回空内容');
@@ -25,8 +26,8 @@ export function encodeAudio(bytes: Uint8Array): string {
 }
 export async function safeMediaDownload(value: string, max: number): Promise<{ bytes: Uint8Array; type: string }> {
   const url = new URL(value), unsigned = new URL(url); unsigned.search = '';
-  await validateEndpoint(unsigned.href);
-  const response = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(60000) }).catch(() => null);
+  await validateMediaEndpoint(unsigned.href);
+  const response = await mediaFetch(url, { redirect: 'error', signal: AbortSignal.timeout(60000) }).catch(() => null);
   if (!response?.ok) throw new Error('媒体下载失败');
   return { bytes: await responseBytes(response, max), type: response.headers.get('content-type')?.split(';')[0] || '' };
 }

@@ -179,7 +179,7 @@ export default function MarketIntelligenceWorkspace({ mode, request = intelligen
       </div>
       <div className="flex flex-wrap gap-3 items-center"><Button type="submit" disabled={!!busy || !!pending || loading
         || (mode === 'products' && searchMode === 'image' ? !image : !subject.trim())}>保存情报对象</Button>
-        {!available(source) && <p className="text-sm text-muted-foreground">此数据源未启用，请由管理员在模型接口设置中配置。</p>}</div>
+        {!available(source) && <p className="text-sm text-muted-foreground">此数据源未启用，请由管理员在模型接口中配置。</p>}</div>
     </form>
     {loading ? <p role="status" className="flex gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />正在读取情报记录</p>
       : !catalog.targets.length ? <p className="border rounded-xl p-8 text-center text-sm text-muted-foreground">还没有情报对象。保存账号或搜索后，可确认积分并开始采集。</p>

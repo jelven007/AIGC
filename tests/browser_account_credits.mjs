@@ -16,6 +16,7 @@ const verifyGate = new Promise(resolve => { releaseVerify = resolve; });
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_PATH,
   args: ['--disable-breakpad', '--disable-crash-reporter', `--crash-dumps-dir=${process.cwd()}/.volcengine-build/chrome-crashes`] });
 const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
+await context.route('https://**/*', route => route.abort());
 await context.addInitScript(value => {
   if (!localStorage.getItem('sb-ui-fixture-auth-token')) localStorage.setItem('sb-ui-fixture-auth-token', JSON.stringify(value));
 }, sessionFor(first));
@@ -127,6 +128,7 @@ try {
   console.log('PASS 通知读写固定原账号令牌、账号切换后失败无旧提示、查看详情离页不弹迟到错误');
 
   const anonymous = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
+  await anonymous.route('https://**/*', route => route.abort());
   await anonymous.route('https://legal-fixture.example/**', route => route.fulfill({ contentType: 'text/html; charset=utf-8', body: '<h1>隔离测试协议资源</h1>' }));
   await anonymous.route(`${backend}/**`, async route => {
     const req = route.request(), path = new URL(req.url()).pathname;
@@ -196,6 +198,7 @@ try {
   await anonymous.close();
 
   const cancelled = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await cancelled.route('https://**/*', route => route.abort());
   await cancelled.route(`${backend}/**`, async route => {
     const path = new URL(route.request().url()).pathname;
     let data = {};

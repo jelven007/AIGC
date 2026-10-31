@@ -3,6 +3,7 @@ from contextlib import contextmanager
 import fcntl
 import hashlib
 import os
+import socket
 from pathlib import Path
 from shutil import disk_usage, rmtree
 import time
@@ -34,6 +35,25 @@ def exclusive_workspace(directory):
             yield root
         finally:
             fcntl.flock(lock, fcntl.LOCK_UN)
+
+
+@contextmanager
+def exclusive_replica_workspace(directory, identity=None):
+    """共享卷上的每副本独占空间；只回收已退出副本的任务残留。"""
+    pool = Path(directory or "/tmp/shopro-workspace") / "replicas"
+    pool.mkdir(parents=True, exist_ok=True)
+    slot = pool / hashlib.sha256((identity or socket.gethostname()).encode()).hexdigest()[:32]
+    with exclusive_workspace(slot) as root:
+        for sibling in pool.iterdir():
+            if sibling == slot or not sibling.is_dir() or sibling.is_symlink():
+                continue
+            try:
+                with exclusive_workspace(sibling):
+                    pass
+            except RetryableError:
+                # 活跃副本持有锁，不得清理其素材，也不能移除锁文件。
+                continue
+        yield root
 
 
 def download(url, target, max_bytes=500 * MIB, cancelled=lambda: False,

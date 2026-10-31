@@ -12,6 +12,7 @@ import { workloadPolicy } from '../_shared/workload-policy.ts';
 import { moderationInput, moderationVerdict } from '../_shared/moderation.ts';
 import { currentModelContext, withModelContext } from '../_shared/model-context.ts';
 import { parseScriptResult } from '../_shared/script-result.ts';
+import { platformPromptTemplate } from '../_shared/video-branding.ts';
 export { parseScriptResult } from '../_shared/script-result.ts';
 
 // 避免 createClient 的泛型 ReturnType 推导为空 schema。
@@ -207,12 +208,12 @@ async function callLLM(
 }
 
 // ─── AI-02: 平台级系统 Prompt ────────────────────────────────────────────────
-const PLATFORM_SYSTEM_PROMPT = `你是「AIGC带货视频平台」的专属AI助手，专门服务于抖音/TikTok电商带货视频的策划、生产与优化。
-核心能力：电商文案、视频脚本、分镜策划、流量分析、风格复刻、Prompt工程。
+const PLATFORM_SYSTEM_PROMPT = `你是「视频生成平台」的专属AI助手，服务于视频创意、脚本策划、生成与优化。
+核心能力：创意文案、视频脚本、分镜策划、作品分析、风格复刻、Prompt工程。
 工作原则：
-1. 所有输出紧扣「带货转化」目标，以实际效果为导向
-2. 熟悉平台算法规则（完播率、互动率、转化率三角模型）
-3. 文案简洁有力，字幕友好，适合竖屏移动端观看
+1. 依据用户的创作目标、题材、受众与素材组织输出
+2. 关注叙事节奏、画面与主体一致性，按指定画幅和发布平台调整
+3. 文案简洁有力，字幕友好，区分台词、画面描述与生成提示词
 4. 优先返回结构化数据（JSON格式），便于前端解析
 5. 仅依据资料分析；未读取素材时说明证据缺失，禁止编造指标或产品功效`;
 
@@ -397,7 +398,7 @@ Deno.serve(async (req) => {
       if (typeof body.request_key !== 'string') return err('封面后台任务需要 request_key 幂等标识', 4000, 400);
       const requestKey = body.request_key;
       const job = await createImageJob(supabase, userId, requestKey, {
-        prompt: body.prompt || `电商带货视频封面：${body.product_name || ''}`, size: '1024x1536', quality: 'auto',
+        prompt: body.prompt || `视频作品封面：${body.product_name || ''}`, size: '1024x1536', quality: 'auto',
       }, body.project_id);
       return ok({ job, task_id: job.id, status: job.status }, 202);
     }
@@ -686,7 +687,7 @@ async function generateABVariants(body: Record<string, unknown>) {
   const { product_name, variant_count } = body as Record<string, string | number>;
   const count = Math.min(4, Math.max(2, Number(variant_count) || 2));
   boundedText(product_name, 200);
-  const raw = await structuredText(`创作${count}个只改变一个实验变量的电商视频脚本变体，禁止编造产品事实或预测转化数据。返回`
+  const raw = await structuredText(`创作${count}个只改变一个实验变量的视频脚本变体，禁止编造产品事实或预测转化数据。返回`
     + '{"variants":[{"name":"版本名称","description":"实验假设","changed_variable":"改变的因素","script":"完整口播脚本","prompt":"英文视频画面提示"}]}', body);
   if (!Array.isArray(raw.variants) || raw.variants.length !== count) throw new Error('模型返回的变体数量不正确');
   return { variants: raw.variants.map((item: any) => ({ id: crypto.randomUUID(), name: boundedText(item.name, 100),
@@ -718,7 +719,7 @@ async function generateScriptFourLayer(
   try {
     const { data: tplRows } = await supabase
       .from('prompt_templates')
-      .select('id, content, version, variant')
+      .select('id, title, content, version, variant, is_system, user_id, action_key')
       .eq('action_key', 'generate_script_four_layer')
       .eq('is_active', true)
       .order('version', { ascending: false })
@@ -731,22 +732,22 @@ async function generateScriptFourLayer(
         chosen = tplRows[digest[0] % tplRows.length];
       }
       templateUsed = { id: chosen.id, version: chosen.version ?? 1, variant: chosen.variant ?? 'A' };
-      templateExtra = `\n【当前生效模板 v${chosen.version ?? 1}-${chosen.variant ?? 'A'}】${chosen.content}`;
+      templateExtra = `\n【当前生效模板 v${chosen.version ?? 1}-${chosen.variant ?? 'A'}】${platformPromptTemplate(chosen).content}`;
     }
   } catch { /* 模板读取失败降级为内置四层 Prompt */ }
 
-  const systemPrompt = `你是专业的电商带货视频脚本策划师，精通抖音/TikTok短视频「四层结构」创作：
+  const systemPrompt = `你是专业的视频分镜脚本策划师，精通抖音/TikTok短视频「四层结构」创作：
 ①卖点层：深度理解商品核心差异化价值
 ②痛点层：匹配目标用户真实痛点与情感共鸣
 ③钩子层：设计平台专属的开场钩子与悬念结构（前3秒留存）
-④CTA层：构建紧迫感与高转化行动召唤${templateExtra}`;
+④CTA层：依据创作目标自然收束主题或引导互动。价格、活动、功效与销量只使用已确认资料${templateExtra}`;
   const context = currentModelContext();
   if (context) {
     context.versions.prompt_template = templateUsed;
     context.versions.knowledge_job_id = references?.job_id || null;
   }
 
-  const userPrompt = `请基于「四层Prompt工程」为以下商品生成完整带货视频脚本：
+  const userPrompt = `请基于「四层Prompt工程」和以下商品资料生成完整产品展示视频脚本：
 
 【商品信息】
 - 名称：${product_name}
@@ -925,7 +926,7 @@ async function emotionAnalysis(
     } catch { /* 落库失败不影响返回 */ }
   };
 
-  const emotionPrompt = `你是专业情绪分析师，专注电商带货视频脚本情绪识别。
+  const emotionPrompt = `你是专业情绪分析师，专注视频脚本的情绪与叙事节奏识别。
 分析以下台词句子的情绪类型和强度：
 ${inputSentences.map((s, i) => `${i + 1}. ${s}`).join('\n')}
 
@@ -946,7 +947,7 @@ async function translateScript(body: Record<string, unknown>, supabase: ReturnTy
   const LANG_MAP: Record<string, string> = { en: '英语', ja: '日语', ko: '韩语', th: '泰语', ar: '阿拉伯语', fr: '法语', de: '德语' };
   const targetName = LANG_MAP[target_language] ?? target_language;
 
-  const translatePrompt = `请将以下电商带货视频脚本翻译为${targetName}，保持带货营销语气，口语化，本土化处理，保留原文结构：\n\n${text}\n\n直接输出翻译结果，不要任何解释：`;
+  const translatePrompt = `请将以下视频脚本翻译为${targetName}，保持原文的创作目标、语气与事实，口语化，本土化处理，保留原文结构：\n\n${text}\n\n直接输出翻译结果，不要任何解释：`;
   try {
     const translated = await callLLM([{ role: 'user', content: translatePrompt }], PLATFORM_SYSTEM_PROMPT);
     if (user_id) {

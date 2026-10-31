@@ -19,8 +19,8 @@ function measure(directory) {
     return { files: [...files].sort(), bytes: content.reduce((n, data) => n + data.length, 0),
       gzip_bytes: content.reduce((n, data) => n + gzipSync(data).length, 0) };
   }
-  return { bootstrap: closure([entry]), landing: closure([entry, 'src/pages/LandingPage.tsx']),
-    credits: closure([entry, 'src/components/layouts/MainLayout.tsx', 'src/pages/CreditsPage.tsx']) };
+  return { bootstrap: closure([entry]), landing: closure([entry, 'src/pages/marketing/LandingPage.tsx']),
+    credits: closure([entry, 'src/components/layouts/MainLayout.tsx', 'src/pages/billing/CreditsPage.tsx']) };
 }
 const current = measure(process.argv[2] || 'dist');
 if (current.bootstrap.gzip_bytes > 180000) throw new Error('首屏静态JavaScript超出180KB gzip预算');

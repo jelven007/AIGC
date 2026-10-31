@@ -1,5 +1,6 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import { modelFetch, resolveModel, validateEndpoint } from './model-registry.ts';
+import { modelFetch, resolveModel } from './model-registry.ts';
+import { mediaFetch, validateMediaEndpoint } from './media-endpoint.ts';
 import { mediaReference, signedMedia } from './private-media.ts';
 import { requireImageCapability } from './image-contract.ts';
 import { readImageEditInput } from './image-edit-input.ts';
@@ -22,7 +23,7 @@ export async function generateImage(db: SupabaseClient, userId: string, input: R
     if (typeof input.reference_image !== 'string') throw new Error('参考图应为已上传的公网地址');
     reference = await signedMedia(db, input.reference_image, userId, 3600);
     const checked = new URL(reference); checked.search = '';
-    await validateEndpoint(checked.href);
+    await validateMediaEndpoint(checked.href);
   }
   let data = options.evidence;
   if (!data) {
@@ -73,8 +74,8 @@ export async function generateImage(db: SupabaseClient, userId: string, input: R
     if (!source || typeof source !== 'string') throw new Error('模型未返回图片，请核对接口协议');
     const url = new URL(source);
     const unsigned = new URL(url); unsigned.search = '';
-    await validateEndpoint(unsigned.href);
-    const media = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(30000) }).catch(() => null);
+    await validateMediaEndpoint(unsigned.href);
+    const media = await mediaFetch(url, { redirect: 'error', signal: AbortSignal.timeout(30000) }).catch(() => null);
     if (!media?.ok || !media.body) throw new Error('生成图片下载失败');
     mime = media.headers.get('content-type')?.split(';')[0] || '';
     if (!['image/png', 'image/jpeg', 'image/webp'].includes(mime)) throw new Error('模型返回的文件不是支持的图片');

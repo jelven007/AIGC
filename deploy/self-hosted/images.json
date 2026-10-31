@@ -1,0 +1,9 @@
+{
+  "db": {"image": "m.daocloud.io/docker.io/supabase/postgres@sha256:af083ef64d0408c8f098ee6f5c364a59b26f36fbc0f3a334a62c5c1d57362e9b", "upstream": "supabase/postgres:15.8.1.085"},
+  "auth": {"image": "m.daocloud.io/docker.io/supabase/gotrue@sha256:1736a63078f5922b198c4cbe50f80ab9a2d3b54fe8b7b6cfb2e9dc5dbbc12c6b", "upstream": "supabase/gotrue:v2.197.0"},
+  "rest": {"image": "m.daocloud.io/docker.io/postgrest/postgrest@sha256:c7cd7e265a85b05248abf53f4473fcec7e327c282d0bd0cf60f1551996d09fcf", "upstream": "postgrest/postgrest:v14.18"},
+  "storage": {"image": "m.daocloud.io/docker.io/supabase/storage-api@sha256:98ffec5d0678803783c30e404c27f4ec65e97efbe014088f2a86b4b8b54b9f54", "upstream": "supabase/storage-api:v1.81.0"},
+  "realtime": {"image": "m.daocloud.io/docker.io/supabase/realtime@sha256:768b559241dd234c4e8852c5c0f504e598b80f1df2ad4dd78d5486fbed2f17a2", "upstream": "supabase/realtime:v2.143.3"},
+  "functions": {"image": "m.daocloud.io/docker.io/supabase/edge-runtime@sha256:ad45164b7548bf5820ed7be714789c17ac2865edce79a09cfb4c3756c3d365a8", "upstream": "supabase/edge-runtime:v1.77.4"},
+  "proxy": {"image": "public.ecr.aws/docker/library/nginx@sha256:892bb2152464f0c5d8972593a5f5afaf8054552580b699d95f8ff4af08c2d33d", "upstream": "nginx:alpine"}
+}

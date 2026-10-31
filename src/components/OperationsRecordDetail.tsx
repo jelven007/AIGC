@@ -14,7 +14,7 @@ export default function OperationsRecordDetail({ type, id, disabled, canWrite, o
   const { user } = useAuth();
   const [page, setPage] = useState(1);
   const record = useQuery<SupportDetail | TenantDetail>({ queryKey: ['operation-detail', user?.id, type, id, page], enabled: !!user?.id,
-    queryFn: () => type === 'ticket' ? supportDetail(id, page) : tenantDetail(id, page), retry: false });
+    queryFn: () => type === 'ticket' ? supportDetail(id, page, user?.id) : tenantDetail(id, page, user?.id), retry: false });
   const ticket = record.data && 'ticket' in record.data ? record.data.ticket : null;
   const tenant = record.data && 'tenant' in record.data ? record.data.tenant : null;
   const staff = record.data && 'staff' in record.data ? record.data.staff : false;

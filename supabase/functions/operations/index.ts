@@ -11,7 +11,7 @@ export async function handleOperations(req: Request): Promise<Response> {
   if (req.method !== 'POST') return reply({ error: '仅支持 POST' }, 405);
   try {
     const auth = await authenticateRequest(req);
-    if (auth.error || !auth.user || auth.isServiceRole || auth.apiKeyId) return reply({ error: '请使用个人登录会话' }, 401);
+    if (auth.error || !auth.user || auth.isServiceRole || auth.apiKeyId) return reply({ error: '请使用个人登录会话', outcome: 'rejected' }, 401);
     let body;
     try { body = JSON.parse(new TextDecoder().decode(await responseBytes(new Response(req.body), 16384))); }
     catch { return reply({ error: '运营正文非法或超过16KB', outcome: 'rejected' }, 400); }
@@ -19,8 +19,8 @@ export async function handleOperations(req: Request): Promise<Response> {
     const db = createServiceClient();
     const rate = await db.rpc('upsert_rate_limit', { p_window_key: `operations:${auth.user.id}:${Math.floor(Date.now() / 60000)}`,
       p_client_id: `operations:${auth.user.id}`, p_reset_at: new Date(Date.now() + 60000).toISOString(), p_max_req: 60 });
-    if (rate.error) return reply({ error: '运营限流服务不可用' }, 503);
-    if (!rate.data) return reply({ error: '操作过于频繁' }, 429);
+    if (rate.error) return reply({ error: '运营限流服务不可用', outcome: 'rejected' }, 503);
+    if (!rate.data) return reply({ error: '操作过于频繁', outcome: 'rejected' }, 429);
     let result;
     if (body.action === 'access') result = await db.rpc('operator_access', { p_actor: auth.user.id });
     else if (body.action === 'list') {

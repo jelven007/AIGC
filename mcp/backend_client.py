@@ -5,6 +5,7 @@ import json
 import os
 from urllib.parse import urlparse
 import httpx
+from backend_tls import backend_ssl_context
 
 request_token = ContextVar("shopro_user_token", default=None)
 BUSINESS_FUNCTIONS = frozenset({
@@ -60,7 +61,8 @@ async def call_backend(function, body):
         raise ValueError("anon key 不能作为业务用户凭据")
     request_key = body.get("request_key")
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(150, connect=10), follow_redirects=False) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(150, connect=10), follow_redirects=False,
+                                     verify=backend_ssl_context(url), trust_env=False) as client:
             async with client.stream("POST", f"{url}/functions/v1/{function}",
                                      headers={"Authorization": f"Bearer {token}", "apikey": key},
                                      json=body) as response:

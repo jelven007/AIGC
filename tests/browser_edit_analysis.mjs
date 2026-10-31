@@ -12,6 +12,7 @@ const browser = await chromium.launch({ headless: true, executablePath: process.
 const contexts = [];
 async function fixture() {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, reducedMotion: 'reduce' });
+  await context.route('https://**/*', route => route.abort());
   contexts.push(context);
   await context.addInitScript(value => localStorage.setItem('sb-ui-fixture-auth-token', JSON.stringify(value)), session);
   const tracks = [

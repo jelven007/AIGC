@@ -3,7 +3,7 @@ import {
   providerConfig, queryVideo, submitVideo, SubmissionError,
   type VideoInput, type VideoProvider,
 } from './video-providers.ts';
-import { validateEndpoint } from './model-registry.ts';
+import { mediaFetch, validateMediaEndpoint } from './media-endpoint.ts';
 import { mediaReference, signMediaTree } from './private-media.ts';
 
 export interface VideoJob {
@@ -41,10 +41,10 @@ async function persistVideo(db: SupabaseClient, job: VideoJob, source: string | 
   if (typeof source === 'string') {
     const target = new URL(source);
     target.search = '';
-    await validateEndpoint(target.href);
+    await validateMediaEndpoint(target.href);
   }
   const response = typeof source === 'string'
-    ? await fetch(source, { signal: AbortSignal.timeout(35_000), redirect: 'error' }) : source;
+    ? await mediaFetch(source, { signal: AbortSignal.timeout(35_000), redirect: 'error' }) : source;
   if (!response.ok || !response.body) throw new Error('成片下载暂时失败');
   const mime = response.headers.get('content-type')?.split(';')[0] || '';
   if (!['video/mp4', 'video/webm', 'application/octet-stream'].includes(mime)) throw new Error('上游成片格式不支持');

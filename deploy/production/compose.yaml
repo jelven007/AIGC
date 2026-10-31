@@ -1,0 +1,145 @@
+name: shoproai-production
+services:
+  web:
+    image: public.ecr.aws/docker/library/nginx@sha256:892bb2152464f0c5d8972593a5f5afaf8054552580b699d95f8ff4af08c2d33d
+    user: "101:101"
+    entrypoint: ["nginx", "-g", "daemon off;"]
+    ports: ["127.0.0.1:${WEB_PORT:-8081}:8080"]
+    volumes:
+      - ${RELEASE_DIR:?请使用本次发布目录}/frontend:/site:ro
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=32m,uid=101,gid=101"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 64
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/release-identity.json"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging: &logging
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+
+  scheduler: &scheduler
+    profiles: [execution]
+    image: ${SCHEDULER_IMAGE:?请从manifest中取不可变镜像ID或已验证的目标digest}
+    init: true
+    read_only: true
+    restart: unless-stopped
+    environment:
+      SUPABASE_URL: ${SUPABASE_URL:?请核对原官方后端}
+      VIDEO_WORKER_SECRET_FILE: /run/secrets/video_worker_secret
+      PRODUCTION_WORKER_ENABLED: "true"
+      VIDEO_WORKER_INTERVAL_SECONDS: 10
+      VIDEO_WORKER_CONCURRENCY: 4
+      VIDEO_WORKER_TIMEOUT_SECONDS: 150
+      VIDEO_WORKER_STATE_FILE: /tmp/scheduler.json
+      VIDEO_WORKER_ALERT_FILE: /var/lib/shopro/scheduler-alerts.json
+    secrets: [video_worker_secret]
+    volumes: ["scheduler-alerts:/var/lib/shopro"]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=1m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 128m
+    cpus: 0.25
+    pids_limit: 64
+    stop_grace_period: 160s
+    healthcheck:
+      test: ["CMD", "python", "/app/run_video_worker.py", "--healthcheck"]
+      interval: 30s
+      timeout: 5s
+      start_period: 180s
+      retries: 3
+    logging: *logging
+
+  maintenance:
+    <<: *scheduler
+    command: ["python", "/app/run_video_worker.py", "--daemon", "--maintenance"]
+    environment:
+      SUPABASE_URL: ${SUPABASE_URL:?请核对原官方后端}
+      VIDEO_WORKER_SECRET_FILE: /run/secrets/video_worker_secret
+      PRODUCTION_WORKER_ENABLED: "true"
+      VIDEO_WORKER_INTERVAL_SECONDS: 10
+      VIDEO_WORKER_CONCURRENCY: 1
+      VIDEO_WORKER_TIMEOUT_SECONDS: 150
+      VIDEO_WORKER_STATE_FILE: /tmp/maintenance.json
+      VIDEO_WORKER_ALERT_FILE: /var/lib/shopro/maintenance-alerts.json
+
+  alert-delivery:
+    <<: *scheduler
+    profiles: [operations]
+    command: ["python", "/app/alert_delivery.py", "--config", "/run/secrets/alert_delivery_config", "--daemon"]
+    secrets: [video_worker_secret, relay_secret, alert_delivery_config]
+    healthcheck:
+      disable: true
+    stop_grace_period: 30s
+
+  renderer:
+    profiles: [execution]
+    image: ${RENDERER_IMAGE:?请填写验证过的媒体镜像ID或digest}
+    init: true
+    read_only: true
+    restart: unless-stopped
+    environment:
+      SUPABASE_URL: ${SUPABASE_URL:?请核对原官方后端}
+      RENDER_WORKER_SECRET_FILE: /run/secrets/video_worker_secret
+      RENDER_WORKSPACE_DIR: /work
+      RENDER_MEDIA_HOSTS: ${RENDER_MEDIA_HOSTS:-}
+    secrets: [video_worker_secret]
+    volumes: ["${RENDER_WORKSPACE_PATH:?请配置专用媒体磁盘}:/work"]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m,uid=10001,gid=10001"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 4g
+    cpus: 2
+    pids_limit: 256
+    stop_grace_period: 90s
+    healthcheck:
+      test: ["CMD", "python", "/app/main.py", "--healthcheck"]
+      interval: 30s
+      timeout: 5s
+      start_period: 45s
+      retries: 3
+    logging: *logging
+
+  mcp:
+    profiles: [execution]
+    image: ${MCP_IMAGE:?请填写验证过的MCP镜像ID或digest}
+    init: true
+    read_only: true
+    restart: unless-stopped
+    ports: ["127.0.0.1:${MCP_PORT:-8082}:8080"]
+    environment:
+      SUPABASE_URL: ${SUPABASE_URL:?请核对原官方后端}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:?MCP需要公开anon key}
+      HOST: 0.0.0.0
+      PORT: 8080
+      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:?请配置精确正式Host及本地探针Host}
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=32m,uid=65534,gid=65534"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 384m
+    cpus: 1
+    pids_limit: 96
+    stop_grace_period: 180s
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz',timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging: *logging
+
+secrets:
+  video_worker_secret:
+    file: ${RUNTIME_SECRETS_DIR:?请配置专用0600凭据目录}/video_worker_secret
+  relay_secret:
+    file: ${RUNTIME_SECRETS_DIR:?请配置专用0600凭据目录}/relay_secret
+  alert_delivery_config:
+    file: ${RUNTIME_SECRETS_DIR:?请配置专用0600凭据目录}/alert-delivery.json
+volumes:
+  scheduler-alerts:

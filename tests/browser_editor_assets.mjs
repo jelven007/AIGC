@@ -24,6 +24,7 @@ const browser = await chromium.launch({ headless: true, executablePath: process.
   args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--disable-breakpad',
     '--disable-crash-reporter', `--crash-dumps-dir=${process.cwd()}/.volcengine-build/chrome-crashes`] });
 const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, reducedMotion: 'reduce', permissions: ['microphone'] });
+await context.route('https://**/*', route => route.abort());
 await context.addInitScript(value => localStorage.setItem('sb-ui-fixture-auth-token', JSON.stringify(value)), session);
 await context.route(`${backend}/**`, async route => {
   const req = route.request(), path = new URL(req.url()).pathname;

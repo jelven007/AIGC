@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from backend_client import call_backend, request_token, validate_user_token
 
 logger = logging.getLogger("shopro-mcp")
-mcp = FastMCP("Shopro AI", stateless_http=True)
+mcp = FastMCP("Video Generation Platform", stateless_http=True)
 Cost = Annotated[int, Field(strict=True, ge=0, le=100000)]
 VideoProvider = Literal["ArkSeedance", "MiniMax", "SeedanceMini", "Wan3", "HappyHorse", "Kling", "Seedance"]
 IntelligenceKind = Literal["intelligence_competitor", "intelligence_products"]

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { mediaObject, signedMedia } from './private-media.ts';
-import { validateEndpoint } from './model-registry.ts';
+import { mediaFetch, validateMediaEndpoint } from './media-endpoint.ts';
 
 function pngHeader(bytes: Uint8Array) {
   const signature = [137, 80, 78, 71, 13, 10, 26, 10];
@@ -65,8 +65,8 @@ async function checkPngPixels(bytes: Uint8Array, mask = true) {
 export async function readPrivateImage(db: SupabaseClient, userId: string, value: unknown, pngOnly = false, maxBytes = 12 * 1024 * 1024) {
   if (typeof value !== 'string' || !mediaObject(value, Deno.env.get('SUPABASE_URL') || '')) throw new Error('图片编辑须使用已上传的私有素材');
   const source = await signedMedia(db, value, userId, 900), url = new URL(source), unsigned = new URL(url);
-  unsigned.search = ''; await validateEndpoint(unsigned.href);
-  const response = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(15000) }).catch(() => null);
+  unsigned.search = ''; await validateMediaEndpoint(unsigned.href);
+  const response = await mediaFetch(url, { redirect: 'error', signal: AbortSignal.timeout(15000) }).catch(() => null);
   if (!response?.ok || !response.body) throw new Error('编辑素材读取失败，请恢复原素材后重试');
   const reader = response.body.getReader(), chunks: Uint8Array[] = []; let total = 0;
   try {

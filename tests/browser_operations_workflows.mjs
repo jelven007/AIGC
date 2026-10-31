@@ -13,6 +13,8 @@ const browser = await chromium.launch({ headless: true, executablePath: process.
   args: ['--disable-breakpad', '--disable-crash-reporter', `--crash-dumps-dir=${process.cwd()}/.volcengine-build/chrome-crashes`] });
 try {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
+  await context.route('**/runtime-config.js', route => route.fulfill({ contentType: 'application/javascript',
+    body: `window.__SHOPRO_RUNTIME__ = ${JSON.stringify({ backendUrl: backend, backendAnonKey: 'fixture' })};` }));
   await context.addInitScript(value => localStorage.setItem('sb-ui-fixture-auth-token', JSON.stringify(value)), session);
   let fail = true, conflict = false, ticket = null;
   let tenant = { id: teamId, name: '真实团队', owner_id: owner, ops_version: 1, max_members: 5, state: 'active', daily_credit_budget: 0, active_members: 2, daily_reserved: 10, created_at: now };
@@ -39,14 +41,17 @@ try {
         else {
           if (!receipts.has(body.request_key)) {
             const p = body.payload;
+            let receipt;
             if (body.operation === 'ticket_create') {
               ticket = { id: ticketId, user_id: uid, title: p.title, status: 'open', version: 1, category: p.category, due_at: now, updated_at: now };
               replies.push({ id: crypto.randomUUID(), body: p.body, created_at: now });
-            } else if (body.operation === 'ticket_reply') { replies.push({ id: crypto.randomUUID(), body: p.body, created_at: now }); ticket.version++; }
-            else if (body.operation === 'tenant_update') tenant = { ...tenant, ...p, ops_version: tenant.ops_version + 1 };
-            else if (body.operation === 'restriction') { customer.restricted = p.restricted; customer.restriction_version++; }
-            else if (body.operation === 'cost_record') entries.push({ id: crypto.randomUUID(), ...p, provider: 'video.SeedanceMini', created_at: now });
-            receipts.set(body.request_key, ticket || tenant);
+              receipt = { ...ticket };
+            } else if (body.operation === 'ticket_reply') { replies.push({ id: crypto.randomUUID(), body: p.body, created_at: now }); ticket.version++; receipt = { ...ticket }; }
+            else if (body.operation === 'tenant_update') { tenant = { ...tenant, ...p, ops_version: tenant.ops_version + 1 }; receipt = { ...tenant }; }
+            else if (body.operation === 'restriction') { customer.restricted = p.restricted; customer.restriction_version++;
+              receipt = { user_id: customer.id, restricted: customer.restricted, version: customer.restriction_version }; }
+            else if (body.operation === 'cost_record') { receipt = { id: crypto.randomUUID(), ...p, reversal_of: null, provider: 'video.SeedanceMini', created_at: now }; entries.push(receipt); }
+            receipts.set(body.request_key, receipt);
           }
           status = fail ? 503 : 200; data = fail ? { error: '操作受理待确认', outcome: 'unknown' } : receipts.get(body.request_key);
         }
@@ -96,7 +101,8 @@ try {
   await page.getByText('暂停', { exact: true }).waitFor();
   await page.getByRole('button', { name: '查看成员', exact: true }).click();
   await page.getByText('有效成员', { exact: false }).waitFor();
-  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: /^(Close|关闭弹窗)$/ }).click();
+  await page.getByRole('dialog').waitFor({ state: 'detached' });
   await page.getByRole('button', { name: '调整租户策略', exact: true }).click();
   await page.getByLabel('操作原因', { exact: true }).fill('过期版本拒绝');
   conflict = true;

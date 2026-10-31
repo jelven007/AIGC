@@ -46,16 +46,20 @@ export async function handlePlatformAccounts(req: Request): Promise<Response> {
       const required = `${Deno.env.get('SUPABASE_URL')}/functions/v1/platform-oauth-callback`;
       if (redirect !== required) return reply({ error: '回调地址必须为当前后端的 platform-oauth-callback 函数地址' }, 400);
       const old = await db.from('platform_apps').select('*').eq('platform', platform).maybeSingle();
+      if (old.error) return reply({ error: '原配置读取失败，请重试加载' }, 503);
       if ((old.data?.updated_at || null) !== (body.updated_at || null)) return reply({ error: '配置已被修改，请刷新' }, 409);
       const cipher = body.client_secret ? await encryptKey(`platform-app:${platform}`, body.client_secret.trim())
         : old.data?.secret_ciphertext;
       if (!cipher) return reply({ error: '请填写应用密钥' }, 400);
       const patch = { client_key: body.client_key.trim(), secret_ciphertext: cipher,
         redirect_uri: redirect, scopes: [...PLATFORMS[platform].scopes], enabled: body.enabled, updated_at: new Date().toISOString() };
-      const saved = old.data ? await db.from('platform_apps').update(patch).eq('platform', platform).eq('updated_at', old.data.updated_at).select('platform')
-        : await db.from('platform_apps').insert({ platform, ...patch }).select('platform');
+      const columns = 'platform,client_key,redirect_uri,scopes,enabled,updated_at';
+      const saved = old.data ? await db.from('platform_apps').update(patch).eq('platform', platform).eq('updated_at', old.data.updated_at).select(columns)
+        : await db.from('platform_apps').insert({ platform, ...patch }).select(columns);
       if (saved.error || !saved.data?.length) return reply({ error: '配置保存冲突，请刷新重试' }, 409);
-      return reply({ ok: true });
+      const app = saved.data[0];
+      return reply({ ok: true, app: { platform: app.platform, client_key: app.client_key, redirect_uri: app.redirect_uri,
+        scopes: app.scopes, enabled: app.enabled, updated_at: app.updated_at, has_secret: true } });
     }
     if (body.action === 'authorize') {
       const app = await platformApp(db, body.platform);

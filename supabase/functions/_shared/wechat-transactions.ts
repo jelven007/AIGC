@@ -81,7 +81,7 @@ export async function executeWechatOrder(db: SupabaseClient, actor: string | nul
     if (create) {
       const response = await wechatRequest(config, 'POST', '/v3/pay/transactions/native', {
         mchid: config.mchid, appid: config.appid, out_trade_no: order.order_no,
-        description: wechatDescription(`Shopro-${order.plan_snapshot.name}`),
+        description: wechatDescription(`视频生成平台-${order.plan_snapshot.name}`),
         notify_url: `${Deno.env.get('SUPABASE_URL')}/functions/v1/wechat-payment-webhook`,
         time_expire: order.wechat_expires_at,
         amount: { total: wechatCents(order.total_amount), currency: 'CNY' },

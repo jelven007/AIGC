@@ -1,0 +1,6 @@
+# 本地协议接受可复用已按requirements.lock构建的完整依赖镜像。
+# 依赖镜像ID必须由调用者核验，发布时导出本次完整镜像，不能仅发布本文件。
+ARG DEPENDENCY_IMAGE
+FROM ${DEPENDENCY_IMAGE}
+ARG SOURCE_DIRECTORY
+COPY ${SOURCE_DIRECTORY}/ /app/

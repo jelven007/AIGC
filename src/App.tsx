@@ -20,52 +20,53 @@ import { AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 // FP-01: 路由级懒加载
-const LoginPage       = lazy(() => import("@/pages/LoginPage"));
-const ResetPasswordPage = lazy(() => import("@/pages/ResetPasswordPage"));
+const LoginPage       = lazy(() => import("@/pages/auth/LoginPage"));
+const ResetPasswordPage = lazy(() => import("@/pages/auth/ResetPasswordPage"));
 const MainLayout = lazy(() => import("@/components/layouts/MainLayout"));
-const LandingPage     = lazy(() => import("@/pages/LandingPage"));
-const HomePage        = lazy(() => import("@/pages/HomePage"));
-const WorksPage       = lazy(() => import("@/pages/WorksPage"));
-const AnalyticsPage   = lazy(() => import("@/pages/AnalyticsPage"));
-const ProfilePage     = lazy(() => import("@/pages/ProfilePage"));
-const ModelSettingsPage = lazy(() => import("@/pages/ModelSettingsPage"));
-const OperationsPage = lazy(() => import("@/pages/OperationsPage"));
-const SupportPage = lazy(() => import("@/pages/SupportPage"));
-const ProductsPage    = lazy(() => import("@/pages/ProductsPage"));
-const ProductSelectionPage = lazy(() => import("@/pages/ProductSelectionPage"));
-const AvatarsPage     = lazy(() => import("@/pages/AvatarsPage"));
-const TemplatesPage   = lazy(() => import("@/pages/TemplatesPage"));
-const CreditsPage     = lazy(() => import("@/pages/CreditsPage"));
-const AlipayReturnPage  = lazy(() => import("@/pages/AlipayReturnPage"));
-const ScriptPage      = lazy(() => import("@/pages/ScriptPage"));
-const StyleCopyPage   = lazy(() => import("@/pages/StyleCopyPage"));
-const KnowledgePage   = lazy(() => import("@/pages/KnowledgePage"));
-const CompetitorPage  = lazy(() => import("@/pages/CompetitorPage"));
-const LiveHighlightPage      = lazy(() => import("@/pages/LiveHighlightPage"));
-const PromptTemplatesPage    = lazy(() => import("@/pages/PromptTemplatesPage"));
-const OrderDetailPage        = lazy(() => import("@/pages/OrderDetailPage"));
-const VideoEditPage          = lazy(() => import("@/pages/VideoEditPage"));
-const ActivitiesPage         = lazy(() => import("@/pages/ActivitiesPage"));
-const InvitePage             = lazy(() => import("@/pages/InvitePage"));
+const LandingPage     = lazy(() => import("@/pages/marketing/LandingPage"));
+const HomePage        = lazy(() => import("@/pages/workspace/HomePage"));
+const WorksPage       = lazy(() => import("@/pages/production/WorksPage"));
+const AnalyticsPage   = lazy(() => import("@/pages/analytics/AnalyticsPage"));
+const ProfilePage     = lazy(() => import("@/pages/account/ProfilePage"));
+const ModelSettingsPage = lazy(() => import("@/pages/settings/ModelSettingsPage"));
+const IntegrationSettingsPage = lazy(() => import("@/pages/settings/IntegrationSettingsPage"));
+const OperationsPage = lazy(() => import("@/pages/operations/OperationsPage"));
+const SupportPage = lazy(() => import("@/pages/operations/SupportPage"));
+const ProductsPage    = lazy(() => import("@/pages/catalog/ProductsPage"));
+const ProductSelectionPage = lazy(() => import("@/pages/catalog/ProductSelectionPage"));
+const AvatarsPage     = lazy(() => import("@/pages/production/AvatarsPage"));
+const TemplatesPage   = lazy(() => import("@/pages/production/TemplatesPage"));
+const CreditsPage     = lazy(() => import("@/pages/billing/CreditsPage"));
+const AlipayReturnPage  = lazy(() => import("@/pages/billing/AlipayReturnPage"));
+const ScriptPage      = lazy(() => import("@/pages/production/ScriptPage"));
+const StyleCopyPage   = lazy(() => import("@/pages/production/StyleCopyPage"));
+const KnowledgePage   = lazy(() => import("@/pages/knowledge/KnowledgePage"));
+const CompetitorPage  = lazy(() => import("@/pages/intelligence/CompetitorPage"));
+const LiveHighlightPage      = lazy(() => import("@/pages/production/LiveHighlightPage"));
+const PromptTemplatesPage    = lazy(() => import("@/pages/production/PromptTemplatesPage"));
+const OrderDetailPage        = lazy(() => import("@/pages/billing/OrderDetailPage"));
+const VideoEditPage          = lazy(() => import("@/pages/production/VideoEditPage"));
+const ActivitiesPage         = lazy(() => import("@/pages/account/ActivitiesPage"));
+const InvitePage             = lazy(() => import("@/pages/account/InvitePage"));
 // Phase 2 新增页面
-const ABTestPage             = lazy(() => import("@/pages/ABTestPage"));
-const EmotionAnalysisPage    = lazy(() => import("@/pages/EmotionAnalysisPage"));
-const MultiLangPage          = lazy(() => import("@/pages/MultiLangPage"));
-const TaskQueuePage          = lazy(() => import("@/pages/TaskQueuePage"));
-const ExportFormatsPage      = lazy(() => import("@/pages/ExportFormatsPage"));
-const LLMCachePage           = lazy(() => import("@/pages/LLMCachePage"));
+const ABTestPage             = lazy(() => import("@/pages/analytics/ABTestPage"));
+const EmotionAnalysisPage    = lazy(() => import("@/pages/production/EmotionAnalysisPage"));
+const MultiLangPage          = lazy(() => import("@/pages/production/MultiLangPage"));
+const TaskQueuePage          = lazy(() => import("@/pages/production/TaskQueuePage"));
+const ExportFormatsPage      = lazy(() => import("@/pages/production/ExportFormatsPage"));
+const LLMCachePage           = lazy(() => import("@/pages/knowledge/LLMCachePage"));
 // Phase 3 新增页面
-const TeamSpacePage          = lazy(() => import("@/pages/TeamSpacePage"));
-const OpenAPIPage            = lazy(() => import("@/pages/OpenAPIPage"));
-const DataFeedbackPage       = lazy(() => import("@/pages/DataFeedbackPage"));
-const TrendingPatternsPage   = lazy(() => import("@/pages/TrendingPatternsPage"));
-const PersonalizePage        = lazy(() => import("@/pages/PersonalizePage"));
-const BatchCreatePage        = lazy(() => import("@/pages/BatchCreatePage"));
-const AiToolboxPage          = lazy(() => import("@/pages/AiToolboxPage"));
-const NotificationsPage      = lazy(() => import("@/pages/NotificationsPage"));
-const MaterialsPage          = lazy(() => import("@/pages/MaterialsPage"));
-const PublishPage            = lazy(() => import("@/pages/PublishPage"));
-const DataDashboardPage      = lazy(() => import("@/pages/DataDashboardPage"));
+const TeamSpacePage          = lazy(() => import("@/pages/account/TeamSpacePage"));
+const OpenAPIPage            = lazy(() => import("@/pages/settings/OpenAPIPage"));
+const DataFeedbackPage       = lazy(() => import("@/pages/analytics/DataFeedbackPage"));
+const TrendingPatternsPage   = lazy(() => import("@/pages/intelligence/TrendingPatternsPage"));
+const PersonalizePage        = lazy(() => import("@/pages/workspace/PersonalizePage"));
+const BatchCreatePage        = lazy(() => import("@/pages/production/BatchCreatePage"));
+const AiToolboxPage          = lazy(() => import("@/pages/workspace/AiToolboxPage"));
+const NotificationsPage      = lazy(() => import("@/pages/workspace/NotificationsPage"));
+const MaterialsPage          = lazy(() => import("@/pages/production/MaterialsPage"));
+const PublishPage            = lazy(() => import("@/pages/production/PublishPage"));
+const DataDashboardPage      = lazy(() => import("@/pages/analytics/DataDashboardPage"));
 
 import { supabase } from "@/db/supabase";
 import { accountRequest } from "@/api/accountSession";
@@ -263,6 +264,7 @@ function AppRoutes() {
                   <Route path="/analytics" element={<AnalyticsPage />} />
                   <Route path="/profile" element={<ProfilePage />} />
                   <Route path="/settings/models" element={<ModelSettingsPage />} />
+                  <Route path="/settings/integrations" element={<IntegrationSettingsPage />} />
                   <Route path="/operations" element={<OperationsPage />} />
                   <Route path="/support" element={<SupportPage />} />
                   <Route path="/products" element={<ProductsPage />} />

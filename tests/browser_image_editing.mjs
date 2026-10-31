@@ -9,6 +9,7 @@ const session = { access_token: `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringi
   user: { id: uid, email: 'local@example.com', app_metadata: {}, user_metadata: {} } };
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_PATH });
 const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
+await context.route('https://**/*', route => route.abort());
 await context.addInitScript(value => { if (!localStorage.getItem('sb-ui-fixture-auth-token')) localStorage.setItem('sb-ui-fixture-auth-token', JSON.stringify(value)); }, session);
 const state = { errors: [], creates: [], uploads: [], materials: [], job: null, failCreate: true, editing: true, holdCreate: false, cost: 10 };
 let createHeld, releaseCreate, releasedCreate;
@@ -68,9 +69,9 @@ try {
     assert.equal(await page.getByText('24.8万', { exact: true }).count(), 0);
     assert.equal(await page.getByText('98.6%', { exact: true }).count(), 0);
     await page.getByRole('searchbox', { name: '搜索工具', exact: true }).fill('发布');
-    await page.getByRole('button', { name: /跨平台发布/ }).click(); await page.waitForURL('**/publish');
+    await page.getByRole('link', { name: /跨平台发布/ }).click(); await page.waitForURL('**/publish');
     await page.goto(`${base}/ai-toolbox`);
-    await page.getByRole('button', { name: /商品图片编辑/ }).click();
+    await page.getByRole('link', { name: /商品图片编辑/ }).click();
     await page.getByRole('button', { name: '扩图', exact: true }).waitFor();
     assert.equal(await page.getByRole('button', { name: '图片生成', exact: true }).getAttribute('aria-pressed'), 'true');
     console.log('PASS 工具箱真实统计、可搜索分类、正确发布和图片入口');

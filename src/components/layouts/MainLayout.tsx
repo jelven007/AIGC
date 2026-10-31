@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useId } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCredits } from '@/hooks/useCredits';
@@ -6,7 +6,7 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { notificationPath } from '@/api/notifications';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
@@ -45,10 +45,10 @@ const AI_TOOLBOX_ITEMS = [
   { label: 'Prompt知识库', path: '/knowledge', badge: 'Prompt', badgeColor: '#14b8a6', desc: '聚合优质 Prompt，整合提效写作' },
   { label: '商品带货脚本', path: '/script', badge: '脚本', badgeColor: '#a855f7', desc: '智能生成短视频爆款带货脚本' },
   { label: '爆款风格复刻', path: '/style-copy', badge: '热门', badgeColor: '#f97316', desc: '一键复刻高转化内容风格' },
-  { label: '直播高光切片', path: '/live-highlight', badge: 'NEW', badgeColor: '#ef4444', desc: 'AI自动识别直播精华' },
+  { label: '直播高光切片', path: '/live-highlight', badge: '切片', badgeColor: '#ef4444', desc: 'AI自动识别直播精华' },
   { label: '口播台词优化', path: '/emotion-analysis', badge: '口播', badgeColor: '#6366f1', desc: '深度优化台词表达与情感重音' },
-  { label: '竞品爆款分析', path: '/competitor', badge: '24h', badgeColor: '#3b82f6', desc: '抓取竞品爆款视频策略' },
-  { label: '作品表现与优化', path: '/analytics', badge: '观测', badgeColor: '#22c55e', desc: '官方视频数据、授权投放与创意改进建议' },
+  { label: '竞品爆款分析', path: '/competitor', badge: '情报', badgeColor: '#3b82f6', desc: '抓取竞品爆款视频策略' },
+  { label: '作品表现与优化', path: '/analytics', badge: '数据', badgeColor: '#22c55e', desc: '官方视频数据、授权投放与创意改进建议' },
 ];
 
 const navGroups = [
@@ -69,14 +69,22 @@ const navGroups = [
   {
     label: '生态扩展',
     items: [
-      { path: '/team', label: '团队协作空间', icon: Users2 },
-      { path: '/open-api', label: '开放 API', icon: Code2 },
-      { path: '/settings/models', label: '模型接口设置', icon: Settings2 },
+      { path: '/team', label: '团队协作', icon: Users2 },
+      { path: '/open-api', label: '开放平台', icon: Code2 },
+      { path: '/settings/models', label: '模型接口', icon: Settings2 },
+      { path: '/settings/integrations', label: '第三方集成', icon: Share2 },
       { path: '/operations', label: '运营控制台', icon: LayoutDashboard },
       { path: '/support', label: '帮助与工单', icon: Bell },
     ],
   },
 ];
+
+function pageArea(path: string) {
+  if (/^\/(video|avatars|script|style-copy|live-highlight|emotion-analysis|multilang|batch-create|templates|prompt-templates|ai-toolbox|personalize|task-queue|export-formats)(\/|$)/.test(path)) return 'creation';
+  if (/^\/(works|materials|products|knowledge|llm-cache)(\/|$)/.test(path)) return 'library';
+  if (/^\/(analytics|data-feedback|data-dashboard|ab-test|competitor|product-selection|trending-patterns|open-api|settings)(\/|$)/.test(path)) return 'insights';
+  return 'account';
+}
 
 // F-09: 全局搜索结果类型
 type SearchResult = {
@@ -240,41 +248,50 @@ function AIToolboxNavItem({ onNavClick }: { onNavClick?: () => void }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(location.pathname.startsWith('/ai-toolbox'));
   const isActive = location.pathname.startsWith('/ai-toolbox');
+  const panelId = useId();
 
   return (
     <div>
       {/* 主按钮 */}
       <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={panelId}
         onClick={() => setOpen(v => !v)}
         className={cn(
-          'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 group',
+          'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors duration-150 group',
           isActive
-            ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-            : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground',
+            ? 'bg-sidebar-primary/10 text-sidebar-primary'
+            : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
         )}
       >
-        <LayoutGrid className={cn('w-4 h-4 shrink-0 transition-colors', isActive ? 'text-primary' : 'text-sidebar-foreground/50 group-hover:text-sidebar-foreground')} />
+        <LayoutGrid className="w-5 h-5 shrink-0 text-[hsl(var(--area-creation))]" />
         <span className="flex-1 text-left">AI工具箱</span>
         <ChevronDown className={cn('w-3.5 h-3.5 shrink-0 text-sidebar-foreground/40 transition-transform duration-200', open && 'rotate-180')} />
       </button>
 
       {/* 二级子菜单 */}
       {open && (
-        <div className="ml-3 mt-0.5 border-l border-sidebar-border/50 pl-5 space-y-0.5 pb-1">
+        <div id={panelId} className="ml-3 mt-0.5 border-l border-sidebar-border/50 pl-5 space-y-0.5 pb-1">
+          <Link to="/ai-toolbox" onClick={onNavClick} className="block px-2 py-2 text-xs text-[hsl(var(--area-creation))] rounded-md hover:bg-sidebar-accent">
+            查看全部工具
+          </Link>
           {AI_TOOLBOX_ITEMS.map((item) => (
-            <button
+            <Link
               key={item.label}
-              onClick={() => { navigate(item.path); onNavClick?.(); }}
-              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-all duration-100 group text-left"
+              to={item.path}
+              onClick={onNavClick}
+              data-area={pageArea(item.path)}
+              aria-current={location.pathname === item.path ? 'page' : undefined}
+              className="app-nav-link w-full flex items-center gap-2 px-2 py-2 rounded-md text-xs text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent transition-colors duration-150 group text-left"
             >
               <span className="truncate">{item.label}</span>
               <span
-                className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none"
-                style={{ background: `${item.badgeColor}22`, color: item.badgeColor, border: `1px solid ${item.badgeColor}44` }}
+                className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-md leading-none bg-sidebar-accent text-sidebar-foreground border border-sidebar-border"
               >
                 {item.badge}
               </span>
-            </button>
+            </Link>
           ))}
         </div>
       )}
@@ -286,18 +303,16 @@ function NavItem({ path, label, icon: Icon, active, onClick }: {
   path: string; label: string; icon: typeof LayoutDashboard; active: boolean; onClick?: () => void;
 }) {
   return (
-    <Link to={path} onClick={onClick}>
-
-      <div className={cn(
-        'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group',
+    <Link to={path} onClick={onClick} data-area={pageArea(path)} aria-current={active ? 'page' : undefined}
+      className={cn(
+        'app-nav-link flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors duration-150 group',
         active
-          ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-sm'
-          : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+          ? 'bg-sidebar-primary/10 text-sidebar-primary ring-1 ring-inset ring-sidebar-primary/20'
+          : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
       )}>
-        <Icon className={cn('w-5 h-5 shrink-0', active && 'text-sidebar-primary-foreground')} />
+        <Icon className={cn('w-5 h-5 shrink-0', active && 'text-sidebar-primary')} />
         <span className="text-sm font-medium truncate">{label}</span>
         {active && <ChevronRight className="w-3.5 h-3.5 ml-auto opacity-70" />}
-      </div>
     </Link>
   );
 }
@@ -328,19 +343,19 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
       {/* Logo — 点击跳转官网 */}
       <Link to="/landing" onClick={onNavClick} className="block">
         <div className="flex items-center gap-3 px-4 py-5 border-b border-sidebar-border transition-colors hover:bg-sidebar-accent/50">
-          <img src="/shopro.png" className="w-9 h-9 object-contain shrink-0" alt="Shopro Logo" />
+          <img src="/shopro.png" className="w-9 h-9 object-contain shrink-0" alt="视频生成平台" />
           <div className="min-w-0">
-            <p className="text-sm font-bold text-sidebar-foreground truncate">电商AIGC带货视频</p>
-            <p className="text-xs text-sidebar-foreground/50">AI驱动 · 高效带货</p>
+            <p className="text-sm font-bold text-sidebar-foreground truncate">视频生成平台</p>
+            <p className="text-xs text-sidebar-foreground/75">AI 驱动 · 视频创作</p>
           </div>
         </div>
       </Link>
 
       {/* 导航：预留底部安全区空间，确保「生态扩展」分组末尾条目不被机型底栏遮挡 */}
-      <nav className="flex-1 px-3 py-3 space-y-4 overflow-y-auto min-h-0" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+      <nav aria-label="主要导航" className="flex-1 px-3 py-3 space-y-4 overflow-y-auto min-h-0" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
         {navGroups.map((group) => (
           <div key={group.label}>
-            <p className="text-xs font-medium text-sidebar-foreground/40 uppercase tracking-wider px-3 mb-1.5">
+            <p className="text-xs font-medium text-sidebar-foreground/80 tracking-wide px-3 mb-2">
               {group.label}
             </p>
             <div className="space-y-0.5">
@@ -369,6 +384,7 @@ function TopBarQuickLink({ to, icon: Icon, label }: { to: string; icon: React.El
       variant="ghost"
       size="sm"
       title={label}
+      aria-label={label}
       onClick={() => navigate(to)}
       className={cn(
         'h-8 w-8 p-0 flex items-center justify-center rounded-lg transition-colors',
@@ -396,10 +412,10 @@ function TopBarNotificationBell({ isDarkHeader }: { isDarkHeader: boolean }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label={`消息通知，${unread}条未读`} className={cn("relative shrink-0", isDarkHeader ? "text-white/60 hover:text-white hover:bg-white/10" : "text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100")}>
+        <Button variant="ghost" size="icon" aria-label={`消息通知，${unread}条未读`} className="relative shrink-0 text-muted-foreground hover:text-foreground hover:bg-accent">
           <Bell className="w-4 h-4" />
           {unread > 0 && (
-            <span className={cn("absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-destructive border-2", isDarkHeader ? "border-[#0e0e12]" : "border-white")} />
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-destructive border-2 border-card" />
           )}
         </Button>
       </DropdownMenuTrigger>
@@ -448,7 +464,7 @@ function TopBarNotificationBell({ isDarkHeader }: { isDarkHeader: boolean }) {
                 <div className={cn('flex-1 min-w-0', n.read_at && 'pl-3.5')}>
                   <p className={cn('text-sm leading-snug truncate', !n.read_at ? 'font-semibold text-foreground' : 'text-muted-foreground')}>{n.title}</p>
                   <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{n.body}</p>
-                  <p className="text-[10px] text-muted-foreground/60 mt-1">{new Date(n.created_at).toLocaleString('zh-CN')}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{new Date(n.created_at).toLocaleString('zh-CN')}</p>
                 </div>
               </div>
             </button>
@@ -470,13 +486,19 @@ function TopBarNotificationBell({ isDarkHeader }: { isDarkHeader: boolean }) {
 }
 
 // ── 积分详情与充值弹窗 ───────────────────────────────────────────────────
-function CreditsDetailModal({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+function CreditsDetailModal({ open, onOpenChange, returnFocus }: {
+  open: boolean; onOpenChange: (open: boolean) => void; returnFocus: HTMLElement | null;
+}) {
   const { creditsLeft, loading, error, refresh } = useCredits();
   const navigate = useNavigate();
   const go = (tab: string) => { onOpenChange(false); navigate(`/credits?tab=${tab}`); };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[90dvh] overflow-y-auto">
+      <DialogContent className="max-w-md max-h-[90dvh] overflow-y-auto"
+        onCloseAutoFocus={event => {
+          event.preventDefault();
+          if (returnFocus?.isConnected) returnFocus.focus();
+        }}>
         <DialogHeader>
           <DialogTitle>积分管理与充值</DialogTitle>
           <DialogDescription>查看可用余额、实际收支流水与订单，充值价格以当前套餐为准。</DialogDescription>
@@ -497,11 +519,9 @@ function CreditsDetailModal({ open, onOpenChange }: { open: boolean; onOpenChang
 }
 
 // ── 顶栏用户菜单 ──────────────────────────────────────────────────────────
-const DEFAULT_AVATAR = 'https://pica.zhimg.com/v2-d69f515a23964f8fba2ccedb7385de86_1440w.jpg';
-
 function getDisplayAvatar(url: string | null | undefined) {
   if (!url || url.includes('dicebear.com')) {
-    return DEFAULT_AVATAR;
+    return undefined;
   }
   return url;
 }
@@ -519,12 +539,11 @@ function TopBarUserMenu({ isDarkHeader }: { isDarkHeader: boolean }) {
       size="sm"
       className={cn(
         "h-8 px-2 gap-2 shrink-0",
-        isDarkHeader
-          ? "hover:bg-white/10 text-white/80 hover:text-white"
-          : "hover:bg-zinc-100 text-zinc-700 hover:text-zinc-950"
+        "hover:bg-accent text-foreground"
       )}
       onClick={() => navigate('/profile')}
       title="个人中心"
+      aria-label="个人中心"
     >
       <Avatar className="w-6 h-6 shrink-0">
         <AvatarImage src={getDisplayAvatar(profile?.avatar_url)} />
@@ -532,7 +551,7 @@ function TopBarUserMenu({ isDarkHeader }: { isDarkHeader: boolean }) {
           {initial}
         </AvatarFallback>
       </Avatar>
-      <span className={cn("text-sm font-medium hidden md:block max-w-[80px] truncate", isDarkHeader ? "text-white/80" : "text-zinc-700")}>{username}</span>
+      <span className="text-sm font-medium hidden md:block max-w-[80px] truncate text-foreground">{username}</span>
     </Button>
   );
 }
@@ -540,6 +559,7 @@ function TopBarUserMenu({ isDarkHeader }: { isDarkHeader: boolean }) {
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [creditsModalOpen, setCreditsModalOpen] = useState(false);
+  const creditsReturnFocus = useRef<HTMLElement | null>(null);
   const { theme, setTheme } = useThemePersist();
   const location = useLocation();
   const { profile, signOut } = useAuth();
@@ -559,13 +579,17 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
   // 积分不足守卫：任何生成入口余额不足时经全局事件自动弹出「积分管理与充值」弹窗（默认充值 Tab）
   useEffect(() => {
-    const openCredits = () => setCreditsModalOpen(true);
+    const openCredits = () => {
+      creditsReturnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      setCreditsModalOpen(true);
+    };
     window.addEventListener(OPEN_CREDITS_DIALOG_EVENT, openCredits);
     return () => window.removeEventListener(OPEN_CREDITS_DIALOG_EVENT, openCredits);
   }, []);
 
   return (
-    <div className="flex min-h-screen w-full bg-background">
+    <div className="app-shell flex min-h-screen w-full bg-background text-foreground" data-area={pageArea(location.pathname)}>
+      <a href="#main-content" className="skip-link">跳到页面内容</a>
       {/* 桌面端侧边栏 (固定在左侧，不随右侧页面上下滑动) */}
       <aside className={cn(
         "hidden lg:flex flex-col w-64 shrink-0 sticky top-0 h-screen",
@@ -580,16 +604,18 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         {!isVideoEditPage && (() => {
           const isDarkHeader = isVideoCreatePage;
           return (
-            <header className={cn("flex items-center gap-3 px-4 h-14 border-b shrink-0 sticky top-0 z-30 backdrop-blur-sm", isDarkHeader ? "bg-[#0e0e12]/95 border-white/5" : "bg-white/95 dark:bg-card/95 border-zinc-200 dark:border-border")}>
+            <header className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 h-16 border-b border-border shrink-0 sticky top-0 z-30 bg-card/95 text-foreground backdrop-blur-sm">
               {/* 移动端菜单 */}
               <div className="lg:hidden">
                 <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
                   <SheetTrigger asChild>
-                    <Button variant="ghost" size="icon" className={cn("shrink-0", isDarkHeader ? "text-white/80 hover:text-white hover:bg-white/10" : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100")}>
+                    <Button variant="ghost" size="icon" aria-label="打开导航菜单" className="shrink-0 text-muted-foreground hover:text-foreground">
                       <Menu className="w-5 h-5" />
                     </Button>
                   </SheetTrigger>
                   <SheetContent side="left" className="w-64 p-0 bg-sidebar border-sidebar-border">
+                    <SheetTitle className="sr-only">导航菜单</SheetTitle>
+                    <SheetDescription className="sr-only">选择视频创作工具、素材或账户设置</SheetDescription>
                     <SidebarContent onNavClick={() => setMobileOpen(false)} />
                   </SheetContent>
                 </Sheet>
@@ -597,8 +623,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
               {/* 移动端 Logo */}
               <Link to="/landing" className="lg:hidden flex items-center gap-2 min-w-0 shrink-0">
-                <img src="/shopro.png" className="w-7 h-7 object-contain shrink-0" alt="Shopro Logo" />
-                <span className={cn("font-semibold text-sm truncate", isDarkHeader ? "text-white" : "text-zinc-900")}>电商AIGC带货视频</span>
+                <img src="/shopro.png" className="w-7 h-7 object-contain shrink-0" alt="视频生成平台" />
+                <span className="font-semibold text-sm truncate text-foreground">视频生成平台</span>
               </Link>
 
               {/* 占位弹性空间 */}
@@ -611,23 +637,21 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
                 {/* 邀请有礼 */}
                 <div className="hidden md:flex items-center">
-                  <Link to="/credits?tab=invite">
-                    <button className="flex items-center gap-1.5 h-8 px-3 rounded-full font-bold text-[11px] sm:text-xs text-white bg-gradient-to-r from-[#FFB706] to-[#FF5E03] shadow-md shadow-orange-500/20 hover:brightness-110 active:scale-95 transition-all duration-200">
-                      <Gift className="w-3.5 h-3.5 shrink-0 text-white" />
+                  <Link to="/credits?tab=invite" className="flex items-center gap-1.5 h-9 px-3 rounded-lg font-medium text-xs text-muted-foreground border border-border bg-card hover:bg-accent hover:text-foreground transition-colors">
+                      <Gift className="w-3.5 h-3.5 shrink-0 text-primary" />
                       <span>邀请有礼</span>
-                    </button>
                   </Link>
                 </div>
 
                 {/* 积分余额按钮 (触发积分管理/充值弹窗) */}
                 <div className="hidden md:flex items-center">
                   <button
-                    onClick={() => setCreditsModalOpen(true)}
-                    className="flex items-center gap-1.5 h-8 px-3.5 rounded-full font-bold text-xs text-white bg-gradient-to-r from-pink-500 via-rose-500 to-pink-600 border border-pink-400/50 hover:brightness-110 active:scale-95 transition-all duration-200 shadow-md shadow-pink-500/25"
+                    onClick={event => { creditsReturnFocus.current = event.currentTarget; setCreditsModalOpen(true); }}
+                    className="flex items-center gap-1.5 h-9 px-3 rounded-lg font-medium text-xs text-primary bg-primary/10 border border-primary/20 hover:bg-primary/15 transition-colors"
                     title="点击管理积分与充值"
                   >
-                    <Zap className="w-3.5 h-3.5 text-white fill-white shrink-0 animate-pulse" />
-                    <span>积分余额: <strong className="font-extrabold font-mono text-amber-200 drop-shadow-sm">{creditsLoading ? '读取中' : creditsError ? '暂不可用' : creditsLeft.toLocaleString()}</strong></span>
+                    <Zap className="w-3.5 h-3.5 shrink-0" />
+                    <span>积分余额: <strong className="font-semibold tabular-nums">{creditsLoading ? '读取中' : creditsError ? '暂不可用' : creditsLeft.toLocaleString()}</strong></span>
                   </button>
                 </div>
 
@@ -641,11 +665,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                   size="sm"
                   className={cn(
                     "h-8 px-2 shrink-0 flex items-center gap-1.5 transition-colors rounded-lg",
-                    isDarkHeader
-                      ? "text-white/60 hover:text-red-400 hover:bg-red-500/10"
-                      : "text-zinc-500 hover:text-red-600 hover:bg-red-50"
+                    "text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                   )}
                   title="退出登录"
+                  aria-label="退出登录"
                   onClick={async () => {
                     try {
                       await signOut();
@@ -666,13 +689,13 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         })()}
 
         {/* 页面内容 */}
-        <main className="flex-1 min-w-0 overflow-x-hidden">
+        <main id="main-content" tabIndex={-1} className="app-content flex-1 min-w-0 overflow-x-hidden" data-layout={isVideoEditPage ? 'editor' : isVideoCreatePage ? 'workspace' : 'page'}>
           {children}
         </main>
       </div>
 
       {/* 积分详情与充值弹窗 */}
-      {creditsModalOpen && <CreditsDetailModal open={creditsModalOpen} onOpenChange={setCreditsModalOpen} />}
+      <CreditsDetailModal open={creditsModalOpen} onOpenChange={setCreditsModalOpen} returnFocus={creditsReturnFocus.current} />
     </div>
   );
 }

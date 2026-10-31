@@ -26,9 +26,9 @@ const Navbar: React.FC = () => {
     <div className="container-custom flex items-center justify-between">
       <div className="flex items-center">
         <a href="/" className="flex items-center space-x-2">
-          <img src="/shopro.png" className="w-8 h-8 object-contain shrink-0" alt="Shopro Logo" />
+          <img src="/shopro.png" className="w-8 h-8 object-contain shrink-0" alt="视频生成平台" />
           <span className="text-xl font-bold text-scriptgenius-black">
-            Shopro-电商AIGC带货视频
+            视频生成平台
           </span>
         </a>
       </div>

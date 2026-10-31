@@ -124,21 +124,21 @@ export default function MeasurementDashboard({ mode }: { mode: 'project' | 'repo
       {mode === 'report' && <div className="border rounded-xl p-5 bg-card"><h2 className="font-medium mb-4">作品创建趋势（UTC）</h2>
         {report.creation_trend.length ? <div className="h-56"><ResponsiveContainer width="100%" height="100%"><LineChart data={report.creation_trend}>
           <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="day" /><YAxis allowDecimals={false} /><Tooltip /><Legend />
-          <Line dataKey="created" name="创建" stroke="hsl(var(--primary))" /><Line dataKey="completed" name="当前已完成" stroke="hsl(var(--success))" />
+          <Line dataKey="created" name="创建" isAnimationActive={false} stroke="hsl(var(--area-insights))" /><Line dataKey="completed" name="当前已完成" isAnimationActive={false} stroke="hsl(var(--success))" />
         </LineChart></ResponsiveContainer></div> : <p className="text-sm text-muted-foreground">区间内没有创建作品。</p>}</div>}
       {mode === 'report' && <div className="grid md:grid-cols-2 gap-4">{[
         { title: '作品风格分布（最多50类）', data: report.style_distribution },
         { title: '作品时长分布', data: report.duration_distribution },
       ].map(chart => <div key={chart.title} className="border rounded-xl bg-card p-5"><h2 className="font-medium mb-4">{chart.title}</h2>
         {!chart.data?.length ? <p className="text-sm text-muted-foreground">暂无作品数据。</p> : <div className="h-56"><ResponsiveContainer width="100%" height="100%"><BarChart data={chart.data}>
-          <XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis allowDecimals={false} /><Tooltip /><Bar dataKey="count" name="作品数" fill="hsl(var(--primary))" />
+          <XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis allowDecimals={false} /><Tooltip /><Bar dataKey="count" name="作品数" isAnimationActive={false} fill="hsl(var(--area-insights))" />
         </BarChart></ResponsiveContainer></div>}</div>)}</div>}
       <section className="space-y-4"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">官方自然视频指标（最近500条明细）</h2>
         <label className="text-sm">筛选平台 <select aria-label="筛选平台" value={platform} onChange={event => setPlatform(event.target.value)} className="h-10 border rounded-md px-3 bg-background">
           <option value="all">全部</option><option value="douyin">抖音</option><option value="tiktok">TikTok</option></select></label></div>
         {!natural.length ? <div className="border border-dashed rounded-xl p-8 text-center text-sm text-muted-foreground">暂无官方采集结果。先授权平台并完成公开发布。</div> : <>
           <div className="h-56 border rounded-xl p-4 bg-card"><ResponsiveContainer width="100%" height="100%"><BarChart data={[...natural].sort((a, b) => (b.view_count || 0) - (a.view_count || 0)).slice(0, 10)}>
-            <XAxis dataKey="title" tick={{ fontSize: 11 }} /><YAxis /><Tooltip /><Bar dataKey="view_count" name="累计播放" fill="hsl(var(--primary))" /></BarChart></ResponsiveContainer></div>
+            <XAxis dataKey="title" tick={{ fontSize: 11 }} /><YAxis /><Tooltip /><Bar dataKey="view_count" name="累计播放" isAnimationActive={false} fill="hsl(var(--area-insights))" /></BarChart></ResponsiveContainer></div>
           <div className="overflow-x-auto border rounded-xl"><table className="w-full text-sm"><thead><tr className="bg-muted/40 text-left">{['作品 / 平台', ...naturalLabels, '最后采集'].map(label => <th key={label} className="p-3 whitespace-nowrap font-medium">{label}</th>)}</tr></thead>
             <tbody>{natural.map(item => <tr key={item.id} className="border-t"><td className="p-3"><Link className="text-primary" to={`/analytics?projectId=${item.project_id}`}>{item.title || '未命名作品'}</Link><p className="text-xs text-muted-foreground break-all">{item.platform} · {item.video_id}</p></td>
               {naturalFields.map(field => <td key={field} className="p-3 tabular-nums">{numberText(item[field])}</td>)}<td className="p-3 whitespace-nowrap text-xs">{new Date(item.collected_at).toLocaleString('zh-CN')}</td></tr>)}</tbody></table></div>
@@ -146,7 +146,7 @@ export default function MeasurementDashboard({ mode }: { mode: 'project' | 'repo
       </section>
       <section className="space-y-4"><h2 className="font-semibold">授权投放与交易数据</h2>
         <p className="text-sm text-muted-foreground">CTR＝点击/曝光，CVR＝转化/点击，ROAS＝扣退款后的交易额/投放消耗。按数据源和币种分别汇总，商品成本和履约费用未接入时利润 ROI 未知。</p>
-        {!report.delivery.length ? <div className="border border-dashed rounded-xl p-8 text-sm text-muted-foreground">尚无授权广告或电商观测。管理员登记数据源后，由获授权的采集服务发送签名观测。<Link className="text-primary ml-2" to="/ab-test">管理数据源</Link></div> :
+        {!report.delivery.length ? <div className="border border-dashed rounded-xl p-8 text-sm text-muted-foreground">尚无授权投放或交易观测。管理员登记数据源后，由获授权的采集服务发送签名观测。<Link className="text-primary ml-2" to="/ab-test">管理数据源</Link></div> :
           report.delivery.map(group => <div key={`${group.source_id}:${group.currency}`} className="border rounded-xl p-5 space-y-4 bg-card">
             <div className="flex flex-wrap gap-2 justify-between"><h3 className="font-medium">{group.source_name} · {group.currency}</h3><p className="text-xs text-muted-foreground">{group.since} — {group.until} · {group.buckets}个观测批次</p></div>
             <dl className="grid grid-cols-2 md:grid-cols-4 gap-4">{[

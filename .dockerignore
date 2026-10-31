@@ -4,6 +4,11 @@ dist
 dist-ssr
 .vite_cache
 .volcengine-build
+.supabase-build
+.supabase-tools
+deploy/production/runtime.env
+deploy/production/secrets
+deploy/production/acceptance.json
 .env
 .env.*
 !.env.example
@@ -12,6 +17,8 @@ dist-ssr
 key.txt
 **/key.txt
 deploy/video-scheduler/video_worker_secret
+deploy/video-scheduler/relay_secret
+deploy/video-scheduler/alert-delivery.json
 deploy/video-scheduler/.env
 deploy/render-worker/render_worker_secret
 deploy/render-worker/.env
@@ -22,3 +29,9 @@ backups
 restore-results
 __pycache__
 **/__pycache__
+archive
+tools
+docs/archive
+logs
+.selfhost*
+.pnpm-store

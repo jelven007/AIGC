@@ -1,5 +1,5 @@
 import { authenticateRequest, createServiceClient } from '../_shared/auth.ts';
-import { MODEL_SLOTS, defaultSettings } from '../_shared/model-catalog.ts';
+import { configurationSlots, defaultSettings } from '../_shared/model-catalog.ts';
 import { ConfigError, encryptKey, resolveModel, validateEndpoint, validateSettings } from '../_shared/model-registry.ts';
 import { legacyModelConfigs } from '../_shared/model-env-import.ts';
 import { imageCapabilities } from '../_shared/image-contract.ts';
@@ -21,12 +21,16 @@ export async function handleModelSettings(req: Request): Promise<Response> {
     if (!body || typeof body !== 'object') return reply({ error: '请求格式不正确' }, 400);
     const db = createServiceClient();
     const admin = auth.user.app_metadata?.role === 'admin';
+    if (body.scope !== undefined && !['models', 'integrations'].includes(body.scope)) {
+      return reply({ error: '不支持的配置范围' }, 400);
+    }
+    const slots = configurationSlots(body.scope);
     if (body.action === 'catalog' || body.action === 'list') {
       if (body.action === 'list' && !admin) return reply({ error: '仅平台管理员可管理模型接口' }, 403);
       const { data, error } = await db.from('model_configs')
         .select('slot,enabled,current_version_id,updated_at,model_config_versions!model_current_version(settings,key_ciphertext)');
       if (error) throw new Error('读取失败');
-      const configs = MODEL_SLOTS.map(definition => {
+      const configs = slots.map(definition => {
         const row = data?.find(item => item.slot === definition.id);
         const version = row?.model_config_versions as unknown as { settings: ReturnType<typeof defaultSettings>; key_ciphertext?: string } | null;
         if (body.action === 'catalog') return {
@@ -41,6 +45,8 @@ export async function handleModelSettings(req: Request): Promise<Response> {
       return reply({ configs, admin });
     }
     if (!admin) return reply({ error: '仅平台管理员可管理模型接口' }, 403);
+    if (['save', 'test'].includes(body.action) && body.scope !== undefined
+      && !slots.some(item => item.id === body.slot)) return reply({ error: '配置项不属于当前设置范围' }, 400);
     if (body.action === 'save') {
       if (typeof body.enabled !== 'boolean' || (body.version_id !== null
         && (typeof body.version_id !== 'string' || !/^[0-9a-f-]{36}$/i.test(body.version_id)))) {
@@ -65,6 +71,7 @@ export async function handleModelSettings(req: Request): Promise<Response> {
       if (error) throw new Error('读取失败');
       const imported: string[] = [], skipped: string[] = [];
       for (const entry of legacyModelConfigs()) {
+        if (!slots.some(item => item.id === entry.slot)) continue;
         if (data?.some(item => item.slot === entry.slot && item.current_version_id)) { skipped.push(entry.slot); continue; }
         try {
           const settings = await validateSettings(entry.slot, entry.settings, true);
@@ -91,7 +98,8 @@ export async function handleModelSettings(req: Request): Promise<Response> {
       }).catch(() => null);
       if (response?.body) await response.body.cancel().catch(() => {});
       return reply({ ok: !!response?.ok, status: response?.status || null, latency_ms: Date.now() - started,
-        message: response?.ok ? '只读接口连接成功，模型权限需实际业务验收' : '只读接口连接失败，请核对地址和凭据' });
+        message: response?.ok ? `只读接口连接成功，${body.scope === 'integrations' ? '数据访问' : '模型'}权限需实际业务验收`
+          : '只读接口连接失败，请核对地址和凭据' });
     }
     return reply({ error: '不支持的配置操作' }, 400);
   } catch (cause) {

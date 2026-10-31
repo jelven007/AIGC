@@ -23,12 +23,22 @@ class ReleaseManifestTest(unittest.TestCase):
         self.assertIn("supabase/functions/_shared/text-provider.ts", manifest["files"])
         self.assertIn("src/App.tsx", manifest["files"])
         self.assertNotIn("package-lock.json", manifest["files"])
+        self.assertIn("src/pages/production/VideoEditPage.tsx", manifest["files"])
+        self.assertIn("src/types/editor.ts", manifest["files"])
+        self.assertIn("vite.config.dev.ts", manifest["files"])
+        self.assertIn("tsconfig.check.json", manifest["files"])
+        self.assertFalse(any(name.startswith(("archive/", "tools/", "api/")) for name in manifest["files"]))
         self.assertEqual(set(manifest["functions"]), {
             item["name"] for item in json.loads(deploy.MANIFEST.read_text())["functions"]})
         self.assertGreater(manifest["mcp"]["tool_count"], 0)
         self.assertEqual(manifest["protocols"], {"render": 4, "edit": 2})
         self.assertEqual(manifest["worker_contract"]["required_migration"], "00068")
         self.assertIn("deploy/video-scheduler/compose.yaml", manifest["files"])
+        self.assertIn("index.html", manifest["files"])
+        self.assertIn(".dockerignore", manifest["files"])
+        self.assertTrue(any(name.startswith("public/") for name in manifest["files"]))
+        self.assertIn("scripts/start_development_web.sh", manifest["files"])
+        self.assertIn("deploy/production/compose.yaml", manifest["files"])
 
     def test_frontend_identity_binds_full_source_without_private_manifest(self):
         release = deploy.release_manifest()

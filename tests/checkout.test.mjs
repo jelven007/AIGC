@@ -78,7 +78,7 @@ assert.equal(receipt.local_status, 'pending'); assert.equal(receipt.order_id, or
 assert.equal(upstream.at(-1).method, 'alipay.trade.page.pay');
 assert.equal(upstream.at(-1).verb, 'POST');
 assert.equal(upstream.at(-1).args.bizContent.total_amount, '10.00');
-assert.equal(upstream.at(-1).args.bizContent.subject, 'Shopro-原名称');
+assert.equal(upstream.at(-1).args.bizContent.subject, '视频生成平台-原名称');
 assert.equal(calls.at(-1).name, 'begin_checkout_order'); assert.equal(calls.at(-1).args.p_request_key, key);
 console.log('PASS 支付宝使用原订单号/权益快照/数据库金额、pageExec POST与真实回跳');
 upstreamFails = true;

@@ -66,7 +66,7 @@ export interface Avatar {
 export interface VideoTemplate {
   id: string;
   name: string;
-  industry: '电商' | '教育' | '金融' | '美妆' | '其他';
+  industry: '产品展示' | '\u7535\u5546' | '教育' | '金融' | '美妆' | '其他';
   scene: '产品介绍' | '节日促销' | '课程推广' | '品牌宣传' | '开箱测评';
   thumbnail: string | null;
   preview_video: string | null;
@@ -111,6 +111,7 @@ export interface CreditLog {
   user_id: string;
   amount: number;
   type: 'video_generate' | 'template_download' | 'material_upload' | 'purchase' | 'refund' | 'bonus' | 'deduct';
+  action?: string | null;
   description: string;
   credits_after: number;
   created_at: string;
