@@ -2,7 +2,7 @@
 
 本项目是以视频生成为核心的创作平台，覆盖创意、分镜、素材、配音、剪辑、导出与发布。商品资料为产品展示类创作提供辅助输入。
 
-更新：2026-10-31。当前完整应用已在`https://ecs.example.com`单台ECS自托管运行，默认`[管理员账号]/[已脱敏]`。先读[当前状态](CURRENT_STATE.md)、[技术架构](architecture/TECHNICAL_ARCHITECTURE.md)、[ECS运行手册](deployment/SELF_HOSTED_ECS_RUNBOOK.md)和[实际验收](testing/SELF_HOSTED_ACCEPTANCE_20261031.md)。当前契约00068/probe24/render4/edit2、66生产迁移、43生产入口、MCP59/19、模型20槽。原官方云端与历史记录按原时点阅读。
+更新：2026-10-31。当前完整应用`v1.0.1`已在本地和单台ECS自托管升级；`https://ecs.example.com`为文档示例地址，实际入口和初始化凭据从私有配置获取。先读[当前状态](CURRENT_STATE.md)、[技术架构](architecture/TECHNICAL_ARCHITECTURE.md)、[ECS运行手册](deployment/SELF_HOSTED_ECS_RUNBOOK.md)和[实际验收](testing/SELF_HOSTED_ACCEPTANCE_20261031.md)。当前契约00068/probe24/render4/edit2、66生产迁移、43生产入口、MCP59/19、模型20槽。原官方云端与历史记录按原时点阅读。
 
 方案：[2026-10-25 项目全面分析与优化方案](archive/reviews/PROJECT_ANALYSIS_OPTIMIZATION_20261025.md)。以当时`9099386`源码为依据，包含正确性问题、目标架构、ECS取舍、工作量与验收条件；当前实施结果以台账为准，云端现状未在本轮重新核验。
 
@@ -28,7 +28,7 @@
 | 运维 | [运行手册](operations/RUNBOOK.md)、[调度](operations/VIDEO_SCHEDULER.md)、[备份恢复](operations/BACKUP_RECOVERY.md) | probe24、独立维护/FFmpeg、告警回执、原任务核对、异地恢复 |
 | 部署 | [官方记录](releases/DEPLOYMENT_AIGCP.md)、[火山方案](releases/VOLCENGINE_DEPLOYMENT.md)、[发布接受](releases/RELEASE_ACCEPTANCE.md) | 00031历史回执、目标缺失至00068、独立迁移与ECS对等 |
 | MCP | [接入指南](../mcp/mcp.md)、[工具目录](../mcp/tools.json) | 59真实工具、19权限、原请求/预算/身份/传输边界 |
-| 发布 | [追踪矩阵](CHANGE_TRACEABILITY.md)、[待办](PENDING_CHANGES.md)、[版本管理](releases/VERSION_MANAGEMENT.md) | 全部提交对照、目标差距、GitHub合并和两个历史标签 |
+| 发布 | [追踪矩阵](CHANGE_TRACEABILITY.md)、[待办](PENDING_CHANGES.md)、[版本管理](releases/VERSION_MANAGEMENT.md) | 当前v1.0.1、全部提交对照、仅保留当前发布、历史重写边界 |
 | 历史 | [2026-10-21测试](archive/reviews/TEST_REPORT_20261021.md)、[当日覆盖核验](archive/reviews/FUNCTION_COVERAGE_REVIEW_20261021.md)、[当日架构对比](archive/reviews/ARCHITECTURE_REVIEW_20261021.md) | 保留原核验时点；当前范围以本次综合基线为准 |
 
 ## 迭代记录

@@ -14,7 +14,7 @@ v1.0.1开发要求：初始化与验收账号由源码外0600文件或显式私�
 | 原生产基础服务 | .env.deploy.local管理/专用凭据；0600，Git忽略 | 官方目标；历史最近成功00031 | 本日Auth可达；Management401，最新函数/迁移未接受 |
 | 隔离回归 | tests/db/bootstrap.sql及临时PG/HTTP替身 | 全部实际生产SQL、独立夹具账号 | 原UUID/UNKNOWN/一次扣费、完整接受、错摘要拒绝 |
 | 本地自托管 | deploy/self-hosted；独立state目录和原命名卷 | 当前源码、ARM执行镜像、原本地账号/账/素材 | 升级后核对原身份/资金/文件和11服务健康 |
-| ECS生产 | /opt/shopro/state与releases/v1.0.0 | AMD64不可变镜像、16执行器、capacity-100资源配置 | 26服务健康、66迁移/43入口、原身份/资金/文件及公开版本身份 |
+| ECS生产 | /opt/shopro/state与releases/v1.0.1 | AMD64不可变镜像、16执行器、capacity-100资源配置 | 26服务健康、66迁移/43入口、原身份/资金/文件及公开版本身份 |
 
 本工作区Run入口使用`.local/shopro-production/tooling/start_development.py`，先启动持久开发网关，再执行应用开发入口。网关配置和信任CA位于源码之外，端口仅绑定`127.0.0.1:54329`；不放开ECS公网CORS。开发页使用`[已脱敏]`真实邮箱；自托管页保留`[管理员账号]`别名。变更公开URL后重新Run以应用新容器环境变量，仅restart不会更新配置。公开Auth探测成功不代表匿名账号有权读取`model_configs`，401须与实际管理员页面验收区分。
 

@@ -15,7 +15,8 @@ python3 scripts/self_hosted_snapshot.py backup \
   --state-dir /opt/shopro/state --key-file /opt/shopro/private/snapshot.key \
   --output /opt/shopro/backups/before-next-version
 python3 scripts/self_hosted.py upgrade \
-  --release "$PWD" --state-dir /opt/shopro/state
+  --release "$PWD" --state-dir /opt/shopro/state \
+  --initial-admin-file /opt/shopro/private/initial-admin.json
 python3 scripts/self_hosted.py check --state-dir /opt/shopro/state
 ```
 
@@ -23,17 +24,17 @@ python3 scripts/self_hosted.py check --state-dir /opt/shopro/state
 
 晋级后核对原UUID、权威余额、原完成任务/私有视频摘要、历史密钥、容器健康及公开`release-identity.json`。本地11个服务，线上26个且16渲染器/DB240连接等容量参数必须保持。失败时先停止新进程，恢复原runtime.env、前端/Edge副本和原源码/镜像，再`up --wait`；只有业务数据损坏才使用加密快照在新项目/新卷恢复，禁止覆盖当前数据卷。
 
-完成原数据/健康核验后切换`releases/current`指针。保留当前加最多两份历史代码版本，先检查所有容器挂载和回退来源，再清理未使用的旧候选及临时包。数据库/素材备份按独立恢复规则保留。
+完成原数据/健康核验后切换`releases/current`指针。本次仅保留当前v1.0.1，先检查所有容器挂载和镜像依赖，再清理全部旧发布、历史代码和临时包。数据库/素材与加密备份按独立恢复规则保留。
 
-本次v1.0.0升级已完成：两环境66迁移/43入口与原数据验收通过，本地11健康服务、线上26健康容器/16执行器和容量参数保持。ECS冷快照为`/opt/shopro/backups/before-v1.0.0`，本地为工作区`.local/shopro-production/backups/local-before-v1.0.0`；已有快照目录不能覆盖。源码与公开身份固定`fffb8e3`/`5b473986…557c9`。本地迁移路径后发现虚拟机保留旧载荷绑定，重新同步冻结frontend/edge并重建proxy/functions后再验收。
+本次v1.0.1升级已完成：两环境66迁移/43入口与原数据验收通过，本地11健康服务、线上26健康容器/16执行器和容量参数保持。ECS冷快照为`/opt/shopro/backups/before-v1.0.1`，本地为工作区`.local/shopro-production/backups/local-before-v1.0.1`；已有快照目录不能覆盖。源码与公开身份固定`d7766b4`/`24c6ef5a…3c26`，真实用户名/邮箱登录与各240份前端/Edge载荷核对通过。
 
-当前回退源码位于`releases/history-20261031-source`。原配置副本`state/receipts/upgrade-runtime.env`已更新回退源码路径；冷快照原配置保持原样，恢复时根据私有`rollback-path-map.json`映射旧路径。回退必须同时恢复匹配的前端/Edge副本和镜像ID，不能只替换版本标签。停止验收容器已移除，恢复状态和密钥位于`backups/legacy-acceptance`，原数据卷保持。
+旧代码删除后，历史`upgrade-runtime.env`中的源码路径和前端/Edge回退副本不再可用，不能将其当作可执行回退目标。恢复加密快照时，在新项目/新卷采用当前兼容源码及镜像，把原状态中的源码路径映射到当前发布；保留原身份、账务和历史密钥，恢复后重新完成迁移摘要、Auth、私有文件和原任务核验。代码故障通过经验证的新修复版本处理，不能只替换标签。旧明文恢复回执认证加密后保管。
 
-GitHub v1.0.0附件是AMD64源码/前端/Edge和镜像ID清单，未包含镜像二进制或`release-manifest.json`。已有实例在加载清单镜像后使用`upgrade`；首次完全离线安装须额外生成含镜像的完整离线包，不能把源码附件直接交给`install`。
+GitHub v1.0.1源码附件包含源码/前端/Edge及两种架构的镜像ID清单，未包含镜像二进制或`release-manifest.json`。已有实例在加载对应清单镜像后使用`upgrade`；首次完全离线安装须额外生成含镜像的完整离线包，不能把源码附件直接交给`install`。
 
 安装 Docker Engine 与 Compose v2、Python 3。建议至少 4 核、16GB 内存和 100GB 数据盘；渲染器单容器内存上限 4GB，其余服务也有明确上限。公网仅开放 SSH 和 HTTPS；数据库、认证、文件服务及执行器端口不对公网发布。
 
-`https://ecs.example.com` 已部署完整应用，默认账号`[管理员账号]/[已脱敏]`。ECS为Ubuntu24.04/x86_64，Docker29.1.3/Compose2.40.3已启用自启动；项目`shopro-ecs`、源码`/opt/shopro/releases/v1.0.0`、状态`/opt/shopro/state`。当前容量配置为11类常驻服务、26个容器，其中16个独立渲染器；66迁移、43入口及原业务协议保持。初次自托管的真实业务/权限/成片/重启、38公网页面及Realtime隔离见[实际验收](../testing/SELF_HOSTED_ACCEPTANCE_20261031.md)。
+本文使用示例入口`https://ecs.example.com`，真实入口和初始化账号由受控私有配置获取。ECS为Ubuntu24.04/x86_64，Docker29.1.3/Compose2.40.3已启用自启动；项目`shopro-ecs`、源码`/opt/shopro/releases/v1.0.1`、状态`/opt/shopro/state`。当前容量配置为11类常驻服务、26个容器，其中16个独立渲染器；66迁移、43入口及原业务协议保持。初次自托管的真实业务/权限/成片/重启、38公网页面及Realtime隔离见[实际验收](../testing/SELF_HOSTED_ACCEPTANCE_20261031.md)。
 
 当前使用独立CA签发的IP SAN自签证书，30天有效，首次浏览器访问有证书提示。公网/宿主/Docker严格TLS校验通过；正式长期使用请配置指向ECS的域名和有效证书完整链/私钥。
 
@@ -51,14 +52,15 @@ python3 scripts/self_hosted.py install \
   --project shopro-production \
   --bind 0.0.0.0 \
   --tls-cert /srv/shopro/tls/fullchain.pem \
-  --tls-key /srv/shopro/tls/privkey.pem
+  --tls-key /srv/shopro/tls/privkey.pem \
+  --initial-admin-file /srv/shopro/private/initial-admin.json
 ```
 
 安装按顺序执行：文件摘要和CPU架构核验→导入并核验镜像ID→数据库/认证/API→66份原迁移与默认账号→HTTPS与Edge/Realtime→真实技术接受→调度、维护、渲染、MCP。
 
 **CPU架构必须匹配。** 开发机交付为 `linux/arm64`，本轮ECS为 `linux/amd64`，在ECS本机重新构建、测试并导出。安装器会拒绝架构不同的交付。基础组件清单使用不可变多架构上游摘要。
 
-当日早期实际amd64归档为2184530346字节，含11镜像、1499文件及镜像运行源码摘要；重新解压后在独立项目`shopro-ecs-offline`完成新随机凭据、新默认admin UUID、66迁移、43入口、11服务与40MiB真实Storage往返验收。v1.0.0滚动清理保留解压产物`/opt/shopro/releases/history-20261031-offline-amd64`，移除重复压缩包和停止的验收容器；恢复状态迁入`/opt/shopro/backups/legacy-acceptance/offline-state-20261031`。回执`offline-release.json`和`offline-install-checks.json`保留；该历史产物不是v1.0.0镜像包。
+当日早期实际amd64归档为2184530346字节，含11镜像、1499文件及镜像运行源码摘要；在独立项目完成新随机凭据、新初始化UUID、66迁移、43入口、11服务与40MiB真实Storage往返验收。该记录仅证明当日历史离线安装，v1.0.1清理策略移除其旧源码与重复包；历史恢复状态和回执转为受控加密备份，不能当作当前版本安装包。
 
 源代码环境的调度器、渲染器、MCP、备份镜像分别使用：
 
@@ -144,9 +146,19 @@ python3 scripts/self_hosted.py upgrade \
 
 私有文件须先由维护者创建，不接受符号链接或源码内路径。Linux以root安装时，状态目录内初始化副本自动归属于固定bootstrap镜像的65534身份，文件保持0600；外部原文件不改属主。`--sync-initial-email`仅在明确需要更新原初始化账号邮箱时使用，保留UUID、密码、角色、禁用状态、套餐和账务；目标邮箱冲突时拒绝接管。普通重复初始化不执行该更新。邮箱更新不配置SMTP或宣称邮件已送达。
 
+初始化文件参数会原子刷新状态中的私有副本。在线维护后需重建functions以刷新登录映射挂载，尤其是Docker Desktop；不要用携带该参数的`status`命令代替日常只读状态查询。更新后执行：
+
+```sh
+docker compose --env-file /srv/shopro/state/runtime.env \
+  -f "$PWD/deploy/self-hosted/compose.yaml" \
+  up -d --wait --force-recreate functions
+python3 scripts/self_hosted.py check --state-dir /srv/shopro/state --initial-admin
+python3 scripts/self_hosted.py status --state-dir /srv/shopro/state
+```
+
 首次登录后可在个人页修改密码。Bootstrap只创建一次，不重置密码、不解除禁用、不恢复被撤销角色/套餐、不重复赠分。后续技术检查使用短期测试账号，不要求管理员一直保留初始密码。
 
-配置、证书私钥、模型密钥环及调度密钥位于0700状态目录，`runtime.env`为0600。前端只接收公开API地址、anon和管理员用户名映射，不接收初始密码或服务端密钥。备份时必须保留原密钥环，否则历史模型与平台凭据无法解密。
+配置、证书私钥、模型密钥环及调度密钥位于0700状态目录，`runtime.env`为0600。前端只接收公开API地址、anon和`usernameLogin`能力标志，用户名映射在服务端，不接收初始密码或服务端密钥。备份时必须保留原密钥环，否则历史模型与平台凭据无法解密。
 
 ## 日常操作
 
