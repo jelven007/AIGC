@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadEdge } from './edge-loader.mjs';
 
@@ -15,6 +15,7 @@ const oldKey = await crypto.subtle.importKey('raw', Buffer.from('b'.repeat(64), 
 const iv = crypto.getRandomValues(new Uint8Array(12));
 const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: Buffer.from(context) }, oldKey, Buffer.from(plain));
 const legacy = `${Buffer.from(iv).toString('base64')}.${Buffer.from(encrypted).toString('base64')}`;
+mkdirSync(join(process.cwd(), '.volcengine-build'), { recursive: true });
 const directory = mkdtempSync(join(process.cwd(), '.volcengine-build/key-interop-'));
 try {
   writeFileSync(join(directory, 'fixture.json'), JSON.stringify({ context, plain, modern, legacy, ring: secrets.MODEL_CONFIG_KEYRING }), { mode: 0o600 });

@@ -86,9 +86,14 @@ try {
   assert.equal(items[1].start, 2.1); assert.equal(items[1].text, '实际第二句');
   await page.reload();
   await open(page, '时间分段字幕');
+  const savesBeforeDuplicate = subtitle.saved.length;
+  const tracksBeforeDuplicate = structuredClone(subtitle.project.style_data.tracks);
   await page.getByRole('button', { name: '应用原任务结果并保存', exact: true }).click();
-  await page.getByRole('alert').getByText('原任务字幕已应用，无需重复添加', { exact: true }).waitFor();
+  await page.waitForFunction(() => [...document.querySelectorAll('button')]
+    .some(button => button.textContent === '应用原任务结果并保存' && !button.disabled));
   assert.equal(subtitle.created.length, 1);
+  assert.equal(subtitle.saved.length, savesBeforeDuplicate);
+  assert.deepEqual(subtitle.project.style_data.tracks, tracksBeforeDuplicate);
   console.log('PASS 字幕原请求响应丢失/刷新恢复、价格/裁剪/速度、真实时间偏移和重复应用拒绝');
 
   const beat = await fixture(), beatPage = beat.page;

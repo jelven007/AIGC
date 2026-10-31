@@ -21,7 +21,9 @@ export default context => {
           }
           try {
             if (url.split('?')[0].endsWith('.html')) {
-              const html = await readFile(repository + url.split('?')[0], 'utf8');
+              const html = (await readFile(repository + url.split('?')[0], 'utf8'))
+                .replace(/src="(?:\.\/|\/tests\/ui\/)((?:model-settings|platform-settings)\.tsx)"/g,
+                  (_match, entry) => `src="/@fs${repository}/tests/ui/${entry}"`);
               response.setHeader('Content-Type', 'text/html; charset=utf-8');
               response.end(await server.transformIndexHtml(url, html));
               return;
