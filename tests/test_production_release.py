@@ -55,6 +55,8 @@ class ProductionReleaseTest(unittest.TestCase):
     def test_runtime_templates_and_bundled_model_are_bound_to_source(self):
         import deploy_volcengine
         files = deploy_volcengine.release_manifest()["files"]
+        self.assertFalse(any("node_modules" in Path(name).parts for name in files),
+                         "Build cache must not change the production source identity")
         for name in ("deploy/self-hosted/nginx.conf.template", "worker/model-assets/person.onnx",
                      "deploy/self-hosted/edge-dependencies/package-lock.json", "docs/lifecycle.json"):
             self.assertIn(name, files)

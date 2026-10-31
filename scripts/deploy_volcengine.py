@@ -54,6 +54,8 @@ def release_manifest():
     }.items():
         for pattern in patterns:
             for path in (ROOT / directory).rglob(pattern):
+                if any(part in ("node_modules", "__pycache__", ".temp") for part in path.relative_to(ROOT).parts):
+                    continue
                 if path.name in ("config.json", "alert-delivery.json", "acceptance.json") or path.name.endswith(".local"):
                     continue
                 paths.add(path)

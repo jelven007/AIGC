@@ -70,7 +70,7 @@ def prepare(state, output):
                                 "render_worker_secret", "relay_secret", "alert-delivery.json")]
         shutil.copytree(ROOT / name, output / name, ignore=ignore)
     for pattern in ("*.json", "*.mjs", "*.ts", "*.yml", "*.md", "*.html", "pnpm-lock.yaml", ".npmrc",
-                    ".node-version", ".dockerignore", ".env.example"):
+                    ".node-version", ".dockerignore", ".gitattributes", ".gitignore", ".env.example", "LICENSE"):
         for source in ROOT.glob(pattern):
             if source.is_file():
                 shutil.copyfile(source, output / source.name)
