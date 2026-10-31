@@ -230,7 +230,7 @@ def main():
         env = directory / "runtime.env"
     values = read_env(env)
     if args.initial_admin_file:
-        from initial_admin import read_initial_admin
+        from initial_admin import read_initial_admin, set_bootstrap_owner
         original = Path(args.initial_admin_file).absolute()
         if original.resolve().is_relative_to(ROOT):
             raise SelfHostError("初始化凭据必须保存在源码目录之外")
@@ -239,6 +239,7 @@ def main():
         temporary = target.with_suffix(".new")
         write_private(temporary, json.dumps(identity))
         os.replace(temporary, target)
+        set_bootstrap_owner(target)
         login_target = directory / "login-identity.json"
         temporary = login_target.with_suffix(".new")
         write_private(temporary, json.dumps({name: identity[name] for name in ("username", "email")}))

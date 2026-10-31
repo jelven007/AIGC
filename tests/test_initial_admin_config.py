@@ -4,11 +4,23 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 
 class InitialAdminConfigTest(unittest.TestCase):
+    def test_linux_root_install_assigns_private_seed_to_bootstrap_user(self):
+        import initial_admin
+        path = Path("/state/initial-admin.json")
+        with patch("initial_admin.sys.platform", "linux"), patch("initial_admin.os.geteuid", return_value=0), \
+                patch("initial_admin.os.chown") as chown:
+            initial_admin.set_bootstrap_owner(path)
+            chown.assert_called_once_with(path, 65534, 65534)
+        with patch("initial_admin.sys.platform", "darwin"), patch("initial_admin.os.chown") as chown:
+            initial_admin.set_bootstrap_owner(path)
+            chown.assert_not_called()
+
     def test_private_input_is_required_and_permissions_checked(self):
         import initial_admin
         with tempfile.TemporaryDirectory() as directory:

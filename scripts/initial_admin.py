@@ -3,10 +3,17 @@ import json
 import os
 from pathlib import Path
 import re
+import sys
 
 
 class InitialAdminError(RuntimeError):
     pass
+
+
+def set_bootstrap_owner(path):
+    """The pinned backup/bootstrap image runs as nobody on Linux."""
+    if sys.platform == "linux" and os.geteuid() == 0:
+        os.chown(path, 65534, 65534)
 
 
 def read_initial_admin(path=None):
