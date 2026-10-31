@@ -10,8 +10,12 @@ from starlette.routing import Mount, Route
 import uvicorn
 from backend_client import request_token, validate_user_token
 from mcp_shopro_server import mcp
+from host_config import parse_allowed_hosts
 
-hosts = [host.strip() for host in os.environ.get("MCP_ALLOWED_HOSTS", "localhost:*,127.0.0.1:*").split(",")]
+hosts = parse_allowed_hosts(os.environ.get("MCP_ALLOWED_HOSTS", "localhost,localhost:8080,127.0.0.1,127.0.0.1:8080"))
+max_concurrent = int(os.environ.get("MCP_MAX_CONCURRENT", "16"))
+if not 1 <= max_concurrent <= 256:
+    raise ValueError("MCP_MAX_CONCURRENT must be between 1 and 256")
 mcp.settings.transport_security.enable_dns_rebinding_protection = True
 mcp.settings.transport_security.allowed_hosts = hosts
 protocol_app = mcp.streamable_http_app()
@@ -122,8 +126,10 @@ async def health(_request):
 
 
 app = Starlette(routes=[Route("/healthz", health),
-                       Mount("/", app=UserTokenMiddleware(ResourceLimitsMiddleware(protocol_app)))], lifespan=lifespan)
+                       Mount("/", app=UserTokenMiddleware(ResourceLimitsMiddleware(
+                           protocol_app, max_concurrent=max_concurrent)))], lifespan=lifespan)
 if __name__ == "__main__":
     uvicorn.run(app, host=os.environ.get("HOST", "127.0.0.1"), port=int(os.environ.get("PORT", "8080")),
-                limit_concurrency=64, backlog=64, timeout_keep_alive=5, timeout_graceful_shutdown=170,
+                limit_concurrency=max(64, max_concurrent * 2), backlog=max(64, max_concurrent * 2),
+                timeout_keep_alive=5, timeout_graceful_shutdown=170,
                 proxy_headers=False, access_log=False)

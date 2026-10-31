@@ -185,7 +185,7 @@ try {
 
   const publicContext = await browser.newContext({ viewport: { width: 390, height: 844 } }), landing = await publicContext.newPage();
   await landing.goto(`${base}/landing`);
-  await landing.getByRole('heading', { name: /让商品内容/ }).waitFor();
+  await landing.getByRole('heading', { name: /让每一个创意\s*成为视频作品/ }).waitFor();
   assert.equal(await landing.locator('video').count(), 0);
   assert.equal(await landing.getByRole('button', { name: '播放演示视频', exact: true }).count(), 0);
   assert.equal(await landing.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "verified_on": "2026-10-31",
+  "documents": [
+    {"path":"docs/prd/PRD.md","owner":"仓库维护者","verified_on":"2026-10-31","review_trigger":"每次行为发布","sources":["src/App.tsx","src/pages","supabase/functions"]},
+    {"path":"docs/architecture/TECHNICAL_ARCHITECTURE.md","owner":"技术维护者","verified_on":"2026-10-31","review_trigger":"运行边界或协议变化","sources":["scripts/runtime-contract.json","deploy/self-hosted/compose.yaml","mcp/tools.json"]},
+    {"path":"docs/development/DEVELOPMENT_GUIDE.md","owner":"开发维护者","verified_on":"2026-10-31","review_trigger":"工具链或路径变化","sources":["package.json","pnpm-lock.yaml","scripts/dev_environment.py"]},
+    {"path":"docs/testing/TEST_PLAN.md","owner":"测试维护者","verified_on":"2026-10-31","review_trigger":"每次发布","sources":["tests","scripts/test_browser_flows.mjs",".github/workflows/ci.yml"]},
+    {"path":"docs/operations/OPERATIONS_GUIDE.md","owner":"运营维护者","verified_on":"2026-10-31","review_trigger":"权限、账务或工单流程变化","sources":["src/pages/operations/OperationsPage.tsx","src/api/operations.ts","supabase/functions/operations/index.ts"]},
+    {"path":"docs/deployment/SELF_HOSTED_ECS_RUNBOOK.md","owner":"运维维护者","verified_on":"2026-10-31","review_trigger":"每次部署或每30天","sources":["scripts/self_hosted.py","scripts/self_hosted_snapshot.py","deploy/self-hosted/capacity-100.json"]},
+    {"path":"docs/releases/VERSION_MANAGEMENT.md","owner":"发布维护者","verified_on":"2026-10-31","review_trigger":"每次版本变动","sources":["package.json","scripts/self_hosted_release.py","scripts/deploy_volcengine.py"]}
+  ]
+}

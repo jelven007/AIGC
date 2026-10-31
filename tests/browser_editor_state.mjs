@@ -14,6 +14,7 @@ async function fixture({ draft = null, lostCreate = false } = {}) {
   const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_PATH,
     args: ['--disable-breakpad', '--disable-crash-reporter', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] });
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, reducedMotion: 'reduce', permissions: ['microphone'] });
+  await context.route('https://**/*', route => route.abort());
   await context.addInitScript(({ session, uid, draft }) => {
     if (!localStorage.getItem('sb-ui-fixture-auth-token')) localStorage.setItem('sb-ui-fixture-auth-token', JSON.stringify(session));
     if (draft && !localStorage.getItem(`video-editor-draft-${uid}`)) localStorage.setItem(`video-editor-draft-${uid}`, JSON.stringify(draft));

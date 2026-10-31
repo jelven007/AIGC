@@ -14,7 +14,8 @@ import requests
 from render import render, RenderError
 from analyze import prepare_video
 from edit_analysis import prepare_edit
-from task_workspace import TaskWorkspace, RetryableError, download as download_media, MIB, exclusive_workspace
+from task_workspace import (TaskWorkspace, RetryableError, download as download_media, MIB,
+                            exclusive_workspace, exclusive_replica_workspace)
 from health import WorkerHealth
 from egress import EgressClient
 
@@ -154,8 +155,8 @@ def main():
     health.write("starting")
     base = os.environ["SUPABASE_URL"].rstrip("/")
     endpoint = base + "/functions/v1/production-worker"
-    safe_url(endpoint)
     http = EgressClient(base, os.environ.get("RENDER_MEDIA_HOSTS", ""))
+    http.validate_upload(endpoint)
     secret = Path(os.environ["RENDER_WORKER_SECRET_FILE"]).read_text().strip()
     if len(secret) < 32:
         raise ValueError("Worker密钥长度不足")
@@ -171,7 +172,7 @@ def main():
         return response.json()
 
     try:
-        with exclusive_workspace(os.environ.get("RENDER_WORKSPACE_DIR")) as workspace_root:
+        with exclusive_replica_workspace(os.environ.get("RENDER_WORKSPACE_DIR")) as workspace_root:
             run_loop(api, stop, health, workspace_root, http)
     finally:
         if hasattr(http, "close"):

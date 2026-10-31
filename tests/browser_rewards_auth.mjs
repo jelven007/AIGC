@@ -117,7 +117,7 @@ try {
   assert.deepEqual(await poster.evaluate(image => [image.naturalWidth, image.naturalHeight]), [750, 1100]);
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('link', { name: '保存海报', exact: true }).click()]);
   await download.saveAs('.volcengine-build/iteration32-invite-poster.png');
-  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: '关闭弹窗', exact: true }).click();
   await page.getByRole('dialog').waitFor({ state: 'hidden' });
   await page.getByText('邀请链接已复制', { exact: true }).waitFor({ state: 'hidden' });
   await page.screenshot({ path: '.volcengine-build/iteration32-invite-390.png', fullPage: true });

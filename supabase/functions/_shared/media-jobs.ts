@@ -1,6 +1,7 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { asrModel, encodeAudio, jsonModelResponse, safeMediaDownload, ttsModel } from './audio-provider.ts';
 import { modelFetch, resolveModel, validateEndpoint } from './model-registry.ts';
+import { validateMediaEndpoint } from './media-endpoint.ts';
 import { canonicalMediaTree, mediaReference, signedMedia, validateMediaTree } from './private-media.ts';
 import { jobEvent, publicProductionJob, type ProductionJob } from './production-jobs.ts';
 import { workloadPolicy } from './workload-policy.ts';
@@ -152,7 +153,7 @@ export async function processMediaJob(db: SupabaseClient, kind: string, id?: str
           signedMedia(db, job.payload.image_url || job.payload.video_url, job.user_id, 3600),
           signedMedia(db, job.payload.audio_url, job.user_id, 3600),
         ]);
-        for (const value of payload) { const url = new URL(value); url.search = ''; await validateEndpoint(url.href); }
+        for (const value of payload) { const url = new URL(value); url.search = ''; await validateMediaEndpoint(url.href); }
         const upstreamBody = kind === 'avatar'
           ? { source_url: payload[0], script: { type: 'audio', audio_url: payload[1] }, user_data: job.id }
           : { model: config.settings.model, input: [{ type: 'video', url: payload[0] }, { type: 'audio', url: payload[1] }] };

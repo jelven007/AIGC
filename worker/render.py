@@ -1,6 +1,7 @@
 """真实 FFmpeg 时间轴合成：本地输入文件、白名单参数、H.264/AAC 输出。"""
 import json
 import math
+import os
 from pathlib import Path
 import subprocess
 import selectors
@@ -185,16 +186,17 @@ def build_command(spec, media_files, directory):
         input_count += 1
         inputs[item["id"]] = (index, probe(path))
         if item["type"] == "image":
-            args += ["-loop", "1", "-framerate", str(fps), "-t", str(item["duration"]), "-protocol_whitelist", "file,pipe", "-i", str(path)]
+            args += ["-loop", "1", "-framerate", str(fps), "-t", str(item["duration"]),
+                     "-threads", "1", "-protocol_whitelist", "file,pipe", "-i", str(path)]
         else:
-            args += ["-protocol_whitelist", "file,pipe", "-i", str(path)]
+            args += ["-threads", "1", "-protocol_whitelist", "file,pipe", "-i", str(path)]
         if item.get("personMask"):
             mask_file = Path(media_files[f"{item['id']}:person-mask"])
             if not mask_file.is_file():
                 raise RenderError("人物分割蒙版缺失")
             visual_inputs[item["id"]] = input_count
             input_count += 1
-            args += ["-protocol_whitelist", "file,pipe", "-i", str(mask_file)]
+            args += ["-threads", "1", "-protocol_whitelist", "file,pipe", "-i", str(mask_file)]
     filters = ["[0:v]format=rgba[canvas]"]
     current = "canvas"
     audio = ["1:a"]
@@ -394,6 +396,7 @@ def build_command(spec, media_files, directory):
     graph.write_text(";\n".join(filters), encoding="utf-8")
     args += ["-filter_complex_threads", "1", "-filter_complex_script", str(graph), "-map", "[outv]", "-map", "[outa]",
              "-t", str(duration), "-r", str(fps), "-c:v", "libx264", "-preset", "medium", "-crf", "20",
+             "-threads", str(max(1, min(8, int(os.environ.get("RENDER_ENCODER_THREADS", "2"))))),
              "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart",
              "-progress", "pipe:1", "-fs", str(1024 * 1024 * 1024), str(directory / "output.mp4")]
     return args, (width, height)
@@ -461,7 +464,8 @@ def render(spec, media_files, directory, progress=None, cancelled=None, timeout=
         raise RenderError("成片超过1GB或时长与工程不符，请缩短工程")
     thumbnail = Path(directory) / "thumbnail.jpg"
     from media_process import run_media
-    run_media(["ffmpeg", "-v", "error", "-nostdin", "-y", "-i", str(output),
-               "-frames:v", "1", str(thumbnail)], cancelled or (lambda: False), timeout=30, budget=budget)
+    run_media(["ffmpeg", "-v", "error", "-nostdin", "-y", "-threads", "1", "-i", str(output),
+               "-frames:v", "1", "-threads", "1", str(thumbnail)],
+              cancelled or (lambda: False), timeout=30, budget=budget)
     return {"file": output, "thumbnail": thumbnail, "size": output.stat().st_size,
             "duration": actual_duration, "resolution": f"{dimensions[0]}x{dimensions[1]}"}

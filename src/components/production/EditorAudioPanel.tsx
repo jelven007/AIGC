@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { mediaPreview } from '@/api/media';
 import { readMediaDuration } from '@/api/materialAssets';
-import type { TrackItem } from '@/pages/VideoEditPage';
+import type { TrackItem } from '@/types/editor';
 import { toast } from 'sonner';
 
 export const EQ_FREQUENCIES = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];

@@ -1,14 +1,14 @@
 # MCP 接入指南
 
-本地优化基线：00065/probe23/render4/edit2；59个实际SDK工具、19业务权限、固定九入口。真实TLS/供应商/平台仍待目标验收。请求/容器资源与健康见[媒体与MCP资源边界](../docs/MEDIA_WORKER_RESOURCES.md)，最新本地证据见[实施记录](../docs/OPTIMIZATION_IMPLEMENTATION_20261027.md)。以下迭代目录摘要为历史时点，当前参数由tools.json和正文维护。
+本地优化基线：00065/probe23/render4/edit2；59个实际SDK工具、19业务权限、固定九入口。真实TLS/供应商/平台仍待目标验收。请求/容器资源与健康见[媒体与MCP资源边界](../docs/operations/MEDIA_WORKER_RESOURCES.md)，最新本地证据见[实施记录](../docs/archive/reviews/OPTIMIZATION_IMPLEMENTATION_20261027.md)。以下迭代目录摘要为历史时点，当前参数由tools.json和正文维护。
 
 ## 历史目录增量
 
-更新：2026-10-22，迭代27目录59个实际SDK工具/19业务权限。新增submit_batch_pipeline，需独立batch:create；报价按镜头数×video+tts+可选subtitles确认整批预算。submit_publish_group支持batch_item_id，使用快照中的publish阶段原UUID和真实成片预览源并逐账号确认。00032–00055、probe16/render4/edit2和匹配全栈待发布。见 [多镜头编排契约](../docs/ITERATION_27_BATCH_PIPELINE.md)；以下旧迭代计数为历史时点。
+更新：2026-10-22，迭代27目录59个实际SDK工具/19业务权限。新增submit_batch_pipeline，需独立batch:create；报价按镜头数×video+tts+可选subtitles确认整批预算。submit_publish_group支持batch_item_id，使用快照中的publish阶段原UUID和真实成片预览源并逐账号确认。00032–00055、probe16/render4/edit2和匹配全栈待发布。见 [多镜头编排契约](../docs/archive/iterations/ITERATION_27_BATCH_PIPELINE.md)；以下旧迭代计数为历史时点。
 
-更新：2026-10-22，迭代26目录58个实际SDK工具/18业务权限，新增get_edit_prices和submit_edit_analysis；创建沿render:create/原UUID/确认价格/片段裁剪速度与本人工程，价格读取沿jobs:read，query_production_status沿jobs:read。00032–00054、probe15/render4/edit1与匹配全栈待发布。见 [资源与MCP契约](../docs/ITERATION_26_EDITOR_ASSETS.md)；以下旧迭代计数为历史时点。
+更新：2026-10-22，迭代26目录58个实际SDK工具/18业务权限，新增get_edit_prices和submit_edit_analysis；创建沿render:create/原UUID/确认价格/片段裁剪速度与本人工程，价格读取沿jobs:read，query_production_status沿jobs:read。00032–00054、probe15/render4/edit1与匹配全栈待发布。见 [资源与MCP契约](../docs/archive/iterations/ITERATION_26_EDITOR_ASSETS.md)；以下旧迭代计数为历史时点。
 
-更新：2026-10-22，迭代23提供56个实际SDK工具/18业务权限，新增revoke_voice_clone与delete_knowledge_entry，沿网页原UUID/用户身份/撤销与知识副本清理事务。撤销需audio:create，知识删除需knowledge:write；未知受理不盲目退款/重发。00032–00051与probe12/render2待匹配全栈发布及真实删除验收。见 [当前状态](../docs/CURRENT_STATE.md) 与 [生命周期契约](../docs/ITERATION_23_DATA_LIFECYCLE.md)。
+更新：2026-10-22，迭代23提供56个实际SDK工具/18业务权限，新增revoke_voice_clone与delete_knowledge_entry，沿网页原UUID/用户身份/撤销与知识副本清理事务。撤销需audio:create，知识删除需knowledge:write；未知受理不盲目退款/重发。00032–00051与probe12/render2待匹配全栈发布及真实删除验收。见 [当前状态](../docs/CURRENT_STATE.md) 与 [生命周期契约](../docs/archive/iterations/ITERATION_23_DATA_LIFECYCLE.md)。
 
 ## 1. 入口与连接配置
 
@@ -35,7 +35,7 @@ HTTP ContextVar 在每次请求后重置，无状态传输避免用户会话混�
 | submit_audio_transcription/submit_voice_clone | 私有audio_url、filename、UUID、价格；克隆另有name/consent | asr/voice_clone后台任务，声纹授权必须显式确认 |
 | submit_avatar_video/submit_lipsync | 私有照片或视频/音频、title、consent、UUID、价格 | avatar/lipsync后台任务，必须授权人物与声音 |
 | submit_image_generation | prompt、UUID、size/quality、reference_image、project_id | 图片或封面任务，服务端按generate_image/generate_cover预占 |
-| submit_render | render_spec、project_id、UUID | 工程v1交给现有双校验和FFmpeg队列，完整协议见[API](../docs/API_AND_DATA.md) |
+| submit_render | render_spec、project_id、UUID | 工程v1交给现有双校验和FFmpeg队列，完整协议见[API](../docs/development/API_AND_DATA.md) |
 | submit_render_export/query_render_export | 源作品、formats、UUID/导出ID或UUID | 多规格事务导出组，包含各子任务状态和成片 |
 | query_production_status/list_production_jobs | 本地job_id或原UUID/无 | 当前用户任务，结果URL短效签名，过期重新查询 |
 | get_analysis_price/submit_video_analysis | 无/私有视频、title、live或style、UUID、价格，可选competitor_reference | 真实抽帧/ASR任务；竞品参考仅style且须本人sample_id/item_id/rights_confirmed:true，平台播放页不是源素材 |
@@ -75,4 +75,4 @@ Docker：docker compose -f docker-compose.mcp.yml up -d --build；端口绑定 1
 
 构建`docker build -t shoproai-mcp:local -f mcp/Dockerfile.mcp mcp`后根目录`npm run test:mcp`检查SDK59工具/19权限、并发身份、媒体/编辑/编排/商品/知识/发布载荷、原UUID与错误/传输。`test:access`核验真实PG撤销/归属/限流。MCP当前图片工具保留生成/参考参数，网页掩码编辑不是新增独立MCP工具；目标需匹配00062、TLS/真实JWT/模型/平台与后台运行。
 
-接口状态见 [API_AND_DATA](../docs/API_AND_DATA.md)，真实验收见 [TEST_PLAN](../docs/TEST_PLAN.md)，部署见 [火山指南](../docs/VOLCENGINE_DEPLOYMENT.md) 或 [官方记录](../docs/DEPLOYMENT_AIGCP.md)。MCP 与前端同版本/同后端，不能用工具绕过配置/计费。
+接口状态见 [API_AND_DATA](../docs/development/API_AND_DATA.md)，真实验收见 [TEST_PLAN](../docs/testing/TEST_PLAN.md)，部署见 [火山指南](../docs/releases/VOLCENGINE_DEPLOYMENT.md) 或 [官方记录](../docs/releases/DEPLOYMENT_AIGCP.md)。MCP 与前端同版本/同后端，不能用工具绕过配置/计费。

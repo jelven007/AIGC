@@ -11,8 +11,10 @@ const browser = await chromium.launch({ headless: true, executablePath: process.
   args: ['--disable-breakpad', '--disable-crash-reporter', `--crash-dumps-dir=${process.cwd()}/.volcengine-build/chrome-crashes`] });
 try {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
+  await context.route('**/runtime-config.js', route => route.fulfill({ contentType: 'application/javascript',
+    body: `window.__SHOPRO_RUNTIME__ = ${JSON.stringify({ backendUrl: backend, backendAnonKey: 'fixture' })};` }));
   await context.addInitScript(value => localStorage.setItem('sb-ui-fixture-auth-token', JSON.stringify(value)), session);
-  let allowed = true, failRefund = true, refundSuccess = false, failBudget = true, rejectBudget = false;
+  let allowed = true, failRefund = true, refundSuccess = false, failBudget = true, rejectBudget = false, emptyBudget = false, rateBudget = false;
   let budget = 0;
   const refunds = [], mutations = [], errors = [];
   await context.route(`${backend}/**`, async route => {
@@ -23,22 +25,28 @@ try {
     else if (path.includes('/auth/')) data = session.user;
     else if (path.endsWith('/operations')) {
       if (body.action === 'access') data = { root: true, grants: [], permissions: allowed
-        ? ['orders:read', 'refunds:write', 'customers:read', 'budgets:write', 'jobs:read', 'audit:read', 'operators:write'] : [] };
+        ? ['orders:read', 'refunds:write', 'customers:read', 'budgets:write', 'risk:write', 'jobs:read', 'audit:read', 'operators:write'] : [] };
       if (body.action === 'list') data = { items: body.domain === 'orders'
         ? [{ id: customer, order_no: 'order-1', total_amount: 10, refunded_amount: 0, plan_name: '专业版', status: 'paid', pay_channel: channel }]
-        : body.domain === 'customers' ? [{ id: customer, username: '真实客户', email: 'customer@example.com', credit_balance: -5, daily_credit_budget: budget, plan_status: 'active' }] : [],
-        total: ['orders', 'customers'].includes(body.domain) ? 1 : 0, page: body.page, observed_at: new Date().toISOString() };
+        : body.domain === 'customers' ? [{ id: customer, username: '真实客户', email: 'customer@example.com', credit_balance: -5, daily_credit_budget: budget, plan_status: 'active' },
+          { id: uid, username: '当前运营', daily_credit_budget: 0, restricted: false }] : [],
+        total: body.domain === 'customers' ? 2 : body.domain === 'orders' ? 1 : 0, page: body.page, observed_at: new Date().toISOString() };
       if (body.action === 'mutate') {
         mutations.push(body);
-        if (rejectBudget) { status = 409; data = { error: '预算版本已变化，请刷新后重试', outcome: 'rejected' }; }
+        if (rateBudget) { status = 429; data = { error: '操作过于频繁', outcome: 'rejected' }; }
+        else if (rejectBudget) { status = 409; data = { error: '预算版本已变化，请刷新后重试', outcome: 'rejected' }; }
+        else if (emptyBudget) data = {};
         else { budget = body.payload.amount;
-          status = failBudget ? 503 : 200; data = failBudget ? { error: '操作受理待确认', outcome: 'unknown' } : { daily_credit_budget: budget }; }
+          status = failBudget ? 503 : 200; data = failBudget ? { error: '操作受理待确认', outcome: 'unknown' } : { user_id: customer, daily_credit_budget: budget }; }
       }
     } else if (path.endsWith('/alipay-trade-ops') || path.endsWith('/wechat-trade-ops')) {
       assert.ok(path.endsWith(`/${channel}-trade-ops`));
       refunds.push(body);
       if (body.action === 'refund' && failRefund) { status = 503; data = { code: 1, message: '退款受理待确认', outcome: 'unknown' }; }
-      else data = { code: 0, data: { refund_status: refundSuccess ? 'success' : 'unknown', request_key: body.request_key } };
+      else data = { code: 0, data: { id: uid, order_id: customer, out_request_no: 'original-refund',
+        pay_channel: channel, refund_amount: '3.33', applied_at: refundSuccess ? new Date().toISOString() : null,
+        revoked_credits: refundSuccess ? 3 : 0, needs_attention: !refundSuccess,
+        refund_status: refundSuccess ? 'success' : 'unknown', request_key: body.request_key } };
     } else if (path.includes('/rest/v1/profiles')) data = { id: uid, username: '测试运营', invite_code: 'TEST' };
     else if (path.endsWith('/rpc/get_my_credits')) data = creditSnapshot(uid, { credits_total: 100, credits_left: 100 });
     await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data),
@@ -67,7 +75,10 @@ try {
   console.log('PASS 退款503锁定参数，刷新后同UUID恢复；未知不允许新申请，核对成功清理原回执');
 
   await page.getByRole('button', { name: '客户与预算', exact: true }).click();
-  await page.getByRole('button', { name: '设置日预算', exact: true }).click();
+  await page.getByRole('row').filter({ hasText: '当前运营' }).waitFor();
+  assert.equal(await page.getByRole('row').filter({ hasText: '当前运营' }).getByRole('button', { name: '限制新计费任务', exact: true }).count(), 0);
+  assert.equal(await page.getByRole('button', { name: '限制新计费任务', exact: true }).count(), 1);
+  await page.getByRole('button', { name: '设置日预算', exact: true }).first().click();
   await page.getByLabel('日积分预算', { exact: true }).fill('25');
   await page.getByRole('button', { name: '确认并提交', exact: true }).click();
   await page.getByText('操作受理待确认', { exact: true }).waitFor();
@@ -79,15 +90,34 @@ try {
   await page.screenshot({ path: '.volcengine-build/operations-mobile.png', fullPage: true });
   console.log('PASS 预算变更503刷新按原版本/原UUID恢复，390px表格内部滚动，无页面横向溢出');
   await page.getByRole('button', { name: '客户与预算', exact: true }).click();
-  await page.getByRole('button', { name: '设置日预算', exact: true }).click();
+  await page.getByRole('button', { name: '设置日预算', exact: true }).first().click();
   await page.getByLabel('日积分预算', { exact: true }).fill('26');
   rejectBudget = true;
   await page.getByRole('button', { name: '确认并提交', exact: true }).click();
   await page.getByText('预算版本已变化，请刷新后重试', { exact: true }).waitFor();
   await page.getByRole('dialog').waitFor({ state: 'detached' });
   assert.equal(await page.evaluate(uid => localStorage.getItem(`shopro-operator-request-${uid}`), uid), null);
-  assert.equal(await page.getByRole('button', { name: '设置日预算', exact: true }).isEnabled(), true);
+  assert.equal(await page.getByRole('button', { name: '设置日预算', exact: true }).first().isEnabled(), true);
   console.log('PASS 预算确定拒绝后释放本地申请锁，保持原服务器预算并允许刷新后重试');
+  rejectBudget = false; rateBudget = true;
+  await page.getByRole('button', { name: '设置日预算', exact: true }).first().click();
+  await page.getByLabel('日积分预算', { exact: true }).fill('27');
+  await page.getByRole('button', { name: '确认并提交', exact: true }).click();
+  await page.getByText('操作过于频繁', { exact: true }).waitFor();
+  await page.getByRole('dialog').waitFor({ state: 'detached' });
+  assert.equal(await page.evaluate(uid => localStorage.getItem(`shopro-operator-request-${uid}`), uid), null);
+  rateBudget = false; emptyBudget = true;
+  await page.getByRole('button', { name: '设置日预算', exact: true }).first().click();
+  await page.getByLabel('日积分预算', { exact: true }).fill('28');
+  await page.getByRole('button', { name: '确认并提交', exact: true }).click();
+  await page.getByText('运营服务未返回有效回执，请保留原申请核对', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('button', { name: '确认并提交', exact: true }).isEnabled(), false);
+  const emptyRequest = mutations.at(-1);
+  await page.reload(); emptyBudget = false;
+  await page.getByRole('button', { name: '按原参数恢复', exact: true }).click();
+  await page.getByText('运营操作已生效', { exact: true }).waitFor();
+  assert.deepEqual(mutations.at(-1), emptyRequest);
+  console.log('PASS 429未受理释放申请锁；空200回执保持原UUID，恢复后才报成功；当前运营没有自限按钮');
   allowed = false; await page.reload();
   await page.getByText('当前账号没有运营权限，请联系系统管理员分配角色与客户范围。', { exact: true }).waitFor();
   assert.equal(await page.getByRole('button', { name: '申请退款', exact: true }).count(), 0);

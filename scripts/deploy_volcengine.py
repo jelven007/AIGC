@@ -47,26 +47,33 @@ def release_manifest():
         "src": ["*.ts", "*.tsx", "*.css"],
         "supabase/functions": ["*.ts", "deno.json", "deno.lock"],
         "supabase/migrations": ["*.sql"],
-        "worker": ["*.py", "*.txt", "*.lock", "Dockerfile"],
+        "worker": ["*.py", "*.txt", "*.lock", "*.onnx", "LICENSE", "NOTICE", "Dockerfile"],
         "mcp": ["*.py", "*.json", "*.txt", "*.lock", "Dockerfile.mcp"],
-        "api": ["*.py", "*.txt", "*.lock"],
-        "scripts": ["*.py", "*.mjs", "runtime-contract.json"],
-        "deploy": ["*.json", "*.yaml", "*.yml", "Dockerfile", "requirements.txt", "*.lock"],
+        "scripts": ["*.py", "*.mjs", "*.sh", "runtime-contract.json"],
+        "deploy": ["*.json", "*.yaml", "*.yml", "*.conf", "*.template", "*.example", "*.sql", "*.ts", "Dockerfile", "Dockerfile.*", "requirements.txt", "*.lock"],
     }.items():
         for pattern in patterns:
             for path in (ROOT / directory).rglob(pattern):
                 if path.name in ("config.json", "alert-delivery.json", "acceptance.json") or path.name.endswith(".local"):
                     continue
                 paths.add(path)
-    for name in ("package.json", "pnpm-lock.yaml", ".node-version", ".npmrc",
-                 "vite.config.mjs", "supabase/config.toml", "docs/ai/evaluation-v1.json"):
+    for name in ("package.json", "pnpm-lock.yaml", ".node-version", ".npmrc", ".dockerignore", ".env.example",
+                 "index.html",
+                 "vite.config.mjs", "vite.config.dev.ts", "tsconfig.check.json",
+                 "tailwind.config.js", "postcss.config.js",
+                 "supabase/config.toml", "docs/ai/evaluation-v1.json", "docs/lifecycle.json"):
         paths.add(ROOT / name)
+    # 静态资源也进入产物；只记录TS/CSS会漏掉首页、字体和图片变化。
+    paths.update(p for p in (ROOT / "public").rglob("*") if p.is_file())
+    for pattern in ("*.svg", "*.png", "*.jpg", "*.json", "*.woff", "*.woff2"):
+        paths.update((ROOT / "src").rglob(pattern))
     files = {str(p.relative_to(ROOT)): checksum(p) for p in sorted(paths)}
     catalog = json.loads((ROOT / "mcp/tools.json").read_text())
     tools = catalog["tools"]
     source_digest = hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest()
     return {
         "schema_version": 1,
+        "version": json.loads((ROOT / "package.json").read_text())["version"],
         "git_sha": run_local(["git", "rev-parse", "HEAD"]).strip(),
         "source_sha256": source_digest,
         "files": files,
@@ -85,7 +92,7 @@ def check_release_receipt():
         raise RuntimeError("源码与全栈发布回执不一致，请重新 prepare")
 
 def write_frontend_identity(directory, release):
-    identity = {key: release[key] for key in ("git_sha", "source_sha256", "worker_contract")}
+    identity = {key: release[key] for key in ("version", "git_sha", "source_sha256", "worker_contract")}
     (directory / "release-identity.json").write_text(json.dumps(identity, ensure_ascii=False))
 
 

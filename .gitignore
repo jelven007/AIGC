@@ -15,6 +15,7 @@ dist
 dist-ssr
 *.local
 package-lock.json
+!deploy/self-hosted/edge-dependencies/package-lock.json
 
 # Editor directories and files
 .vscode/*
@@ -49,6 +50,15 @@ deploy/video-scheduler/alert-delivery.json
 deploy/volcengine/secrets.env
 deploy/volcengine/.env
 /.volcengine-build/
+/.supabase-build/
+/.supabase-tools/
+/.selfhost/
+/.selfhost-*/
+/.selfhost-*.tar.gz
+/.selfhost-*.tar.gz.sha256
+deploy/production/runtime.env
+deploy/production/secrets/
+deploy/production/acceptance.json
 __pycache__/
 *.pyc
 
@@ -60,6 +70,8 @@ deploy/render-worker/.env
 # 加密备份及隔离恢复材料
 /backups/
 /restore-results/
+/.local/
+/.pnpm-store/
 deploy/backup/config.json
 deploy/backup/acceptance.json
 deploy/backup/secrets/

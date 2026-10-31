@@ -51,7 +51,7 @@ const HeroSection: React.FC = () => {
 
         <motion.h1 variants={item} className="heading-1 mb-6">
           创造<span className="text-gradient relative">
-            前瞻性脚本
+            视频作品
             <svg className="absolute -bottom-2 left-0 w-full" viewBox="0 0 358 12" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M3 9.01709C65 3.84305 127 0.665732 189 3.28417C251 5.90261 313 9.49363 357 9.01709" stroke="url(#paint0_linear_3_107)" strokeWidth="5" strokeLinecap="round" />
               <defs>
@@ -62,11 +62,11 @@ const HeroSection: React.FC = () => {
                 </linearGradient>
               </defs>
             </svg>
-          </span> 转化您的受众
+          </span> 讲述您的创意
         </motion.h1>
 
         <motion.p variants={item} className="text-lg md:text-xl text-scriptgenius-black/70 max-w-2xl mx-auto mb-8">
-          Shopro-电商AIGC带货视频生成前沿脚本，以独特且令人难忘的叙事风格吸引您的受众。
+          视频生成平台连接分镜脚本、视频生成、素材剪辑和配音，让创意成为可预览、可发布的作品。
         </motion.p>
 
         <motion.div variants={item} className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4">
@@ -81,7 +81,7 @@ const HeroSection: React.FC = () => {
           >
             <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-scriptgenius-blue to-scriptgenius-blue-light opacity-0 group-hover:opacity-100 transition-opacity duration-500"></span>
             <div className="flex items-center space-x-2 relative z-10">
-              <span>创建卓越脚本</span>
+              <span>开始视频创作</span>
               <RocketIcon className="w-5 h-5 transition-transform duration-300 group-hover:translate-x-1" />
             </div>
           </MagneticButton>
@@ -112,7 +112,7 @@ const HeroSection: React.FC = () => {
                 <div className="flex justify-between items-center mb-4">
                   <div className="flex items-center space-x-2">
                     <div className="w-4 h-4 rounded-full bg-scriptgenius-blue"></div>
-                    <span className="text-sm font-medium">Shopro-电商AIGC带货视频</span>
+                    <span className="text-sm font-medium">视频生成平台</span>
                   </div>
                   <div className="text-xs font-medium text-scriptgenius-blue bg-scriptgenius-blue/10 px-3 py-1 rounded-full shadow-soft backdrop-blur-sm">
                     电影级脚本 · 前沿技术

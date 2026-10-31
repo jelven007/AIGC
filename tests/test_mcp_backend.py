@@ -29,6 +29,23 @@ class MCPTest(unittest.TestCase):
     def test_http_requires_user_jwt(self):
         self.assertEqual(self.client.post("/mcp", json={}).status_code, 401)
 
+    def test_proxy_host_initialization_and_untrusted_host_rejection(self):
+        hosts = http_server.parse_allowed_hosts("mcp.example.org,mcp.example.org:443,127.0.0.1:8080")
+        security = mcp.settings.transport_security
+        with patch.object(security, "allowed_hosts", hosts):
+            payload = {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+                       "params": {"protocolVersion": "2025-03-26", "capabilities": {},
+                                  "clientInfo": {"name": "proxy-host-test", "version": "1"}}}
+            for host in ("mcp.example.org", "mcp.example.org:443"):
+                headers = {"Host": host, "Authorization": "Bearer isolated-user",
+                           "Accept": "application/json, text/event-stream"}
+                response = self.client.post("/mcp", headers=headers, json=payload)
+                self.assertEqual(response.status_code, 200, response.text)
+                self.assertIn("protocolVersion", response.text)
+            headers["Host"] = "untrusted.example.org"
+            self.assertEqual(self.client.post("/mcp", headers=headers, json=payload).status_code, 421)
+            self.assertEqual(self.client.get("/healthz", headers={"Host": "127.0.0.1:8080"}).status_code, 200)
+
     def test_real_sdk_initialization_and_tool_call_preserve_user_token(self):
         async def fake_backend(function, body, **kwargs):
             return {"job": {"id": "job", "user": request_token.get(), "request_key": body["request_key"]}}

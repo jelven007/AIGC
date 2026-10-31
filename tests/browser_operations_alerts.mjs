@@ -12,6 +12,8 @@ const browser = await chromium.launch({ headless: true, executablePath: process.
   args: ['--disable-breakpad', '--disable-crash-reporter'] });
 try {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
+  await context.route('**/runtime-config.js', route => route.fulfill({ contentType: 'application/javascript',
+    body: `window.__SHOPRO_RUNTIME__ = ${JSON.stringify({ backendUrl: backend, backendAnonKey: 'fixture' })};` }));
   await context.addInitScript(value => localStorage.setItem('sb-ui-fixture-auth-token', JSON.stringify(value)), session);
   let stale = true, fail = true, canAck = true;
   let alert = { id: alertId, title: '生产任务结果待核对', source_id: crypto.randomUUID(), severity: 'critical',

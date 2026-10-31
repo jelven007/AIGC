@@ -75,7 +75,7 @@ try {
   failCatalog=false; await page.goto(base+'/competitor');
   await page.getByText('还没有情报对象。保存账号或搜索后，可确认积分并开始采集。',{ exact:true }).waitFor();
   assert.ok(!(await page.locator('main').innerText()).includes('小美美妆'));
-  await page.getByText('此数据源未启用，请由管理员在模型接口设置中配置。',{ exact:true }).waitFor();
+  await page.getByText('此数据源未启用，请由管理员在模型接口中配置。',{ exact:true }).waitFor();
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   assert.deepEqual(errors,[]);
   console.log('PASS 390px两页面空态/未配置、真实快照/缺失销量、长标题、503刷新同UUID恢复、来源批量入库和读取失败保留快照');

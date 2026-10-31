@@ -2,7 +2,7 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { mediaObject, mediaReference, ownsMedia } from './private-media.ts';
 import { IntelligenceError } from './intelligence-provider.ts';
 import { responseBytes } from './audio-provider.ts';
-import { validateEndpoint } from './model-registry.ts';
+import { mediaFetch, validateMediaEndpoint } from './media-endpoint.ts';
 
 export function imageType(bytes: Uint8Array): string | null {
   if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg';
@@ -29,8 +29,9 @@ export async function readIntelligenceImage(db: SupabaseClient, value: string, u
   if (!access.data) throw new IntelligenceError('图片不存在或无权访问');
   const signed = await db.storage.from(object.bucket).createSignedUrl(object.path, 120);
   if (signed.error || !signed.data?.signedUrl) throw new IntelligenceError('图片读取失败，请重新上传');
-  await validateEndpoint(Deno.env.get('SUPABASE_URL')!);
-  const response = await fetch(signed.data.signedUrl, { redirect: 'error', signal: AbortSignal.timeout(30000) });
+  const unsigned = new URL(signed.data.signedUrl); unsigned.search = '';
+  await validateMediaEndpoint(unsigned.href);
+  const response = await mediaFetch(signed.data.signedUrl, { redirect: 'error', signal: AbortSignal.timeout(30000) });
   if (!response.ok) {
     await response.body?.cancel();
     if ([403,404,410].includes(response.status)) throw new IntelligenceError('图片不存在或无权访问');

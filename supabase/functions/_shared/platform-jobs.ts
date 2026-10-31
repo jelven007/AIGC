@@ -2,14 +2,14 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { connectionToken, creatorInfo, officialJson, PlatformError, type Platform } from './platforms.ts';
 import { jobEvent, type ProductionJob } from './production-jobs.ts';
 import { signedMedia } from './private-media.ts';
-import { validateEndpoint } from './model-registry.ts';
+import { mediaFetch, validateMediaEndpoint } from './media-endpoint.ts';
 import { capabilityError } from './publish-contract.ts';
 
 export async function publishSource(db: SupabaseClient, job: ProductionJob): Promise<Uint8Array> {
   const source = await signedMedia(db, job.payload.source_url, job.user_id, 3600);
   const checked = new URL(source); checked.search = '';
-  await validateEndpoint(checked.href);
-  const response = await fetch(source, { redirect: 'error', signal: AbortSignal.timeout(30000) });
+  await validateMediaEndpoint(checked.href);
+  const response = await mediaFetch(source, { redirect: 'error', signal: AbortSignal.timeout(30000) });
   if (!response.ok || !response.body || !response.headers.get('content-type')?.startsWith('video/')) throw new Error('发布素材读取失败');
   const reader = response.body.getReader(), chunks: Uint8Array[] = [];
   let size = 0;

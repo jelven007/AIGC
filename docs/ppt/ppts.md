@@ -14,4 +14,4 @@
 
 如另行制作网页图片资源，按实际生成任务与来源约束保存结果，不插入占位图冒充成片。品牌和布局使用清晰可读的文字，不把广告语、价格、二维码交给生图模型做精确排版。
 
-演示与商业材料使用[当前状态](../CURRENT_STATE.md)、[本轮实施证据](../OPTIMIZATION_IMPLEMENTATION_20261027.md)和[发布接受](../RELEASE_ACCEPTANCE.md)；Git合并不作为运行上线图，原基线/草案按历史查阅。
+演示与商业材料使用[当前状态](../CURRENT_STATE.md)、[本轮实施证据](../archive/reviews/OPTIMIZATION_IMPLEMENTATION_20261027.md)和[发布接受](../releases/RELEASE_ACCEPTANCE.md)；Git合并不作为运行上线图，原基线/草案按历史查阅。

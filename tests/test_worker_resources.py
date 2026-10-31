@@ -208,6 +208,24 @@ class WorkerResourcesTest(unittest.TestCase):
                         pass
                 self.assertTrue(active.exists(), "另一Worker不能清理活跃任务")
 
+    def test_replicas_share_volume_without_lock_conflict_or_deleting_live_inputs(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with worker.exclusive_replica_workspace(folder, "container-one") as first:
+                active = first / "shopro-render-active"; active.mkdir()
+                (active / "input").write_bytes(b"tenant-one")
+                with worker.exclusive_replica_workspace(folder, "container-two") as second:
+                    self.assertNotEqual(first, second)
+                    self.assertEqual((active / "input").read_bytes(), b"tenant-one")
+                    with self.assertRaisesRegex(RenderError, "占用"):
+                        with worker.exclusive_replica_workspace(folder, "container-one"):
+                            pass
+                orphan = second / "shopro-render-crashed"; orphan.mkdir()
+                (orphan / "input").write_bytes(b"private orphan")
+                with worker.exclusive_replica_workspace(folder, "../../replacement") as replacement:
+                    self.assertTrue(replacement.is_relative_to(Path(folder)))
+                    self.assertFalse(orphan.exists(), "重建容器须回收退出副本的残留素材")
+                    self.assertTrue(active.exists(), "回收不能删除另一个副本的活跃任务")
+
     def test_real_sigterm_returns_original_lease_to_retry_and_cleans_task(self):
         if not hasattr(worker, "exclusive_workspace"):
             self.fail("Worker缺少可验证的退出/重启生命周期")
@@ -233,7 +251,13 @@ def render(_spec,_files,directory,*args,**kwargs):
     while not kwargs['cancelled'](): time.sleep(.01)
     raise worker.RenderError('任务已停止')
 worker.requests.post = api
-worker.EgressClient = lambda *_: worker.requests
+class Client:
+    post = staticmethod(api)
+    get = staticmethod(worker.requests.get)
+    put = staticmethod(worker.requests.put)
+    def validate_upload(self, value): return value
+    def close(self): pass
+worker.EgressClient = lambda *_: Client()
 worker.render = render
 sys.exit(worker.main())
 """
@@ -242,7 +266,10 @@ sys.exit(worker.main())
                 env={**os.environ, "SUPABASE_URL": "https://db.example", "RENDER_WORKER_SECRET_FILE": str(root / "secret"),
                      "RENDER_WORKSPACE_DIR": str(root / "work"), "RENDER_HEALTH_FILE": str(root / "health.json")})
             try:
-                self.assertEqual(process.stdout.readline().strip(), "READY")
+                ready = process.stdout.readline().strip()
+                if ready != "READY":
+                    stdout, stderr = process.communicate(timeout=10)
+                    self.fail(f"Worker未启动：{ready} {stdout} {stderr}")
                 process.send_signal(signal.SIGTERM)
                 stdout, stderr = process.communicate(timeout=10)
                 self.assertEqual(process.returncode, 0, stderr)

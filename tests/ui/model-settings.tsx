@@ -1,7 +1,8 @@
 // 隔离 UI 验收：真实表单、内存配置，无生产登录或网络写入。
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { ModelSettingsEditor } from '../../src/pages/ModelSettingsPage';
+import { ModelSettingsEditor } from '../../src/pages/settings/ModelSettingsPage';
+import ServiceConfigEditor from '../../src/components/ServiceConfigEditor';
 import { MODEL_SLOTS, defaultSettings, type ModelConfigView, type modelSettingsRequest } from '../../src/api/modelSettings';
 import { Toaster } from '../../src/components/ui/sonner';
 import '../../src/index.css';
@@ -9,9 +10,21 @@ import '../../src/index.css';
 const configs: ModelConfigView[] = MODEL_SLOTS.map(item => ({
   slot: item.id, settings: defaultSettings(item.id), enabled: false, version_id: null, has_key: false,
 }));
+const mode = new URLSearchParams(location.search).get('failure');
+const scope = new URLSearchParams(location.search).get('scope');
+const requests: Array<{ action: unknown; scope: unknown; slot: unknown }> = [];
+Object.assign(window, { settingsFixtureRequests: requests });
+let listCalls = 0;
 const request = (async (body: Record<string, unknown>) => {
-  if (body.action === 'list') return { configs: structuredClone(configs) };
+  requests.push({ action: body.action, scope: body.scope, slot: body.slot });
+  if (body.action === 'list') {
+    listCalls++;
+    if (mode === 'offline' || mode === 'recover' && listCalls <= 2) throw new TypeError('Failed to fetch');
+    if (mode === 'empty') return { configs: [] };
+    return { configs: structuredClone(configs) };
+  }
   if (body.action === 'save') {
+    if (mode === 'save') throw new TypeError('Failed to fetch');
     const item = configs.find(config => config.slot === body.slot)!;
     if (body.enabled && !body.api_key && !item.has_key) throw new Error('启用前请填写 API Key');
     Object.assign(item, { settings: body.settings, enabled: body.enabled, version_id: crypto.randomUUID(),
@@ -22,5 +35,6 @@ const request = (async (body: Record<string, unknown>) => {
   return { imported: [], skipped: [] };
 }) as typeof modelSettingsRequest;
 createRoot(document.getElementById('root')!).render(<React.StrictMode>
-  <ModelSettingsEditor request={request} /><Toaster />
+  {scope === 'integrations' ? <ServiceConfigEditor scope="integrations" request={request} />
+    : <ModelSettingsEditor request={request} />}<Toaster />
 </React.StrictMode>);

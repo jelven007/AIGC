@@ -61,7 +61,7 @@ export function usePromptAssistant(userId: string | undefined, inputs: {
     let text = '', completed = false, failure: Error | null = null;
     try {
       await sendDeepSeekStreamRequest({ expectedUserId: userId,
-        messages: [{ role: 'user', content: '请将以下描述扩展为适合电商的' + (kind === 'video' ? '视频' : '图片')
+        messages: [{ role: 'user', content: '请将以下创意描述扩展为清晰、可执行的' + (kind === 'video' ? '视频' : '图片')
           + '提示词，保持商品事实不变，使用中文直接输出画面描述，不添加解释。原文：' + original }],
         max_tokens: kind === 'video' ? 1024 : 512, signal: controller.signal,
         onData: chunk => { if (active.current && !controller.signal.aborted) { text += chunk; update(kind)(text); setProgress(text.length); } },

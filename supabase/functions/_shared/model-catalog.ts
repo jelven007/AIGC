@@ -22,6 +22,13 @@ export const MODEL_SLOTS = [
   { id: 'video.Seedance', name: 'Seedance 网关', category: 'video', protocols: ['Seedance'], model: 'Cdance2.0-A', endpoint: '' },
 ] as const;
 
+export type ConfigurationScope = 'models' | 'integrations';
+export function configurationSlots(scope?: ConfigurationScope) {
+  return MODEL_SLOTS.filter(item => scope === undefined || (scope === 'integrations'
+    ? ['intelligence', 'reader'].includes(item.category)
+    : !['intelligence', 'reader'].includes(item.category)));
+}
+
 // 退役信息独立于可配置目录，不能被启用或用于创建计费任务。
 export const RETIRED_MODELS = [
   { id: 'Sora', name: 'Sora', retired_on: '2026-09-24',

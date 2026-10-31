@@ -1,33 +1,31 @@
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    /* 主色：暖橙色系 */
-    --background: 30 20% 98%;
-    --foreground: 20 15% 12%;
+    /* 单一主题来源：浅色与.dark成对定义，避免后置:root覆盖深色。 */
+    --background: 30 10% 97%;
+    --foreground: 240 6% 12%;
     --card: 0 0% 100%;
-    --card-foreground: 20 15% 12%;
+    --card-foreground: 240 10% 4%;
     --popover: 0 0% 100%;
-    --popover-foreground: 20 15% 12%;
-    --primary: 24 95% 50%;
+    --popover-foreground: 240 10% 4%;
+    --primary: 22 88% 35%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 30 30% 94%;
-    --secondary-foreground: 20 15% 25%;
-    --muted: 30 20% 94%;
-    --muted-foreground: 20 10% 48%;
-    --accent: 35 25% 90%;
-    --accent-foreground: 20 15% 20%;
-    --destructive: 0 84% 55%;
+    --secondary: 30 8% 92%;
+    --secondary-foreground: 240 6% 12%;
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 42%;
+    --accent: 25 35% 92%;
+    --accent-foreground: 22 88% 30%;
+    --destructive: 0 78% 40%;
     --destructive-foreground: 0 0% 100%;
-    --border: 30 20% 88%;
-    --input: 30 20% 88%;
-    --ring: 24 95% 50%;
-    --radius: 0.625rem;
+    --border: 240 6% 86%;
+    --input: 240 6% 80%;
+    --ring: 22 88% 35%;
+    --radius: 0.75rem;
     /* 图表色 */
     --chart-1: 24 95% 50%;
     --chart-2: 40 90% 55%;
@@ -35,62 +33,70 @@
     --chart-4: 200 70% 50%;
     --chart-5: 280 65% 60%;
     /* 侧边栏 */
-    --sidebar: 20 15% 10%;
-    --sidebar-foreground: 30 20% 85%;
-    --sidebar-primary: 24 95% 50%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 20 15% 18%;
-    --sidebar-accent-foreground: 30 20% 90%;
-    --sidebar-border: 20 15% 20%;
-    --sidebar-ring: 24 95% 50%;
+    --sidebar: 240 6% 9%;
+    --sidebar-foreground: 240 5% 80%;
+    --sidebar-primary: 25 95% 64%;
+    --sidebar-primary-foreground: 240 6% 9%;
+    --sidebar-accent: 240 5% 16%;
+    --sidebar-accent-foreground: 0 0% 96%;
+    --sidebar-border: 240 5% 22%;
+    --sidebar-ring: 25 95% 64%;
     /* 状态色 */
-    --success: 142 71% 45%;
+    --success: 142 71% 27%;
     --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
+    --warning: 38 92% 30%;
     --warning-foreground: 0 0% 100%;
-    --info: 199 89% 48%;
+    --info: 199 89% 32%;
     --info-foreground: 0 0% 100%;
+    --area-creation: 270 62% 40%;
+    --area-library: 166 80% 25%;
+    --area-insights: 205 85% 32%;
+    --area-account: 22 88% 35%;
   }
 
   .dark {
-    --background: 20 15% 8%;
-    --foreground: 30 20% 92%;
-    --card: 20 15% 11%;
-    --card-foreground: 30 20% 92%;
-    --popover: 20 15% 11%;
-    --popover-foreground: 30 20% 92%;
-    --primary: 24 95% 55%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 20 15% 18%;
-    --secondary-foreground: 30 20% 85%;
-    --muted: 20 15% 18%;
-    --muted-foreground: 30 15% 55%;
-    --accent: 20 15% 22%;
-    --accent-foreground: 30 20% 88%;
-    --destructive: 0 75% 55%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 20 15% 22%;
-    --input: 20 15% 22%;
-    --ring: 24 95% 55%;
+    --background: 244 18% 12%;
+    --foreground: 36 20% 97%;
+    --card: 244 14% 17%;
+    --card-foreground: 36 20% 97%;
+    --popover: 244 14% 19%;
+    --popover-foreground: 36 20% 97%;
+    --primary: 25 96% 69%;
+    --primary-foreground: 242 20% 12%;
+    --secondary: 244 12% 23%;
+    --secondary-foreground: 36 15% 96%;
+    --muted: 244 12% 22%;
+    --muted-foreground: 244 8% 78%;
+    --accent: 262 20% 26%;
+    --accent-foreground: 36 15% 96%;
+    --destructive: 0 85% 76%;
+    --destructive-foreground: 240 6% 9%;
+    --border: 244 12% 32%;
+    --input: 244 12% 40%;
+    --ring: 25 96% 69%;
     --chart-1: 24 95% 55%;
     --chart-2: 40 85% 60%;
     --chart-3: 15 75% 55%;
     --chart-4: 200 65% 55%;
     --chart-5: 280 60% 65%;
-    --sidebar: 20 15% 6%;
-    --sidebar-foreground: 30 20% 80%;
-    --sidebar-primary: 24 95% 55%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 20 15% 14%;
-    --sidebar-accent-foreground: 30 20% 88%;
-    --sidebar-border: 20 15% 16%;
-    --sidebar-ring: 24 95% 55%;
-    --success: 142 60% 50%;
-    --success-foreground: 0 0% 100%;
-    --warning: 38 85% 55%;
-    --warning-foreground: 0 0% 100%;
-    --info: 199 80% 52%;
-    --info-foreground: 0 0% 100%;
+    --sidebar: 244 20% 13%;
+    --sidebar-foreground: 244 10% 84%;
+    --sidebar-primary: 25 96% 69%;
+    --sidebar-primary-foreground: 242 20% 12%;
+    --sidebar-accent: 244 18% 23%;
+    --sidebar-accent-foreground: 36 15% 96%;
+    --sidebar-border: 244 16% 29%;
+    --sidebar-ring: 25 96% 69%;
+    --success: 155 65% 66%;
+    --success-foreground: 242 20% 12%;
+    --warning: 38 95% 69%;
+    --warning-foreground: 242 20% 12%;
+    --info: 202 92% 73%;
+    --info-foreground: 242 20% 12%;
+    --area-creation: 270 96% 81%;
+    --area-library: 166 70% 68%;
+    --area-insights: 205 96% 77%;
+    --area-account: 25 96% 69%;
   }
 
   * {
@@ -111,6 +117,23 @@
     font-synthesis: none;
     text-rendering: optimizeLegibility;
   }
+  #root {
+    min-height: 100dvh;
+    color: hsl(var(--foreground));
+  }
+  .dark {
+    color-scheme: dark;
+  }
+  :root:not(.dark) {
+    color-scheme: light;
+  }
+  :where(button, a, input, textarea, select, [tabindex]):focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 3px;
+  }
+  :where(input, textarea, select) {
+    color: hsl(var(--foreground));
+  }
 }
 
 @layer utilities {
@@ -119,20 +142,20 @@
     background-image: linear-gradient(135deg, hsl(var(--primary)), hsl(40 90% 55%));
   }
   .sidebar-gradient {
-    background: linear-gradient(180deg, hsl(var(--sidebar)) 0%, hsl(20 18% 7%) 100%);
+    background: hsl(var(--sidebar));
   }
   .dark .sidebar-gradient {
-    background: linear-gradient(180deg, hsl(var(--sidebar)) 0%, hsl(20 12% 4%) 100%);
+    background: hsl(var(--sidebar));
   }
   .card-hover {
-    @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
+    @apply transition-colors duration-200 hover:border-primary/40;
   }
   .card-float {
-    @apply transition-all duration-300 ease-out;
+    transition: border-color 200ms ease-out, box-shadow 200ms ease-out;
   }
   .card-float:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 12px 28px -8px hsl(var(--primary) / 0.12), 0 6px 12px -4px hsl(var(--foreground) / 0.08);
+    border-color: hsl(var(--primary) / 0.4);
+    box-shadow: 0 4px 16px hsl(240 10% 4% / 0.1);
   }
   .btn-ripple {
     position: relative;
@@ -291,38 +314,6 @@
 }
 
 @layer base {
-  :root {
-    --background: 0 0% 98%;
-    --foreground: 240 10% 4%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 4%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 4%;
-
-    --primary: 210 100% 50%;
-    --primary-foreground: 0 0% 98%;
-
-    --secondary: 240 10% 10%;
-    --secondary-foreground: 0 0% 98%;
-
-    --muted: 240 5% 96%;
-    --muted-foreground: 240 4% 46%;
-
-    --accent: 210 100% 50%;
-    --accent-foreground: 0 0% 98%;
-
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 98%;
-
-    --border: 240 6% 90%;
-    --input: 240 6% 90%;
-    --ring: 210 100% 50%;
-
-    --radius: 0.75rem;
-  }
-
   * {
     @apply border-border;
     margin: 0;
@@ -336,7 +327,8 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    line-height: 1.6;
     overflow-x: hidden;
   }
 
@@ -348,6 +340,224 @@
 @layer components {
   .container-custom {
     @apply w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8;
+  }
+}
+
+/* 登录后的页面共用尺寸与标题层级，工作台和剪辑保留专用画布布局。 */
+.app-content[data-layout="page"] > :where(div, section) {
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+}
+.app-content[data-layout="page"] > :is(.p-4, .p-6, .p-8) {
+  padding: 28px 32px 40px;
+}
+.app-content h1 {
+  color: hsl(var(--foreground));
+  font-size: 1.5rem;
+  font-weight: 650;
+  line-height: 1.4;
+  letter-spacing: -0.025em;
+}
+.app-content :where(h2, h3) {
+  line-height: 1.4;
+}
+.app-content .workspace-hero {
+  font-size: clamp(1.5rem, 2.6vw, 2.25rem);
+  font-weight: 650;
+}
+.app-content :where(input, textarea) {
+  caret-color: hsl(var(--primary));
+}
+.app-content :where([role="alert"]) {
+  overflow-wrap: anywhere;
+}
+.app-content :where(table) {
+  font-variant-numeric: tabular-nums;
+}
+.app-content .recharts-text { fill: hsl(var(--muted-foreground)); }
+.app-content .recharts-cartesian-axis-line,
+.app-content .recharts-cartesian-axis-tick-line { stroke: hsl(var(--input)); }
+.app-content .recharts-legend-item-text { color: hsl(var(--foreground)) !important; }
+.app-content .recharts-default-tooltip {
+  background-color: hsl(var(--popover)) !important;
+  border-color: hsl(var(--border)) !important;
+  color: hsl(var(--popover-foreground)) !important;
+}
+.app-content :where(input, textarea, select) { min-width: 0; }
+/* 模块色用于导航、标题和卡片层级；状态色仍由状态标签表达。 */
+.app-shell { --section-accent: var(--area-account); }
+[data-area="account"] { --section-accent: var(--area-account); }
+[data-area="creation"] { --section-accent: var(--area-creation); }
+[data-area="library"] { --section-accent: var(--area-library); }
+[data-area="insights"] { --section-accent: var(--area-insights); }
+.app-content[data-layout="page"] {
+  background-image: radial-gradient(ellipse 95% 360px at 25% 0%, hsl(var(--section-accent) / 0.1), transparent 80%);
+}
+.app-content[data-layout="page"] > .bg-background { background-color: transparent; }
+.app-content[data-layout="page"] h1 {
+  padding-left: 14px;
+  border-left: 3px solid hsl(var(--section-accent));
+  scroll-margin-top: 88px;
+}
+.app-content[data-layout="page"] :is(h1, h2, h3) > .text-primary {
+  color: hsl(var(--section-accent));
+}
+.app-content[data-layout="page"] [data-slot="card"] {
+  background-color: color-mix(in srgb, hsl(var(--section-accent)) 4%, hsl(var(--card)));
+  border-color: color-mix(in srgb, hsl(var(--section-accent)) 22%, hsl(var(--border)));
+}
+.app-content [data-slot="card-title"] > svg { color: hsl(var(--section-accent)); }
+.app-content [data-slot="tabs-list"] { border: 1px solid hsl(var(--border)); }
+.app-content [data-slot="tabs-trigger"][data-state="active"] {
+  color: hsl(var(--section-accent));
+  background: color-mix(in srgb, hsl(var(--section-accent)) 12%, hsl(var(--card)));
+  box-shadow: inset 0 -2px hsl(var(--section-accent));
+}
+.app-nav-link { --section-accent: var(--area-account); }
+.app-nav-link[data-area="creation"] { --section-accent: var(--area-creation); }
+.app-nav-link[data-area="library"] { --section-accent: var(--area-library); }
+.app-nav-link[data-area="insights"] { --section-accent: var(--area-insights); }
+.app-nav-link > svg:first-child { color: hsl(var(--section-accent)); }
+.app-nav-link[aria-current="page"] {
+  color: hsl(var(--section-accent));
+  background: hsl(var(--section-accent) / 0.13);
+  box-shadow: inset 3px 0 hsl(var(--section-accent));
+}
+.app-nav-link:hover { background-color: hsl(var(--section-accent) / 0.09); }
+.skip-link {
+  position: fixed;
+  left: 16px;
+  top: 12px;
+  z-index: 100;
+  padding: 10px 16px;
+  border-radius: 8px;
+  color: hsl(var(--primary-foreground));
+  background: hsl(var(--primary));
+  transform: translateY(-160%);
+}
+.skip-link:focus { transform: translateY(0); }
+.toolbox-card {
+  border-top: 2px solid hsl(var(--section-accent) / 0.7);
+  background: color-mix(in srgb, hsl(var(--section-accent)) 7%, hsl(var(--card)));
+}
+.toolbox-card:hover,
+.toolbox-card:focus-visible {
+  border-color: hsl(var(--section-accent) / 0.7);
+  background: color-mix(in srgb, hsl(var(--section-accent)) 12%, hsl(var(--card)));
+}
+.toolbox-icon,
+.toolbox-badge {
+  color: hsl(var(--section-accent));
+  background: hsl(var(--section-accent) / 0.12);
+}
+.toolbox-banner { background: hsl(var(--area-creation) / 0.07); }
+.service-config-form { border-top: 3px solid hsl(var(--section-accent)); }
+@media (pointer: coarse) {
+  .app-shell :where(button, a[role="button"], [data-slot="tabs-trigger"]) { min-height: 44px; }
+}
+/* 旧剪辑面板沿用同一组表面与文字 token；黑色视频画布与自定义字幕色不受影响。 */
+.video-editor :is(.bg-zinc-950) { background-color: hsl(var(--background)); }
+.video-editor :is(.bg-zinc-900) { background-color: hsl(var(--card)); }
+.video-editor :is(.bg-zinc-800) { background-color: hsl(var(--muted)); }
+.video-editor :is(.border-zinc-800, .border-zinc-700) { border-color: hsl(var(--border)); }
+.video-editor :is(.text-zinc-100, .text-zinc-200, .text-zinc-300) { color: hsl(var(--foreground)); }
+.video-editor :is(.text-zinc-400, .text-zinc-500, .text-zinc-600, .text-zinc-700) { color: hsl(var(--muted-foreground)); }
+.video-editor :where(input, textarea)::placeholder { color: hsl(var(--muted-foreground)); opacity: 1; }
+.video-editor :is(.text-indigo-300, .text-indigo-400) { color: hsl(var(--primary)); }
+.video-editor :is(.bg-indigo-600\/10, .bg-indigo-600\/20) { background-color: hsl(var(--primary) / 0.1); }
+.video-editor :is(.border-indigo-500, .border-indigo-600\/30) { border-color: hsl(var(--primary) / 0.3); }
+.video-editor :is(.bg-indigo-600) {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+.video-editor .bg-indigo-600:hover { background-color: hsl(var(--primary) / 0.85); }
+/* 工作台的辅助标签统一对比度，图片和视频上的白色覆层保持原样。 */
+.workspace-ui :is(.text-white\/20, .text-white\/25, .text-white\/30, .text-white\/35, .text-white\/40, .text-white\/45, .text-white\/50, .text-white\/55, .text-white\/60, .text-white\/70) {
+  color: hsl(var(--muted-foreground));
+}
+.workspace-ui :is(.bg-\[\#161522\], .bg-\[\#1e1d2a\]) { background-color: hsl(var(--popover)); }
+.workspace-ui :is(.bg-\[\#16151f\], .bg-\[\#13121b\], .bg-\[\#1a1829\]) { background-color: hsl(var(--card)); }
+.workspace-input-stream-single,
+.workspace-input-stream-glow {
+  display: none;
+}
+/* 工作台使用更鲜明的创作配色，不改变全站或分镜表单的主题 token。 */
+.workspace-vibrant {
+  background-image: radial-gradient(ellipse 80% 520px at 15% 0, hsl(275 85% 65% / 0.1), transparent 75%);
+}
+.dark .workspace-vibrant {
+  background:
+    radial-gradient(ellipse 80% 580px at 15% 0, hsl(275 85% 60% / 0.27), transparent 75%),
+    radial-gradient(ellipse 70% 580px at 100% 30%, hsl(325 85% 58% / 0.12), transparent 75%),
+    #111019;
+}
+.workspace-vibrant .workspace-hero {
+  font-size: clamp(1.5rem, 3.2vw, 2.75rem);
+  font-weight: 700;
+}
+.workspace-hero-accent { color: #a21caf; }
+.dark .workspace-hero-accent { color: #efb2ff; }
+.dark .workspace-mode-switch { background: #241a33; border-color: #604077; }
+.workspace-mode-tab[aria-pressed="true"][data-mode="视频生成"] {
+  background: #7c3aed;
+  color: #fff;
+}
+.workspace-mode-tab[aria-pressed="true"][data-mode="图片生成"] {
+  background: #be185d;
+  color: #fff;
+}
+.workspace-mode-tab[aria-pressed="true"][data-mode="分镜编辑"] {
+  background: #fbbf24;
+  color: #29200a;
+}
+.workspace-composer-shell {
+  background-image: linear-gradient(110deg, #a86bea, #dc78b4 65%, #59c7a1);
+  box-shadow: 0 12px 40px -20px hsl(275 90% 60% / 0.45);
+}
+.workspace-composer-image {
+  background-image: linear-gradient(110deg, #ed85bd, #bf78e9 65%, #d9a770);
+}
+.workspace-composer-shell:focus-within {
+  box-shadow: 0 0 0 3px hsl(275 85% 65% / 0.15), 0 14px 44px -20px hsl(275 90% 60% / 0.55);
+}
+.dark .workspace-composer {
+  background: linear-gradient(135deg, #251733, #181623);
+  border-color: hsl(275 70% 75% / 0.12);
+}
+.dark .workspace-composer-image .workspace-composer {
+  background: linear-gradient(135deg, #2b192f, #1d1728);
+}
+.dark .workspace-input-tab[aria-pressed="true"] {
+  background: #47305f;
+  color: #f4d9ff;
+}
+.dark .workspace-model-button { background: #183a33; border-color: #286e59; color: #7fedd0; }
+.dark .workspace-spec-button { background: #23364c; border-color: #3b5d89; color: #a8caff; }
+.dark .workspace-enhance-button { background: #46213c; border-color: #8a426e; color: #ffb1df; }
+.workspace-generate-video {
+  background: linear-gradient(115deg, #72f0bb, #34d399);
+  color: #072b20;
+  box-shadow: 0 4px 20px hsl(155 75% 55% / 0.25);
+}
+.workspace-generate-image {
+  background: linear-gradient(115deg, #ff99cd, #e879f9);
+  color: #350c30;
+  box-shadow: 0 4px 20px hsl(310 85% 65% / 0.25);
+}
+.workspace-library {
+  background: linear-gradient(125deg, #552878, #362055 65%, #3e214c);
+  border-color: #8753aa;
+  color: #f9f5ff;
+}
+.workspace-library:hover { border-color: #bd82e6; }
+.workspace-tool:hover { box-shadow: 0 6px 24px hsl(275 65% 40% / 0.18); }
+@media (max-width: 767px) {
+  .app-content[data-layout="page"] > :is(.p-4, .p-6, .p-8) {
+    padding: 20px 16px 28px;
+  }
+  .app-content h1 {
+    font-size: 1.25rem;
   }
 }
 
@@ -512,7 +722,7 @@
   animation-play-state: paused;
 }
 
-/* ── Hero 3D & E-Commerce Showcase 专有视觉增强 ── */
+/* ── Hero 3D & Video Showcase 专有视觉增强 ── */
 .perspective-1200 {
   perspective: 1200px;
 }
@@ -690,5 +900,11 @@
   animation: shimmerWave 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
-
-
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

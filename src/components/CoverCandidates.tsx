@@ -36,7 +36,7 @@ interface Props {
 }
 
 const COVER_STYLES = [
-  { id: 'product_close',   label: '产品特写',  prompt: '产品近景特写，高清电商风格，白色背景，专业打光' },
+  { id: 'product_close',   label: '产品特写',  prompt: '产品近景特写，高清细节，白色背景，专业打光' },
   { id: 'lifestyle',       label: '生活方式',  prompt: '场景化使用展示，温馨生活气息，自然采光' },
   { id: 'contrast_before', label: '对比冲击',  prompt: '使用前后对比，视觉冲击感强，清晰对比展示效果' },
   { id: 'text_headline',   label: '文字钩子',  prompt: '大字报风格封面，醒目标题文字，品牌色调' },

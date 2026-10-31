@@ -22,10 +22,13 @@ jobs:
           node-version-file: .node-version
       - run: npm install --global pnpm@10.34.5
       - run: pnpm install --frozen-lockfile
+      - run: pnpm check:structure
       - run: pnpm lint
       - run: pnpm build
       - run: for suite in tests/*.test.mjs; do node "$suite" || exit; done
       - run: pnpm test:release
+      - run: pnpm test:official-deploy
+      - run: pnpm test:environment
       - run: python3 tests/test_finance.py
       - run: python3 tests/test_access_control.py
       - run: python3 tests/test_ai_requests.py
@@ -36,6 +39,18 @@ jobs:
       - run: pnpm test:alert-delivery
       - run: python3 tests/test_final_contract.py
       - run: python3 scripts/deploy_volcengine.py prepare --skip-build
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .node-version
+      - run: npm install --global pnpm@10.34.5
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:browser
   edge:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 15

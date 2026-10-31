@@ -16,6 +16,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Optional
 from alert_delivery import spool
+from first_party_http import backend_opener
 
 CONTRACT = json.loads(Path(__file__).with_name("runtime-contract.json").read_text())
 
@@ -78,7 +79,7 @@ def call_worker(config, action="run"):
         headers={"Authorization": "Bearer " + config.secret, "Content-Type": "application/json"},
     )
     # 禁止跳转，避免将专用密钥随重定向发送到其他主机。
-    opener = urllib.request.build_opener(NoRedirect)
+    opener = backend_opener(config.endpoint)
     try:
         with opener.open(request, timeout=config.timeout) as response:
             raw = response.read(16385)
@@ -138,7 +139,7 @@ def monitor(config, scheduler_healthy):
         data=json.dumps({"action": "monitor", "scheduler_healthy": scheduler_healthy}).encode(),
         headers={"Authorization": "Bearer " + config.secret, "Content-Type": "application/json"})
     try:
-        with urllib.request.build_opener(NoRedirect).open(request, timeout=min(30, config.timeout)) as response:
+        with backend_opener(config.endpoint).open(request, timeout=min(30, config.timeout)) as response:
             raw = response.read(16385)
             data = json.loads(raw)
             if len(raw) > 16384 or not isinstance(data, dict) or not (

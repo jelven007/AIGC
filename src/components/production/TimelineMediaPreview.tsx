@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { TrackItem } from '@/pages/VideoEditPage';
+import type { TrackItem } from '@/types/editor';
 
 export function TimelineMediaPreview({ track, currentTime, playing }: { track: TrackItem; currentTime: number; playing: boolean }) {
   const video = useRef<HTMLVideoElement>(null);
