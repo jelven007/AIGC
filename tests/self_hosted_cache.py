@@ -1,12 +1,17 @@
 """真实Auth/RPC验证缓存监控、清理及普通用户拒绝。"""
 import json
 import os
+from pathlib import Path
 import uuid
+import sys
 
 from self_hosted_acceptance import api, login, require, SERVICE
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+from initial_admin import read_initial_admin
+INITIAL_IDENTITY = read_initial_admin()
 
 require(os.environ.get("SELF_HOSTED_ISOLATED_ACCEPTANCE") == "true", "需要隔离实例")
-token = login("admin@shopro.local", "<REDACTED_CREDENTIAL>")["access_token"]
+token = login(INITIAL_IDENTITY["email"], INITIAL_IDENTITY["password"])["access_token"]
 name, identifier = uuid.uuid4().hex, str(uuid.uuid4())
 ordinary = api("/auth/v1/admin/users", token=SERVICE, body={
     "email": "cache-" + name + "@example.com", "password": name, "email_confirm": True,

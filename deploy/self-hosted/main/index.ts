@@ -1,4 +1,5 @@
 /** 固定生产入口清单；每个原函数保留其JWT验证和业务授权。 */
+import { usernameLogin } from './username_login.ts';
 const manifest = JSON.parse(await Deno.readTextFile('/home/deno/manifest.json'));
 const routes = new Map<string, boolean>(manifest.functions.map((item: { name: string; verify_jwt: boolean }) =>
   [item.name, item.verify_jwt]));
@@ -25,6 +26,18 @@ async function validJwt(req: Request): Promise<boolean> {
 }
 Deno.serve(async req => {
   const name = new URL(req.url).pathname.split('/').filter(Boolean)[0];
+  if (name === 'username-login') {
+    if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+    if (!await validJwt(req)) return Response.json({ error: 'Invalid JWT' }, { status: 401 });
+    try {
+      const identity = JSON.parse(await Deno.readTextFile('/run/bootstrap/login-identity.json'));
+      const response = await usernameLogin(req, identity);
+      for (const [header, value] of Object.entries(cors)) response.headers.set(header, value);
+      return response;
+    } catch {
+      return Response.json({ error: '登录暂不可用' }, { status: 503, headers: cors });
+    }
+  }
   if (!routes.has(name)) return Response.json({ error: 'Function not found' }, { status: 404, headers: cors });
   const probe = req.headers.get('x-shopro-function-probe') === Deno.env.get('VIDEO_WORKER_SECRET')
     && !!Deno.env.get('VIDEO_WORKER_SECRET') && req.method === 'OPTIONS';

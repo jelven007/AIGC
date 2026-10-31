@@ -1,5 +1,7 @@
 # 开发指南
 
+v1.0.1开发要求：初始化与验收账号由源码外0600文件或显式私有环境注入，测试中只使用隔离夹具，禁止硬编码部署账号。运行`python3 scripts/check_sensitive_content.py --private-config "$PRIVATE_IDENTITY_FILE"`核对当前源码；普通CI不持有部署凭据，扫描私钥和JWT形态并运行脱敏回归。`usernameLogin`为公开能力标志，真实用户名映射和邮箱均在服务端。桌面菜单主行最小36px，手机40px；不可依靠隐藏标签使菜单紧凑。
+
 核验：2026-10-31。责任：开发维护者。当前66生产迁移/68文件、43生产函数、20模型槽、MCP59/19、probe24/render4/edit2。实际源码与发布状态见[生产基线](../releases/PRODUCTION_BASELINE.md)；以下早期摘要按历史阅读。
 
 ## 固定开发入口与环境矩阵
@@ -14,7 +16,7 @@
 | 本地自托管 | deploy/self-hosted；独立state目录和原命名卷 | 当前源码、ARM执行镜像、原本地账号/账/素材 | 升级后核对原身份/资金/文件和11服务健康 |
 | ECS生产 | /opt/shopro/state与releases/v1.0.0 | AMD64不可变镜像、16执行器、capacity-100资源配置 | 26服务健康、66迁移/43入口、原身份/资金/文件及公开版本身份 |
 
-本工作区Run入口使用`.local/shopro-production/tooling/start_development.py`，先启动持久开发网关，再执行应用开发入口。网关配置和信任CA位于源码之外，端口仅绑定`127.0.0.1:54329`；不放开ECS公网CORS。开发页使用`admin@shopro.local`真实邮箱；自托管页保留`admin`别名。变更公开URL后重新Run以应用新容器环境变量，仅restart不会更新配置。公开Auth探测成功不代表匿名账号有权读取`model_configs`，401须与实际管理员页面验收区分。
+本工作区Run入口使用`.local/shopro-production/tooling/start_development.py`，先启动持久开发网关，再执行应用开发入口。网关配置和信任CA位于源码之外，端口仅绑定`127.0.0.1:54329`；不放开ECS公网CORS。开发页使用`[已脱敏]`真实邮箱；自托管页保留`[管理员账号]`别名。变更公开URL后重新Run以应用新容器环境变量，仅restart不会更新配置。公开Auth探测成功不代表匿名账号有权读取`model_configs`，401须与实际管理员页面验收区分。
 
 漂移预算：后端URL、工具链、锁、运行源码、Worker协议和镜像ID允许漂移为零。更改公开配置后使用受控入口重新启动；源码/静态资源/运行配置更改后重新prepare；密钥或目标变更需刷新目标接受，回执最长24小时。当前匿名公开配置不含正式法律链接，注册保持现有禁用行为；不填虚构地址。
 

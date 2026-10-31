@@ -134,14 +134,17 @@ def run_checks(session):
             token=SERVICE, expected=(200, 404))
         api("/auth/v1/admin/users/" + ordinary_id, method="DELETE", token=SERVICE, expected=(200, 204))
     runtime = api("/runtime-config.js", binary=True)
-    require(b'admin@shopro.local' in runtime and SERVICE.encode() not in runtime, "公开运行配置不匹配")
+    require(b'"usernameLogin": true' in runtime and b'adminLogin' not in runtime
+            and SERVICE.encode() not in runtime and b'password' not in runtime, "公开运行配置不匹配")
     checks["frontend_runtime_config"] = True
     print(json.dumps({"self_hosted_technical_checks": checks, "passed": True,
                       "live_provider_accepted": False, "origin": BASE}))
 
 def main():
     if os.environ.get("SELF_HOSTED_INITIAL_CHECK") == "true":
-        return run_checks(login("admin@shopro.local", "<REDACTED_CREDENTIAL>"))
+        from initial_admin import read_initial_admin
+        identity = read_initial_admin()
+        return run_checks(login(identity["email"], identity["password"]))
     # 常规部署检查使用临时测试身份；管理员改密、禁用或撤权后仍不重置原身份。
     email = "selfhost-check-" + uuid.uuid4().hex + "@example.com"
     password = uuid.uuid4().hex

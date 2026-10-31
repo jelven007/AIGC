@@ -16,13 +16,18 @@ client.verify = "/run/tls/ca.crt"
 client.headers.update({"apikey": anon})
 
 
+import sys as _initial_sys
+_initial_sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+from initial_admin import read_initial_admin
+INITIAL_IDENTITY = read_initial_admin()
+
 def api(path, body=None):
     response = client.request("POST" if body is not None else "GET", base + path, json=body, timeout=30)
     response.raise_for_status()
     return response.json()
 
 
-session = api("/auth/v1/token?grant_type=password", {"email": "admin@shopro.local", "password": "<REDACTED_CREDENTIAL>"})
+session = api("/auth/v1/token?grant_type=password", {"email": INITIAL_IDENTITY["email"], "password": INITIAL_IDENTITY["password"]})
 client.headers["Authorization"] = "Bearer " + session["access_token"]
 receipt = json.loads(Path("/receipts/business-checks.json").read_text())
 job_id = receipt["self_hosted_business_checks"]["real_ffmpeg_queue"]["job_id"]

@@ -11,11 +11,13 @@ from self_hosted_acceptance import api, login, require, BASE
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from backup_restore import validate_credentials
+from initial_admin import read_initial_admin
+INITIAL_IDENTITY = read_initial_admin()
 
 require(os.environ.get("SELF_HOSTED_ISOLATED_ACCEPTANCE") == "true", "需要隔离实例")
 values = dict(line.split("=", 1) for line in Path("/state/runtime.env").read_text().splitlines() if line and not line.startswith("#"))
 seed = json.loads(Path("/state/receipts/recovery-seed.json").read_text())
-token = login("admin@shopro.local", "<REDACTED_CREDENTIAL>")
+token = login(INITIAL_IDENTITY["email"], INITIAL_IDENTITY["password"])
 require(token["user"]["id"] == seed["uid"], "恢复后管理员UUID变化")
 with psycopg.connect(host="db", dbname="postgres", user="supabase_admin",
                      password=os.environ["POSTGRES_PASSWORD"], autocommit=True, row_factory=dict_row) as db:

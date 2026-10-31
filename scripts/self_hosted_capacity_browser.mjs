@@ -6,7 +6,7 @@ const browser = await chromium.launch({ headless: true, executablePath: process.
   args: ['--no-proxy-server'] });
 const context = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1440, height: 1000 } });
 const page = await context.newPage(), errors = [], failed = [], checks = [];
-const origin = 'https://118.196.122.161';
+const origin = process.env.SELF_HOSTED_TEST_ORIGIN;
 page.on('pageerror', error => errors.push(error.message));
 page.on('response', response => {
   if (response.url().startsWith(origin) && response.status() >= 400) {
@@ -15,8 +15,8 @@ page.on('response', response => {
 });
 try {
   await page.goto(origin + '/login');
-  await page.locator('input').first().fill('admin');
-  await page.locator('input[type=password]').fill('<REDACTED_CREDENTIAL>');
+  await page.locator('input').first().fill(process.env.SELF_HOSTED_TEST_USERNAME);
+  await page.locator('input[type=password]').fill(process.env.SELF_HOSTED_TEST_PASSWORD);
   await page.getByRole('button', { name: /^登\s*录$/ }).click();
   await page.waitForURL('**/video/create');
   for (const route of ['/video/create', '/products', '/works', '/task-queue', '/settings/models']) {

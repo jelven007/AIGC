@@ -48,8 +48,7 @@ def write_private(path, content):
 
 def public_config(values):
     return {"deployment": "self-hosted", "backendUrl": values["PUBLIC_ORIGIN"],
-            "backendAnonKey": values["ANON_KEY"],
-            "adminLogin": {"username": "admin", "email": "admin@shopro.local"}}
+            "backendAnonKey": values["ANON_KEY"], "usernameLogin": True}
 
 
 def configure(directory, origin, *, project="shopro-selfhost", bind="127.0.0.1", subnet="172.31.247.0/24"):
@@ -218,6 +217,8 @@ def main():
     parser.add_argument("--tls-cert")
     parser.add_argument("--tls-key")
     parser.add_argument("--initial-admin", action="store_true", help="明确验证初始管理员登录")
+    parser.add_argument("--initial-admin-file", help="源码外普通0600私有初始化文件")
+    parser.add_argument("--sync-initial-email", action="store_true", help="显式同步原初始化账号邮箱，不重置密码或权益")
     parser.add_argument("--release", help="离线交付目录；install无需Node或npm联网")
     args = parser.parse_args()
     directory = Path(args.state_dir).resolve()
@@ -228,6 +229,22 @@ def main():
     else:
         env = directory / "runtime.env"
     values = read_env(env)
+    if args.initial_admin_file:
+        from initial_admin import read_initial_admin
+        original = Path(args.initial_admin_file).absolute()
+        if original.resolve().is_relative_to(ROOT):
+            raise SelfHostError("初始化凭据必须保存在源码目录之外")
+        identity = read_initial_admin(original)
+        target = directory / "initial-admin.json"
+        temporary = target.with_suffix(".new")
+        write_private(temporary, json.dumps(identity))
+        os.replace(temporary, target)
+        login_target = directory / "login-identity.json"
+        temporary = login_target.with_suffix(".new")
+        write_private(temporary, json.dumps({name: identity[name] for name in ("username", "email")}))
+        os.replace(temporary, login_target)
+    if args.action in ("init", "up", "install", "upgrade") and not (directory / "initial-admin.json").is_file():
+        raise SelfHostError("请先提供源码外的私有初始化文件")
     if args.action == "upgrade":
         from self_hosted_release import verify_source, verify
         if not args.release or Path(args.release).resolve() != ROOT:
@@ -259,7 +276,9 @@ def main():
         values = upgrade_environment(env, ROOT, images)
         publish_runtime(values)
         compose(env, ["up", "-d", "--wait", "db", "auth", "rest", "storage"], timeout=300)
-        result = json.loads(compose(env, ["--profile", "setup", "run", "--rm", "bootstrap"], timeout=300))
+        result = json.loads(compose(env, ["--profile", "setup", "run", "--rm",
+            *(["-e", "SELF_HOSTED_SYNC_INITIAL_EMAIL=true"] if args.sync_initial_email else []),
+            "bootstrap"], timeout=300))
         receipt(directory, "bootstrap.json", result)
         receipt(directory, "upgrade.json", {"version": release.get("release", release).get("version"),
                 "source_sha256": release.get("release", release).get("source_sha256"),

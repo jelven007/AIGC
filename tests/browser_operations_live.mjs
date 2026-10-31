@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
-const origin = process.env.OPERATIONS_ORIGIN || 'https://118.196.122.161';
+const origin = process.env.OPERATIONS_ORIGIN || process.env.SELF_HOSTED_TEST_ORIGIN;
 const evidence = { origin, candidate: !!process.env.OPERATIONS_CANDIDATE_DIR, domains: [], errors: [],
   failures: [], unexpected_writes: [], browser_plugin_available: false, browser: 'Playwright Chromium' };
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_PATH,
@@ -36,7 +36,7 @@ try {
     });
   });
   await page.goto(origin + '/login');
-  await page.locator('input').first().fill(process.env.OPERATIONS_LOGIN || 'admin');
+  await page.locator('input').first().fill(process.env.OPERATIONS_LOGIN);
   await page.locator('input[type=password]').fill(process.env.OPERATIONS_PASSWORD);
   await page.getByRole('button', { name: /^登\s*录$/ }).click();
   await page.waitForFunction(() => Object.keys(localStorage).some(key => {

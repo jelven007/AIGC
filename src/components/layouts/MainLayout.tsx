@@ -259,21 +259,21 @@ function AIToolboxNavItem({ onNavClick }: { onNavClick?: () => void }) {
         aria-controls={panelId}
         onClick={() => setOpen(v => !v)}
         className={cn(
-          'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors duration-150 group',
+          'w-full flex items-center gap-2.5 px-2.5 py-1.5 min-h-9 max-md:min-h-10 rounded-lg text-sm font-medium transition-colors duration-150 group',
           isActive
             ? 'bg-sidebar-primary/10 text-sidebar-primary'
             : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
         )}
       >
-        <LayoutGrid className="w-5 h-5 shrink-0 text-[hsl(var(--area-creation))]" />
+        <LayoutGrid className="w-4 h-4 shrink-0 text-[hsl(var(--area-creation))]" />
         <span className="flex-1 text-left">AI工具箱</span>
         <ChevronDown className={cn('w-3.5 h-3.5 shrink-0 text-sidebar-foreground/40 transition-transform duration-200', open && 'rotate-180')} />
       </button>
 
       {/* 二级子菜单 */}
       {open && (
-        <div id={panelId} className="ml-3 mt-0.5 border-l border-sidebar-border/50 pl-5 space-y-0.5 pb-1">
-          <Link to="/ai-toolbox" onClick={onNavClick} className="block px-2 py-2 text-xs text-[hsl(var(--area-creation))] rounded-md hover:bg-sidebar-accent">
+        <div id={panelId} className="ml-2.5 mt-0.5 border-l border-sidebar-border/50 pl-4 space-y-0.5 pb-0.5">
+          <Link to="/ai-toolbox" onClick={onNavClick} className="block px-2 py-1.5 min-h-8 max-md:min-h-10 text-xs text-[hsl(var(--area-creation))] rounded-md hover:bg-sidebar-accent">
             查看全部工具
           </Link>
           {AI_TOOLBOX_ITEMS.map((item) => (
@@ -283,7 +283,7 @@ function AIToolboxNavItem({ onNavClick }: { onNavClick?: () => void }) {
               onClick={onNavClick}
               data-area={pageArea(item.path)}
               aria-current={location.pathname === item.path ? 'page' : undefined}
-              className="app-nav-link w-full flex items-center gap-2 px-2 py-2 rounded-md text-xs text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent transition-colors duration-150 group text-left"
+              className="app-nav-link w-full flex items-center gap-2 px-2 py-1.5 min-h-8 max-md:min-h-10 rounded-md text-xs text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent transition-colors duration-150 group text-left"
             >
               <span className="truncate">{item.label}</span>
               <span
@@ -305,12 +305,12 @@ function NavItem({ path, label, icon: Icon, active, onClick }: {
   return (
     <Link to={path} onClick={onClick} data-area={pageArea(path)} aria-current={active ? 'page' : undefined}
       className={cn(
-        'app-nav-link flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors duration-150 group',
+        'app-nav-link flex items-center gap-2.5 px-2.5 py-1.5 min-h-9 max-md:min-h-10 rounded-lg transition-colors duration-150 group',
         active
           ? 'bg-sidebar-primary/10 text-sidebar-primary ring-1 ring-inset ring-sidebar-primary/20'
           : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
       )}>
-        <Icon className={cn('w-5 h-5 shrink-0', active && 'text-sidebar-primary')} />
+        <Icon className={cn('w-4 h-4 shrink-0', active && 'text-sidebar-primary')} />
         <span className="text-sm font-medium truncate">{label}</span>
         {active && <ChevronRight className="w-3.5 h-3.5 ml-auto opacity-70" />}
     </Link>
@@ -342,7 +342,7 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
     <div className="flex flex-col h-full bg-sidebar sidebar-gradient">
       {/* Logo — 点击跳转官网 */}
       <Link to="/landing" onClick={onNavClick} className="block">
-        <div className="flex items-center gap-3 px-4 py-5 border-b border-sidebar-border transition-colors hover:bg-sidebar-accent/50">
+        <div className="flex items-center gap-2.5 px-3 py-3 border-b border-sidebar-border transition-colors hover:bg-sidebar-accent/50">
           <img src="/shopro.png" className="w-9 h-9 object-contain shrink-0" alt="视频生成平台" />
           <div className="min-w-0">
             <p className="text-sm font-bold text-sidebar-foreground truncate">视频生成平台</p>
@@ -352,10 +352,10 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
       </Link>
 
       {/* 导航：预留底部安全区空间，确保「生态扩展」分组末尾条目不被机型底栏遮挡 */}
-      <nav aria-label="主要导航" className="flex-1 px-3 py-3 space-y-4 overflow-y-auto min-h-0" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+      <nav aria-label="主要导航" className="flex-1 px-2 py-2 space-y-2.5 overflow-y-auto min-h-0" style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}>
         {navGroups.map((group) => (
           <div key={group.label}>
-            <p className="text-xs font-medium text-sidebar-foreground/80 tracking-wide px-3 mb-2">
+            <p className="text-xs font-medium text-sidebar-foreground/80 tracking-wide px-2.5 mb-1">
               {group.label}
             </p>
             <div className="space-y-0.5">

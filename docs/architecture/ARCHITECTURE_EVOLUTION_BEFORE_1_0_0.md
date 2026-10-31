@@ -4,7 +4,7 @@
 
 产品核心是视频生成，围绕创意输入、分镜、生成任务、媒体制作、导出与作品发布组织业务模块。商品资料与效果观测作为创作辅助模块。
 
-更新：2026-10-31。当前应用已在火山ECS `https://118.196.122.161` 全部自托管运行，默认账号`admin/<REDACTED_CREDENTIAL>`。架构契约为00068/probe24/render4/edit2，66生产迁移、20模型槽、59个MCP工具/19权限、43个生产Edge入口。当前11类服务/26常驻容器，16个FFmpeg执行器；100个独立普通账号五分钟29044次业务请求、0错误、P95 17.52ms，100份10秒720p本地成片74.768秒排空，见[容量验收](../testing/SELF_HOSTED_CAPACITY_100_20261031.md)。原完整函数加载、真实权限/商品/MCP/FFmpeg成片、全组件重启、38公网页面和Realtime隔离见[自托管实施](SELF_HOSTED_ECS_IMPLEMENTATION.md)及[初次验收](../testing/SELF_HOSTED_ACCEPTANCE_20261031.md)，安装与恢复见[运行手册](../deployment/SELF_HOSTED_ECS_RUNBOOK.md)。目录/模块边界见[综合技术方案](PROJECT_ANALYSIS_AND_TECHNICAL_PLAN_20261030.md)和[ADR-001](decisions/ADR-001-modular-business-boundaries.md)。原官方云端记录独立保留；实际模型效果、收款和平台发布需经营凭据联调。
+更新：2026-10-31。当前应用已在火山ECS `https://ecs.example.com` 全部自托管运行，默认账号`[管理员账号]/[已脱敏]`。架构契约为00068/probe24/render4/edit2，66生产迁移、20模型槽、59个MCP工具/19权限、43个生产Edge入口。当前11类服务/26常驻容器，16个FFmpeg执行器；100个独立普通账号五分钟29044次业务请求、0错误、P95 17.52ms，100份10秒720p本地成片74.768秒排空，见[容量验收](../testing/SELF_HOSTED_CAPACITY_100_20261031.md)。原完整函数加载、真实权限/商品/MCP/FFmpeg成片、全组件重启、38公网页面和Realtime隔离见[自托管实施](SELF_HOSTED_ECS_IMPLEMENTATION.md)及[初次验收](../testing/SELF_HOSTED_ACCEPTANCE_20261031.md)，安装与恢复见[运行手册](../deployment/SELF_HOSTED_ECS_RUNBOOK.md)。目录/模块边界见[综合技术方案](PROJECT_ANALYSIS_AND_TECHNICAL_PLAN_20261030.md)和[ADR-001](decisions/ADR-001-modular-business-boundaries.md)。原官方云端记录独立保留；实际模型效果、收款和平台发布需经营凭据联调。
 
 ## 当前单机部署
 
@@ -33,7 +33,7 @@ flowchart TB
   F --> V["经营方已配置模型 / 支付 / 发布平台"]
 ```
 
-账号、数据库、对象文件和实时消息均在ECS本地；自托管Supabase组件保留SDK与原业务协议。第一方访问使用统一HTTPS地址、专用CA及固定内部IP；供应商访问保持公网目的地校验。默认管理员 `admin/<REDACTED_CREDENTIAL>` 只在首次初始化创建，重复初始化保留改密、禁用和撤权。前端使用系统字体，不再阻塞于外部Google Fonts。
+账号、数据库、对象文件和实时消息均在ECS本地；自托管Supabase组件保留SDK与原业务协议。第一方访问使用统一HTTPS地址、专用CA及固定内部IP；供应商访问保持公网目的地校验。默认管理员 `[管理员账号]/[已脱敏]` 只在首次初始化创建，重复初始化保留改密、禁用和撤权。前端使用系统字体，不再阻塞于外部Google Fonts。
 
 100人容量配置已部署到同一ECS，11类服务共26个常驻容器。PostgreSQL为8CPU/32GiB、240连接；Auth最大/空闲池均20、REST池48、Storage池32；Edge为8CPU/16GiB。16个FFmpeg副本各1.5CPU/4GiB，独立持久目录与锁，输入解码1线程、输出编码2线程、BLAS/OMP线程1；队列仍以数据库租约和fencing防止重复执行、扣费。常驻CPU预算合计51/64。Nginx使用2Worker/nofile8192、HTTP/1.1有界上游keepalive和16KiB REST响应头缓冲；普通Edge凭据每秒5请求/突发20，超量429，后台派发保持独立配额。配置和回滚见[运行手册](../deployment/SELF_HOSTED_ECS_RUNBOOK.md#100人容量配置)。
 

@@ -14,16 +14,17 @@ from psycopg.rows import dict_row
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from deploy_volcengine import migration_files, migration_sql
+from initial_admin import read_initial_admin
 
 
 class BootstrapError(RuntimeError):
     pass
 
 
-def auth_api(path, key, body=None):
+def auth_api(path, key, body=None, method=None):
     request = urllib.request.Request("http://auth:9999" + path,
         data=json.dumps(body).encode() if body is not None else None,
-        headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"})
+        headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"}, method=method)
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     try:
         with opener.open(request, timeout=30) as response:
@@ -75,8 +76,10 @@ def bootstrap_admin(db, key):
             if record and record["completed_at"]:
                 # 不改密码、禁用状态、角色、套餐或余额；管理操作始终优先于初始化。
                 return str(record["user_id"]), False
+            identity = read_initial_admin()
             if not record:
-                collision = db.execute("SELECT id FROM auth.users WHERE lower(email)='admin@shopro.local'").fetchone()
+                collision = db.execute("SELECT id FROM auth.users WHERE lower(email)=lower(%s)",
+                                       (identity["email"],)).fetchone()
                 if collision:
                     raise BootstrapError("保留管理员邮箱已存在，拒绝接管")
                 record = db.execute("""INSERT INTO shopro_selfhost.bootstrap(name,user_id,nonce)
@@ -85,12 +88,12 @@ def bootstrap_admin(db, key):
         user = auth_api("/admin/users/" + user_id, key)
         if user is None:
             user = auth_api("/admin/users", key, {
-                "id": user_id, "email": "admin@shopro.local", "password": "<REDACTED_CREDENTIAL>",
+                "id": user_id, "email": identity["email"], "password": identity["password"],
                 "email_confirm": True,
                 "app_metadata": {"role": "admin", "self_hosted_bootstrap": nonce},
-                "user_metadata": {"username": "admin"},
+                "user_metadata": {"username": identity["username"]},
             })
-        if (user.get("id") != user_id or user.get("email") != "admin@shopro.local"
+        if (user.get("id") != user_id or user.get("email") != identity["email"]
                 or user.get("app_metadata", {}).get("self_hosted_bootstrap") != nonce):
             raise BootstrapError("Auth返回身份与初始化回执不符")
         with db.transaction():
@@ -99,7 +102,8 @@ def bootstrap_admin(db, key):
             account = db.execute("SELECT raw_app_meta_data FROM auth.users WHERE id=%s FOR UPDATE", (user_id,)).fetchone()
             if account["raw_app_meta_data"].get("self_hosted_bootstrap") != nonce:
                 raise BootstrapError("管理员元数据已变化")
-            db.execute("UPDATE public.profiles SET username='admin',role='admin' WHERE id=%s", (user_id,))
+            db.execute("UPDATE public.profiles SET username=%s,role='admin' WHERE id=%s",
+                       (identity["username"], user_id))
             # 自托管运维账号有真实、可审计的企业权益；仍经过所有业务权限/余额检查。
             plan = db.execute("""INSERT INTO public.plans(name,level,price,credits,features,limits)
                 VALUES('自托管管理员',3,0,1000000,
@@ -118,6 +122,35 @@ def bootstrap_admin(db, key):
     finally:
         db.execute("SELECT pg_advisory_unlock(hashtext('shopro:selfhost:bootstrap'))")
 
+def sync_initial_email(db, key):
+    """Explicit owner-requested email change; never recreate or reset the account."""
+    identity = read_initial_admin()
+    db.execute("SELECT pg_advisory_lock(hashtext('shopro:selfhost:bootstrap'))")
+    try:
+        record = db.execute("SELECT * FROM shopro_selfhost.bootstrap WHERE name='initial-admin'").fetchone()
+        if not record or not record["completed_at"]:
+            raise BootstrapError("管理员初始化尚未完成")
+        user_id = str(record["user_id"])
+        collision = db.execute("SELECT id FROM auth.users WHERE lower(email)=lower(%s) AND id<>%s",
+                               (identity["email"], user_id)).fetchone()
+        if collision:
+            raise BootstrapError("目标邮箱已被使用，拒绝合并或接管账号")
+        original = auth_api("/admin/users/" + user_id, key)
+        email_changed = original["email"].lower() != identity["email"].lower()
+        if email_changed:
+            changed = auth_api("/admin/users/" + user_id, key, {
+                "email": identity["email"], "email_confirm": True,
+            }, method="PUT")
+            if changed.get("id") != user_id or changed.get("email", "").lower() != identity["email"].lower():
+                raise BootstrapError("管理员邮箱更新结果不匹配")
+        with db.transaction():
+            db.execute("SET LOCAL request.jwt.claim.role='service_role'")
+            db.execute("""SET LOCAL request.jwt.claims='{"role":"service_role"}'""")
+            db.execute("UPDATE public.profiles SET email=%s WHERE id=%s", (identity["email"], user_id))
+        return email_changed
+    finally:
+        db.execute("SELECT pg_advisory_unlock(hashtext('shopro:selfhost:bootstrap'))")
+
 
 def main():
     with psycopg.connect(host="db", dbname="postgres", user="supabase_admin",
@@ -129,7 +162,10 @@ def main():
         finally:
             db.execute("SELECT pg_advisory_unlock(hashtext('shopro:selfhost:migrations'))")
         user_id, created = bootstrap_admin(db, os.environ["SERVICE_ROLE_KEY"])
-        print(json.dumps({"migrations": count, "applied": applied, "admin_id": user_id,
+        email_updated = (sync_initial_email(db, os.environ["SERVICE_ROLE_KEY"])
+                         if os.environ.get("SELF_HOSTED_SYNC_INITIAL_EMAIL") == "true" else False)
+        print(json.dumps({"migrations": count, "applied": applied, "admin_recorded": bool(user_id),
+                          "admin_email_updated": email_updated,
                           "admin_created": created, "bootstrap_ready": True}))
 
 

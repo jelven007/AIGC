@@ -60,6 +60,14 @@ def verify_source(directory):
 def prepare(state, output):
     if output.exists():
         raise SelfHostError("交付目录已存在")
+    from check_sensitive_content import readable_files, violations
+    from initial_admin import read_initial_admin
+    identity_file = state / "initial-admin.json"
+    identity = read_initial_admin(identity_file) if identity_file.exists() else None
+    values = [identity["password"], identity["email"]] if identity else []
+    for path in readable_files(ROOT):
+        if violations(path.read_text(errors="replace"), values):
+            raise SelfHostError("源码敏感内容检查未通过：" + str(path.relative_to(ROOT)))
     output.mkdir(mode=0o700)
     # 明确白名单；不导出实例配置、密钥、数据库或测试素材。
     for name in ("scripts", "deploy", "supabase", "worker", "mcp", "src", "public", "tests", "docs", ".rules", ".github"):
@@ -116,7 +124,7 @@ def create(state, output):
     command(["docker", "save", "-o", str(payload / "images.tar"), *[item["image"] for item in images]], timeout=600)
     files = {str(path.relative_to(output)): digest(path) for path in sorted(output.rglob("*")) if path.is_file()}
     value = {"format": 1, "platform": platforms.pop(), "images": images, "files": files,
-             "default_admin": {"username": "admin", "password": "<REDACTED_CREDENTIAL>"},
+             "initial_admin": "operator-provided-private-file",
              "migrations": 66, "edge_functions": 43, "mcp_tools": 59}
     from deploy_volcengine import release_manifest
     value["release"] = release_manifest()

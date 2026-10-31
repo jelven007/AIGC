@@ -31,7 +31,7 @@ SDK所有资金响应启用 `validateSign:true`，15秒超时；浏览器25秒�
 
 | 身份 | 权限 | 范围 |
 | --- | --- | --- |
-| `auth.users.raw_app_meta_data.role=admin` | 系统运营管理、财务、授权/撤销 | 全部客户，由可信服务端配置 |
+| `auth.users.raw_app_meta_data.role=[管理员账号]` | 系统运营管理、财务、授权/撤销 | 全部客户，由可信服务端配置 |
 | finance | 订单/退款/积分读取，现金退款 | 指定客户账号或全部 |
 | operations | 客户/任务读取，日预算配置 | 指定客户账号或全部 |
 | risk | 风险事件读取 | 指定客户账号或全部 |

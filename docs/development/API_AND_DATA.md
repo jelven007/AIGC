@@ -84,7 +84,7 @@ JSON 请求使用 `Content-Type: application/json`，允许的预检由各函数
 ```json
 {
   "action": "create",
-  "request_key": "11111111-1111-4111-8111-111111111111",
+  "request_key": "[记录标识已脱敏]",
   "provider": "ArkSeedance",
   "input": {
     "prompt": "商品置于桌面，缓慢推进镜头展示材质",
@@ -146,7 +146,7 @@ stateDiagram-v2
 
 | Action | 身份/输入 | 输出 |
 | --- | --- | --- |
-| `catalog` | 登录用户 | `{configs,admin}`；槽、名称、类别、启用、视频 provider |
+| `catalog` | 登录用户 | `{configs,[管理员账号]}`；槽、名称、类别、启用、视频 provider |
 | `list` | 管理员 | 设置、`version_id/has_key/updated_at`；无明文/密文 |
 | `save` | 管理员；`slot/settings/enabled/version_id/api_key` | `{version_id}`；首次版本传 null，后续传当前 ID；并发冲突 409 |
 | `import` | 管理员；历史服务端 Secrets | `{imported,skipped}`；只补尚未保存的有效槽 |

@@ -5,7 +5,7 @@
 | 项目 | 已核对事实 |
 | --- | --- |
 | 应用仓库 | `shoproai`为独立Git仓库，GitHub`jelven007/AIGC`、`master`；生产标签固定`fffb8e336fa9e5cfc3cdf1fbc8bc071c3e5bf049`，后续主线文档提交只追加验收回执 |
-| 当前运行 | ECS`https://118.196.122.161`、`shopro-ecs`、26健康容器/16媒体执行器；本地自托管11健康服务；两环境同一v1.0.0前端/Edge、架构分别为AMD64/ARM |
+| 当前运行 | ECS`https://ecs.example.com`、`shopro-ecs`、26健康容器/16媒体执行器；本地自托管11健康服务；两环境同一v1.0.0前端/Edge、架构分别为AMD64/ARM |
 | 开发入口 | 5173经仅本机54329网关连接ECS，严格校验上游TLS；真实邮箱登录与20项响应式页面检查通过 |
 | 源码覆盖 | 48路由页面/13领域、68迁移文件/66生产迁移、43生产Edge入口、20模型槽、MCP59工具/19权限 |
 | 运行契约 | required_migration=00068、probe24、render4、edit2，共用runtime-contract.json |

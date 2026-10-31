@@ -5,7 +5,7 @@ import path from 'node:path';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_PATH,
   args: ['--no-proxy-server'] });
-const origin = process.env.SETTINGS_ORIGIN || 'https://118.196.122.161';
+const origin = process.env.SETTINGS_ORIGIN || process.env.SELF_HOSTED_TEST_ORIGIN;
 const baseline = process.env.SETTINGS_BASELINE === '1';
 const results = [], errors = [], failed = [], apiReceipts = [];
 try {
@@ -37,7 +37,7 @@ try {
     }
   });
   await page.goto(origin + '/login');
-  await page.locator('input').first().fill(process.env.SETTINGS_LOGIN || 'admin');
+  await page.locator('input').first().fill(process.env.SETTINGS_LOGIN);
   await page.locator('input[type=password]').fill(process.env.SETTINGS_PASSWORD);
   await page.getByRole('button', { name: /^登\s*录$/ }).click();
   await page.waitForURL('**/video/create');

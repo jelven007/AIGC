@@ -10,6 +10,7 @@ upstream shopro_functions { server functions:9000; keepalive 64; }
 # 普通凭据的突发允许20次；后台执行器另有独立数据库配额。
 map $request_method $shopro_api_rate_key { OPTIONS ""; default $http_authorization; }
 limit_req_zone $shopro_api_rate_key zone=shopro_functions_per_credential:10m rate=5r/s;
+limit_req_zone $binary_remote_addr zone=shopro_username_login:1m rate=2r/s;
 server {
   listen ${HTTPS_PORT} ssl;
   server_name ${PUBLIC_HOST};
@@ -64,6 +65,13 @@ server {
     proxy_set_header Connection "";
     proxy_set_header Host $http_host;
     proxy_set_header X-Forwarded-Proto https;
+  }
+  location = /functions/v1/username-login {
+    limit_req zone=shopro_username_login burst=5 nodelay;
+    client_max_body_size 4k;
+    proxy_pass http://shopro_functions/username-login;
+    proxy_set_header Host $http_host;
+    add_header Cache-Control "no-store" always;
   }
   location = /functions/v1/production-worker {
     proxy_pass http://shopro_functions/production-worker;

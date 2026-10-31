@@ -13,7 +13,7 @@ import {
   Mail, Lock, ArrowLeft, CheckCircle2, KeyRound, Phone,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { adminLoginAlias } from '@/lib/backendConfig';
+import { usernameLoginEnabled, backendAnonKey, edgeFunctionUrl } from '@/lib/backendConfig';
 import { loginEmail, validLoginIdentity } from '@/lib/loginIdentity';
 
 // 三种模式：login / register / forgot / phone
@@ -162,7 +162,7 @@ export default function LoginPage() {
   // F-04: 默认直接进入“立即注册”界面
   const requestedMode = searchParams.get('mode');
   const initialMode: Mode = requestedMode && ['login', 'register', 'forgot', 'phone'].includes(requestedMode)
-    ? requestedMode as Mode : adminLoginAlias ? 'login' : 'register';
+    ? requestedMode as Mode : usernameLoginEnabled ? 'login' : 'register';
   const [mode, setMode] = useState<Mode>(initialMode);
   const [phoneRegister, setPhoneRegister] = useState(initialMode === 'register' || !!inviteCodeParam);
 
@@ -198,8 +198,8 @@ export default function LoginPage() {
       if (!form.email.trim()) errs.email = '请输入邮箱地址';
       else if (!/\S+@\S+\.\S+/.test(form.email)) errs.email = '邮箱格式不正确';
     } else {
-      if (!form.username.trim()) errs.username = adminLoginAlias && mode === 'login' ? '请输入用户名或邮箱' : '请输入邮箱账号';
-      else if (!validLoginIdentity(form.username, mode, adminLoginAlias)) errs.username = '请输入完整邮箱地址';
+      if (!form.username.trim()) errs.username = usernameLoginEnabled && mode === 'login' ? '请输入用户名或邮箱' : '请输入邮箱账号';
+      else if (!validLoginIdentity(form.username, mode, usernameLoginEnabled)) errs.username = '请输入有效账号';
       if (!form.password) errs.password = '请输入密码';
       else if (form.password.length < 6) errs.password = '密码至少 6 位';
       if (mode === 'register') {
@@ -232,9 +232,25 @@ export default function LoginPage() {
         setForgotSent(true);
         toast.success('重置链接已发送，请检查您的邮箱');
       } else {
-        const email = loginEmail(form.username, mode, adminLoginAlias);
+        const email = loginEmail(form.username);
         if (mode === 'login') {
-          const { data, error } = await supabase.auth.signInWithPassword({ email, password: form.password });
+          let result;
+          if (usernameLoginEnabled && !email.includes('@')) {
+            const response = await fetch(edgeFunctionUrl('username-login'), {
+              method: 'POST', headers: { 'Content-Type': 'application/json', apikey: backendAnonKey,
+                Authorization: `Bearer ${backendAnonKey}` },
+              body: JSON.stringify({ username: email, password: form.password }),
+            });
+            const session = await response.json();
+            if (!response.ok) throw new Error(session.error || '登录失败');
+            if (!current()) return;
+            result = await supabase.auth.setSession({
+              access_token: session.access_token, refresh_token: session.refresh_token,
+            });
+          } else {
+            result = await supabase.auth.signInWithPassword({ email, password: form.password });
+          }
+          const { data, error } = result;
           if (!current()) return;
           if (error) throw error;
           if (!data.session || !data.user) throw new Error('登录会话未建立，请重试');
@@ -374,13 +390,13 @@ export default function LoginPage() {
               {mode !== 'forgot' && (
                 <div className="space-y-1 sm:space-y-1.5">
                   <Label htmlFor="username" className="text-sm font-semibold text-foreground">
-                    {adminLoginAlias && mode === 'login' ? '用户名或邮箱' : '邮箱账号'}
+                    {usernameLoginEnabled && mode === 'login' ? '用户名或邮箱' : '邮箱账号'}
                   </Label>
                   <div className="relative">
                     <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-primary/70 pointer-events-none" />
                     <Input
                       id="username"
-                      placeholder={adminLoginAlias && mode === 'login' ? '请输入用户名或邮箱' : '请输入邮箱账号，如 name@example.com'}
+                      placeholder={usernameLoginEnabled && mode === 'login' ? '请输入用户名或邮箱' : '请输入邮箱账号，如 name@example.com'}
                       autoComplete="username"
                       value={form.username}
                       onChange={e => set('username', e.target.value)}

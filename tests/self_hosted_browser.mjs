@@ -27,8 +27,8 @@ page.on('response', response => {
 });
 try {
   await page.goto(`${values.PUBLIC_ORIGIN}/login`, { waitUntil: 'domcontentloaded' });
-  await page.locator('input').first().fill('admin');
-  await page.locator('input[type=password]').fill('<REDACTED_CREDENTIAL>');
+  await page.locator('input').first().fill(process.env.SELF_HOSTED_TEST_USERNAME);
+  await page.locator('input[type=password]').fill(process.env.SELF_HOSTED_TEST_PASSWORD);
   await page.getByRole('button', { name: /^登\s*录$/ }).click();
   await page.waitForURL('**/video/create');
   checks.push({ admin_username_password_login: true, url: page.url() });

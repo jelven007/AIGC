@@ -1,17 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { loadFrontend } from './frontend-loader.mjs';
-const { loginEmail, validLoginIdentity } = await loadFrontend('src/lib/loginIdentity.ts', 'selfhost-login');
-const alias = { username: 'admin', email: 'admin@shopro.local' };
+const { loginEmail, validLoginIdentity } = await loadFrontend('src/lib/loginIdentity.ts', 'selfhost-private-login');
 
-test('自托管管理员用户名映射到真实Auth邮箱', () => {
-  assert.equal(loginEmail(' admin ', 'login', alias), 'admin@shopro.local');
-  assert.equal(loginEmail('ADMIN', 'login', alias), 'admin@shopro.local');
-  assert.equal(validLoginIdentity('admin', 'login', alias), true);
+test('自托管用户名在服务端解析，前端不需要账号邮箱映射', () => {
+  assert.equal(loginEmail(' operator-fixture ', 'login', true), 'operator-fixture');
+  assert.equal(validLoginIdentity('operator-fixture', 'login', true), true);
+  assert.equal(validLoginIdentity('operator fixture', 'login', true), false);
 });
-test('注册和常规托管登录不能使用管理员别名', () => {
-  assert.equal(validLoginIdentity('admin', 'register', alias), false);
-  assert.equal(validLoginIdentity('admin', 'login'), false);
-  assert.equal(validLoginIdentity('user@example.com', 'register', alias), true);
-  assert.equal(loginEmail('user@example.com', 'login', alias), 'user@example.com');
+test('注册和常规托管登录仍要求完整邮箱', () => {
+  assert.equal(validLoginIdentity('operator-fixture', 'register', true), false);
+  assert.equal(validLoginIdentity('operator-fixture', 'login'), false);
+  assert.equal(validLoginIdentity('user@example.com', 'register', true), true);
 });

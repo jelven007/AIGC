@@ -4,7 +4,7 @@
 
 支持真实商品资料/私有素材/知识检索、七视频协议、图片扩图与矩形重绘、后台语音/声纹/口播/口型、FFmpeg剪辑/音频效果、多镜头配音字幕合成、多规格导出、抖音/TikTok逐账号发布、正式情报和签名观测实验。支撑链包括本人权威积分、注册/验证奖励、短信独立回执、账号隔离、团队共享与预算、可信运营/工单/风险、两渠道退款/人工供应商现金、持久告警与加密隔离恢复。
 
-完整应用已部署到火山ECS：[https://118.196.122.161](https://118.196.122.161)，默认账号`admin/<REDACTED_CREDENTIAL>`。源码契约00068/probe24/render4/edit2、20模型槽、MCP59工具/19权限、66生产迁移和43入口均已自托管运行；公网页面、权限、商品、实时消息、真实FFmpeg成片及重启/加密恢复通过。当前IP使用30天自签证书，浏览器首次访问会提示；模型/支付/SMS/平台需要实际经营凭据。详见[ECS运行手册](docs/deployment/SELF_HOSTED_ECS_RUNBOOK.md)和[实际验收](docs/testing/SELF_HOSTED_ACCEPTANCE_20261031.md)。原官方Supabase环境独立保留。
+完整应用已部署到火山ECS：[https://ecs.example.com](https://ecs.example.com)，默认账号`[管理员账号]/[已脱敏]`。源码契约00068/probe24/render4/edit2、20模型槽、MCP59工具/19权限、66生产迁移和43入口均已自托管运行；公网页面、权限、商品、实时消息、真实FFmpeg成片及重启/加密恢复通过。当前IP使用30天自签证书，浏览器首次访问会提示；模型/支付/SMS/平台需要实际经营凭据。详见[ECS运行手册](docs/deployment/SELF_HOSTED_ECS_RUNBOOK.md)和[实际验收](docs/testing/SELF_HOSTED_ACCEPTANCE_20261031.md)。原官方Supabase环境独立保留。
 
 - [文档中心](docs/README.md)
 - [需求与接受条件](docs/prd/PRD.md)、[技术架构](docs/architecture/TECHNICAL_ARCHITECTURE.md)、[接口](docs/development/API_AND_DATA.md)

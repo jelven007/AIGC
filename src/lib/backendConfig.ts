@@ -1,16 +1,13 @@
 /** 仅公开连接信息进入浏览器；平台密钥由 Edge Functions 管理。 */
-import type { AdminLoginAlias } from './loginIdentity';
 declare global {
   interface Window {
-    __SHOPRO_RUNTIME__?: { deployment?: string; backendUrl?: string; backendAnonKey?: string; adminLogin?: AdminLoginAlias };
+    __SHOPRO_RUNTIME__?: { deployment?: string; backendUrl?: string; backendAnonKey?: string; usernameLogin?: boolean };
   }
 }
 const runtime = typeof window === 'undefined' ? undefined : window.__SHOPRO_RUNTIME__;
 export const backendUrl = String(runtime?.backendUrl || import.meta.env.VITE_SUPABASE_URL || '').replace(/\/+$/, '');
 export const backendAnonKey = String(runtime?.backendAnonKey || import.meta.env.VITE_SUPABASE_ANON_KEY || '');
-export const adminLoginAlias: AdminLoginAlias | undefined = runtime?.deployment === 'self-hosted'
-  && runtime.adminLogin?.username === 'admin' && runtime.adminLogin.email === 'admin@shopro.local'
-  ? runtime.adminLogin : undefined;
+export const usernameLoginEnabled = runtime?.deployment === 'self-hosted' && runtime.usernameLogin === true;
 
 if (!backendUrl || !backendAnonKey) {
   throw new Error('请配置后端公开地址和 anon key');

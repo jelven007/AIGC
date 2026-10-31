@@ -8,6 +8,11 @@ import uuid
 from self_hosted_acceptance import api, login, require, BASE
 
 
+import sys as _initial_sys
+_initial_sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+from initial_admin import read_initial_admin
+INITIAL_IDENTITY = read_initial_admin()
+
 def edge(name, token, body, expected=(200, 201, 202)):
     return api("/functions/v1/" + name, token=token, body=body, expected=expected)
 
@@ -27,7 +32,7 @@ def mcp(token, method, params=None, expected=(200,)):
 def main():
     require(os.environ.get("SELF_HOSTED_ISOLATED_ACCEPTANCE") == "true",
             "业务写入测试只能显式用于新建隔离接受实例")
-    session = login("admin@shopro.local", "<REDACTED_CREDENTIAL>")
+    session = login(INITIAL_IDENTITY["email"], INITIAL_IDENTITY["password"])
     token, uid = session["access_token"], session["user"]["id"]
     checks = {}
     catalog = edge("model-settings", token, {"action": "list"})

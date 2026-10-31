@@ -17,7 +17,7 @@
 | 静态运行 | 只读/非root/禁网Nginx：配置通过、本次identity一致、/video/create直接路由返回index、隐藏文件拒绝；未暴露宿主端口 |
 | 生产Compose | web/scheduler/maintenance/renderer/mcp五组件config通过，全部只读；未启动生产执行 |
 | 原云端预检 | deploy_supabase.py preflight返回Management401，现存SUPABASE_ACCESS_TOKEN失效；没有执行迁移/函数写入 |
-| 常驻主机 | 继承2026-10-29ECS记录：118.196.122.161，Dev密钥root/ubuntu被拒绝；本轮没有新的有效主机身份 |
+| 常驻主机 | 继承2026-10-29ECS记录：[已脱敏]，Dev密钥root/ubuntu被拒绝；本轮没有新的有效主机身份 |
 
 首次新增PG测试观察到entrypoint临时数据库启动阶段，local socket短暂就绪后关闭。测试改为127.0.0.1 TCP检查正式postgres进程后通过；生产迁移SQL未为此失败修改。独立快照测试还确认macOS的/var临时路径解析为/private/var，规范化根路径后最终9项通过；实际云端写入消费逐文件校验的归档，不从长时间可变工作区读取。
 

@@ -33,7 +33,7 @@ GitHub v1.0.0附件是AMD64源码/前端/Edge和镜像ID清单，未包含镜像
 
 安装 Docker Engine 与 Compose v2、Python 3。建议至少 4 核、16GB 内存和 100GB 数据盘；渲染器单容器内存上限 4GB，其余服务也有明确上限。公网仅开放 SSH 和 HTTPS；数据库、认证、文件服务及执行器端口不对公网发布。
 
-`https://118.196.122.161` 已部署完整应用，默认账号`admin/<REDACTED_CREDENTIAL>`。ECS为Ubuntu24.04/x86_64，Docker29.1.3/Compose2.40.3已启用自启动；项目`shopro-ecs`、源码`/opt/shopro/releases/v1.0.0`、状态`/opt/shopro/state`。当前容量配置为11类常驻服务、26个容器，其中16个独立渲染器；66迁移、43入口及原业务协议保持。初次自托管的真实业务/权限/成片/重启、38公网页面及Realtime隔离见[实际验收](../testing/SELF_HOSTED_ACCEPTANCE_20261031.md)。
+`https://ecs.example.com` 已部署完整应用，默认账号`[管理员账号]/[已脱敏]`。ECS为Ubuntu24.04/x86_64，Docker29.1.3/Compose2.40.3已启用自启动；项目`shopro-ecs`、源码`/opt/shopro/releases/v1.0.0`、状态`/opt/shopro/state`。当前容量配置为11类常驻服务、26个容器，其中16个独立渲染器；66迁移、43入口及原业务协议保持。初次自托管的真实业务/权限/成片/重启、38公网页面及Realtime隔离见[实际验收](../testing/SELF_HOSTED_ACCEPTANCE_20261031.md)。
 
 当前使用独立CA签发的IP SAN自签证书，30天有效，首次浏览器访问有证书提示。公网/宿主/Docker严格TLS校验通过；正式长期使用请配置指向ECS的域名和有效证书完整链/私钥。
 
@@ -75,7 +75,7 @@ ECS原生构建可使用`python3 scripts/build_self_hosted_ecs.py --component ba
 
 人物分割模型、原Apache2.0许可证及NOTICE随`worker/model-assets`交付。构建时优先读取本地资源，严格校验模型长度/原SHA256和许可证SHA256；镜像运行及离线重建均无需下载人物模型或许可证。
 
-本台火山ECS的EIP不支持本机回环，已实测宿主和Docker直接连接自身EIP超时。已配置`shopro-eip-loopback.service`，仅将本机OUTPUT及Docker桥PREROUTING发往`118.196.122.161:443`的连接DNAT到本机`192.168.0.57:443`的HTTPS监听。公网入口、原URL、IP SAN和TLS校验保持有效；公网、宿主及Docker三处已使用真实证书链验证成功。服务随开机启动，配置位于`/usr/local/sbin/shopro-eip-loopback`和`/etc/systemd/system/shopro-eip-loopback.service`。更换EIP、私网地址或HTTPS端口时同步维护精确规则；域名通过Docker固定地址访问时不需要这组规则。
+本台火山ECS的EIP不支持本机回环，已实测宿主和Docker直接连接自身EIP超时。已配置`shopro-eip-loopback.service`，仅将本机OUTPUT及Docker桥PREROUTING发往`[已脱敏]:443`的连接DNAT到本机`${ECS_PRIVATE_IP}:443`的HTTPS监听。公网入口、原URL、IP SAN和TLS校验保持有效；公网、宿主及Docker三处已使用真实证书链验证成功。服务随开机启动，配置位于`/usr/local/sbin/shopro-eip-loopback`和`/etc/systemd/system/shopro-eip-loopback.service`。更换EIP、私网地址或HTTPS端口时同步维护精确规则；域名通过Docker固定地址访问时不需要这组规则。
 
 白名单交付的源码根目录为0755，供非root的bootstrap和接受容器读取；实例状态目录仍为0700，密钥文件为0600。不要将私有状态目录作为源码交付目录。
 
@@ -130,7 +130,19 @@ python3 scripts/self_hosted.py up --state-dir /opt/shopro/state
 
 ## 初始账号
 
-用户名 `admin`，初始密码 `<REDACTED_CREDENTIAL>`。自托管登录表单将此用户名映射到真实认证邮箱 `admin@shopro.local`。管理员具备服务端可信角色和等级3企业权益，初始余额为注册赠分20加自托管管理权益1,000,000。
+初始化账号由源码外普通0600私有文件提供，字段为`username`、`password`、`email`。实际值仅在受控配置中保存，不写入文档、源码、环境示例、日志、前端运行配置或交付清单。自托管用户名由服务端解析，真实Auth继续负责密码、禁用状态和会话；前端只接收`usernameLogin`能力标志。管理员具备可信角色和等级3权益，初始化只赠分一次。
+
+```sh
+python3 scripts/self_hosted.py init \
+  --state-dir /srv/shopro/state \
+  --initial-admin-file /srv/shopro/private/initial-admin.json
+python3 scripts/self_hosted.py upgrade \
+  --release "$PWD" --state-dir /srv/shopro/state \
+  --initial-admin-file /srv/shopro/private/initial-admin.json \
+  --sync-initial-email
+```
+
+私有文件须先由维护者创建，不接受符号链接或源码内路径。`--sync-initial-email`仅在明确需要更新原初始化账号邮箱时使用，保留UUID、密码、角色、禁用状态、套餐和账务；目标邮箱冲突时拒绝接管。普通重复初始化不执行该更新。邮箱更新不配置SMTP或宣称邮件已送达。
 
 首次登录后可在个人页修改密码。Bootstrap只创建一次，不重置密码、不解除禁用、不恢复被撤销角色/套餐、不重复赠分。后续技术检查使用短期测试账号，不要求管理员一直保留初始密码。
 
@@ -191,7 +203,7 @@ python3 scripts/self_hosted.py check --state-dir /srv/shopro/restored-state
 
 证书续期后更新状态目录证书，执行setup的 `resource-init` 复制到专用卷，再重启HTTPS入口和使用CA的运行组件。当前命令不会擅自替换已经存在的证书，证书轮换应由管理员明确维护。
 
-2026-10-31实际ECS冷快照已保存在`/opt/shopro/backups/20261031-ecs`；恢复项目`shopro-ecs-restored`、状态`/opt/shopro/restored-ecs-20261031`、网段`172.31.245.0/24`。5份加密文件认证/摘要验证、新卷导入及11服务接受通过，原账号UUID/余额/成片任务/57650字节私有成片保留，1份历史模型凭据可解密。`snapshot-drill.json`及`restore-checks.json`为回执，辅助项目已停止，原公网实例恢复且`admin/<REDACTED_CREDENTIAL>`复验成功。
+2026-10-31实际ECS冷快照已保存在`/opt/shopro/backups/20261031-ecs`；恢复项目`shopro-ecs-restored`、状态`/opt/shopro/restored-ecs-20261031`、网段`172.31.245.0/24`。5份加密文件认证/摘要验证、新卷导入及11服务接受通过，原账号UUID/余额/成片任务/57650字节私有成片保留，1份历史模型凭据可解密。`snapshot-drill.json`及`restore-checks.json`为回执，辅助项目已停止，原公网实例恢复且`[管理员账号]/[已脱敏]`复验成功。
 
 IP规范地址无法在同一主机同时分流给两个独立实例；本次在原入口短暂停机后将恢复实例绑定原443端口验收，再切回原实例。保留原域名的异机恢复通过DNS切换；不要修改恢复origin绕过作品引用校验。
 
@@ -209,4 +221,4 @@ python3 scripts/self_hosted_capacity_recovery.py \
 
 使用新快照目录、状态目录、项目和空闲网段；示例网段也要由工具实际预检。本轮已有离线实例占用`172.31.244.0/24`，容量演练改用`172.31.243.0/24`，项目`shopro-ecs-capacity-restored`、状态`/opt/shopro/restored-capacity-20261031`。`--resume`只用于已认证并导入的辅助实例，核对项目、规范地址和网段后继续启动验收，不覆盖原数据。最终回执为原状态目录`receipts/capacity-recovery.json`，失败尝试单独保留在容量私有目录。
 
-容量版实际验收通过：4个新数据卷、恢复实例26容器healthy，原管理员UUID/余额/成片结果、57650字节私有视频、1份历史加密配置可解密。演练结束辅助实例停止，原实例26容器恢复且`admin/<REDACTED_CREDENTIAL>`复验成功；原成片SHA256在演练前后相同。100临时账号、200任务与测试文件已清理，详细数据见[100人容量验收](../testing/SELF_HOSTED_CAPACITY_100_20261031.md)。
+容量版实际验收通过：4个新数据卷、恢复实例26容器healthy，原管理员UUID/余额/成片结果、57650字节私有视频、1份历史加密配置可解密。演练结束辅助实例停止，原实例26容器恢复且`[管理员账号]/[已脱敏]`复验成功；原成片SHA256在演练前后相同。100临时账号、200任务与测试文件已清理，详细数据见[100人容量验收](../testing/SELF_HOSTED_CAPACITY_100_20261031.md)。

@@ -46,20 +46,22 @@ class ConfigurationTest(unittest.TestCase):
                 with self.assertRaises(self_hosted.SelfHostError):
                     self_hosted.configure(Path(directory), value, project="shopro-test")
 
-    def test_public_runtime_contains_anon_and_admin_alias_without_secrets(self):
+    def test_public_runtime_contains_only_login_capability_without_account_details(self):
         with tempfile.TemporaryDirectory() as directory:
             path = self_hosted.configure(Path(directory), "https://shopro.test:8443", project="shopro-test")
             private = self_hosted.read_env(path)
             public = self_hosted.public_config(private)
-            self.assertEqual(public["adminLogin"], {"username": "admin", "email": "admin@shopro.local"})
+            self.assertTrue(public["usernameLogin"])
+            self.assertNotIn("adminLogin", public)
             self.assertEqual(public["backendAnonKey"], private["ANON_KEY"])
             output = json.dumps(public)
             for name in ("SERVICE_ROLE_KEY", "JWT_SECRET", "POSTGRES_PASSWORD", "VIDEO_WORKER_SECRET"):
                 self.assertNotIn(private[name], output)
-            self.assertNotIn("<REDACTED_CREDENTIAL>", output)
+            self.assertNotIn("password", output)
+            self.assertNotIn("email", output)
 
     def test_ip_origin_uses_its_literal_address_and_domain_uses_docker_dns(self):
-        for origin, expected in (("https://118.196.122.161", "118.196.122.161"),
+        for origin, expected in (("https://192.0.2.10", "192.0.2.10"),
                                  ("https://shopro.test:8443", "172.31.247.10")):
             with tempfile.TemporaryDirectory() as directory:
                 path = self_hosted.configure(Path(directory), origin, project="shopro-test")

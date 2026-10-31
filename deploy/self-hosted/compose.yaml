@@ -193,6 +193,7 @@ services:
       - ${SOURCE_DIR}/deploy/volcengine/manifest.json:/home/deno/manifest.json:ro
       - ${STATE_DIR}/tls/ca.crt:/run/tls/ca.crt:ro
       - deno-cache:/root/.cache/deno
+      - ${STATE_DIR}/login-identity.json:/run/bootstrap/login-identity.json:ro
     # 43个冻结业务入口在x86 V8中全量加载超过1GiB；保留有界4GiB总预算。
     mem_limit: ${FUNCTIONS_MEMORY:-4g}
     cpus: ${FUNCTIONS_CPUS:-2}
@@ -248,7 +249,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
       PUBLIC_ORIGIN: ${PUBLIC_ORIGIN}
-    volumes: ["${SOURCE_DIR}:/workspace:ro"]
+    volumes:
+      - ${SOURCE_DIR}:/workspace:ro
+      - ${STATE_DIR}/initial-admin.json:/run/bootstrap/initial-admin.json:ro
     read_only: true
     tmpfs: ["/tmp:size=32m"]
     mem_limit: 256m
@@ -395,6 +398,7 @@ services:
       - ${SOURCE_DIR}:/workspace:ro
       - ${STATE_DIR}/tls/ca.crt:/run/tls/ca.crt:ro
       - ${STATE_DIR}/fixtures:/fixtures:ro
+      - ${STATE_DIR}/initial-admin.json:/run/bootstrap/initial-admin.json:ro
     read_only: true
     tmpfs: ["/tmp:size=32m"]
     mem_limit: 256m

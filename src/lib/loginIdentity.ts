@@ -1,9 +1,9 @@
-/** 用户名只是自托管管理员的公开别名，权限仍由真实Auth和数据库决定。 */
-export interface AdminLoginAlias { username: string; email: string }
-export function loginEmail(input: string, mode: string, alias?: AdminLoginAlias): string {
-  const value = input.trim();
-  return mode === 'login' && alias && value.toLowerCase() === alias.username ? alias.email : value;
+/** Account mapping stays on the server; the browser only knows the login capability. */
+export function loginEmail(input: string, _mode?: string, _usernameLogin?: boolean): string {
+  return input.trim();
 }
-export function validLoginIdentity(input: string, mode: string, alias?: AdminLoginAlias): boolean {
-  return /^\S+@\S+\.\S+$/.test(loginEmail(input, mode, alias));
+export function validLoginIdentity(input: string, mode: string, usernameLogin = false): boolean {
+  const value = input.trim();
+  return /^\S+@\S+\.\S+$/.test(value)
+    || (mode === 'login' && usernameLogin && /^[A-Za-z0-9_.-]{3,64}$/.test(value));
 }
