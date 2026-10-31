@@ -1,0 +1,83 @@
+{
+  "format": 1,
+  "date": "2026-11-01",
+  "version": "1.1.0",
+  "git_sha": "7f6b99676cf838c1e36a4d41bbaac355bbe3edc8",
+  "source_sha256": "8d327ae40e7469de979de7e3b53b2003fa1dfaab17fa82b62209b73b214f0e45",
+  "environments": {
+    "development": {
+      "accepted": true,
+      "page_header_checks": 78,
+      "widths": [
+        1440,
+        390
+      ],
+      "navigation_keyboard_and_tool_filtering": true,
+      "product_dialog_settings_refresh_and_script_draft": true,
+      "page_errors": 0,
+      "failed_responses": 0
+    },
+    "local": {
+      "accepted": true,
+      "page_header_checks": 78,
+      "widths": [
+        1440,
+        390
+      ],
+      "navigation_keyboard_and_tool_filtering": true,
+      "product_dialog_settings_refresh_and_script_draft": true,
+      "page_errors": 0,
+      "failed_responses": 0,
+      "healthy_services": 11,
+      "original_data_preserved": true,
+      "payload_files": 241,
+      "encrypted_snapshot_authenticated_objects": 5,
+      "native_images_verified": 11
+    },
+    "ecs": {
+      "accepted": true,
+      "page_header_checks": 78,
+      "widths": [
+        1440,
+        390
+      ],
+      "navigation_keyboard_and_tool_filtering": true,
+      "product_dialog_settings_refresh_and_script_draft": true,
+      "page_errors": 0,
+      "failed_responses": 0,
+      "healthy_services": 26,
+      "original_data_preserved": true,
+      "payload_files": 241,
+      "encrypted_snapshot_authenticated_objects": 5,
+      "native_images_verified": 11
+    }
+  },
+  "total_page_header_checks": 234,
+  "architecture_parity": {
+    "passed": true,
+    "files_per_architecture": 1151,
+    "architecture_differences": [
+      "runtime-images.json"
+    ],
+    "shared_frontend_edge_files": 242,
+    "source_sha256": "8d327ae40e7469de979de7e3b53b2003fa1dfaab17fa82b62209b73b214f0e45"
+  },
+  "archives": {
+    "linux/arm64": {
+      "file": "v1.1.0-8d327ae40e74-linux-arm64.tar.gz",
+      "bytes": 108298832,
+      "sha256": "b190849e2aaf355469bf2057fb7035d131553c912df46be3149ac0539b1cccf8",
+      "platform": "linux/arm64",
+      "image_binaries_included": false
+    },
+    "linux/amd64": {
+      "file": "v1.1.0-8d327ae40e74-linux-amd64.tar.gz",
+      "bytes": 108301891,
+      "sha256": "fee69b0c610addd0274cb685f26f8fe9aa7a0c3e3661089103d3eaf9982978c7",
+      "platform": "linux/amd64",
+      "image_binaries_included": false
+    }
+  },
+  "image_binaries_included": false,
+  "scope": "source/frontend/Edge and native image manifests; existing single-host topology; no new SLA or live provider acceptance"
+}

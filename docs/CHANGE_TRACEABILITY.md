@@ -65,9 +65,9 @@
 
 ## 3. 当前发布缺口
 
-官方已记录00031/三旧函数历史成功；2026-10-30Auth200而Management401，当前源码须在恢复管理访问后核对原账、备份与缺失至00068、43入口/冻结共享模块。官方候选及生产/维护/媒体/MCP运行配置已准备，尚未云端部署。ECS身份、正式告警/异地调度、真实供应商/商户/平台及容量见[待办](PENDING_CHANGES.md)。
+独立官方目标历史00031/三旧函数、2026-10-30Auth200/Management401未随本轮升级；恢复管理访问后仍须核对原账、备份与缺失至00068、43入口/冻结共享模块。当前自托管本地及ECS已接受v1.1.0和原身份/数据，保持原容量；正式告警/异地调度、经营供应商/商户/平台见[待办](PENDING_CHANGES.md)。
 
-历史Git交付见[2026-10-22报告](archive/reviews/TEST_REPORT_20261022.md)和[版本管理](releases/VERSION_MANAGEMENT.md)，本轮改动未commit/push；当前范围与新鲜证据见[实施台账](archive/reviews/OPTIMIZATION_IMPLEMENTATION_20261027.md)及[当前状态](CURRENT_STATE.md)。
+历史Git交付见[2026-10-22报告](archive/reviews/TEST_REPORT_20261022.md)及旧实施台账。本轮源码已整合并推送主线，构建标签固定7f6b996；当轮范围、真实环境接受和发布身份见[正式回执](releases/V1_1_0_EXECUTION_20261101.md)、[版本管理](releases/VERSION_MANAGEMENT.md)及[当前状态](CURRENT_STATE.md)。
 
 ## 4. 后续变更记录要求
 

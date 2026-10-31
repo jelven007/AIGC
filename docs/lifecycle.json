@@ -3,6 +3,48 @@
   "verified_on": "2026-11-01",
   "documents": [
     {
+      "path": "docs/operations/RUNBOOK.md",
+      "owner": "运维维护者",
+      "verified_on": "2026-11-01",
+      "review_trigger": "每次部署、故障或30天",
+      "sources": [
+        "scripts/self_hosted.py",
+        "scripts/runtime-contract.json",
+        "infra/self-hosted/compose.yaml"
+      ],
+      "quadrant": "how-to",
+      "cadence": "每次发布或30天",
+      "staleness_signal": "运行身份、容量或处置流程变化未同步"
+    },
+    {
+      "path": "docs/releases/PRODUCTION_BASELINE.md",
+      "owner": "发布维护者",
+      "verified_on": "2026-11-01",
+      "review_trigger": "每次发布或运行环境晋级",
+      "sources": [
+        "docs/releases/release-acceptance-v1.1.0.json",
+        "scripts/runtime-contract.json",
+        "package.json"
+      ],
+      "quadrant": "reference",
+      "cadence": "每次发布",
+      "staleness_signal": "构建标签、载荷或环境身份变化未同步"
+    },
+    {
+      "path": "docs/releases/V1_1_0_EXECUTION_20261101.md",
+      "owner": "发布维护者",
+      "verified_on": "2026-11-01",
+      "review_trigger": "本次发布回执勘误；后续晋级另建回执",
+      "sources": [
+        "docs/releases/release-acceptance-v1.1.0.json",
+        "scripts/self_hosted.py",
+        "scripts/self_hosted_release.py"
+      ],
+      "quadrant": "reference",
+      "cadence": "本次发布固定记录",
+      "staleness_signal": "本次证据被纠正而回执未同步"
+    },
+    {
       "path": "docs/development/UI_STANDARDS.md",
       "owner": "前端维护者",
       "verified_on": "2026-11-01",

@@ -15,10 +15,10 @@
 
 迁移前已保存 895 个源码与文档文件的摘要快照并逐项验证可恢复。采用副本迁移，前端类型检查、构建和契约通过后，把 331 个已核对旧目录文件移入源码外私有恢复区；本步骤删除文件数为零。原目录、快照和迁移前后摘要在工作区的私有发布工作区保留，发布结束后按恢复材料策略封存。
 
-Vite 的根目录为 apps/web，构建输出仍为仓库根 dist，构建命令的 outDir 相对执行目录解析。Vite 产物清单键仍相对应用根，例如 apps/web/src/pages/marketing/LandingPage.tsx；它们与 Git 中的完整路径 apps/web/src/pages/marketing/LandingPage.tsx 不同。构建指纹覆盖新源码目录、静态文件、依赖锁、基础设施和自动化脚本。
+Vite 的根目录为 apps/web，构建输出仍为仓库根 dist，构建命令的 outDir 相对执行目录解析。Vite 产物清单键相对应用根，例如 src/pages/marketing/LandingPage.tsx；Git 中的完整路径为 apps/web/src/pages/marketing/LandingPage.tsx。已从冻结产物逐项核对这两种路径。构建指纹覆盖新源码目录、静态文件、依赖锁、基础设施和自动化脚本。
 
 浏览器门禁使用 vite.config.ui-tests.mjs。它只开放两个命名测试夹具，并执行 Vite HTML 预处理；实际开发和生产配置使用 vite.config.mjs / vite.config.dev.ts。夹具不进入正式前端产物。
 
 源码阶段验收：58 组 Node 契约通过；320 项宿主 Python/数据库回归通过；52 项媒体回归中 51 项首次通过，唯一公开样本下载失败项经固定 SHA-256 样本核验后复验通过；MCP 业务测试与工具目录核验通过；11 组浏览器流程通过，覆盖 320、390、1024、1440px、商品管理、模型/集成、页头控件、草稿浮层和编辑器。43 个 Edge 入口完成离线打包，远程模块数为零。公开源码敏感内容检查通过。
 
-目录门禁由 tests/test_production_layout.py 执行，并纳入 pnpm test:release。文档链接、生命周期与依赖方向由 pnpm check:structure 执行。本文验收属于源码阶段；本地和线上升级必须分别生成当前版本的载荷与业务数据验收证据。
+目录门禁由 tests/test_production_layout.py 执行，并纳入 pnpm test:release。文档链接、生命周期与依赖方向由 pnpm check:structure 执行。本地和线上已分别完成升级、原业务数据与载荷接受，三环境实际页面验收共234次；固定身份和当前环境结果见[发布回执](../releases/V1_1_0_EXECUTION_20261101.md)。

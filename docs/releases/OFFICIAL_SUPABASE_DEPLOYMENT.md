@@ -1,17 +1,19 @@
 # 官方Supabase全栈发布
 
-更新：2026-10-30。目标是原项目`bbqqhkukgbgpebqpesub`，不使用火山CLI操作官方旧库。开发环境已经固定并验证登录；当前Management401，ECS历史Dev密钥无法登录，全栈尚未上线。执行流程已由用户授权，本页不增加批准步骤。
+类型：how-to。读者：官方目标发布维护者。责任：发布维护者。核验：2026-11-01。来源：scripts/deploy_supabase.py、scripts/production_runtime.py与原目标历史回执。每次目标发布复核；源码、目标身份或操作入口变化未同步即过期。
 
-## 本次候选包
+目标为独立的原项目`bbqqhkukgbgpebqpesub`，不用火山CLI操作官方旧库。该目标2026-10-30历史Management401，曾记录00031/三旧函数及缺model_configs；本轮未重新核验或升级该目标。当前本地开发、自托管本地及ECS已接受v1.1.0，不能把旧官方状态或旧Dev密钥失败当作当前ECS状态。自托管结果见[正式回执](V1_1_0_EXECUTION_20261101.md)。本页提供现有源码的官方操作入口，不增加批准步骤。
+
+## 官方目标候选包
 
 ```sh
 python3 scripts/bootstrap_supabase_cli.py  # 本机macOS arm64；固定官方2.122.0及包SHA-512
 python3 scripts/deploy_supabase.py prepare
 ```
 
-prepare使用固定Node镜像、当前开发命名依赖卷，在禁网容器冻结离线安装/类型检查并构建到新目录。输出`.supabase-build/<实际运行源码SHA256>/`，包含`frontend/`、`frontend.zip`、`source.tar.gz`、`manifest.json`。普通旧dist和Git HEAD不代表这批未提交改动。指纹包含首页、图片/字体、脚本、Compose、运行锁及全部生产SQL；包不包含真实环境文件、数据库密码/管理令牌、service_role或Worker密钥。相同源码目录拒绝覆盖，复制到目标后应继续使用同一个前端归档。
+prepare使用固定Node镜像、当前开发命名依赖卷，在禁网容器冻结离线安装/类型检查并构建到新目录。输出`.supabase-build/<实际运行源码SHA256>/`，包含`frontend/`、`frontend.zip`、`source.tar.gz`、`manifest.json`。普通旧dist或仅有Git HEAD不能替代已验证的候选清单。指纹包含apps/web首页、图片/字体、脚本、infra Compose、运行锁及全部生产SQL；包不包含真实环境文件、数据库密码/管理令牌、service_role或Worker密钥。相同源码目录拒绝覆盖，复制到目标后应继续使用同一个前端归档。
 
-manifest记录Node镜像digest、禁网冻结安装、前端归档和源码归档SHA、43入口/66生产迁移、完整probe24/render4/edit2、四镜像实际运行文件SHA和image ID。当前四镜像均arm64且仅在本机Docker存在；需取得主机架构后选择导出加载同一镜像，或在匹配架构构建并重新核对/生成对应候选。local标签及源码包不证明服务器镜像已加载。
+manifest记录Node镜像digest、禁网冻结安装、前端归档和源码归档SHA、43入口/66生产迁移、完整probe24/render4/edit2、四镜像实际运行文件SHA和image ID。原2026-10-30官方候选四镜像是本机arm64，已不代表当前源码。自托管v1.1.0已有双架构镜像接受，但官方候选仍须按真实目标架构重新prepare并核验其专用清单。local标签、自托管接受或源码包不证明官方目标镜像已加载。
 
 ## 恢复目标管理与核对原账
 
@@ -59,7 +61,7 @@ python3 scripts/production_runtime.py stop
 
 check/start验证源码归档、实际前端与归档逐文件相同、运行脚本/Compose指纹、镜像ID、24小时内的原目标接受回执，再发无任务副作用的production-worker完整probe。原目标、源码、迁移或协议不匹配时不启动调度；启动禁止临时构建或拉取漂移镜像。`--old-dispatch-disabled`只记录维护者已核实的事实，不会替代真实Cron查询。停止不删除卷、媒体或原任务。
 
-实际部署还需有效SSH用户名/已绑定密钥及HTTPS入口。现有ECS记录没有成功登录，不能据本机容器配置声称服务器已经部署。正式模型/商户/平台、身份回跳及邮件/SMS、外部告警、异地恢复和容量按实际启用范围验收。
+官方全栈执行主机仍需独立核对SSH身份、已绑定密钥、HTTPS入口、旧Cron与派发状态。当前ECS已用于已接受的自托管系统；这不表示它已切为官方项目的执行主机。正式模型/商户/平台、身份回跳及邮件/SMS、外部告警、异地恢复和容量按真实官方启用范围验收。
 
 ## 验证与回滚
 

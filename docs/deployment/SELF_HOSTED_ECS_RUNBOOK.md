@@ -10,10 +10,10 @@
 
 ## 升级
 
-在封存并验证的交付根执行。参数仅示例，快照目录必须新建；密钥为源码外0600普通文件：
+先使用当前已接受发布目录中的快照脚本；完成备份后，在封存并验证的新交付根执行升级。目录迁移时，旧版本和新版本的 Compose 相对路径不同，不能用新检出的脚本为旧 SOURCE_DIR 做快照和重启。参数仅示例，快照目录必须新建；密钥为源码外0600普通文件：
 
 ```sh
-python3 scripts/self_hosted_snapshot.py backup   --state-dir /opt/shopro/state --key-file /opt/shopro/private/snapshot.key   --output /opt/shopro/backups/before-v1.1.0
+python3 /opt/shopro/releases/current/scripts/self_hosted_snapshot.py backup   --state-dir /opt/shopro/state --key-file /opt/shopro/private/snapshot.key   --output /opt/shopro/backups/before-v1.1.0
 python3 scripts/self_hosted.py upgrade   --release "$PWD" --state-dir /opt/shopro/state
 python3 scripts/self_hosted.py check --state-dir /opt/shopro/state
 python3 scripts/self_hosted.py status --state-dir /opt/shopro/state
