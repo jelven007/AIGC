@@ -35,7 +35,7 @@ def main():
     if not output.is_dir():
         raise RuntimeError("回执父目录必须已存在")
     if args.group == "host" and not args.module:
-        for image in ("postgres:16", "shoproai-backup:local"):
+        for image in ("postgres:16", "aigc-backup:local"):
             subprocess.run(["docker", "image", "inspect", image], stdout=subprocess.DEVNULL,
                            stderr=subprocess.DEVNULL, check=True, timeout=15)
         modules = sorted(path.stem for path in (ROOT / "tests").glob("test_*.py")

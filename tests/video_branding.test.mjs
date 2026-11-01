@@ -46,9 +46,17 @@ test('source and project descriptions use the video platform positioning', () =>
     }
   };
   for (const directory of ['apps/web/src', 'supabase/functions', 'apps/web/public', 'docs', 'services/mcp', 'tools/documents']) walk(directory);
-  const violations = files.filter(path => readFileSync(path, 'utf8').includes(forbidden));
+  const violations = files.filter(path => {
+    const raw = readFileSync(path, 'utf8');
+    // 归档原文件名仅用于来源追溯；展示标题和提示词仍接受完整命名检查。
+    const visible = path === 'apps/web/src/lib/inspirationAssets.json'
+      ? JSON.stringify(JSON.parse(raw).map(({ source, ...item }) => item))
+      : path === 'docs/releases/SOURCE_CLEANUP_INVENTORY_20261101.md'
+        ? raw.replace(/`index\/[^`\n]+\.png`/g, 'archived-file-path') : raw;
+    return visible.includes(forbidden);
+  });
   assert.deepEqual(violations, []);
-  assert.ok(readFileSync('apps/web/index.html', 'utf8').includes('<title>视频生成平台</title>'));
+  assert.ok(readFileSync('apps/web/index.html', 'utf8').includes('<title>内容创作平台</title>'));
   const descriptionFiles = files.filter(path => /\.md$/.test(path));
   const displayedDescriptions = descriptionFiles.map(path => [path, readFileSync(path, 'utf8')
     .replace(/```[\s\S]*?```/g, '').replace(/`[^`]*`/g, '')

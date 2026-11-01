@@ -1,3 +1,4 @@
+import { projectStorageKey } from '@/lib/projectStorage';
 import { supabase } from '@/db/supabase';
 export type CheckoutChannel = 'alipay' | 'wechat';
 export interface CheckoutRequest { plan_id: string; request_key: string; expected_amount: string; expected_credits: number }
@@ -23,7 +24,7 @@ export async function createCheckout(channel: CheckoutChannel, request: Checkout
   }
   return data.data;
 }
-export function checkoutStorageKey(uid: string) { return `shopro:checkout:${uid}`; }
+export function checkoutStorageKey(uid: string) { return projectStorageKey('checkout', uid); }
 export interface PendingCheckout { channel: CheckoutChannel; request: CheckoutRequest; name: string; credits: number }
 export function readPendingCheckout(uid: string): PendingCheckout | null {
   try {

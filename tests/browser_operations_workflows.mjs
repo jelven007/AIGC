@@ -109,7 +109,7 @@ try {
   await page.getByRole('button', { name: '确认并提交', exact: true }).click();
   await page.getByText('租户版本已变化，请刷新后重试', { exact: true }).waitFor();
   await page.getByRole('dialog').waitFor({ state: 'detached' });
-  assert.equal(await page.evaluate(uid => localStorage.getItem(`shopro-operator-request-${uid}`), uid), null);
+  assert.equal(await page.evaluate(uid => localStorage.getItem(`aigc:operator-request:${uid}`), uid), null);
   conflict = false;
   console.log('PASS 租户暂停/整团队预算原UUID恢复，真实成员入口，版本拒绝清理申请并允许刷新重填');
 

@@ -39,7 +39,7 @@ globalThis.__createClient = () => admin;
 globalThis.__createAlipaySdk = () => ({ checkNotifySignV2: () => true });
 globalThis.__getAlipayConfig = () => ({ appId: 'app', sellerId: '', sellerEmail: '' });
 globalThis.Deno = { env: { get: () => 'test' }, serve: callback => { handler = callback; } };
-const directory = '/tmp/shoproai-payment-notify-test';
+const directory = '/tmp/aigc-payment-notify-test';
 mkdirSync(directory, { recursive: true });
 const files = [
   ['payments.mjs', readFileSync('supabase/functions/_shared/payments.ts', 'utf8')],

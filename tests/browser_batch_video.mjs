@@ -79,7 +79,7 @@ try {
   await page.getByRole('button', { name: '恢复上次提交', exact: true }).waitFor();
   assert.equal(creates.length, 1);
   const original = creates[0];
-  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem(`shoproai:batch-request:11111111-1111-4111-8111-111111111111`))),
+  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem(`aigc:batch-request:11111111-1111-4111-8111-111111111111`))),
     { key: original.request_key, input: Object.fromEntries(Object.entries(original).filter(([key]) => !['action', 'request_key'].includes(key))) });
   await page.evaluate(() => sessionStorage.clear());
   await page.reload();
@@ -88,7 +88,7 @@ try {
   await page.getByRole('button', { name: '恢复上次提交', exact: true }).click();
   await page.getByRole('heading', { name: '商品生产批次', exact: true }).waitFor();
   assert.equal(creates.length, 2); assert.deepEqual(creates[1], original);
-  assert.equal(await page.evaluate(() => localStorage.getItem(`shoproai:batch-request:11111111-1111-4111-8111-111111111111`)), null);
+  assert.equal(await page.evaluate(() => localStorage.getItem(`aigc:batch-request:11111111-1111-4111-8111-111111111111`)), null);
   console.log('PASS 创建故障保留原请求，刷新后恢复相同幂等请求与预算，服务确认后清理回执');
   await page.getByRole('button', { name: '暂停后续提交', exact: true }).click();
   await page.getByRole('button', { name: '恢复', exact: true }).waitFor();

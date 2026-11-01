@@ -1,6 +1,6 @@
 services:
   video-scheduler: &scheduler
-    image: ${SCHEDULER_IMAGE:-shoproai-video-scheduler:local}
+    image: ${SCHEDULER_IMAGE:-aigc-video-scheduler:local}
     build:
       context: ../..
       dockerfile: infra/video-scheduler/Dockerfile

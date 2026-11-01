@@ -1,3 +1,4 @@
+import { projectStorageKey } from '@/lib/projectStorage';
 import { storedMedia } from '@/api/media';
 import { requireAccountSession, uploadAccountObject } from '@/api/accountSession';
 import { createProductionJob, queryProductionJob, productionRequest, ProductionJobError, type ProductionJob } from '@/api/productionJobs';
@@ -23,7 +24,7 @@ export function base64ToBlob(data: string, contentType = 'audio/wav'): Blob {
   const bytes = atob(data.replace(/^data:[^,]+,/, ''));
   return new Blob([Uint8Array.from(bytes, character => character.charCodeAt(0))], { type: contentType });
 }
-const receiptKey = (userId: string) => `shopro:media-receipt:${userId}`;
+const receiptKey = (userId: string) => projectStorageKey('media-receipt', userId);
 async function audioJob(kind: string, input: Record<string, unknown>, userId: string): Promise<ProductionJob> {
   await requireAccountSession(userId);
   const key = receiptKey(userId);

@@ -585,12 +585,12 @@ function TextSubtitlePanel({
             {FONT_STYLES.filter(f => f.name.includes(fontSearch) || fontSearch === '').map(f => (
               <button
                 key={f.id}
-                className={`aspect-[3/2] rounded border flex flex-col items-center justify-center gap-1 transition-all hover:-translate-y-0.5 ${selectedFont === f.id ? 'border-indigo-500 bg-indigo-600/20 ring-1 ring-indigo-500/50 shadow-md shadow-indigo-500/20' : 'bg-zinc-800 border-zinc-700 hover:border-zinc-500'}`}
+                className={`rounded border flex items-center justify-center gap-1 px-1 transition-all hover:-translate-y-0.5 ${selectedFont === f.id ? 'border-indigo-500 bg-indigo-600/20 ring-1 ring-indigo-500/50 shadow-md shadow-indigo-500/20' : 'bg-zinc-800 border-zinc-700 hover:border-zinc-500'}`}
                 style={{ fontWeight: f.weight }}
                 onClick={() => { setSelectedFont(f.id); toast.success(`已切换字幕样式：${f.name}`); }}
               >
                 <span className={cn(
-                  "text-lg",
+                  "text-sm",
                   f.id === 'fs3' ? "bg-gradient-to-r from-red-400 via-amber-300 to-blue-400 text-transparent bg-clip-text font-black" :
                   f.id === 'fs4' ? "text-cyan-300 drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]" :
                   "text-zinc-200"
@@ -1154,11 +1154,13 @@ function KeyframePanel({
                       {keyframes[prop].map((kf, i) => (
                         <button
                           key={i}
-                          className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-indigo-400 rotate-45 hover:bg-indigo-300 transition-colors"
-                          style={{ left: `calc(${kf.pos}% - 5px)` }}
+                          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2.5 h-2.5 flex items-center justify-center group"
+                          style={{ left: `${kf.pos}%` }}
                           onClick={() => removeKeyframe(prop, i)}
                           title={`时间位置: ${kf.pos}% | 值: ${kf.val} — 点击删除`}
-                        />
+                        >
+                          <span className="w-2.5 h-2.5 bg-indigo-400 rotate-45 group-hover:bg-indigo-300 transition-colors shrink-0" />
+                        </button>
                       ))}
                     </div>
                     <p className="text-[9px] text-zinc-500 text-center">点击菱形删除关键帧</p>
@@ -1375,18 +1377,20 @@ function AiToolsPanel({ onApplyAiTool, tracks, setTracks, currentTime, chromaSet
               <button
                 key={tool.id}
                 aria-label={tool.name}
+                aria-description={tool.desc}
+                title={tool.desc}
                 className="w-full flex items-center gap-3 p-3 bg-zinc-800/60 border border-zinc-700 rounded hover:border-zinc-500 hover:bg-zinc-800 transition-all group text-left"
                 onClick={() => openTool(tool)}
               >
-                <div className={`w-9 h-9 rounded-lg bg-zinc-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform ${tool.color}`}>
-                  <tool.icon className="w-5 h-5" />
+                <div className={`w-6 h-6 rounded bg-zinc-700 flex items-center justify-center shrink-0 transition-transform ${tool.color}`}>
+                  <tool.icon className="w-4 h-4" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-[12px] font-medium text-zinc-200">{tool.name}</span>
+                    <span className="text-[12px] leading-4 font-medium text-zinc-200">{tool.name}</span>
                     <span className="px-1.5 py-0.5 text-[9px] bg-zinc-700 text-zinc-400 rounded">{tool.badge}</span>
                   </div>
-                  <p className="text-[10px] text-zinc-500">{tool.desc}</p>
+                  <p className="text-[10px] leading-3 text-zinc-500 truncate">{tool.desc}</p>
                 </div>
                 <ChevronRight className="w-4 h-4 text-zinc-500 shrink-0 group-hover:text-zinc-300 transition-colors" />
               </button>
@@ -1407,8 +1411,8 @@ function AiToolsPanel({ onApplyAiTool, tracks, setTracks, currentTime, chromaSet
                 onClick={() => handleImportStoryboard(name)}>
                 <BookOpen className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[11px] text-zinc-200 font-medium">{name}</p>
-                  <p className="text-[10px] text-zinc-500">{desc}</p>
+                  <p className="text-[11px] leading-4 text-zinc-200 font-medium">{name}</p>
+                  <p className="text-[10px] leading-3 text-zinc-500">{desc}</p>
                 </div>
                 <Download className="w-3.5 h-3.5 text-zinc-500 shrink-0 mt-0.5 group-hover:text-indigo-400" />
               </button>
@@ -1538,8 +1542,8 @@ function LeftSidebar({
               else { setActivePanel(item.id); setCollapsed(false); }
             }}
           >
-            <item.icon className="w-5 h-5" />
-            <span className="text-[10px] leading-none mt-0.5 tracking-tight">{item.shortLabel}</span>
+            <item.icon className="w-4 h-4 shrink-0" />
+            <span className="text-[10px] leading-none tracking-tight">{item.shortLabel}</span>
             {/* 激活指示条 */}
             {activePanel === item.id && !collapsed && (
               <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-indigo-400 rounded-r" />
@@ -1716,7 +1720,7 @@ function VideoEditWorkspace() {
       setExportResult({ video_url: job.result.url, thumbnail_url: job.result.thumbnail_url || '',
         title: projectTitle, duration: job.result.duration || duration, resolution: job.result.resolution || '',
         size: `${((job.result.size || 0) / 1024 / 1024).toFixed(1)} MB`, project_id: job.project_id || '' });
-      window.dispatchEvent(new CustomEvent('shopro:works-updated'));
+      window.dispatchEvent(new CustomEvent('aigc:works-updated'));
     } else if (['failed', 'unknown'].includes(job.status)) {
       setExportStage('failed'); setExporting(false); setExportError(job.error_message || '渲染失败');
     }
@@ -2631,7 +2635,7 @@ function VideoEditWorkspace() {
           importId: targetId, pendingCreate: false });
         persistence.setError('');
         if (!options?.silent) toast.success(creating ? '新剪辑项目已创建并成功保存' : '剪辑项目已成功保存');
-        window.dispatchEvent(new CustomEvent('shopro:works-updated'));
+        window.dispatchEvent(new CustomEvent('aigc:works-updated'));
         if (!importId && !options?.silent) navigate(`/video/edit?importId=${targetId}`, { replace: true });
         return targetId;
       } catch (err: any) {
@@ -2962,8 +2966,8 @@ function VideoEditWorkspace() {
   </div>;
 
   return (
-    // 移动端：MainLayout 对本页隐藏顶部 header 且底部 Tab 栏已移除，直接占满动态视口高度
-    <div className="video-editor flex flex-col h-screen max-lg:h-[100dvh] w-full bg-background text-foreground overflow-hidden">
+    // 公共顶栏下保留完整画布与时间轴，动态视口变化时同步调整工作区高度。
+    <div className="video-editor flex flex-col h-[calc(100dvh-var(--app-topbar-height))] w-full bg-background text-foreground overflow-hidden">
       {persistence.error && <p role="alert" className="shrink-0 p-2 text-sm text-rose-300 break-words">{persistence.error}</p>}
       <RecordingDialog open={recordingOpen} onClose={() => setRecordingOpen(false)} onSave={async file => {
         if (!user) throw new Error('请先登录');
@@ -3919,7 +3923,7 @@ function VideoEditWorkspace() {
                             return (
                               <button
                                 key={item.color}
-                                className={`w-6 h-6 rounded-full border-2 transition-transform ${isSel ? 'border-amber-400 scale-110 shadow-md ring-2 ring-amber-400/50' : 'border-zinc-700 hover:scale-105'}`}
+                                className={`w-6 h-6 rounded-full border-2 transition-colors ${isSel ? 'border-amber-400 shadow-md ring-2 ring-amber-400/50' : 'border-zinc-700 hover:border-amber-400'}`}
                                 style={{ backgroundColor: item.color }}
                                 onClick={() => updateTrackItem(selectedTrackObj.id, { fontColor: item.color })}
                                 title={item.name}

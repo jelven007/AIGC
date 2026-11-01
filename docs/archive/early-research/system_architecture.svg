@@ -10,8 +10,8 @@
   </defs>
 
   <rect width="1280" height="940" fill="url(#bgGrad)"/>
-  <text x="640" y="42" text-anchor="middle" font-size="24" font-weight="bold" fill="#0f172a">视频生成平台系统架构图</text>
-  <text x="640" y="66" text-anchor="middle" font-size="13" fill="#64748b">视频生成平台 · 创作端 + 厂商运营中台 + MCP 开放生态 历史三端方案</text>
+  <text x="640" y="42" text-anchor="middle" font-size="24" font-weight="bold" fill="#0f172a">内容创作平台系统架构图</text>
+  <text x="640" y="66" text-anchor="middle" font-size="13" fill="#64748b">内容创作平台 · 创作端 + 厂商运营中台 + MCP 开放生态 历史三端方案</text>
 
   <!-- ===================== 接入层 ===================== -->
   <rect x="40" y="84" width="1200" height="128" rx="10" fill="#ffffff" stroke="#c7d2fe" stroke-width="1.5"/>
@@ -20,7 +20,7 @@
   <rect x="70" y="118" width="360" height="82" rx="8" fill="#eef2ff" stroke="#6366f1" stroke-width="1.5"/>
   <text x="250" y="140" text-anchor="middle" font-size="14" font-weight="bold" fill="#312e81">商家创作端（React 18 + TS + Vite）</text>
   <text x="250" y="160" text-anchor="middle" font-size="11" fill="#475569">43 个页面模块 · Radix UI · TailwindCSS · SSE 流式</text>
-  <text x="250" y="178" text-anchor="middle" font-size="11" fill="#475569">在线 Demo：https://f.playe.top</text>
+  <text x="250" y="178" text-anchor="middle" font-size="11" fill="#475569">历史演示入口已移除，当前部署见项目文档</text>
   <text x="250" y="194" text-anchor="middle" font-size="10" fill="#94a3b8">移动端适配：底部 Tab + 更多抽屉 + 安全区</text>
 
   <rect x="460" y="118" width="360" height="82" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5"/>

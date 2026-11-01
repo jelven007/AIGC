@@ -2,11 +2,13 @@
 
 类型：how-to，operational。读者：运行、值班与发布维护者。责任：运维维护者。核验：2026-11-01。来源：scripts/self_hosted.py、scripts/runtime-contract.json、infra/self-hosted/compose.yaml和当轮环境接受。每次部署、故障或30天复核；服务、协议、容量或挂载变化未同步即过期。
 
-当前自托管版本为v1.1.0-8d327ae40e74，固定构建7f6b996；完整协议00068/probe24/render4/edit2、66生产迁移、43Edge、MCP59工具/19权限。本地11健康服务，ECS26健康服务含16渲染器。原官方Supabase独立保留，不能把其旧鉴权/部署问题当作当前ECS状态。版本、原业务数据与恢复材料证据见[正式回执](../releases/V1_1_0_EXECUTION_20261101.md)。
+实际版本从受控SOURCE_DIR和HTTPS公开身份核对，以[当前状态](../CURRENT_STATE.md)和[生产基线](../releases/PRODUCTION_BASELINE.md)为准；协议00068/probe24/render4/edit2、66生产迁移、43Edge、MCP59工具/19权限保持。本地11服务，ECS26容器含16渲染器。v1.2.0接受顺序见[发布方案](../plan/RELEASE_V1_2_0.md)。原官方Supabase独立保留，各环境版本和原业务数据须单独验收。
 
 ## 日常检查与身份
 
 本地状态在工作区源码外`.local/shopro-production/state`，ECS为`/opt/shopro/state`；受控runtime.env记录真实SOURCE_DIR、Compose项目和容量。current只指向接受过的交付。私有配置、TLS材料、管理员初始化与凭据普通文件为0600，不从公开Git、截图或日志读取密钥。
+
+源内容清理不重命名现有state、Compose卷、数据库schema或Cron。新运行配置写入 `__AIGC_RUNTIME__`，前端兼容旧配置；不要用清空用户缓存或改UUID恢复请求。发布时另核对邮件发送方、MCP镜像/独立Compose名称、410演示入口及当前模型显式地址，见 [清理记录](../releases/SOURCE_CLEANUP_20261101.md)。
 
 ```sh
 python3 /opt/shopro/releases/current/scripts/self_hosted.py status --state-dir /opt/shopro/state

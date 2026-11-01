@@ -9,8 +9,8 @@ export function legacyModelConfigs(): Array<{ slot: string; settings: ModelSetti
   };
   const ark = (env('ARK_BASE_URL') || 'https://ark.cn-beijing.volces.com/api/v3').replace(/\/+$/, '');
   if (env('ARK_API_KEY')) add('text.primary', env('ARK_API_KEY'), { endpoint: `${ark}/chat/completions`, model: env('ARK_TEXT_MODEL') });
-  else if (env('GLM_API_KEY')) add('text.primary', env('GLM_API_KEY'), {
-    endpoint: `${(env('GLM_BASE_URL') || 'https://www.sophnet.com/api/open-apis').replace(/\/+$/, '')}/v1/chat/completions`,
+  else if (env('GLM_API_KEY') && env('GLM_BASE_URL')) add('text.primary', env('GLM_API_KEY'), {
+    endpoint: `${env('GLM_BASE_URL').replace(/\/+$/, '')}/v1/chat/completions`,
     model: env('GLM_MODEL') || 'glm-5.3-flash',
   });
   else add('text.primary', env('DEEPSEEK_API_KEY'), {
@@ -25,15 +25,17 @@ export function legacyModelConfigs(): Array<{ slot: string; settings: ModelSetti
     endpoint: `${ark}/contents/generations/tasks`, query_endpoint: `${ark}/contents/generations/tasks`, model: env('ARK_VIDEO_MODEL'),
   });
   const definitions = [
-    ['MiniMax', 'OPENAI_NEXT', 'https://api.openai-next.com', '/v1/videos'],
-    ['SeedanceMini', 'SEEDANCE_MINI', 'https://tokendance.space', '/gateway/ark/v3/generations/tasks'],
-    ['Wan3', 'WAN3', 'https://tokendance.space', '/gateway/alibaba/wan3/v1/video-synthesis'],
-    ['HappyHorse', 'HAPPYHORSE', 'https://tokendance.space', '/gateway/alibaba/happyhorse/v1/video-synthesis'],
-    ['Seedance', 'CDANCE', 'https://ai.dxkp.com/v1', '/video/generations'],
-    ['Kling', 'KLING', '', ''],
+    ['MiniMax', 'OPENAI_NEXT', '/v1/videos'],
+    ['SeedanceMini', 'SEEDANCE_MINI', '/gateway/ark/v3/generations/tasks'],
+    ['Wan3', 'WAN3', '/gateway/alibaba/wan3/v1/video-synthesis'],
+    ['HappyHorse', 'HAPPYHORSE', '/gateway/alibaba/happyhorse/v1/video-synthesis'],
+    ['Seedance', 'CDANCE', '/video/generations'],
+    ['Kling', 'KLING', ''],
   ];
-  for (const [provider, prefix, baseDefault, path] of definitions) {
-    const base = (env(`${prefix}_BASE_URL`) || baseDefault).replace(/\/+$/, '');
+  for (const [provider, prefix, path] of definitions) {
+    const base = env(`${prefix}_BASE_URL`).replace(/\/+$/, '');
+    // 第三方网关必须来自管理员的显式配置，不能继续选择旧演示服务。
+    if (provider !== 'Kling' && !base) continue;
     const endpoint = provider === 'Kling' ? env('KLING_CREATE_URL') : base + path;
     const query = provider === 'Wan3' ? `${base}/gateway/alibaba/wan3/v1/tasks`
       : provider === 'HappyHorse' ? `${base}/gateway/alibaba/happyhorse/v1/tasks`

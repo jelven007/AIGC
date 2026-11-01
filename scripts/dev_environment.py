@@ -14,7 +14,7 @@ from urllib.parse import urlparse
 ROOT = Path(__file__).resolve().parents[1]
 COMPOSE = ROOT / "infra/development/compose.yaml"
 IMAGE = "node:22-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da"
-DEPENDENCIES = "shoproai-development-dependencies"
+DEPENDENCIES = "aigc-development-dependencies"
 OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
@@ -114,21 +114,21 @@ def seed_dependencies():
 
 
 def replace_legacy():
-    found = docker(["inspect", "shoproai-web"], capture=True, check=False)
+    found = docker(["inspect", "aigc-web"], capture=True, check=False)
     if found.returncode:
         return
     container = json.loads(found.stdout)[0]
     labels = container["Config"].get("Labels") or {}
-    if labels.get("com.docker.compose.project") == "shoproai-development":
+    if labels.get("com.docker.compose.project") == "aigc-development":
         return
     owns = any(item.get("Source") == str(ROOT) and item.get("Destination") == "/app"
                for item in container.get("Mounts", []))
     if not owns:
         raise RuntimeError("5173容器属于其他检出，不能自动替换")
-    archive_name = "shoproai-web-legacy-" + container["Id"][:12]
+    archive_name = "aigc-web-legacy-" + container["Id"][:12]
     print("替换已确认属于本检出的旧前端容器；保留旧容器作为恢复入口", flush=True)
-    docker(["stop", "--timeout", "10", "shoproai-web"], capture=True)
-    docker(["rename", "shoproai-web", archive_name], capture=True)
+    docker(["stop", "--timeout", "10", "aigc-web"], capture=True)
+    docker(["rename", "aigc-web", archive_name], capture=True)
 
 
 def main():

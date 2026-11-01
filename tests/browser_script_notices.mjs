@@ -137,7 +137,7 @@ test('legacy wizard draft notification floats and retains its continue action', 
   } finally { await f.close(); }
 });
 test('pending saves can collapse and reopen their original recovery action outside the page', async () => {
-  const receiptKey = `shopro:script-writes:${uid}`;
+  const receiptKey = `aigc:script-writes:${uid}`;
   const receipt = { id: '22222222-2222-4222-8222-222222222222', table: 'scripts', input: { title: '原保存内容' }, confirmed: false };
   const f = await fixture(undefined, 390, { [receiptKey]: JSON.stringify([receipt]) }), page = f.page;
   try {

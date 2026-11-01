@@ -6,7 +6,7 @@
 
 | 门禁 | 执行入口 | 依赖与覆盖 |
 | --- | --- | --- |
-| 目录/文档/源码 | pnpm check:structure、pnpm typecheck、pnpm lint、pnpm build | 固定Node22/pnpm10.34.5；220模块、8纯契约、链接/生命周期、规则与生产编译 |
+| 目录/文档/源码 | pnpm check:structure、pnpm typecheck、pnpm lint、pnpm build | 固定Node22/pnpm10.34.5；223模块、8纯契约、链接/生命周期、规则与生产编译 |
 | Node契约 | for suite in tests/*.test.mjs; do node "$suite" || exit; done | 锁定依赖；原UUID/资金/权限/任务/页面规则；Excel往返另需Python |
 | 发布闭包 | pnpm test:release | Python；新目录、指纹、静态文件、迁移/Edge/源码交付 |
 | Python/数据库 | tests/test_*.py按模块执行 | Docker隔离PG；真实事务、旧库升级、幂等、账务/租约/权限/配置 |
@@ -17,6 +17,18 @@
 | 敏感内容 | python3 scripts/check_sensitive_content.py | 无生产密钥的CI；私有初始化专项在受控环境另行检查 |
 
 目录/源码测试先确认旧布局失败，再验证新路径。文档与CI属于交付闭包，必须通过链接与来源检查。
+
+来源清理随 `check:structure` 检查推广/演示地址、固定账号、公开旧截图和分散旧浏览器键。`tests/project_storage.test.mjs` 验证两代前缀/旧别名、原UUID/参数、跨账号与写入失败；`tests/source_cleanup.test.mjs` 验证显式模型地址导入及410演示入口；`backend_config`与实际浏览器核对新/旧运行配置优先关系。验收状态见 [清理记录](../releases/SOURCE_CLEANUP_20261101.md)。
+
+素材复用门禁增加35张衍生图的存在、摘要和目录完整性检查。`pnpm test:asset-reuse-ui` 覆盖1440/390/844px全部图加载、五类筛选、预览/复制/Escape/焦点恢复，以及参考、套餐、支持的登录恢复；确认参考选择未上传素材或创建任务。发布前分别核对开发、本地构建、自托管及线上载荷，证据见 [复用记录](../releases/ASSET_REUSE_20261101.md)。
+
+## v1.2.0当轮门禁
+
+`pnpm test:browser`统一执行12组流程，包含新增图库；按钮高度、数字人工具栏、原回执恢复另作受影响专项。所有Node契约逐文件执行，Excel往返必须有Python，不得跳过。Python通过`tests/run_python_regressions.py --group host|media|mcp --output-dir <已存在目录>`分别运行；宿主组需要Docker/PG/备份镜像，媒体/MCP组使用对应锁定镜像。
+
+本轮从最新源码重新取得lint/build、Node、Python/PG、媒体、MCP实际59工具目录、43Edge和敏感检查证据。随后开发、本地自托管、ECS分别真实登录验证桌面/手机页面、35图实际HTTPS摘要、参考/套餐/工单导航、原UUID/余额/作品和历史密钥；独立记录数据与载荷。操作和停止条件见[发布方案](../plan/RELEASE_V1_2_0.md)。下述v1.1.0数据仅为历史证据。
+
+发布QA补充图库几何回归：在1440/390/844px核对35张参考图相互不重叠，预览操作位于完整图片下方。先复现全局32px按钮规则压缩整张卡片行高，再将图片容器与预览按钮分开布局；保留32px/44px操作目标和原预览/复制/焦点/登录流程。
 
 ## v1.1.0源码阶段证据
 

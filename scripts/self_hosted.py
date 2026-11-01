@@ -112,8 +112,8 @@ def configure(directory, origin, *, project="shopro-selfhost", bind="127.0.0.1",
                                    separators=(",", ":")),
         "DISABLE_SIGNUP": "true", "SMTP_HOST": "", "SMTP_PORT": "587", "SMTP_USER": "", "SMTP_PASS": "",
         "SMTP_ADMIN_EMAIL": "noreply@" + url.hostname,
-        "SCHEDULER_IMAGE": "shoproai-video-scheduler:local", "RENDERER_IMAGE": "shoproai-render-worker:local",
-        "MCP_IMAGE": "shoproai-mcp:local", "BACKUP_IMAGE": "shoproai-backup:local",
+        "SCHEDULER_IMAGE": "aigc-video-scheduler:local", "RENDERER_IMAGE": "aigc-render-worker:local",
+        "MCP_IMAGE": "aigc-mcp:local", "BACKUP_IMAGE": "aigc-backup:local",
         **{name.upper() + "_IMAGE": value["image"] for name, value in images.items()},
     }
     write_private(path, "".join(f"{name}={value}\n" for name, value in values.items()))
@@ -128,8 +128,19 @@ def command(args, *, timeout=180, **kwargs):
     return result.stdout
 
 
+def compose_file(env):
+    source = Path(read_env(env).get("SOURCE_DIR", ""))
+    if not source.is_absolute():
+        raise SelfHostError("实例SOURCE_DIR必须指向已存在的绝对源码目录")
+    candidates = [source / name / "self-hosted/compose.yaml" for name in ("infra", "deploy")]
+    available = [path for path in candidates if path.is_file() and not path.is_symlink()]
+    if len(available) != 1:
+        raise SelfHostError("实例SOURCE_DIR缺少唯一兼容Compose布局；未执行Docker操作")
+    return available[0]
+
+
 def compose(env, args, *, timeout=180):
-    return command(["docker", "compose", "--env-file", str(env), "-f", str(COMPOSE), *args], timeout=timeout)
+    return command(["docker", "compose", "--env-file", str(env), "-f", str(compose_file(env)), *args], timeout=timeout)
 
 
 def tls(values, dev=False, certificate=None, key=None):
@@ -158,7 +169,7 @@ def tls(values, dev=False, certificate=None, key=None):
                  "-v", f"{directory}:/tls", "-e", "TLS_HOST=" + values["PUBLIC_HOST"],
                  "--entrypoint", "bash", values["BACKUP_IMAGE"], "-c",
                  'umask 077 && openssl req -x509 -newkey rsa:2048 -nodes -days 30 '
-                 '-subj "/CN=Shopro isolated development CA" -addext "basicConstraints=critical,CA:TRUE" '
+                 '-subj "/CN=AIGC isolated development CA" -addext "basicConstraints=critical,CA:TRUE" '
                  '-addext "keyUsage=critical,keyCertSign,cRLSign" '
                  '-keyout /tls/ca.key -out /tls/ca.crt && '
                  'openssl req -newkey rsa:2048 -nodes -subj "/CN=$TLS_HOST" '
@@ -172,7 +183,7 @@ def tls(values, dev=False, certificate=None, key=None):
 
 def publish_runtime(values):
     directory = Path(values["STATE_DIR"]) / "frontend"
-    script = "window.__SHOPRO_RUNTIME__ = " + json.dumps(public_config(values), ensure_ascii=False) + ";\n"
+    script = "window.__AIGC_RUNTIME__ = " + json.dumps(public_config(values), ensure_ascii=False) + ";\n"
     (directory / "runtime-config.js").write_text(script)
     (directory / "runtime-config.js").chmod(0o644)
     directory.chmod(0o755)
@@ -343,7 +354,7 @@ def main():
     if args.action == "build":
         command(["docker", "run", "--rm", "--network", "none",
                  "-e", "VITE_SUPABASE_URL=" + values["PUBLIC_ORIGIN"], "-e", "VITE_SUPABASE_ANON_KEY=" + values["ANON_KEY"],
-                 "-v", f"{ROOT}:/app", "-v", "shoproai-development-dependencies:/app/node_modules",
+                 "-v", f"{ROOT}:/app", "-v", "aigc-development-dependencies:/app/node_modules",
                  "-v", f"{directory / 'frontend'}:/output", "-w", "/app", "node:22-bookworm-slim",
                  "node", "scripts/build_frontend.mjs", "--outDir", "/output"], timeout=300)
         publish_runtime(values)
@@ -352,7 +363,7 @@ def main():
         edge = directory / "edge"
         edge.mkdir(exist_ok=True, mode=0o755)
         command(["docker", "run", "--rm", "--network", "none",
-                 "-v", f"{ROOT}:/app", "-v", "shoproai-development-dependencies:/app/node_modules",
+                 "-v", f"{ROOT}:/app", "-v", "aigc-development-dependencies:/app/node_modules",
                  "-v", f"{edge}:/edge", "-w", "/app", "node:22-bookworm-slim",
                  "node", "scripts/build_self_hosted_edge.mjs", "/edge"], timeout=300)
         for path in edge.rglob("*"):

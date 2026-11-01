@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { projectStorageKey } from '@/lib/projectStorage';
 import { EdgeRequestError } from '@/lib/edgeRequest';
 import { Button } from '@/components/ui/button';
 import PageHeader from '@/components/common/PageHeader';
@@ -17,7 +18,8 @@ export default function ABTestPage() {
   const [endsAt, setEndsAt] = useState(''), [variants, setVariants] = useState(['', '']);
   const [pending, setPending] = useState<ExperimentSpecification | null>(null);
   const [sourceName, setSourceName] = useState(''), [reference, setReference] = useState(''), [secret, setSecret] = useState('');
-  const receiptKey = user ? `shoproai:experiment-request:${user.id}` : '';
+  const receiptKey = user ? projectStorageKey('experiment-request', user.id) : '';
+  const sourceReceiptKey = user ? projectStorageKey('experiment-request', user.id, 'source') : '';
   const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     try {
@@ -25,13 +27,13 @@ export default function ABTestPage() {
       const s = await measurementRequest<{ sources: MeasurementSource[]; admin: boolean }>({ action: 'sources' }, signal);
       const p = await measurementRequest<{ projects: MeasuredProject[] }>({ action: 'projects' }, signal);
       setExperiments(e.experiments); setSources(s.sources); setAdmin(s.admin); setProjects(p.projects.filter(item => item.status === 'completed'));
-      const sourceReceipt = localStorage.getItem(`${receiptKey}:source`);
+      const sourceReceipt = localStorage.getItem(sourceReceiptKey);
       if (sourceReceipt && s.sources.some(item => item.id === sourceReceipt)) {
-        localStorage.removeItem(`${receiptKey}:source`); setSecret(''); setSourceName(''); setReference('');
+        localStorage.removeItem(sourceReceiptKey); setSecret(''); setSourceName(''); setReference('');
       }
     } catch (cause) { if (!signal?.aborted) setError(cause instanceof Error ? cause.message : '实验读取失败'); }
     finally { if (!signal?.aborted) setLoading(false); }
-  }, [user?.id, receiptKey]);
+  }, [user?.id, receiptKey, sourceReceiptKey]);
   useEffect(() => {
     if (!user) return;
     const controller = new AbortController();
@@ -76,7 +78,7 @@ export default function ABTestPage() {
   const saveSource = async () => {
     setBusy(true); setError('');
     try {
-      const storageKey = `${receiptKey}:source`, id = localStorage.getItem(storageKey) || crypto.randomUUID();
+      const storageKey = sourceReceiptKey, id = localStorage.getItem(storageKey) || crypto.randomUUID();
       localStorage.setItem(storageKey, id);
       await measurementRequest({ action: 'source-create', request_key: id, name: sourceName.trim(), authorization_reference: reference.trim(), secret });
       localStorage.removeItem(storageKey);

@@ -1,6 +1,8 @@
 # 匹配版本与目标环境接受
 
-更新：2026-10-27。当前68个迁移文件、排除两份演示后66个生产迁移，`00068 / probe24 / render4 / edit2`。当前代码已在本地旧库升级和HTTP平台替身通过；正式目标接受需要该目标的独立回执。
+类型：how-to，operational。读者：发布与测试维护者。责任：发布维护者。核验：2026-11-01。来源：scripts/accept_release.py、发布清单、测试及环境回执。每次协议/发布变更复核；仅历史证据或工具与目标边界不同即过期。
+
+当前68个迁移文件，排除两份演示后66个生产迁移，`00068 / probe24 / render4 / edit2`。本文说明独立平台只读技术接受；自托管本地/ECS还须执行[整机升级接受](../deployment/SELF_HOSTED_ECS_RUNBOOK.md)和[v1.2.0方案](../plan/RELEASE_V1_2_0.md)，正式目标必须各有当轮回执。
 
 ## 发布顺序与核对
 
@@ -13,13 +15,14 @@
 
 [accept_release.py](../../scripts/accept_release.py)读取0600配置与本次prepare清单，检查迁移版本/原SHA-256、PG能力、Edge源码声明与完整协议、Auth设置、指定私有Storage桶和前端发布身份。数据库使用只读可重复读事务；HTTP只执行设置/桶查询和`probe`，不创建用户、对象、任务或交易。HTTPS及禁止跳转保护专用凭据。
 
-复制[配置模板](../../infra/backup/acceptance.example.json)为`acceptance.json`，映射真实的只读密钥文件，运行备份/验收镜像：
+复制[配置模板](../../infra/backup/acceptance.example.json)到源码外私有目录的`acceptance.json`并设0600；`BACKUP_CONFIG_DIR`指定该绝对目录，映射真实的只读密钥文件，运行备份/验收镜像：
 
 ```sh
+export BACKUP_CONFIG_DIR=/absolute/path/backup-private
 docker run --rm --read-only --cap-drop ALL \
-  -v "$PWD/deploy/backup:/run/config:ro" -v "$PWD/.volcengine-build:/release:ro" \
+  -v "$BACKUP_CONFIG_DIR:/run/config:ro" -v "$PWD/.volcengine-build:/release:ro" \
   -v "$PWD/restore-results:/receipts" \
-  --entrypoint python shoproai-backup:local /app/scripts/accept_release.py \
+  --entrypoint python aigc-backup:local /app/scripts/accept_release.py \
   --config /run/config/acceptance.json --release /release/manifest.json \
   --output /receipts/目标名称-本次接受.json
 ```
@@ -30,7 +33,7 @@ docker run --rm --read-only --cap-drop ALL \
 
 ## ECS对等运行选择
 
-默认ECS承载生产/维护调度、FFmpeg和MCP，前端静态托管，Auth/PostgreSQL/Storage/Edge/Realtime仍使用已经接受的托管服务。媒体可以独立迁移主机，仍使用原租约和私有对象契约；[资源边界](../operations/MEDIA_WORKER_RESOURCES.md)、[网络与密钥](../operations/KEY_ROTATION.md)、[告警](../operations/ALERT_DELIVERY.md)及[异地恢复](../operations/BACKUP_RECOVERY.md)提供操作入口。
+当前本地/ECS采用完整自托管组件，运行规模与接受身份见[生产基线](PRODUCTION_BASELINE.md)。另可选择仅将调度、FFmpeg和MCP放入ECS、其余使用已接受托管服务；该选择不代表当前ECS拓扑。媒体独立迁移仍保持原租约和私有对象契约；[资源边界](../operations/MEDIA_WORKER_RESOURCES.md)、[网络与密钥](../operations/KEY_ROTATION.md)、[告警](../operations/ALERT_DELIVERY.md)及[异地恢复](../operations/BACKUP_RECOVERY.md)提供操作入口。
 
 完整ECS自托管需要同时维护下面的对等组件，不能用单个PostgreSQL代替：
 

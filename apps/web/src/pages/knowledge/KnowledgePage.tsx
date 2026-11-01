@@ -1,3 +1,4 @@
+import { projectStorageKey } from '@/lib/projectStorage';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -31,7 +32,7 @@ export default function KnowledgePage() {
   const [error, setError] = useState('');
   const [query, setQuery] = useState(''), [title, setTitle] = useState(''), [content, setContent] = useState('');
   const [category, setCategory] = useState('自定义整合');
-  const key = user ? `shopro:knowledge:${user.id}` : '';
+  const key = user ? projectStorageKey('knowledge', user.id) : '';
   const client = useQueryClient(), owner = useRef(user?.id); owner.current = user?.id;
   const { value: pending, write: saveReceipt, error: storageError } = useTaskReceipt<Receipt>(key,
     value => value?.action === 'create' && ['knowledge_index', 'knowledge_search'].includes(value.kind)

@@ -3,7 +3,7 @@ import { creditSnapshot } from './browser_credit_fixture.mjs';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const base = process.env.UI_TEST_URL || 'http://127.0.0.1:5197', backend = 'https://ui-fixture.example';
 const uid = '11111111-1111-4111-8111-111111111111', videoKey = crypto.randomUUID(), imageKey = crypto.randomUUID();
-const videoStorage = `shopro:video-task:${uid}`, imageStorage = `shopro:production:${uid}:image:workbench`;
+const videoStorage = `aigc:video-task:${uid}`, imageStorage = `aigc:production:${uid}:image:workbench`;
 const session = { access_token: `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify({ sub: uid, exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url')}.fixture`,
   refresh_token: 'fixture', token_type: 'bearer', expires_at: Math.floor(Date.now() / 1000) + 3600, expires_in: 3600,
   user: { id: uid, email: 'local@example.com', app_metadata: {}, user_metadata: {} } };

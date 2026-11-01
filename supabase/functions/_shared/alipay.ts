@@ -18,7 +18,7 @@ export interface AlipayRuntimeConfig {
   appId: string;
   gateway: string;
   notifyUrl: string; // 允许为空字符串：本地验收模式省略 notify_url
-  siteUrl: string;   // 同步回跳结果页基址，如 https://f.playe.top
+  siteUrl: string;   // 当前项目同步回跳结果页基址，由 ALIPAY_SITE_URL 配置
   sellerId: string;  // 允许为空字符串：未配置时跳过卖家校验
   sellerEmail: string;
 }

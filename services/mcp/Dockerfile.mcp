@@ -9,8 +9,8 @@ RUN pip install --no-cache-dir --require-hashes -r requirements.lock && pip chec
 
 COPY mcp_server.py .
 COPY mcp_server_stdio.py .
-COPY mcp_shopro_server.py .
-COPY mcp_shopro_server_stdio.py .
+COPY mcp_aigc_server.py .
+COPY mcp_aigc_server_stdio.py .
 COPY backend_client.py .
 COPY backend_tls.py .
 COPY http_server.py .

@@ -3,6 +3,96 @@
   "verified_on": "2026-11-01",
   "documents": [
     {
+      "path": "docs/plan/RELEASE_V1_2_0.md",
+      "owner": "发布维护者",
+      "verified_on": "2026-11-01",
+      "review_trigger": "每个发布阶段、门禁或回退边界变化",
+      "sources": [
+        "package.json",
+        "scripts/self_hosted_release.py",
+        "scripts/self_hosted.py",
+        "scripts/test_browser_flows.mjs",
+        "docs/releases/VERSION_MANAGEMENT.md"
+      ],
+      "quadrant": "how-to",
+      "cadence": "每个发布阶段",
+      "staleness_signal": "身份、门禁、顺序或回退目标改变未同步"
+    },
+    {
+      "path": "docs/releases/ASSET_REUSE_20261101.md",
+      "owner": "前端维护者",
+      "verified_on": "2026-11-01",
+      "review_trigger": "素材、用途、图库交互或复用版本发布",
+      "sources": [
+        "apps/web/src/lib/inspirationAssets.json",
+        "apps/web/src/pages/marketing/LandingPage.tsx",
+        "scripts/prepare_inspiration_assets.py",
+        "scripts/check_source_heritage.mjs",
+        "tests/browser_asset_reuse.mjs"
+      ],
+      "quadrant": "reference",
+      "cadence": "每次素材或行为发布",
+      "staleness_signal": "逐图映射、摘要或发布状态变化未同步"
+    },
+    {
+      "path": "docs/releases/ASSET_REUSE_PLAN_20261101.md",
+      "owner": "前端维护者",
+      "verified_on": "2026-11-01",
+      "review_trigger": "本次实施范围勘误",
+      "sources": [
+        "docs/releases/ASSET_REUSE_20261101.md",
+        "tests/browser_asset_reuse.mjs"
+      ],
+      "quadrant": "reference",
+      "cadence": "本次实施固定记录",
+      "staleness_signal": "执行范围与接受记录不一致"
+    },
+    {
+      "path": "docs/releases/COMPAT_RECOVERY_20261101.md",
+      "owner": "发布维护者",
+      "verified_on": "2026-11-01",
+      "review_trigger": "本次兼容与恢复交付勘误；后续晋级另建回执",
+      "sources": [
+        "scripts/self_hosted_snapshot.py",
+        "scripts/self_hosted.py",
+        "apps/web/src/lib/projectStorage.ts",
+        "tests/browser_receipt_recovery.mjs",
+        "docs/releases/compat-recovery-20261101.json"
+      ],
+      "quadrant": "reference",
+      "cadence": "本次发布固定记录",
+      "staleness_signal": "修复身份、恢复结果或部署边界变化未同步"
+    },
+    {
+      "path": "docs/releases/SOURCE_CLEANUP_INVENTORY_20261101.md",
+      "owner": "仓库维护者",
+      "verified_on": "2026-11-01",
+      "review_trigger": "清理清单或归档核验结果变化",
+      "sources": [
+        "docs/releases/SOURCE_CLEANUP_20261101.md",
+        "scripts/check_source_heritage.mjs"
+      ],
+      "quadrant": "reference",
+      "cadence": "本次清理固定记录",
+      "staleness_signal": "原件、文件数量或清理原因变化未同步"
+    },
+    {
+      "path": "docs/releases/SOURCE_CLEANUP_20261101.md",
+      "owner": "仓库维护者",
+      "verified_on": "2026-11-01",
+      "review_trigger": "来源、兼容契约或清理版本发布",
+      "sources": [
+        "LICENSE",
+        "scripts/check_source_heritage.mjs",
+        "apps/web/src/lib/projectStorage.ts",
+        "supabase/functions/_shared/model-env-import.ts",
+        "tests/source_cleanup.test.mjs"
+      ],
+      "quadrant": "reference",
+      "cadence": "每次发布",
+      "staleness_signal": "源码兼容或部署状态变化未同步"
+    },
+    {
       "path": "docs/operations/RUNBOOK.md",
       "owner": "运维维护者",
       "verified_on": "2026-11-01",
@@ -198,6 +288,22 @@
       "quadrant": "reference",
       "cadence": "每次发布",
       "staleness_signal": "当前实现变化未同步"
+    },
+    {
+      "path": "docs/releases/PROJECT_RENAME_20261101.md",
+      "owner": "仓库维护者",
+      "verified_on": "2026-11-01",
+      "review_trigger": "命名变更或改名版本发布",
+      "sources": [
+        "package.json",
+        "infra/development/compose.yaml",
+        "services/mcp/mcp_aigc_server.py",
+        "apps/web/src/lib/projectStorage.ts",
+        "tests/project_storage.test.mjs"
+      ],
+      "quadrant": "reference",
+      "cadence": "每次发布",
+      "staleness_signal": "源码、入口或部署状态变化未同步"
     },
     {
       "path": "docs/CURRENT_STATE.md",

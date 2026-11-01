@@ -632,73 +632,46 @@ export default function AvatarsPage() {
 
   return (
     <div className="flex flex-col min-h-0 h-full p-4 md:p-6">
-      <PageHeader className="mb-6" title="数字人库"
+      <PageHeader className="mb-2" title="数字人库" actionsClassName="library-switch"
         description={activeTab === 'avatars' ? `共 ${avatars.length} 个数字人，选择合适的数字人生成视频` : '精选视频模板，选择后带入工作台继续创作'}
-        actions={activeTab === 'avatars' ? <>
-          <Button onClick={() => setUploadOpen(true)}><Plus className="w-4 h-4" />上传头像</Button>
-          <Button variant="outline" className="lg:hidden" onClick={() => setFilterOpen(true)}>
-            <SlidersHorizontal className="w-4 h-4" />筛选
-          </Button>
-        </> : undefined} />
-      {/* ── Tab 切换头部 ───────────────────────────────────────────────── */}
-      <div className="border-b border-border pb-4">
-        {/* 移动端允许换行，避免两个 Tab 按钮横向溢出 */}
-        <div className="flex items-center flex-wrap gap-2">
-          <button
-            onClick={() => setActiveTab('avatars')}
-            className={cn(
-              'flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg border-2 transition-all',
-              activeTab === 'avatars'
-                ? 'bg-primary border-primary text-primary-foreground shadow-sm'
-                : 'border-border text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/5',
-            )}
-          >
-            <Users2 className="w-4 h-4" />
-            数字人库
-            <Badge
-              className={cn('text-[10px] h-4 px-1.5 border-0', activeTab === 'avatars' ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted text-muted-foreground')}
-            >{avatars.length}</Badge>
-          </button>
-          <button
-            onClick={() => setActiveTab('templates')}
-            className={cn(
-              'flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg border-2 transition-all',
-              activeTab === 'templates'
-                ? 'bg-primary border-primary text-primary-foreground shadow-sm'
-                : 'border-border text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/5',
-            )}
-          >
-            <Film className="w-4 h-4" />
-            视频模板库
-            {templates.length > 0 && (
-              <Badge
-                className={cn('text-[10px] h-4 px-1.5 border-0', activeTab === 'templates' ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted text-muted-foreground')}
-              >{templates.length}</Badge>
-            )}
-          </button>
-        </div>
-      </div>
+        actions={<div role="group" aria-label="选择资源库" className="flex flex-wrap justify-end gap-2">
+          <Button aria-pressed={activeTab === 'avatars'} variant={activeTab === 'avatars' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('avatars')}>数字人库</Button>
+          <Button aria-pressed={activeTab === 'templates'} variant={activeTab === 'templates' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('templates')}>视频模板库</Button>
+        </div>} />
 
       <MediaJobsPanel imageUrl={selectedImage} />
       {/* ── Tab 内容 ───────────────────────────────────────────────────── */}
       {activeTab === 'avatars' ? (
+        <div className="flex flex-col flex-1 min-h-0">
+          <div data-library-toolbar className="avatar-library-toolbar">
+            <p data-library-filter-heading className="hidden lg:flex items-center gap-2 px-4 text-sm font-bold">
+              <SlidersHorizontal className="w-4 h-4 text-primary" />筛选
+            </p>
+            <div className="min-w-0 lg:pl-6">
+              <div className="relative max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input aria-label="搜索数字人" placeholder="搜索数字人名称或标签..." className="px-3 pl-9" value={search}
+                  onChange={e => setSearch(e.target.value)} />
+              </div>
+            </div>
+            <div data-library-actions className="library-actions">
+              <Button aria-label="筛选" title="筛选" variant="outline" className="avatar-library-filter lg:hidden"
+                onClick={() => setFilterOpen(true)}>
+                <SlidersHorizontal className="w-4 h-4" /><span className="hidden md:inline">筛选</span>
+              </Button>
+              <Button onClick={() => setUploadOpen(true)}><Plus className="w-4 h-4" />上传头像</Button>
+            </div>
+          </div>
         <div className="flex flex-1 min-h-0">
           {/* 侧边筛选器（桌面） */}
           <aside className="hidden lg:flex flex-col w-56 shrink-0 border-r border-border px-4 py-5 overflow-y-auto sticky top-0 max-h-screen">
-            <p className="text-sm font-bold mb-4 flex items-center gap-2">
-              <SlidersHorizontal className="w-4 h-4 text-primary" />筛选
-            </p>
             <FilterPanel />
           </aside>
 
           {/* 数字人主内容 */}
           <div className="flex-1 min-w-0 py-5 lg:pl-6 space-y-5 overflow-x-hidden">
-            <div className="relative max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input placeholder="搜索数字人名称或标签..." className="pl-9 px-3" value={search}
-                onChange={e => setSearch(e.target.value)} />
-            </div>
-
             {loading ? (
               <div className="flex items-center justify-center py-20">
                 <Loader2 className="w-6 h-6 animate-spin text-primary" />
@@ -714,6 +687,7 @@ export default function AvatarsPage() {
               </div>
             )}
           </div>
+        </div>
         </div>
       ) : (
         /* ── 视频模板库 Tab ───────────────────────────────────────── */

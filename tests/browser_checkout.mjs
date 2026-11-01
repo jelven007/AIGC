@@ -103,7 +103,7 @@ try {
   await page.getByRole('button', { name: '恢复原支付请求', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: '恢复原支付请求', exact: true }).click();
   await page.getByRole('heading', { name: '订单详情', exact: true }).waitFor();
-  assert.equal(await page.evaluate(() => localStorage.getItem('shopro:checkout:11111111-1111-4111-8111-111111111111')), null);
+  assert.equal(await page.evaluate(() => localStorage.getItem('aigc:checkout:11111111-1111-4111-8111-111111111111')), null);
   await page.goto(base + '/credits?tab=plans');
   await page.getByRole('button', { name: '选择套餐', exact: true }).click();
   await page.getByLabel('支付渠道', { exact: true }).selectOption('wechat');
@@ -124,7 +124,7 @@ try {
   console.log('PASS 终态恢复移除待核对请求，价格冲突返回实时套餐重选，微信服务端二维码/订单与390px展示');
   await page.goto(base + '/credits?tab=plans');
   await page.getByRole('heading', { name: '积分与套餐', exact: true }).waitFor();
-  await page.evaluate(() => window.dispatchEvent(new CustomEvent('shopro:open-credits-dialog')));
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('aigc:open-credits-dialog')));
   await page.getByRole('dialog').getByText('积分管理与充值', { exact: true }).waitFor();
   assert.equal(await page.getByRole('dialog').getByText(/兑换|到账|10积分 = 1元/).count(), 0);
   await page.getByRole('button', { name: '查看积分流水', exact: true }).click();

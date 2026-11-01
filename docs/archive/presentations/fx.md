@@ -1,4 +1,4 @@
-# 视频生成平台全景分析与功能完善建议
+# 内容创作平台全景分析与功能完善建议
 
 > 历史记录：本文保存对应迭代/审计时点的事实与建议，旧行号、Mock、密钥来源、收费、部署状态和未完成清单不作为当前操作依据。2026-10-21 最新基线 ce90bfe，环境见 [当前状态](../../CURRENT_STATE.md)，闭环关系见 [追踪矩阵](../../CHANGE_TRACEABILITY.md)，本轮实测见 [验证报告](../reviews/TEST_REPORT_20261021.md)。
 > 后续工作区变更另见 [待验收开发](../../PENDING_CHANGES.md)，不能追记为历史迭代已完成。
@@ -67,7 +67,7 @@
 ┌──────────────────────────────────────────────────────────────────┐
 │  MCP 开放生态 services/mcp/ + api/  (Python FastMCP)                       │
 │  主服务 7 工具 + 备份服务 3 工具 ── httpx 真实调用上游             │
-│  ⚠ 0.0.0.0:8080、零鉴权、公网暴露 https://f.playe.top/mcp         │
+│  ⚠ 0.0.0.0:8080、零鉴权、旧演示MCP公网暴露（地址已移除）         │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -245,7 +245,7 @@
 |---|---|---|
 | **真实调用第三方** | `deepseek-v4-pro`、`seedance`、`stepaudio`、`siliconflow-audio`、`wenxin-text-generation`、`create-payment-order`、`kling-video-create/query`、`sora-video-create/query`、`minimax-chat` | 有真实 `fetch` 上游、读取 env 密钥、有 JWT 校验（部分缺） |
 | **混合（真实 + Mock 降级）** | `ai-assistant`、`phase3-assistant` | 主链路真实，但含大量降级分支 |
-| **真实但危险** | `setup-demo` | 真实创建用户，但**零鉴权 + 硬编码口令 `demo123456`** |
+| **历史真实但危险** | `setup-demo` | 当时真实创建用户，但零鉴权且硬编码固定口令（已移除，现入口410） |
 | **真实解密但未验签** | `wechat-payment-webhook` | AES-GCM 解密真实，**签名验证缺失** |
 
 **`ai-assistant` 内部的降级分支清单**（关键：这些分支返回的是**伪 AI 结果**，但前端无法区分）：
@@ -266,7 +266,7 @@
 
 **`phase3-assistant`**：14 个 action，其中 `crawl_competitor`（`index.ts:91-105`）与 `analyze_live_highlight`（`:153-171`）**用 LLM 幻觉 + `Math.random` 冒充真实抓取数据**；`publish_video`（`:371-382`）**写入假发布链接**。
 
-**MCP 服务**：主服务 `mcp_shopro_server.py` 7 个工具全部通过 `httpx` 真实调用上游 ✅；备份服务 `mcp_server.py` 3 个工具。但**主服务的鉴权被移除**（`handle_tool_call:38-63` 无校验，而备份版 `mcp_server.py:26-40` 有 `verify_auth()`），且默认绑定 `0.0.0.0:8080`，公网地址 `https://f.playe.top/mcp` 已暴露。
+**历史 MCP 服务**：当时主服务 7 个工具通过 `httpx` 调用上游，备份服务 3 个工具；原主服务缺少鉴权并绑定 `0.0.0.0:8080`。旧演示公网地址已移除，此段仅保留历史问题证据，不是当前服务或接入指南。
 
 **`api/` 目录**：是 MCP 与 DXKP 的 Vercel Serverless 适配层（非业务 API），但存在两处高危：`api/mcp.py:18` **显式关闭 DNS Rebinding 防护**，`api/dxkp.py:43-47` **无鉴权地注入服务端 API_KEY 转发上游**。
 
@@ -336,7 +336,7 @@
 
 | 入口 | 状态 |
 |---|---|
-| `https://f.playe.top/mcp` | 零鉴权、DNS Rebinding 防护已关闭 |
+| 旧演示 MCP 地址（已移除） | 当时零鉴权、DNS Rebinding 防护已关闭 |
 | `send-sms-code` / `verify-sms-code` | 无鉴权，可短信轰炸盗刷资费 |
 | `setup-demo` | 无鉴权，可创建已知口令账号 + 枚举用户列表 |
 | `deepseek-v4-pro` / `stepaudio` | 无本地 JWT 校验 |

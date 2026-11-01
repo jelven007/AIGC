@@ -1,4 +1,4 @@
-# 视频生成平台技术架构
+# 内容创作平台技术架构
 
 类型：explanation，architectural。读者：技术与运维维护者。责任：技术维护者。核验：2026-11-01。来源：apps/web/src/App.tsx、supabase/functions、scripts/runtime-contract.json、infra/self-hosted/compose.yaml、services/mcp/tools.json。每次协议或运行边界变更复核；实际边界漂移即过期。
 
@@ -22,6 +22,8 @@
 前端共享层不依赖pages，API/lib/db/types不依赖UI；八个Node/Deno纯契约位于supabase/functions/_shared，显式白名单、无环境/网络能力。页面动态加载，Vite应用根为apps/web，仓库输出为dist。根pnpm锁与工具配置保持单一来源。
 
 运行契约00068/probe24/render4/edit2不变；迁移18/19为演示数据并排除生产，历史SQL不改写。任务绑定原配置与价格，确定失败原流水返还，未知受理不得重提或盲退；积分与现金账分别记录。
+
+当前浏览器统一 `aigc:*` 请求键与事件，新公开配置使用 `__AIGC_RUNTIME__`，统一迁移模块兼容两代旧前缀及已有部署配置。旧网关地址只允许管理员显式提供后导入，不作为运行默认值。许可证、数据库/卷/历史回执的标识不因源码清理改写，详见 [清理记录](../releases/SOURCE_CLEANUP_20261101.md)。
 
 ## 持久状态与部署
 

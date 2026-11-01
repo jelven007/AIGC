@@ -164,9 +164,9 @@ try {
   await page.getByText('已关联竞品统计参考：真实竞品标题', { exact: true }).waitFor();
   await page.getByLabel('上传分析视频', { exact: true }).setInputFiles({ name: 'owned.mp4', mimeType: 'video/mp4', buffer: Buffer.from('local-test-video') });
   await page.getByText('已上传：owned.mp4', { exact: true }).waitFor();
-  assert.equal(await page.getByRole('button', { name: '提交爆款视频复刻任务', exact: true }).isEnabled(), false);
+  assert.equal(await page.getByRole('button', { name: '提交爆款风格复刻任务', exact: true }).isEnabled(), false);
   await page.getByRole('checkbox', { name: '我确认拥有上传素材的使用权', exact: true }).check();
-  await page.getByRole('button', { name: '提交爆款视频复刻任务', exact: true }).click();
+  await page.getByRole('button', { name: '提交爆款风格复刻任务', exact: true }).click();
   await page.getByText('用户关联的统计参考；未验证上传素材与原平台视频为同一作品', { exact: true }).waitFor();
   assert.deepEqual(submissions.find(item => item.action === 'create').input.competitor_reference,
     { sample_id: id, item_id: 'real-video', rights_confirmed: true });

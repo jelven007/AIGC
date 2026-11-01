@@ -26,6 +26,8 @@
     --input: 240 6% 80%;
     --ring: 22 88% 35%;
     --radius: 0.75rem;
+    --app-topbar-height: 48px;
+    --page-control-height: 32px;
     /* 图表色 */
     --chart-1: 24 95% 50%;
     --chart-2: 40 90% 55%;
@@ -343,6 +345,32 @@
   }
 }
 
+/* 全项目操作按钮共用工作台标准，覆盖原生按钮、Slot链接和Portal弹窗。
+   低优先级height保留原有24/28px紧凑按钮；上限拦住页面局部大尺寸。
+   去掉垂直padding，防止旧py-3/h-12样式把文字挤出32px按钮。 */
+:where(button:not([role="checkbox"]):not([role="radio"]):not([role="switch"]),
+  a[role="button"], .ui-button, .button-primary, .button-secondary, [data-slot="button"], [role="tab"]) {
+  height: var(--page-control-height);
+  min-height: 0 !important;
+  max-height: var(--page-control-height) !important;
+  padding-block: 0 !important;
+  flex-shrink: 0;
+}
+[data-slot="button"][data-size="icon"] {
+  max-width: var(--page-control-height);
+  padding-inline: 0;
+}
+@media (pointer: coarse) {
+  :root { --page-control-height: 44px; }
+  :where(button:not([role="checkbox"]):not([role="radio"]):not([role="switch"]),
+    a[role="button"], .ui-button, .button-primary, .button-secondary, [data-slot="button"], [role="tab"]) {
+    height: var(--page-control-height) !important;
+    min-height: var(--page-control-height) !important;
+    min-width: var(--page-control-height);
+  }
+  [data-slot="button"][data-size="icon"] { width: var(--page-control-height); }
+}
+
 /* 登录后的页面共用尺寸与标题层级，工作台和剪辑保留专用画布布局。 */
 .app-content[data-layout="page"] > :where(div, section) {
   width: 100%;
@@ -350,13 +378,13 @@
   margin-inline: auto;
 }
 .app-content[data-layout="page"] > :is(.p-4, .p-6, .p-8) {
-  padding: 24px 24px 32px;
+  padding: 16px 24px 32px;
 }
 .app-content[data-layout="page"] h1 {
   color: hsl(var(--foreground));
   font-size: 1.5rem;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.1;
   letter-spacing: -0.025em;
   overflow-wrap: anywhere;
   scroll-margin-top: 88px;
@@ -374,14 +402,14 @@
 }
 .app-content[data-layout="page"] h1 + p,
 .page-description {
-  margin-top: 8px;
+  margin-top: 2px;
   font-size: 0.875rem;
-  line-height: 1.6;
+  line-height: 1.4;
   color: hsl(var(--muted-foreground));
   text-wrap: pretty;
 }
 .page-inset {
-  padding: 24px;
+  padding: 16px 24px;
 }
 .page-header {
   display: flex;
@@ -395,7 +423,7 @@
   color: hsl(var(--foreground));
   font-size: 24px;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.1;
   letter-spacing: -0.025em;
   overflow-wrap: anywhere;
 }
@@ -408,22 +436,22 @@
   gap: 8px;
   max-width: 100%;
 }
-.page-actions [data-slot="button"] {
-  height: 40px;
-  min-height: 40px;
-  padding: 8px 16px;
+:is(.page-actions, .library-actions) [data-slot="button"] {
+  height: var(--page-control-height);
+  min-height: var(--page-control-height);
+  padding: 4px 16px;
   border-radius: 8px;
   font-size: 14px;
   gap: 8px;
 }
 .page-actions [data-slot="button"][data-size="icon"] {
-  width: 40px;
+  width: 32px;
   padding: 0;
 }
-.page-actions [data-slot="button"] > svg { margin: 0; }
-.app-content[data-layout="page"] > .service-config-page { padding: 24px 24px 32px; }
+:is(.page-actions, .library-actions) [data-slot="button"] > svg { margin: 0; }
+.app-content[data-layout="page"] > .service-config-page { padding: 16px 24px 32px; }
 .app-content[data-layout="page"] > .platform-app-section { padding-inline: 24px; }
-.page-header-inset { padding: 24px; width: 100%; max-width: 1440px; margin-inline: auto; }
+.page-header-inset { padding: 16px 24px; width: 100%; max-width: 1440px; margin-inline: auto; }
 .app-content .workspace-hero {
   font-size: clamp(1.5rem, 2.6vw, 2.25rem);
   font-weight: 650;
@@ -493,17 +521,54 @@
   overflow-wrap: anywhere;
   line-height: 1.4;
 }
-.app-sidebar-mobile .app-sidebar-brand {
-  padding-top: 3rem;
+.app-topbar,
+.app-sidebar-brand { height: var(--app-topbar-height); }
+.app-sidebar-brand p:first-child { line-height: 1.25; }
+.app-sidebar-brand p:last-child { line-height: 1.4; }
+@media (max-width: 360px) {
+  .app-topbar { gap: 4px; padding-inline: 8px; }
+  .app-topbar-brand { gap: 4px; }
+  .app-topbar-brand img { width: 20px; height: 20px; }
+  .app-topbar-brand span { font-size: 12px; }
+  .app-topbar-tools { gap: 4px; }
 }
 .app-sidebar-mobile > button:last-child {
-  top: 4px;
-  right: 4px;
-  width: 40px;
-  height: 40px;
+  top: 2px;
+  right: -48px;
+  width: 44px;
+  height: 44px;
+  color: hsl(var(--sidebar-foreground));
+  background: hsl(var(--sidebar));
   display: flex;
   align-items: center;
   justify-content: center;
+}
+.page-actions.library-switch { justify-content: flex-end; }
+.library-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+.avatar-library-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 8px;
+}
+.avatar-library-toolbar .library-actions { width: auto; flex-wrap: nowrap; }
+.avatar-library-toolbar input,
+.avatar-library-toolbar [data-library-filter-heading] { height: var(--page-control-height); }
+.library-actions [data-slot="button"].avatar-library-filter {
+  width: var(--page-control-height);
+  padding: 0;
+}
+@media (min-width: 768px) {
+  .library-actions [data-slot="button"].avatar-library-filter { width: auto; padding: 4px 16px; }
+}
+@media (min-width: 1024px) {
+  .avatar-library-toolbar { grid-template-columns: 224px minmax(0, 1fr) auto; column-gap: 0; }
 }
 .skip-link {
   position: fixed;
@@ -533,8 +598,7 @@
 .toolbox-banner { background: transparent; }
 .service-config-form { border-top: 3px solid hsl(var(--section-accent)); }
 @media (pointer: coarse) {
-  .app-shell :where(button, a[role="button"], [data-slot="tabs-trigger"]) { min-height: 44px; }
-  .page-actions [data-slot="button"] { min-height: 44px; height: 44px; }
+  .page-actions [data-slot="button"][data-size="icon"] { width: 44px; }
 }
 /* 旧剪辑面板沿用同一组表面与文字 token；黑色视频画布与自定义字幕色不受影响。 */
 .video-editor :is(.bg-zinc-950) { background-color: hsl(var(--background)); }
@@ -652,16 +716,16 @@
 }
 @media (max-width: 767px) {
   .app-content[data-layout="page"] > :is(.p-4, .p-6, .p-8) {
-    padding: 16px 16px 24px;
+    padding: 12px 16px 24px;
   }
   .page-inset {
-    padding: 16px;
+    padding: 12px 16px;
   }
-  .page-header { flex-direction: column; gap: 16px; }
+  .page-header { flex-direction: column; gap: 4px; }
   .page-actions { justify-content: flex-start; width: 100%; }
-  .app-content[data-layout="page"] > .service-config-page { padding: 16px 16px 24px; }
+  .app-content[data-layout="page"] > .service-config-page { padding: 12px 16px 24px; }
   .app-content[data-layout="page"] > .platform-app-section { padding-inline: 16px; }
-  .page-header-inset { padding: 16px; }
+  .page-header-inset { padding: 12px 16px; }
 }
 
 /* Animations and transitions */

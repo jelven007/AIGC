@@ -6,7 +6,7 @@ import ts from 'typescript';
 
 // 执行真实共享模块；仅替换平台客户端，不替换配置、加密和业务协议。
 export async function loadEdge(entry, suite) {
-  const directory = resolve(tmpdir(), `shoproai-edge-${suite}`);
+  const directory = resolve(tmpdir(), `aigc-edge-${suite}`);
   mkdirSync(directory, { recursive: true });
   const compiled = new Map();
   function compile(file) {

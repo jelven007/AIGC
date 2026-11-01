@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { listProductPage } from '@/api/products';
 import { useWorkspaceEntry } from '@/hooks/useWorkspaceEntry';
 import { useAuth } from '@/contexts/AuthContext';
+import { projectStorageKey } from '@/lib/projectStorage';
 import { useCredits } from '@/hooks/useCredits';
 import { Button } from '@/components/ui/button';
 import PageHeader from '@/components/common/PageHeader';
@@ -126,8 +127,8 @@ function BatchWorkspace({ entry }: { entry: any }) {
   const [busy, setBusy] = useState('');
   const submitting = useRef(false);
   const owner = useRef(user?.id); owner.current = user?.id;
-  const storageKey = user ? `shoproai:batch-request:${user.id}` : '';
   const validReceipt = (saved: any) => saved && typeof saved.key === 'string' && saved.input?.name && Array.isArray(saved.input.product_ids);
+  const storageKey = user ? projectStorageKey('batch-request', user.id, undefined, validReceipt) : '';
   const { value: pending, write: savePending, error: storageError } = useTaskReceipt<PendingBatch>(storageKey, validReceipt);
   const [legacyError, setLegacyError] = useState('');
   useEffect(() => {
@@ -136,11 +137,12 @@ function BatchWorkspace({ entry }: { entry: any }) {
     try {
       const current = readTaskReceipt<PendingBatch>(storageKey, validReceipt);
       if (current.error || current.value) return;
-      const stored = sessionStorage.getItem(storageKey);
+      const sessionKey = projectStorageKey('batch-request', user!.id, undefined, validReceipt, sessionStorage);
+      const stored = sessionStorage.getItem(sessionKey);
       const saved = stored ? JSON.parse(stored) : null;
       if (!stored) return;
       if (!validReceipt(saved)) throw new Error('旧批次回执读取失败，请核对原任务后再提交');
-      if (savePending(saved)) sessionStorage.removeItem(storageKey);
+      if (savePending(saved)) sessionStorage.removeItem(sessionKey);
     } catch (cause) { setLegacyError(message(cause)); }
   }, [storageKey, savePending]);
   const client = useQueryClient(), listKey = useMemo(() => ['tasks', user?.id, 'batch', 'list'], [user?.id]);

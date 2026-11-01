@@ -1,4 +1,4 @@
-# 视频生成平台产品演示提纲
+# 内容创作平台产品演示提纲
 
 更新：2026-10-27。当前00068/probe24/render4/edit2、20槽、MCP59/19；本轮本地优化与证据见[实施台账](../archive/reviews/OPTIMIZATION_IMPLEMENTATION_20261027.md)，正式公网/真实模型全栈尚未验收。范围依[当前状态](../CURRENT_STATE.md)。
 

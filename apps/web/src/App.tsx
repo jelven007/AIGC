@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { loginDestination } from "@/lib/inspirationAssets";
 
 function RedirectWithState({ to }: { to: string }) {
   const location = useLocation();
@@ -11,7 +12,7 @@ function RedirectWithState({ to }: { to: string }) {
 function LoginRedirect() {
   const location = useLocation();
   if (new URLSearchParams(location.search).get('mode') === 'reset') return <Navigate to="/auth/reset" replace />;
-  const to = new URLSearchParams(location.search).get('redirect') === '/credits?tab=plans' ? '/credits?tab=plans' : '/';
+  const to = loginDestination(new URLSearchParams(location.search).get('redirect'));
   return <Navigate to={to} replace />;
 }
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";

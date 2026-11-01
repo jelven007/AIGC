@@ -20,7 +20,7 @@ export const VIDEO_GENERATE_COST = 10;
 export const REGISTER_BONUS_CREDITS = 20;
 
 /** 请求 MainLayout 打开「积分管理与充值」弹窗的全局事件 */
-export const OPEN_CREDITS_DIALOG_EVENT = 'shopro:open-credits-dialog';
+export const OPEN_CREDITS_DIALOG_EVENT = 'aigc:open-credits-dialog';
 
 /** 打开积分管理与充值弹窗（MainLayout 监听后弹窗，默认定位充值 Tab） */
 export function openCreditsDialog(): void {

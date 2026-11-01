@@ -478,7 +478,7 @@ const ScriptDemo: React.FC = () => {
                     className={`w-full mt-4 group relative overflow-hidden transition-all duration-300 inline-flex items-center justify-center px-6 py-3 text-base font-medium text-white rounded-lg ${
                       topic.trim() === "" || isLoading
                         ? "bg-gray-400 cursor-not-allowed opacity-50"
-                        : "bg-scriptgenius-blue hover:bg-scriptgenius-blue-dark shadow-blue hover:shadow-lg hover:scale-105"
+                        : "bg-scriptgenius-blue hover:bg-scriptgenius-blue-dark shadow-blue hover:shadow-lg"
                     }`}
                   >
                     {isLoading ? (

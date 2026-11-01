@@ -15,7 +15,7 @@ if os.environ.get("ARCHIVE_TEST_INNER") != "true":
             archive = subprocess.run(["tar", "--format=ustar", "--exclude=__pycache__", "-cf", "-", *files],
                                      cwd=ROOT, capture_output=True, check=True, timeout=30).stdout
             result = subprocess.run(["docker", "run", "--rm", "-i", "--network", "none", "--user", "0:0",
-                                     "-e", "ARCHIVE_TEST_INNER=true", "--entrypoint", "sh", "shoproai-backup:local",
+                                     "-e", "ARCHIVE_TEST_INNER=true", "--entrypoint", "sh", "aigc-backup:local",
                                      "-c", "mkdir /tmp/workspace && tar -xf - -C /tmp/workspace && python /tmp/workspace/tests/test_backup_archive.py"],
                                     input=archive, capture_output=True, timeout=60)
             self.assertEqual(result.returncode, 0, result.stdout.decode() + result.stderr.decode())

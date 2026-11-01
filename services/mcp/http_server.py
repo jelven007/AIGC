@@ -9,7 +9,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Mount, Route
 import uvicorn
 from backend_client import request_token, validate_user_token
-from mcp_shopro_server import mcp
+from mcp_aigc_server import mcp
 from host_config import parse_allowed_hosts
 
 hosts = parse_allowed_hosts(os.environ.get("MCP_ALLOWED_HOSTS", "localhost,localhost:8080,127.0.0.1,127.0.0.1:8080"))
@@ -77,7 +77,7 @@ class ResourceLimitsMiddleware:
                 async with asyncio.timeout(self.request_timeout):
                     await self.app(scope, replay, guarded_send)
             except Exception as cause:
-                logging.getLogger("shopro-mcp").warning("MCP request interrupted: %s", type(cause).__name__)
+                logging.getLogger("aigc-mcp").warning("MCP request interrupted: %s", type(cause).__name__)
                 if not started:
                     await reject(send, 503)
                 else:

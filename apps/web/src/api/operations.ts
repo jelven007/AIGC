@@ -1,3 +1,4 @@
+import { projectStorageKey } from '@/lib/projectStorage';
 import { authenticatedEdgeRequest, EdgeRequestError } from '@/lib/edgeRequest';
 import { requireAccountSession } from './accountSession';
 import { CashOperationError, type alipayTradeOps } from './alipay';
@@ -91,7 +92,7 @@ export function operatorAccess(uid?: string): Promise<OperatorAccess> { return o
 export function operatorPage(domain: OperatorDomain, page: number, keyword: string, userId: string, uid?: string): Promise<OperatorPage> {
   return operationsRequest({ action: 'list', domain, page, keyword, user_id: userId || undefined }, uid);
 }
-export function operatorPendingKey(uid: string) { return `shopro-operator-request-${uid}`; }
+export function operatorPendingKey(uid: string) { return projectStorageKey('operator-request', uid); }
 export function storeOperatorRequest(uid: string, request: PendingOperatorRequest) {
   localStorage.setItem(operatorPendingKey(uid), JSON.stringify(request));
 }

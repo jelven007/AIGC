@@ -32,7 +32,7 @@ class DockerDrillTest(unittest.TestCase):
                                   "scripts/backup_restore.py", "scripts/backup_archive.py", "tests/test_backup_restore.py",
                                   "tests/db", "supabase/migrations"], cwd=ROOT, check=True, capture_output=True, timeout=30).stdout
         result = subprocess.run(["docker", "run", "--rm", "-i", "--network", network, "--user", "0:0",
-                                 "-e", "BACKUP_TEST_INNER=true", "--entrypoint", "sh", "shoproai-backup:local",
+                                 "-e", "BACKUP_TEST_INNER=true", "--entrypoint", "sh", "aigc-backup:local",
                                  "-c", "mkdir /tmp/workspace /drill && tar -xf - -C /tmp/workspace && python /tmp/workspace/tests/test_backup_restore.py"],
                                 input=archive, capture_output=True, timeout=180)
         self.assertEqual(result.returncode, 0, result.stdout.decode() + result.stderr.decode())

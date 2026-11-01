@@ -16,7 +16,7 @@ async function fixture(blockStorage = false) {
     if (blockStorage) {
       const original = Storage.prototype.setItem;
       Storage.prototype.setItem = function(key, value) {
-        if (key.startsWith('shopro:')) throw new DOMException('full', 'QuotaExceededError');
+        if (key.startsWith('aigc:')) throw new DOMException('full', 'QuotaExceededError');
         return original.call(this, key, value);
       };
     }

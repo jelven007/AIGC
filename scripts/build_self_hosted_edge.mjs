@@ -21,7 +21,7 @@ for (const { name } of manifest.functions) {
     entryPoints: [resolve(root, 'supabase/functions', name, 'index.ts')],
     outfile: resolve(directory, 'index.ts'), bundle: true, format: 'esm',
     platform: 'node', target: ['es2022', 'node22'], minify: false, metafile: true,
-    banner: { js: 'import { createRequire as shoproCreateRequire } from "node:module"; import process from "node:process"; import { Buffer } from "node:buffer"; const require = shoproCreateRequire(import.meta.url); const global = globalThis;' },
+    banner: { js: 'import { createRequire as aigcCreateRequire } from "node:module"; import process from "node:process"; import { Buffer } from "node:buffer"; const require = aigcCreateRequire(import.meta.url); const global = globalThis;' },
     plugins: [{
       name: 'frozen-selfhost-dependencies',
       setup(build) {

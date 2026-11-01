@@ -58,7 +58,7 @@ byted-supabase-cli --agent yes login --remote --region cn-beijing
 
 ```sh
 byted-supabase-cli projects list --limit 10 -o json
-byted-supabase-cli projects create shoproai --region cn-beijing -o json
+byted-supabase-cli projects create aigc --region cn-beijing -o json
 ```
 
 记录真实 `workspace_id` / 默认 `branch_id`，等待资源就绪。新建算力默认常驻不休眠。生产视频需要后台持续处理，初期保持常驻；创建的是 BaaS workspace，并非独立 RDS 实例。
@@ -144,7 +144,7 @@ python3 scripts/deploy_volcengine.py prepare \
 
 ```sh
 byted-supabase-cli pages upload .volcengine-build/frontend.zip -o json
-byted-supabase-cli pages create shoproai --resource-id "$SHOPRO_RESOURCE_ID" --no-deploy -o json
+byted-supabase-cli pages create aigc --resource-id "$SHOPRO_RESOURCE_ID" --no-deploy -o json
 ```
 
 取实际 `ProjectDeployResourceID` 和 `PagesProjectID`。然后使用相同 workspace、构建配置和 Worker 密钥发布：

@@ -1,9 +1,10 @@
+import { projectStorageKey } from '@/lib/projectStorage';
 import { supabase } from '@/db/supabase';
 import type { Script } from '@/types/types';
 
 type Table = 'scripts' | 'knowledge_entries';
 interface Receipt { id: string; table: Table; input: Record<string, unknown>; confirmed: boolean }
-const storageKey = (owner: string) => `shopro:script-writes:${owner}`;
+const storageKey = (owner: string) => projectStorageKey('script-writes', owner);
 const stable = (value: unknown): string => JSON.stringify(value, (_key, entry) =>
   entry && typeof entry === 'object' && !Array.isArray(entry)
     ? Object.fromEntries(Object.keys(entry).sort().map(key => [key, entry[key]])) : entry);

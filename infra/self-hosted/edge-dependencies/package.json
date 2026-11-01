@@ -1,5 +1,5 @@
 {
-  "name": "shopro-selfhost-edge-dependencies",
+  "name": "aigc-selfhost-edge-dependencies",
   "private": true,
   "version": "1.0.0",
   "dependencies": { "alipay-sdk": "4.14.0" }

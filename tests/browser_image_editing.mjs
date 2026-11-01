@@ -110,7 +110,7 @@ try {
     await page.getByRole('button', { name: '刷新进度', exact: true }).waitFor();
     assert.equal(state.creates.length, 1); assert.equal(state.uploads.length, 2);
     console.log('PASS 真实画布扩图与透明掩码、私有两素材、确认版本和费用、关页恢复原UUID零重发');
-    state.job = null; await page.evaluate(id => localStorage.removeItem(`shopro:production:${id}:image:workbench`), uid);
+    state.job = null; await page.evaluate(id => localStorage.removeItem(`aigc:production:${id}:image:workbench`), uid);
     await page.reload(); await page.getByRole('button', { name: '图片生成', exact: true }).click();
     await page.getByRole('button', { name: '局部重绘', exact: true }).click();
     await page.getByLabel('选择编辑原图', { exact: true }).setInputFiles({ name: '自有商品.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
@@ -145,7 +145,7 @@ try {
     releaseCreate(); await released;
     assert.equal(await page.getByText('任务已保存，关闭页面后仍会继续处理', { exact: true }).count(), 0);
     assert.equal(await page.getByRole('button', { name: '刷新进度', exact: true }).count(), 0);
-    assert.equal(await page.evaluate(id => !!localStorage.getItem(`shopro:production:${id}:image:workbench`), uid), true);
+    assert.equal(await page.evaluate(id => !!localStorage.getItem(`aigc:production:${id}:image:workbench`), uid), true);
     console.log('PASS 原账号JWT固定、迟到创建回执不污染新账号或弹成功、原回执保留待恢复');
     assert.deepEqual(state.errors, []);
   }

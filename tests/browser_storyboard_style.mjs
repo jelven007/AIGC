@@ -65,7 +65,7 @@ test('landing, login and legacy template libraries show the video platform ident
   const f = await fixture({ width: 390, height: 844 }), page = f.page;
   try {
     await page.goto(`${base}/landing`);
-    assert.equal(await page.title(), '视频生成平台');
+    assert.equal(await page.title(), '内容创作平台');
     await page.getByRole('heading', { name: /让每一个创意\s*成为视频作品/ }).waitFor();
     assert.equal((await page.locator('body').innerText()).includes(legacyIndustry), false);
     assert.equal(oldBrand.test(await page.locator('body').innerText()), false);
@@ -75,7 +75,7 @@ test('landing, login and legacy template libraries show the video platform ident
     const guest = await fixture({ width: 390, height: 844 }, false);
     try {
       await guest.page.goto(`${base}/login?mode=login`);
-      await guest.page.getByText('登录视频生成平台，继续你的创作', { exact: true }).waitFor();
+      await guest.page.getByText('登录内容创作平台，继续你的创作', { exact: true }).waitFor();
       assert.equal((await guest.page.locator('body').innerText()).includes(legacyIndustry), false);
       assert.equal(oldBrand.test(await guest.page.locator('body').innerText()), false);
       assert.deepEqual(guest.errors, []);

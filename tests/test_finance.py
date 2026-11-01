@@ -8,7 +8,7 @@ import unittest
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
-CONTAINER = f"shoproai-finance-{uuid.uuid4().hex[:10]}"
+CONTAINER = f"aigc-finance-{uuid.uuid4().hex[:10]}"
 
 
 def sql(statement, fail=True):
@@ -26,7 +26,7 @@ class FinanceTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         subprocess.run(
-            ["docker", "run", "-d", "--name", CONTAINER, "--label", "shoproai.purpose=finance-test",
+            ["docker", "run", "-d", "--name", CONTAINER, "--label", "aigc.purpose=finance-test",
              "-e", "POSTGRES_PASSWORD=local_test_only", "postgres:16"],
             check=True, capture_output=True, timeout=60,
         )

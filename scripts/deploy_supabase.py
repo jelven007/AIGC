@@ -154,15 +154,15 @@ def guarded_migration_sql(snapshot, pending):
 
 def image_receipts(release):
     mappings = {
-        "scheduler": ("shoproai-video-scheduler:local", {
+        "scheduler": ("aigc-video-scheduler:local", {
             f"scripts/{name}": f"/app/{name}" for name in ("run_video_worker.py", "alert_delivery.py", "runtime-contract.json")}),
-        "renderer": ("shoproai-render-worker:local", {
+        "renderer": ("aigc-render-worker:local", {
             str(p.relative_to(ROOT)): f"/app/{p.name}" for p in (ROOT / "services/media-worker").iterdir()
             if p.suffix in (".py", ".lock", ".txt")}),
-        "mcp": ("shoproai-mcp:local", {
+        "mcp": ("aigc-mcp:local", {
             str(p.relative_to(ROOT)): f"/app/{p.name}" for p in (ROOT / "services/mcp").iterdir()
             if p.suffix == ".py" or p.name in ("tools.json", "requirements.lock")}),
-        "backup": ("shoproai-backup:local", {
+        "backup": ("aigc-backup:local", {
             **{f"scripts/{name}": f"/app/scripts/{name}" for name in ("backup_restore.py", "backup_archive.py", "accept_release.py")},
             "infra/backup/requirements.lock": "/app/requirements.lock",
             **{str(p.relative_to(ROOT)): f"/app/supabase/migrations/{p.name}" for p in (ROOT / "supabase/migrations").glob("*.sql")}}),
@@ -217,9 +217,9 @@ def prepare():
         env_path.chmod(0o600)
         destination = "/app/" + str(frontend.relative_to(ROOT))
         command(["docker", "run", "--rm", "--network", "none", "--env-file", str(env_path),
-            "-v", f"{ROOT}:/app", "-v", "shoproai-development-dependencies:/app/node_modules",
-            "-v", "shoproai-development-corepack:/root/.cache/node/corepack",
-            "-v", "shoproai-development-package-store:/pnpm/store", "-w", "/app", IMAGE,
+            "-v", f"{ROOT}:/app", "-v", "aigc-development-dependencies:/app/node_modules",
+            "-v", "aigc-development-corepack:/root/.cache/node/corepack",
+            "-v", "aigc-development-package-store:/pnpm/store", "-w", "/app", IMAGE,
             "bash", "-euc", 'corepack enable; test "$(node -p process.versions.node)" = "$(cat .node-version)"; '
             'test "$(corepack pnpm --version)" = "10.34.5"; '
             'corepack pnpm install --offline --frozen-lockfile --store-dir /pnpm/store; '

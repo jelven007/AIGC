@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 globalThis.crypto ??= webcrypto;
 const cases = [];
 globalThis.Deno = { test: (name, run) => cases.push({ name, run }) };
-const directory = '/tmp/shoproai-wechat-tests';
+const directory = '/tmp/aigc-wechat-tests';
 mkdirSync(directory, { recursive: true });
 const helper = readFileSync('supabase/functions/_shared/wechat.ts', 'utf8');
 const test = readFileSync('tests/wechat.test.ts', 'utf8')

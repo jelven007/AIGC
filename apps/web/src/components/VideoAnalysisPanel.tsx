@@ -1,3 +1,4 @@
+import { projectStorageKey } from '@/lib/projectStorage';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -35,7 +36,7 @@ export default function VideoAnalysisPanel({ mode }: { mode: 'live' | 'style' })
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const scope = useRef(0), account = useRef(user?.id);
   account.current = user?.id;
-  const key = user ? `shopro:analysis:${user.id}:${mode}` : '';
+  const key = user ? projectStorageKey('analysis', user.id, mode) : '';
   const client = useQueryClient();
   const saved = useTaskReceipt<Receipt[]>(key, value => Array.isArray(value) && value.every(item =>
     item && ['analysis', 'render'].includes(item.kind) && typeof item.request_key === 'string' && item.input));
@@ -45,7 +46,7 @@ export default function VideoAnalysisPanel({ mode }: { mode: 'live' | 'style' })
     queryFn: async ({ signal }): Promise<number> => (await productionRequest({ action: 'analysis-price' }, user?.id, signal)).cost });
   const jobs = (tasks.data || []).filter(job => ['analysis', 'render'].includes(job.kind)), cost = price.data ?? null;
   const problem = saved.error || error || tasks.error?.message || price.error?.message;
-  const label = mode === 'live' ? '直播高光切片' : '爆款视频复刻';
+  const label = mode === 'live' ? '直播高光切片' : '爆款风格复刻';
   const refresh = async () => {
     if (!user) return;
     await tasks.refetch({ throwOnError: true });

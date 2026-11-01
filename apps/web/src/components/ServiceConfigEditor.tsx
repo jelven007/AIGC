@@ -143,7 +143,7 @@ export default function ServiceConfigEditor({ scope, request = modelSettingsRequ
                 return <button key={item.id} type="button" disabled={!!busy} aria-current={slot === item.id ? 'page' : undefined}
                   onClick={() => changeSlot(item.id)} className={cn('w-full flex gap-2 items-center rounded-lg px-3 py-2.5 text-left text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary', slot === item.id && 'bg-primary/10 text-primary')}>
                   <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', saved?.enabled ? 'bg-emerald-500' : 'bg-muted-foreground/40')} />
-                  <span className="flex-1">{item.name}</span><span className="text-[10px] text-muted-foreground">{!loaded ? '未读取' : saved?.enabled ? '启用' : '关闭'}</span>
+                  <span className="flex-1 min-w-0 text-xs leading-4">{item.name}</span><span className="text-[10px] text-muted-foreground shrink-0">{!loaded ? '未读取' : saved?.enabled ? '启用' : '关闭'}</span>
                 </button>;
               })}
             </div>)}

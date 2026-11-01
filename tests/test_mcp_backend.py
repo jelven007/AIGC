@@ -13,7 +13,7 @@ from starlette.testclient import TestClient
 import httpx
 import backend_client
 from backend_client import request_token, BackendError
-import mcp_shopro_server as server
+import mcp_aigc_server as server
 from http_server import app, mcp
 import http_server
 

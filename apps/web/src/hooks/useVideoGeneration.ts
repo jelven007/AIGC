@@ -1,3 +1,4 @@
+import { projectStorageKey } from '@/lib/projectStorage';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -17,7 +18,7 @@ interface Receipt {
   input?: VideoJobInput;
 }
 const active = (job: ServerVideoJob) => ['pending', 'processing'].includes(job.status);
-const storageKey = (userId: string) => `shopro:video-task:${userId}`;
+const storageKey = (userId: string) => projectStorageKey('video-task', userId);
 
 export function useVideoGeneration(userId?: string) {
   const [job, setJob] = useState<ServerVideoJob | null>(null);
@@ -57,7 +58,7 @@ export function useVideoGeneration(userId?: string) {
     if (current.status === 'completed') {
       setResultVideo(current.video_url);
       saveReceipt(null);
-      window.dispatchEvent(new CustomEvent('shopro:works-updated'));
+      window.dispatchEvent(new CustomEvent('aigc:works-updated'));
       window.dispatchEvent(new CustomEvent('credits_changed'));
       toast.success('视频生成完成，已保存至作品库');
     } else if (current.status === 'failed' || current.status === 'cancelled') {

@@ -6,7 +6,7 @@ import ts from 'typescript';
 
 /** Transpile real frontend modules; replace only SDK/environment at the boundary. */
 export async function loadFrontend(entry, suite, substitutes = {}) {
-  const directory = resolve(tmpdir(), `shoproai-frontend-${suite}`);
+  const directory = resolve(tmpdir(), `aigc-frontend-${suite}`);
   mkdirSync(directory, { recursive: true });
   const compiled = new Map();
   const replacements = {

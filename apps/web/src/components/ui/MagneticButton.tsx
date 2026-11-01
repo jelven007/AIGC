@@ -63,7 +63,6 @@ const MagneticButton = ({
       window.removeEventListener("resize", reset);
     };
   }, [isHovered]);
-  const scale = isHovered ? 1.05 : 1;
   const translateX = position.x * 0.5;
   const translateY = position.y * 0.5;
   
@@ -82,7 +81,7 @@ const MagneticButton = ({
         className
       )}
       style={{
-        transform: `translate(${translateX}px, ${translateY}px) scale(${scale})`,
+        transform: `translate(${translateX}px, ${translateY}px)`,
         transition: isHovered ? "none" : "transform 0.3s ease-out"
       }}
     >

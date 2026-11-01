@@ -12,7 +12,7 @@ async function config(env, runtime) {
       VITE_SUPABASE_ANON_KEY: 'public-fixture',
       ...env,
     }))
-    .replace("typeof window === 'undefined' ? undefined : window.__SHOPRO_RUNTIME__",
+    .replace("typeof window === 'undefined' ? undefined : window.__AIGC_RUNTIME__ ?? window.__SHOPRO_RUNTIME__",
       JSON.stringify(runtime) ?? 'undefined');
   const compiled = ts.transpileModule(code, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
@@ -44,4 +44,23 @@ test('已有部署运行配置优先于开发环境能力标志', async () => {
   assert.equal(disabled.usernameLoginEnabled, false);
   const hosted = await config({ VITE_USERNAME_LOGIN: 'true' }, { deployment: 'hosted' });
   assert.equal(hosted.usernameLoginEnabled, false);
+});
+
+test('新公开运行配置优先，旧部署公开配置仍可单独读取', async () => {
+  const previousWindow = globalThis.window;
+  try {
+    for (const [current, legacy, expected] of [
+      [{ backendUrl: 'https://current.example', backendAnonKey: 'current' },
+        { backendUrl: 'https://legacy.example', backendAnonKey: 'legacy' }, 'current'],
+      [undefined, { backendUrl: 'https://legacy.example', backendAnonKey: 'legacy' }, 'legacy'],
+    ]) {
+      globalThis.window = { __AIGC_RUNTIME__: current, __SHOPRO_RUNTIME__: legacy };
+      const compiled = ts.transpileModule(source.replaceAll('import.meta.env', '{}'), {
+        compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
+      }).outputText;
+      const result = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}#${instance++}`);
+      assert.equal(result.backendUrl, `https://${expected}.example`);
+      assert.equal(result.backendAnonKey, expected);
+    }
+  } finally { globalThis.window = previousWindow; }
 });

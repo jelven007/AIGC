@@ -1,3 +1,4 @@
+import { projectStorageKey } from '@/lib/projectStorage';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { createProductionJob, productionRequest, queryProductionJob, ProductionJobError, type ProductionJob } from '@/api/productionJobs';
@@ -14,7 +15,7 @@ export function useProductionJob(kind: 'image' | 'render', userId?: string, proj
   const [error, setError] = useState('');
   const client = useQueryClient();
   const scope = useRef(0), startLock = useRef(false);
-  const key = `shopro:production:${userId}:${kind}:${projectId || 'workbench'}`;
+  const key = projectStorageKey('production', userId, `${kind}:${projectId || 'workbench'}`);
   const { value: original, receipt, write: saveReceipt, error: storageError } = useTaskReceipt<Receipt>(userId ? key : '',
     value => value && typeof value.request_key === 'string' && 'input' in value);
   const list = useTaskQuery(useMemo(() => taskListOptions('production', userId), [userId]), 'production',

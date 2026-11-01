@@ -18,7 +18,7 @@ QUERY = "ARRAY(SELECT (1+sin(n*0.031))::float8 FROM generate_series(1,1536) n)"
 
 class Database:
     def __init__(self):
-        self.name = f"shoproai-capacity-{uuid.uuid4().hex[:10]}"
+        self.name = f"aigc-capacity-{uuid.uuid4().hex[:10]}"
         self.started = False
 
     def command(self):
@@ -34,7 +34,7 @@ class Database:
 
     def start(self, through):
         subprocess.run(["docker", "run", "-d", "--name", self.name,
-                        "--label", "shoproai.purpose=capacity-test", "--memory", "2g", "--cpus", "2",
+                        "--label", "aigc.purpose=capacity-test", "--memory", "2g", "--cpus", "2",
                         "-e", "POSTGRES_PASSWORD=isolated_capacity_only", "postgres:16"],
                        check=True, capture_output=True, timeout=60)
         self.started = True

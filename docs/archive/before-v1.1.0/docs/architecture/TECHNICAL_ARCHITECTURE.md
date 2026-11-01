@@ -1,6 +1,6 @@
 历史归档：正文保留原核验时点，不是v1.1.0运行或操作依据。当前入口见[文档中心](../../../../README.md)。
 
-# 视频生成平台技术架构
+# 内容创作平台技术架构
 
 核验：2026-10-31。责任：技术维护者。事实来源：`apps/web/src/App.tsx`、`supabase/functions`、`scripts/runtime-contract.json`、`infra/self-hosted/compose.yaml`、`services/mcp/tools.json`。每次协议或运行边界变化同步本文。发布结果见[生产基线](../../../../releases/PRODUCTION_BASELINE.md)。
 

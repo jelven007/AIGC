@@ -39,7 +39,7 @@ const AI_TOOLS = [
   {
     id: 'style-copy',
     path: '/style-copy',
-    label: '爆款视频复刻',
+    label: '爆款风格复刻',
     desc: '上传参考视频，分析画面和声音风格，获取脚本建议',
     icon: Copy,
     from: '#f43f5e', to: '#ec4899',
@@ -282,7 +282,7 @@ export default function AiToolboxPage() {
       </div>
 
       {/* ── 筛选 & 搜索 ────────────────────────────────────────────────── */}
-      <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-border bg-card sticky top-16 z-10">
+      <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-border bg-card sticky top-[var(--app-topbar-height)] z-10">
         <div className="flex flex-col md:flex-row md:items-center gap-3">
           <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
             {CATEGORIES.map(cat => (

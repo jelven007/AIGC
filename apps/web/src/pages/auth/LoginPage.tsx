@@ -16,6 +16,7 @@ import {
 import { cn } from '@/lib/utils';
 import { usernameLoginEnabled, backendAnonKey, edgeFunctionUrl } from '@/lib/backendConfig';
 import { loginEmail, validLoginIdentity } from '@/lib/loginIdentity';
+import { loginDestination } from '@/lib/inspirationAssets';
 
 // 三种模式：login / register / forgot / phone
 type Mode = 'login' | 'register' | 'forgot' | 'phone';
@@ -80,9 +81,9 @@ function BrandPanel() {
       <div className="max-w-xl w-full flex flex-col justify-between h-full relative z-10">
         {/* Logo */}
         <div className="relative flex items-center gap-3">
-          <img src="/shopro.png" className="w-12 h-12 object-contain shrink-0" alt="视频生成平台" />
+          <img src="/aigc.png" className="w-12 h-12 object-contain shrink-0" alt="内容创作平台" />
           <div>
-            <p className="font-bold text-white text-xl leading-none tracking-wide">视频生成平台</p>
+            <p className="font-bold text-white text-xl leading-none tracking-wide">内容创作平台</p>
             <p className="text-white/70 text-sm mt-1">AI 驱动 · 视频创作</p>
           </div>
         </div>
@@ -158,7 +159,7 @@ export default function LoginPage() {
   const { user, loading: authLoading } = useAuth();
   const searchParams = new URLSearchParams(window.location.search);
   const inviteCodeParam = searchParams.get('invite');
-  const destination = searchParams.get('redirect') === '/credits?tab=plans' ? '/credits?tab=plans' : '/';
+  const destination = loginDestination(searchParams.get('redirect'));
 
   // F-04: 默认直接进入“立即注册”界面
   const requestedMode = searchParams.get('mode');
@@ -256,7 +257,6 @@ export default function LoginPage() {
           if (error) throw error;
           if (!data.session || !data.user) throw new Error('登录会话未建立，请重试');
           toast.success('登录成功，欢迎回来！');
-          navigate(destination);
         } else {
           const { data, error } = await supabase.auth.signUp({
             email,
@@ -306,7 +306,7 @@ export default function LoginPage() {
     phone: phoneRegister ? '手机号注册' : '手机号登录',
   };
   const subtitleMap: Record<Mode, string> = {
-    login: '登录视频生成平台，继续你的创作',
+    login: '登录内容创作平台，继续你的创作',
     register: '填写信息，开启 AI 视频创作之旅',
     forgot: '输入注册邮箱，我们将发送重置链接',
     phone: phoneRegister ? '验证手机号，创建您的账号' : '使用验证码登录已有账号',
@@ -323,8 +323,8 @@ export default function LoginPage() {
 
         {/* 移动端 Logo */}
         <div className="lg:hidden flex items-center gap-2 mb-4 sm:mb-8">
-          <img src="/shopro.png" className="w-9 h-9 object-contain shrink-0" alt="视频生成平台" />
-          <span className="font-bold text-foreground text-lg">视频生成平台</span>
+          <img src="/aigc.png" className="w-9 h-9 object-contain shrink-0" alt="内容创作平台" />
+          <span className="font-bold text-foreground text-lg">内容创作平台</span>
         </div>
 
         {/* 登录主体卡片 */}

@@ -91,7 +91,7 @@ try {
   await page.getByRole('button', { name: '按原参数重试' }).click();
   await page.getByText('0/2 个账号已发布', { exact: false }).waitFor();
   assert.equal(attempts.length, 2); assert.deepEqual(attempts[0], attempts[1]);
-  assert.equal(await page.evaluate(uid => localStorage.getItem(`shopro:publish:${uid}`), uid), null);
+  assert.equal(await page.evaluate(uid => localStorage.getItem(`aigc:publish:${uid}`), uid), null);
   console.log('PASS 提交结果未知锁定原参数，刷新后原UUID重试恢复整组');
   await page.getByRole('region', { name: '发布记录' }).getByRole('button', { name: '取消', exact: true }).first().click();
   await page.getByText('已取消', { exact: true }).waitFor();

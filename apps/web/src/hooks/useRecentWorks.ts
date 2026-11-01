@@ -33,10 +33,10 @@ export function useRecentWorks(userId?: string) {
   }, [userId]);
   useEffect(() => {
     active.current = true; setItems([]); void reload();
-    window.addEventListener('shopro:works-updated', reload);
+    window.addEventListener('aigc:works-updated', reload);
     const visible = () => { if (document.visibilityState === 'visible') void reload(); };
     window.addEventListener('focus', visible);
-    return () => { active.current = false; sequence.current++; window.removeEventListener('shopro:works-updated', reload); window.removeEventListener('focus', visible); };
+    return () => { active.current = false; sequence.current++; window.removeEventListener('aigc:works-updated', reload); window.removeEventListener('focus', visible); };
   }, [reload]);
   return { items, loading, error, reload };
 }

@@ -95,7 +95,7 @@ class DeployTest(unittest.TestCase):
         self.assertEqual(deploy.rows([]), [])
 
     def test_bootstrap_executes_as_one_real_database_transaction(self):
-        container = f"shoproai-deploy-{uuid.uuid4().hex[:8]}"
+        container = f"aigc-deploy-{uuid.uuid4().hex[:8]}"
         subprocess.run(["docker", "run", "-d", "--name", container,
                         "-e", "POSTGRES_PASSWORD=local_test", "postgres:16"],
                        check=True, capture_output=True, timeout=60)

@@ -1,5 +1,7 @@
 # aigcp 环境部署记录
 
+命名勘误（2026-11-01）：当前项目目录/包为 `aigc`，开发容器为 `aigc-web`，使用 `scripts/dev_environment.py` 与 TRAE Run；下文 `shoproai-web` 等名称仅为历史证据。当前操作见 [命名记录](PROJECT_RENAME_20261101.md)，不直接执行旧容器命令。
+
 2026-10-30补记：固定开发Compose和TRAE Run已落地，真实原管理员登录/资料、刷新及容器重启保持通过，5173健康且公开配置绑定原官方后端。本日官方Auth health200，Management预检仍401 Invalid access token；新云端迁移/函数没有执行。匹配当前未提交源码的66迁移/43函数、四镜像实际源码核对和禁网前端包见[官方发布入口](OFFICIAL_SUPABASE_DEPLOYMENT.md)；旧ECS Dev密钥登录被拒绝，常驻全栈尚未部署。以下旧记录保留历史时点。
 
 更新：2026-10-27。本页成功部署记录仍限历史00031/三旧函数；2026-10-22管理401，本轮未重新核验云端。当前源码00068/probe24/render4/edit2、66生产迁移、43生产入口/冻结共享模块、MCP59/19及前端身份和最终镜像；目标实际缺失范围需恢复访问后重新确认。[发布接受](RELEASE_ACCEPTANCE.md)与[实施台账](../archive/reviews/OPTIMIZATION_IMPLEMENTATION_20261027.md)记录本地升级/技术检查，不能作为本官方目标部署回执。

@@ -71,17 +71,17 @@ jobs:
           node-version-file: .node-version
       - run: npm install --global pnpm@10.34.5
       - run: pnpm install --frozen-lockfile
-      - run: docker build -t shoproai-render-worker:local -f services/media-worker/Dockerfile .
-      - run: docker build -t shoproai-mcp:local -f services/mcp/Dockerfile.mcp services/mcp
-      - run: docker build -t shoproai-backup:local -f infra/backup/Dockerfile .
-      - run: docker build -t shoproai-video-scheduler:local -f infra/video-scheduler/Dockerfile .
+      - run: docker build -t aigc-render-worker:local -f services/media-worker/Dockerfile .
+      - run: docker build -t aigc-mcp:local -f services/mcp/Dockerfile.mcp services/mcp
+      - run: docker build -t aigc-backup:local -f infra/backup/Dockerfile .
+      - run: docker build -t aigc-video-scheduler:local -f infra/video-scheduler/Dockerfile .
       - run: pnpm test:keyring
       - run: python3 tests/test_backup_archive.py
       - run: python3 tests/test_release_acceptance.py
       - run: pnpm test:worker-egress
-      - run: docker run --rm -v "$PWD:/workspace:ro" -w /workspace shoproai-mcp:local python tests/test_mcp_backend.py
-      - run: docker run --rm -v "$PWD:/workspace:ro" -w /workspace shoproai-mcp:local python services/mcp/export_tools.py --check
-      - run: docker run --rm -v "$PWD:/workspace:ro" -w /workspace shoproai-render-worker:local python tests/test_worker_resources.py
-      - run: docker run --rm -v "$PWD:/workspace:ro" -w /workspace shoproai-render-worker:local python tests/test_edit_media.py
-      - run: docker run --rm -v "$PWD:/workspace:ro" -w /workspace shoproai-render-worker:local python tests/test_batch_pipeline_media.py
-      - run: docker run --rm -v "$PWD:/workspace:ro" -w /workspace shoproai-render-worker:local python tests/test_render.py
+      - run: docker run --rm -v "$PWD:/workspace:ro" -w /workspace aigc-mcp:local python tests/test_mcp_backend.py
+      - run: docker run --rm -v "$PWD:/workspace:ro" -w /workspace aigc-mcp:local python services/mcp/export_tools.py --check
+      - run: docker run --rm -v "$PWD:/workspace:ro" -w /workspace aigc-render-worker:local python tests/test_worker_resources.py
+      - run: docker run --rm -v "$PWD:/workspace:ro" -w /workspace aigc-render-worker:local python tests/test_edit_media.py
+      - run: docker run --rm -v "$PWD:/workspace:ro" -w /workspace aigc-render-worker:local python tests/test_batch_pipeline_media.py
+      - run: docker run --rm -v "$PWD:/workspace:ro" -w /workspace aigc-render-worker:local python tests/test_render.py

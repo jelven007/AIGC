@@ -1,3 +1,4 @@
+import { projectStorageKey } from '@/lib/projectStorage';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -34,9 +35,9 @@ export default function MediaJobsPanel({ imageUrl = '' }: { imageUrl?: string })
   const client = useQueryClient();
   const scope = useRef(0), account = useRef(user?.id);
   account.current = user?.id;
-  const key = user ? `shopro:media-receipt:${user.id}` : '';
+  const key = user ? projectStorageKey('media-receipt', user.id) : '';
   const savedReceipt = useTaskReceipt<Receipt>(key, value => value && value.kind in kinds && typeof value.request_key === 'string' && value.input);
-  const revoked = useTaskReceipt<Revocation>(key ? `${key}:revoke` : '',
+  const revoked = useTaskReceipt<Revocation>(user ? projectStorageKey('media-receipt', user.id, 'revoke') : '',
     value => value && typeof value.voice_clone_id === 'string' && typeof value.request_key === 'string');
   const receipt = savedReceipt.value, revocation = revoked.value;
   const tasks = useTaskQuery(useMemo(() => taskListOptions('production', user?.id), [user?.id]), 'production', !!user);
@@ -141,7 +142,7 @@ export default function MediaJobsPanel({ imageUrl = '' }: { imageUrl?: string })
   const needsAudio = kind !== 'tts', needsVisual = kind === 'avatar' || kind === 'lipsync';
   const ready = kind === 'tts' ? text.trim() : media.audio_url && audioFilename && (kind === 'asr'
     || consent && name.trim() && (!needsVisual || media[kind === 'avatar' ? 'image_url' : 'video_url']));
-  return <section id="media-jobs" aria-labelledby="media-jobs-title" className="border rounded-xl p-4 md:p-6 mx-4 md:mx-6 my-4 space-y-4">
+  return <section id="media-jobs" aria-labelledby="media-jobs-title" className="w-full min-w-0 border rounded-xl p-4 md:p-6 my-4 space-y-4">
     <div className="flex flex-wrap justify-between gap-3">
       <div><h2 id="media-jobs-title" className="font-semibold text-lg">语音与数字人工作台</h2>
         <p className="text-sm text-muted-foreground mt-1">任务提交后在后台继续执行，完成结果保存到私有素材与作品库。</p></div>

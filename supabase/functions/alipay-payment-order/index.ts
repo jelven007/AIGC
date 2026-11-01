@@ -70,7 +70,7 @@ export async function handleAlipayPaymentOrder(req: Request) {
       bizContent: {
         out_trade_no: orderNo,
         total_amount: totalAmount,
-        subject: sanitizeSubject(`视频生成平台-${order.plan_snapshot.name}`),
+        subject: sanitizeSubject(`内容创作平台-${order.plan_snapshot.name}`),
         product_code: 'FAST_INSTANT_TRADE_PAY',
       },
     };

@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 import httpx
 from backend_tls import backend_ssl_context
 
-request_token = ContextVar("shopro_user_token", default=None)
+request_token = ContextVar("aigc_user_token", default=None)
 BUSINESS_FUNCTIONS = frozenset({
     "text-generation", "video-jobs", "production-jobs", "batch-video-jobs",
     "platform-accounts", "platform-publish", "knowledge-base", "market-intelligence", "product-management",

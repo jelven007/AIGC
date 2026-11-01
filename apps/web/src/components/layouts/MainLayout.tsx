@@ -44,7 +44,7 @@ function useThemePersist() {
 const AI_TOOLBOX_ITEMS = [
   { label: '提示词知识库', path: '/knowledge', badge: '提示词', badgeColor: '#14b8a6', desc: '聚合优质提示词，整合提效写作' },
   { label: '视频分镜脚本', path: '/script', badge: '脚本', badgeColor: '#a855f7', desc: '智能生成短视频分镜脚本' },
-  { label: '爆款视频复刻', path: '/style-copy', badge: '热门', badgeColor: '#f97316', desc: '分析参考视频，提取可复用的创作建议' },
+  { label: '爆款风格复刻', path: '/style-copy', badge: '热门', badgeColor: '#f97316', desc: '分析参考视频，提取可复用的创作建议' },
   { label: '直播高光切片', path: '/live-highlight', badge: '切片', badgeColor: '#ef4444', desc: 'AI自动识别直播精华' },
   { label: '口播台词优化', path: '/emotion-analysis', badge: '口播', badgeColor: '#6366f1', desc: '深度优化台词表达与情感重音' },
   { label: '竞品爆款监控', path: '/competitor', badge: '情报', badgeColor: '#3b82f6', desc: '跟踪竞品爆款视频数据与内容策略' },
@@ -53,7 +53,7 @@ const AI_TOOLBOX_ITEMS = [
 
 const navGroups = [
   {
-    label: '主要功能',
+    label: '',
     items: [
       { path: '/video/create', label: '工作台', icon: Video },
       { path: '/product-selection', label: '智能选品', icon: ShoppingBag },
@@ -214,12 +214,12 @@ function GlobalSearch({ isDarkHeader }: { isDarkHeader: boolean }) {
                         onClick={() => { navigate(r.path); setOpen(false); }}
                         className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted/60 transition-colors text-left"
                       >
-                        <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0', color)}>
+                        <div className={cn('w-6 h-6 rounded-lg flex items-center justify-center shrink-0', color)}>
                           <Icon className="w-4 h-4" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground truncate">{r.label}</p>
-                          <p className="text-xs text-muted-foreground">{label}{r.sub ? ` · ${r.sub}` : ''}</p>
+                          <p className="text-sm leading-4 font-medium text-foreground truncate">{r.label}</p>
+                          <p className="text-xs leading-3 text-muted-foreground truncate">{label}{r.sub ? ` · ${r.sub}` : ''}</p>
                         </div>
                         <ArrowRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                       </button>
@@ -344,10 +344,10 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
     <div className="flex flex-col h-full bg-sidebar sidebar-gradient">
       {/* Logo — 点击跳转官网 */}
       <Link to="/landing" onClick={onNavClick} className="block">
-        <div className="app-sidebar-brand flex items-center gap-2 px-3 py-3 border-b border-sidebar-border transition-colors hover:bg-sidebar-accent/50">
-          <img src="/shopro.png" className="w-8 h-8 object-contain shrink-0" alt="视频生成平台" />
+        <div className="app-sidebar-brand flex items-center gap-2 px-3 border-b border-sidebar-border transition-colors hover:bg-sidebar-accent/50">
+          <img src="/aigc.png" className="w-6 h-6 object-contain shrink-0" alt="内容创作平台" />
           <div className="min-w-0">
-            <p className="app-nav-label text-sm font-bold text-sidebar-foreground">视频生成平台</p>
+            <p className="app-nav-label text-sm font-bold text-sidebar-foreground">内容创作平台</p>
             <p className="text-[10px] text-sidebar-foreground/75 whitespace-nowrap">AI 驱动 · 视频创作</p>
           </div>
         </div>
@@ -357,15 +357,15 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
       <nav aria-label="主要导航" className="flex-1 px-2 py-2 space-y-2.5 overflow-y-auto min-h-0" style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}>
         {navGroups.map((group) => (
           <div key={group.label}>
-            <p className="text-xs font-medium text-sidebar-foreground/80 tracking-wide px-2 mb-1">
+            {group.label && <p className="text-xs font-medium text-sidebar-foreground/80 tracking-wide px-2 mb-1">
               {group.label}
-            </p>
+            </p>}
             <div className="space-y-0.5">
               {group.items.map((item) => (
                 <NavItem key={item.path} {...item} active={isActive(item.path)} onClick={onNavClick} />
               ))}
               {/* 在「作品管理」后插入 AI工具箱 二级菜单 */}
-              {group.label === '主要功能' && (
+              {!group.label && (
                 <AIToolboxNavItem onNavClick={onNavClick} />
               )}
             </div>
@@ -461,13 +461,15 @@ function TopBarNotificationBell({ isDarkHeader }: { isDarkHeader: boolean }) {
               }}
               className={cn('w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors', !n.read_at && 'bg-primary/5')}
             >
-              <div className="flex items-start gap-2">
+              <div className="flex items-center gap-2">
                 {!n.read_at && <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0 mt-1.5" />}
                 <div className={cn('flex-1 min-w-0', n.read_at && 'pl-3.5')}>
-                  <p className={cn('text-sm leading-snug truncate', !n.read_at ? 'font-semibold text-foreground' : 'text-muted-foreground')}>{n.title}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{n.body}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{new Date(n.created_at).toLocaleString('zh-CN')}</p>
+                  <p className={cn('text-sm leading-4 truncate', !n.read_at ? 'font-semibold text-foreground' : 'text-muted-foreground')}>{n.title}</p>
+                  <p className="text-xs leading-3 text-muted-foreground line-clamp-1">{n.body}</p>
                 </div>
+                <time className="w-[76px] shrink-0 text-[10px] leading-3 text-muted-foreground text-right" dateTime={n.created_at}>
+                  {new Date(n.created_at).toLocaleString('zh-CN')}
+                </time>
               </div>
             </button>
           ))}
@@ -603,10 +605,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       {/* 主内容区 */}
       <div className="flex-1 min-w-0 flex flex-col overflow-x-hidden">
         {/* 顶部栏：移动端汉堡 + 全局搜索（桌面端也显示） */}
-        {!isVideoEditPage && (() => {
+        {(() => {
           const isDarkHeader = isVideoCreatePage;
           return (
-            <header className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 h-16 border-b border-border shrink-0 sticky top-0 z-30 bg-card/95 text-foreground backdrop-blur-sm">
+            <header className="app-topbar flex items-center gap-2 sm:gap-3 px-3 sm:px-5 border-b border-border shrink-0 sticky top-0 z-30 bg-card/95 text-foreground backdrop-blur-sm">
               {/* 移动端菜单 */}
               <div className="lg:hidden">
                 <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -625,22 +627,22 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
               </div>
 
               {/* 移动端 Logo */}
-              <Link to="/landing" className="lg:hidden flex items-center gap-2 min-w-0 shrink-0">
-                <img src="/shopro.png" className="w-7 h-7 object-contain shrink-0" alt="视频生成平台" />
-                <span className="font-semibold text-sm truncate text-foreground">视频生成平台</span>
+              <Link to="/landing" className="app-topbar-brand lg:hidden flex items-center gap-2 min-w-0 shrink-0">
+                <img src="/aigc.png" className="w-6 h-6 object-contain shrink-0" alt="内容创作平台" />
+                <span className="font-semibold text-sm truncate text-foreground">内容创作平台</span>
               </Link>
 
               {/* 占位弹性空间 */}
               <div className="flex-1 min-w-0" />
 
               {/* 右上角工具栏：通知 + 邀请有礼 + 积分余额 + 头像 */}
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="app-topbar-tools flex items-center gap-2 shrink-0">
                 {/* 消息通知 */}
                 <TopBarNotificationBell isDarkHeader={isDarkHeader} />
 
                 {/* 邀请有礼 */}
                 <div className="hidden md:flex items-center">
-                  <Link to="/credits?tab=invite" className="flex items-center gap-1.5 h-9 px-3 rounded-lg font-medium text-xs text-muted-foreground border border-border bg-card hover:bg-accent hover:text-foreground transition-colors">
+                  <Link to="/credits?tab=invite" className="ui-button flex items-center gap-1.5 h-8 px-3 rounded-lg font-medium text-xs text-muted-foreground border border-border bg-card hover:bg-accent hover:text-foreground transition-colors">
                       <Gift className="w-3.5 h-3.5 shrink-0 text-primary" />
                       <span>邀请有礼</span>
                   </Link>

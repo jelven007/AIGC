@@ -82,7 +82,7 @@ export default function InvitePage({ embedded = false, dialogMode = false }: { e
       if (!ctx) throw new Error('浏览器不支持分享海报');
       ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, 750, 1100);
       ctx.textAlign = 'center'; ctx.fillStyle = '#f8fafc'; ctx.font = 'bold 42px sans-serif';
-      ctx.fillText('视频生成平台', 375, 140);
+      ctx.fillText('内容创作平台', 375, 140);
       ctx.font = '28px sans-serif'; ctx.fillStyle = '#cbd5e1'; ctx.fillText('邀请好友，一起创作', 375, 205);
       ctx.fillStyle = '#ffffff'; ctx.fillRect(125, 270, 500, 520);
       ctx.drawImage(image, 175, 320, 400, 400);

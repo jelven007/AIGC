@@ -1,0 +1,322 @@
+{
+  "date": "2026-11-01",
+  "passed": true,
+  "fixed_issues": [
+    "B01",
+    "B02",
+    "B04",
+    "C04"
+  ],
+  "release": "v1.1.0-compat-ed48a11e4025",
+  "source_sha256": "ed48a11e40259e6aeabcba49627b9adf73b27c831d7134b2a8abbd1780db0034",
+  "registered_files": 1166,
+  "regressions": {
+    "receipt_tests": 27,
+    "workspace_snapshot_tests": 10,
+    "frozen_candidate_snapshot_tests": 9
+  },
+  "local": {
+    "execution": {
+      "passed": true,
+      "original_source": "/Users/bytedance/Documents/trae_projects/AIGCP/.local/shopro-production/releases/v1.1.0-buttons-16bdbae9248f",
+      "candidate_source": "/Users/bytedance/Documents/trae_projects/AIGCP/.local/shopro-production/releases/v1.1.0-compat-ed48a11e4025",
+      "backup": "/Users/bytedance/Documents/trae_projects/AIGCP/.local/shopro-production/backups/before-compat-ed48a11e4025",
+      "before_health": 11,
+      "cold_backup": {
+        "backed_up": true,
+        "encrypted": true,
+        "cold_consistent": true,
+        "files": 5
+      },
+      "backup_and_restart_seconds": 67.58,
+      "upgrade_seconds": 81.3,
+      "after_upgrade_health": 11,
+      "restore": {
+        "restored": true,
+        "encrypted": true,
+        "volumes": 4,
+        "isolated": true,
+        "private_identity_restored": true,
+        "application_start_checked": false
+      },
+      "restore_import_seconds": 106.87,
+      "restored_health": 11,
+      "restore_acceptance": {
+        "passed": true,
+        "original_admin_uuid": true,
+        "original_balance": true,
+        "original_username_login": true,
+        "original_completed_job": true,
+        "private_video_download_bytes": 57709,
+        "historical_credentials": {
+          "checked": 4,
+          "by_table": {
+            "model_config_versions": 4,
+            "platform_apps": 0,
+            "platform_connections": 0,
+            "platform_oauth_states": 0,
+            "measurement_sources": 0
+          },
+          "by_key_id": {
+            "v1": 4
+          }
+        },
+        "restored_origin": "https://shopro.test:8443"
+      },
+      "restored_start_and_acceptance_seconds": 64.09,
+      "final_health": 11,
+      "original_state_preserved": true,
+      "private_identity_files_preserved": true,
+      "application_start_and_username_login_checked": true,
+      "seconds": 405.64
+    },
+    "readback": {
+      "passed": true,
+      "origin": "https://shopro.test:8443",
+      "original_identity_balance_job_preserved": true,
+      "email_and_username_login": true,
+      "private_video_bytes": 57709,
+      "private_video_sha256": "35d6c9ace0d28176f5837cbfdc791618c50e2482f8d6f90ceca156c9563c4760",
+      "historical_credentials": {
+        "checked": 4,
+        "by_table": {
+          "model_config_versions": 4,
+          "platform_apps": 0,
+          "platform_connections": 0,
+          "platform_oauth_states": 0,
+          "measurement_sources": 0
+        },
+        "by_key_id": {
+          "v1": 4
+        }
+      },
+      "jwt_and_keyring_preserved": true,
+      "runtime_key_set_preserved": true,
+      "runtime_changed_fields": [
+        "SOURCE_DIR"
+      ],
+      "capacity_and_images_preserved": true,
+      "source_sha256": "ed48a11e40259e6aeabcba49627b9adf73b27c831d7134b2a8abbd1780db0034",
+      "tls_ca_verified": true,
+      "healthy_services": 11
+    },
+    "browser": {
+      "passed": true,
+      "origin": "https://shopro.test:8443",
+      "checks": [
+        {
+          "scenario": "corrupt-current",
+          "original_uuid_and_payload_preserved": true,
+          "real_auth_login": true,
+          "creates_sent": 0,
+          "page_errors": 0
+        },
+        {
+          "scenario": "legacy-session",
+          "original_uuid_and_payload_preserved": true,
+          "real_auth_login": true,
+          "creates_sent": 0,
+          "page_errors": 0
+        }
+      ],
+      "browser_tls_ignored_for_self_signed_test": true
+    }
+  },
+  "ecs": {
+    "first_execution": {
+      "passed": false,
+      "original_source": "/opt/shopro/releases/v1.1.0-buttons-16bdbae9248f",
+      "candidate_source": "/opt/shopro/releases/v1.1.0-compat-ed48a11e4025",
+      "backup": "/opt/shopro/backups/before-compat-ed48a11e4025",
+      "before_health": 26,
+      "cold_backup": {
+        "backed_up": true,
+        "encrypted": true,
+        "cold_consistent": true,
+        "files": 5
+      },
+      "backup_and_restart_seconds": 55.85,
+      "upgrade_seconds": 75.93,
+      "after_upgrade_health": 26,
+      "restore": {
+        "restored": true,
+        "encrypted": true,
+        "volumes": 4,
+        "isolated": true,
+        "private_identity_restored": true,
+        "application_start_checked": false
+      },
+      "restore_import_seconds": 13.85,
+      "restored_health": 26,
+      "error": "docker执行失败（退出码1）",
+      "seconds": 286.69
+    },
+    "continued_restore": {
+      "passed": true,
+      "resumed_existing_import": true,
+      "original_health_before": 26,
+      "restored_health": 26,
+      "restore_acceptance": {
+        "passed": true,
+        "original_admin_uuid": true,
+        "original_balance": true,
+        "original_username_login": true,
+        "original_completed_job": true,
+        "private_video_download_bytes": 57600,
+        "historical_credentials": {
+          "checked": 1,
+          "by_table": {
+            "model_config_versions": 1,
+            "platform_apps": 0,
+            "platform_connections": 0,
+            "platform_oauth_states": 0,
+            "measurement_sources": 0
+          },
+          "by_key_id": {
+            "v1": 1
+          }
+        },
+        "restored_origin": "https://118.196.122.161"
+      },
+      "restored_private_media": {
+        "private_video_bytes": 57600,
+        "private_video_sha256": "75d9dedebb3970a8b5ee35446d76b790a95eda525af137cfcf2c16cdaeadf47d",
+        "historical_tombstone_preserved": true,
+        "selected_existing_referenced_media": true
+      },
+      "restored_start_and_acceptance_seconds": 55.7,
+      "final_health": 26,
+      "configuration_identity_capacity_and_images_preserved": true,
+      "private_identity_files_preserved": true,
+      "seconds": 135.17
+    },
+    "readback": {
+      "passed": true,
+      "origin": "https://118.196.122.161",
+      "original_identity_balance_job_preserved": true,
+      "email_and_username_login": true,
+      "private_video_bytes": 57600,
+      "private_video_sha256": "75d9dedebb3970a8b5ee35446d76b790a95eda525af137cfcf2c16cdaeadf47d",
+      "historical_credentials": {
+        "checked": 1,
+        "by_table": {
+          "model_config_versions": 1,
+          "platform_apps": 0,
+          "platform_connections": 0,
+          "platform_oauth_states": 0,
+          "measurement_sources": 0
+        },
+        "by_key_id": {
+          "v1": 1
+        }
+      },
+      "jwt_and_keyring_preserved": true,
+      "runtime_key_set_preserved": true,
+      "runtime_changed_fields": [
+        "SOURCE_DIR"
+      ],
+      "capacity_and_images_preserved": true,
+      "source_sha256": "ed48a11e40259e6aeabcba49627b9adf73b27c831d7134b2a8abbd1780db0034",
+      "tls_ca_verified": true,
+      "healthy_services": 26
+    },
+    "browser": {
+      "passed": true,
+      "origin": "https://118.196.122.161",
+      "checks": [
+        {
+          "scenario": "corrupt-current",
+          "original_uuid_and_payload_preserved": true,
+          "real_auth_login": true,
+          "creates_sent": 0,
+          "page_errors": 0
+        },
+        {
+          "scenario": "legacy-session",
+          "original_uuid_and_payload_preserved": true,
+          "real_auth_login": true,
+          "creates_sent": 0,
+          "page_errors": 0
+        }
+      ],
+      "browser_tls_ignored_for_self_signed_test": true
+    },
+    "canary_selection": {
+      "passed": true,
+      "private_video_bytes": 57600,
+      "private_video_sha256": "75d9dedebb3970a8b5ee35446d76b790a95eda525af137cfcf2c16cdaeadf47d",
+      "historical_tombstone_preserved": true,
+      "selected_existing_referenced_media": true,
+      "old_selected_job_was_deleted_before_this_backup": true
+    }
+  },
+  "development_browser": {
+    "passed": true,
+    "origin": "http://127.0.0.1:5173",
+    "checks": [
+      {
+        "scenario": "corrupt-current",
+        "original_uuid_and_payload_preserved": true,
+        "real_auth_login": true,
+        "creates_sent": 0,
+        "page_errors": 0
+      },
+      {
+        "scenario": "legacy-session",
+        "original_uuid_and_payload_preserved": true,
+        "real_auth_login": true,
+        "creates_sent": 0,
+        "page_errors": 0
+      }
+    ],
+    "browser_tls_ignored_for_self_signed_test": true
+  },
+  "preserved_source_paths": {
+    "services/media-worker": {
+      "byte_equal": true,
+      "files": 17
+    },
+    "services/mcp": {
+      "byte_equal": true,
+      "files": 18
+    },
+    "supabase/functions": {
+      "byte_equal": true,
+      "files": 104
+    },
+    "supabase/migrations": {
+      "byte_equal": true,
+      "files": 68
+    },
+    "payload/edge": {
+      "byte_equal": true,
+      "files": 44
+    }
+  },
+  "development_login_race": {
+    "fixed_in_workspace": true,
+    "red_green_reverse_verified": true,
+    "included_in_frozen_release": false,
+    "behavior": "Auth state confirms navigation; no premature navigation during lazy route loading"
+  },
+  "deployment_boundary": {
+    "parallel_rename_style_source_cleanup_fully_promoted": false,
+    "new_100_user_load_test": false,
+    "live_paid_provider_acceptance": false,
+    "monthly_sla_claim": false,
+    "rto_rpo_commitment": false,
+    "git_commit_or_push": false
+  },
+  "ecs_first_failure": "Oldest completed test media was already deleted before backup; same restored snapshot accepted using original referenced media",
+  "evidence_sha256": {
+    "local-execution.json": "c149f8c9f28f2dff25173b26e8f6050a9a8e0c32760ce4687fdf9e00b91eb29f",
+    "local-readback.json": "595fa5e865bf97f26fa89a1c7865112a92e0a1657ed23f1c60c4949f5830616a",
+    "local-browser.json": "be489e629cab5646af53d3b402d676dd904c9d7654a0fbe03e347d0ca81cd12a",
+    "ecs-execution.json": "8bf3b3268933f0ef4b0bcf68b235bb158bf461754a127dfa900eb2801bf70087",
+    "ecs-restore-resume.json": "60e693dea6fe29ee6819d8758d58f453bfafbe630d695171017a3644a51ece84",
+    "ecs-readback.json": "37f3f5936bc3d254f29595ec7b958c31e47a8625e0a53aec44eb2dff073cd110",
+    "ecs-browser.json": "840d1f28cfafa66f24c71f8d06172e6cecacc37fa05f5d7ad3e164d14641eff9",
+    "canary-selection.json": "6029605a0dd68eec471b254496a357ed86f6eec686d4c77993bf6d8872e44eab",
+    "development-browser.json": "59aa7749b1b775f1376bd130feb8006b04ddd3fd1d336bba6f37a8e1b0e5f8c3"
+  }
+}

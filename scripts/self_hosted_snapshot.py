@@ -8,7 +8,7 @@ import subprocess
 import tarfile
 import tempfile
 
-from self_hosted import ROOT, SelfHostError, compose, command, read_env, write_private, receipt, tls, publish_runtime
+from self_hosted import ROOT, SelfHostError, compose, compose_file, command, read_env, write_private, receipt, tls, publish_runtime
 
 DATA_VOLUMES = ("postgres", "storage", "media", "scheduler-alerts")
 
@@ -64,10 +64,12 @@ def backup(state, key, output):
     values = read_env(state / "runtime.env")
     if output.exists() or not key.is_file() or key.stat().st_mode & 0o077:
         raise SelfHostError("需要新快照目录及0600密钥文件")
+    compose_file(state / "runtime.env")
+    compose(state / "runtime.env", ["--profile", "execution", "config", "--quiet"])
     output.mkdir(mode=0o700)
     result = {"format": 1, "project": values["COMPOSE_PROJECT_NAME"], "files": {}, "cold_consistent": True}
-    compose(state / "runtime.env", ["--profile", "execution", "stop"], timeout=300)
     try:
+        compose(state / "runtime.env", ["--profile", "execution", "stop"], timeout=300)
         for name in DATA_VOLUMES:
             result["files"][name] = helper(values, key, output, volume(values["COMPOSE_PROJECT_NAME"], name), "export", name)
         result["files"]["state"] = helper(values, key, output, state, "export", "state")
@@ -79,7 +81,7 @@ def backup(state, key, output):
 
 
 def restore(source_state, key, artifact, target, project, origin, subnet, dev_tls=False, certificate=None, certificate_key=None,
-            bind="127.0.0.1"):
+            bind="127.0.0.1", initial_admin_file=None):
     values = read_env(source_state / "runtime.env")
     manifest = json.loads((artifact / "manifest.json").read_text())
     if (manifest.get("format") != 1 or manifest.get("cold_consistent") is not True
@@ -103,6 +105,26 @@ def restore(source_state, key, artifact, target, project, origin, subnet, dev_tl
         old_origin = restored_env["PUBLIC_ORIGIN"]
         if origin.rstrip("/") != old_origin:
             raise SelfHostError("快照恢复必须保留原HTTPS地址；作品引用和告警端点绑定原地址")
+        from initial_admin import read_initial_admin, set_bootstrap_owner, InitialAdminError
+        identity_file = staging / "state/initial-admin.json"
+        if not identity_file.exists() and initial_admin_file:
+            identity_file = Path(initial_admin_file)
+            if identity_file.resolve() == ROOT or ROOT in identity_file.resolve().parents:
+                raise SelfHostError("旧快照初始化补充文件必须位于源码之外")
+        try:
+            identity = read_initial_admin(identity_file)
+        except InitialAdminError:
+            raise SelfHostError("快照缺少有效私有初始化文件；旧快照须显式提供--initial-admin-file") from None
+        expected_mapping = {name: identity[name] for name in ("username", "email")}
+        login_file = staging / "state/login-identity.json"
+        if login_file.exists():
+            if not login_file.is_file() or login_file.is_symlink() or login_file.stat().st_mode & 0o077:
+                raise SelfHostError("快照用户名映射需要普通0600文件")
+            try:
+                if json.loads(login_file.read_text()) != expected_mapping:
+                    raise ValueError()
+            except (ValueError, OSError):
+                raise SelfHostError("快照用户名映射与初始化身份不一致") from None
         from self_hosted import configure
         env = configure(target, origin, project=project, subnet=subnet, bind=bind)
         new = read_env(env)
@@ -112,7 +134,13 @@ def restore(source_state, key, artifact, target, project, origin, subnet, dev_tl
         temporary_env = target / "runtime.env.restore"
         write_private(temporary_env, "".join(f"{k}={v}\n" for k, v in restored_env.items()))
         os.replace(temporary_env, env)
-        for name in ("frontend", "edge", "receipts"):
+        shutil.copy2(identity_file, target / "initial-admin.json")
+        (target / "initial-admin.json").chmod(0o600)
+        set_bootstrap_owner(target / "initial-admin.json")
+        write_private(target / "login-identity.json", json.dumps(expected_mapping))
+        for name in ("frontend", "edge", "receipts", "fixtures"):
+            if name == "fixtures" and not (staging / "state" / name).exists():
+                continue
             shutil.copytree(staging / "state" / name, target / name, dirs_exist_ok=True)
         for name in DATA_VOLUMES:
             command(["docker", "volume", "create", volume(project, name)])
@@ -122,8 +150,10 @@ def restore(source_state, key, artifact, target, project, origin, subnet, dev_tl
     # 保留规范地址；隔离演练可用其他bind/IP及独立网段，生产提供有效证书。
     tls(restored_env, dev=dev_tls, certificate=certificate, key=certificate_key)
     publish_runtime(restored_env)
-    receipt(target, "snapshot-restore.json", {"restored": True, "encrypted": True, "volumes": 4, "isolated": True})
-    return {"restored": True, "encrypted": True, "volumes": 4, "isolated": True}
+    result = {"restored": True, "encrypted": True, "volumes": 4, "isolated": True,
+              "private_identity_restored": True, "application_start_checked": False}
+    receipt(target, "snapshot-restore.json", result)
+    return result
 
 
 if __name__ == "__main__":
@@ -141,6 +171,7 @@ if __name__ == "__main__":
     parser.add_argument("--dev-tls", action="store_true")
     parser.add_argument("--tls-cert")
     parser.add_argument("--tls-key")
+    parser.add_argument("--initial-admin-file", help="仅旧快照缺少初始化文件时显式补充源码外普通0600文件")
     args = parser.parse_args()
     try:
         if args.action.startswith("inner-"):
@@ -149,7 +180,7 @@ if __name__ == "__main__":
             state, key, output = (Path(value).resolve() for value in (args.state_dir, args.key_file, args.output))
             result = (backup(state, key, output) if args.action == "backup" else
                       restore(state, key, Path(args.artifact).resolve(), output, args.project, args.origin, args.subnet,
-                              args.dev_tls, args.tls_cert, args.tls_key, args.bind))
+                              args.dev_tls, args.tls_cert, args.tls_key, args.bind, args.initial_admin_file))
             print(json.dumps(result))
     except Exception as error:
         print(json.dumps({"error": str(error) if isinstance(error, SelfHostError) else type(error).__name__}))

@@ -1,3 +1,4 @@
+import { projectStorageKey } from '@/lib/projectStorage';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -23,11 +24,11 @@ export default function ExportFormatsPage() {
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const lock = useRef(false);
   const currentUser = useRef(user?.id); currentUser.current = user?.id;
-  const storageKey = user ? `shopro:exports:${user.id}` : '';
+  const storageKey = user ? projectStorageKey('exports', user.id) : '';
   const client = useQueryClient();
   const saved = useTaskReceipt<RenderExportRequest>(storageKey, value => value && typeof value.request_key === 'string'
     && typeof value.source_project_id === 'string' && Array.isArray(value.formats));
-  const old = useTaskReceipt<{ request_key: string; project_id: string; input: unknown }>(user ? `shopro:format:${user.id}` : '',
+  const old = useTaskReceipt<{ request_key: string; project_id: string; input: unknown }>(user ? projectStorageKey('format', user.id) : '',
     value => value && typeof value.request_key === 'string' && typeof value.project_id === 'string' && value.input);
   const pending = saved.value, legacy = old.value;
   const groups = useTaskQuery(useMemo(() => ({ queryKey: ['tasks', user?.id, 'render-exports'],

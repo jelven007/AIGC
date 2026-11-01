@@ -1,3 +1,4 @@
+import { projectStorageKey } from '@/lib/projectStorage';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
@@ -28,7 +29,7 @@ export function EditAnalysisDialog({ mode, onClose, userId, projectKey, tracks, 
   const [busy, setBusy] = useState(false);
   const locked = useRef(false), generation = useRef(0), restored = useRef('');
   const client = useQueryClient();
-  const key = `shopro:edit-analysis:${userId}:${projectKey}`;
+  const key = projectStorageKey('edit-analysis', userId, projectKey);
   const saved = useTaskReceipt<Receipt>(userId ? key : '', value => value && typeof value.request_key === 'string'
     && ['beats', 'subtitles'].includes(value.input?.mode) && typeof value.input?.source?.id === 'string');
   const receipt = saved.receipt, write = saved.write, original = saved.value;

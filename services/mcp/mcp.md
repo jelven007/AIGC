@@ -14,7 +14,7 @@
 
 ## 1. 入口与连接配置
 
-HTTP 入口 http_server.py，stdio 入口 mcp_shopro_server_stdio.py；mcp_shopro_server.py 含工具定义，也可作为 stdio 入口。原极简入口只作兼容，不建立计费旁路。配置模板见 [.env.example](.env.example)。
+HTTP 入口 http_server.py，stdio 入口 mcp_aigc_server_stdio.py；mcp_aigc_server.py 含工具定义，也可作为 stdio 入口。原极简入口只作兼容，不建立计费旁路。配置模板见 [.env.example](.env.example)。
 
 连接参数SUPABASE_URL/SUPABASE_ANON_KEY指向目标项目HTTPS根地址；HTTP每次携带`Authorization: Bearer 用户JWT或业务Key`，MCP_ALLOWED_HOSTS填真实公开域名。stdio沿用SUPABASE_USER_JWT环境名，可提供JWT或业务Key，放受控环境。禁止service_role、anon、模型Key和加密主密钥作为用户身份；业务服务验证签名、Key摘要、权限、到期、撤销、用户禁用和速率。
 
@@ -67,7 +67,7 @@ HTTP ContextVar 在每次请求后重置，无状态传输避免用户会话混�
 在 mcp 目录建立 Python 3.12 虚拟环境并运行 `pip install --require-hashes -r requirements.lock && pip check`。首次复制配置模板，已有 .env 不覆盖；直接 Python 启动前由受控环境加载参数。
 
 
-default HTTP：python http_server.py，默认 127.0.0.1:8080/mcp。stdio：python mcp_shopro_server_stdio.py，用户 JWT 过期后需安全更新。
+默认 HTTP：python http_server.py，默认 127.0.0.1:8080/mcp。stdio：python mcp_aigc_server_stdio.py，用户 JWT 过期后需安全更新。
 
 Docker：docker compose -f docker-compose.mcp.yml up -d --build；端口绑定 127.0.0.1:8080，公网通过 TLS 代理。MCP_ALLOWED_HOSTS 包含实际 Host/端口规则，不使用任意域名通配。容器重启不代表宿主始终在线。
 
@@ -75,6 +75,6 @@ Docker：docker compose -f docker-compose.mcp.yml up -d --build；端口绑定 1
 
 支持 streamable-http 的客户端配置实际 /mcp URL 与用户 Authorization；stdio 配置本地 Python/入口路径和受控用户环境。客户端必须处理 JWT 过期、限流和业务错误，不能以一次 initialize 成功宣称生成链路全通。
 
-构建`docker build -t shoproai-mcp:local -f services/mcp/Dockerfile.mcp mcp`后根目录`npm run test:mcp`检查SDK59工具/19权限、并发身份、媒体/编辑/编排/商品/知识/发布载荷、原UUID与错误/传输。`test:access`核验真实PG撤销/归属/限流。MCP当前图片工具保留生成/参考参数，网页掩码编辑不是新增独立MCP工具；目标需匹配00062、TLS/真实JWT/模型/平台与后台运行。
+构建`docker build -t aigc-mcp:local -f services/mcp/Dockerfile.mcp services/mcp`后根目录`npm run test:mcp`检查SDK59工具/19权限、并发身份、媒体/编辑/编排/商品/知识/发布载荷、原UUID与错误/传输。`test:access`核验真实PG撤销/归属/限流。MCP当前图片工具保留生成/参考参数，网页掩码编辑不是新增独立MCP工具；目标需匹配00062、TLS/真实JWT/模型/平台与后台运行。
 
 接口状态见 [API_AND_DATA](../../docs/development/API_AND_DATA.md)，真实验收见 [TEST_PLAN](../../docs/testing/TEST_PLAN.md)，部署见 [火山指南](../../docs/releases/VOLCENGINE_DEPLOYMENT.md) 或 [官方记录](../../docs/releases/DEPLOYMENT_AIGCP.md)。MCP 与前端同版本/同后端，不能用工具绕过配置/计费。

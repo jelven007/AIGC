@@ -3,7 +3,7 @@
 类型：explanation。读者：开发与发布维护者。责任：技术维护者。核验：2026-11-01。来源：Vite/TypeScript配置、scripts/check_project_layout.mjs、tests/test_production_layout.py和交付白名单。每次路径或职责变化复核，配置与实际目录不同即过期。
 
 ```text
-shoproai/
+aigc/
 ├── apps/web/
 │   ├── src/           pages按13领域归组；components/hooks/api/lib/types/contexts/db
 │   ├── public/        正式静态资源与公开运行配置

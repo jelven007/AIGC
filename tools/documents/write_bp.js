@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const output = resolve(process.argv[2] || resolve(root, 'docs/prd/视频平台商业计划摘要.md'));
-const content = `# 视频生成平台商业计划摘要
+const content = `# 内容创作平台商业计划摘要
 
 > 更新：2026-10-31。本文描述产品定位和验证方法；运行状态、成本与试点证据以现行记录为准。
 
@@ -53,7 +53,7 @@ MCP 与网页共用业务 API、模型配置、权限和任务协议。
 
 按真实创作需求和质量、成本、留存数据确定扩展优先级。
 企业结算、更多发布平台、专业训练与商业素材能力需独立需求及验收证据。
-产品名称保持为「视频生成平台」。
+产品名称保持为「内容创作平台」。
 `;
 
 writeFileSync(output, content, 'utf8');

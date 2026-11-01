@@ -25,7 +25,7 @@ import {
   Loader2, Copy,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 
 // ─── 头像颜色方案 ─────────────────────────────────────────────────────────────
@@ -56,19 +56,17 @@ interface Overview {
 }
 
 // ─── 统计卡片 ─────────────────────────────────────────────────────────────────
-function StatCard({ icon: Icon, label, value, color, bg, onClick }: {
+function StatCard({ icon: Icon, label, value, color, bg, to }: {
   icon: React.ElementType; label: string; value: number | string;
-  color: string; bg: string; onClick?: () => void;
+  color: string; bg: string; to: string;
 }) {
-  const Component = onClick ? 'button' : 'div';
   return (
-    <Component
-      type={onClick ? 'button' : undefined}
-      onClick={onClick}
+    <Link
+      to={to}
       className={cn(
         'flex flex-col gap-2 p-4 rounded-2xl border border-border/60 bg-card text-left',
         'hover:border-primary/40 transition-colors duration-150',
-        onClick && 'cursor-pointer',
+        'cursor-pointer',
       )}
     >
       <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center', bg)}>
@@ -76,7 +74,7 @@ function StatCard({ icon: Icon, label, value, color, bg, onClick }: {
       </div>
       <p className="text-2xl font-bold tabular-nums">{value}</p>
       <p className="text-xs text-muted-foreground">{label}</p>
-    </Component>
+    </Link>
   );
 }
 
@@ -93,13 +91,13 @@ function MenuRow({ icon: Icon, label, desc, onClick, danger = false, badge }: {
           ? 'hover:bg-destructive/10 text-destructive'
           : 'hover:bg-muted/50 text-foreground',
       )}>
-      <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shrink-0',
+      <div className={cn('w-6 h-6 rounded-lg flex items-center justify-center shrink-0',
         danger ? 'bg-destructive/10' : 'bg-muted')}>
         <Icon className={cn('w-4 h-4', danger ? 'text-destructive' : 'text-muted-foreground')} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className={cn('text-sm font-medium', danger ? 'text-destructive' : '')}>{label}</p>
-        {desc && <p className="text-xs text-muted-foreground mt-0.5 text-pretty">{desc}</p>}
+        <p className={cn('text-sm leading-4 font-medium', danger ? 'text-destructive' : '')}>{label}</p>
+        {desc && <p className="text-xs leading-[14px] text-muted-foreground">{desc}</p>}
       </div>
       {badge && (
         <Badge className="text-[10px] bg-primary/10 text-primary border-primary/20 border shrink-0">{badge}</Badge>
@@ -278,7 +276,7 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-muted/20">
       {/* ── Hero 横幅 ── */}
-      <div className="relative h-36 md:h-44 border-b border-border">
+      <div className="relative h-[104px] md:h-32 border-b border-border">
         <PageHeader className="page-inset" title="个人中心" />
       </div>
 
@@ -465,11 +463,11 @@ export default function ProfilePage() {
               </div>
               {statsError && <p role="alert" className="text-sm mb-3">{statsError}{stats && '；显示上次成功读取的数据。'}</p>}
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                <StatCard icon={Video} label="视频项目" value={stats?.videos ?? '—'} color="text-primary" bg="bg-primary/10" onClick={() => navigate('/works')} />
-                <StatCard icon={Film} label="完成作品" value={stats?.completed ?? '—'} color="text-success" bg="bg-success/10" onClick={() => navigate('/works')} />
-                <StatCard icon={Globe} label="已发布记录" value={stats?.published ?? '—'} color="text-success" bg="bg-success/10" onClick={() => navigate('/publish')} />
-                <StatCard icon={ImageIcon} label="素材文件" value={stats?.materials ?? '—'} color="text-info" bg="bg-info/10" onClick={() => navigate('/works')} />
-                <StatCard icon={Package} label="商品管理" value={stats?.products ?? '—'} color="text-warning" bg="bg-warning/10" onClick={() => navigate('/products')} />
+                <StatCard icon={Video} label="视频项目" value={stats?.videos ?? '—'} color="text-primary" bg="bg-primary/10" to="/works" />
+                <StatCard icon={Film} label="完成作品" value={stats?.completed ?? '—'} color="text-success" bg="bg-success/10" to="/works" />
+                <StatCard icon={Globe} label="已发布记录" value={stats?.published ?? '—'} color="text-success" bg="bg-success/10" to="/publish" />
+                <StatCard icon={ImageIcon} label="素材文件" value={stats?.materials ?? '—'} color="text-info" bg="bg-info/10" to="/works" />
+                <StatCard icon={Package} label="商品管理" value={stats?.products ?? '—'} color="text-warning" bg="bg-warning/10" to="/products" />
               </div>
             </div>
 
@@ -564,7 +562,7 @@ export default function ProfilePage() {
             <div className="text-center pb-2">
               <div className="inline-flex items-center gap-2 text-xs text-muted-foreground/60">
                 <Award className="w-3.5 h-3.5" />
-                <span>视频生成平台 v1.0</span>
+                <span>内容创作平台 v1.2.0</span>
                 <span>·</span>
                 <span>© {new Date().getFullYear()}</span>
               </div>

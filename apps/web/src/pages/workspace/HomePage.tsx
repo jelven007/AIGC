@@ -32,6 +32,7 @@ import { RecentWorkGrid } from '@/components/production/RecentWorkGrid';
 import ImageEditCanvas, { type PreparedImageEdit } from '@/components/ImageEditCanvas';
 import type { ImageMode } from '../../../../../supabase/functions/_shared/image-contract';
 import { useCredits } from '@/hooks/useCredits';
+import { inspirationAsset } from '@/lib/inspirationAssets';
 
 
 
@@ -44,7 +45,7 @@ const QUICK_TOOLS = [
     path: '/script',
   },
   {
-    id: 'style-copy', label: '爆款视频复刻', sub: '分析授权视频并提取风格建议',
+    id: 'style-copy', label: '爆款风格复刻', sub: '分析授权视频并提取风格建议',
     gradient: 'from-[#743aad] to-[#39235e]', icon: Copy,
     path: '/style-copy',
   },
@@ -136,6 +137,14 @@ function HomeWorkspace({ entry }: { entry: any }) {
   );
 
   const [prompt, setPrompt] = useState('');
+  const inspiration = inspirationAsset(new URLSearchParams(route.search).get('inspiration'));
+  useEffect(() => {
+    if (inspiration) {
+      setMainTab('视频生成');
+      setInputTab('参考');
+      setPrompt(inspiration.prompt);
+    }
+  }, [inspiration]);
 
   // ── 输入框仅在输入文字的那一刻环绕跑马光效状态 ─────────────────────
   const [isTypingVideo, setIsTypingVideo] = useState(false);
@@ -991,13 +1000,13 @@ function HomeWorkspace({ entry }: { entry: any }) {
                                 type="button"
                                 onClick={() => updateResolution(activeResolution, item.label, activeDuration)}
                                 className={cn(
-                                  "flex flex-col items-center justify-center p-2 rounded-xl border transition-all duration-200 h-16",
+                                  "flex flex-col items-center justify-center rounded-xl border transition-all duration-200 h-8",
                                   activeRatio === item.label
                                     ? "bg-white/15 text-white border-white/20"
                                     : "bg-white/5 text-white/40 border-transparent hover:bg-white/10 hover:text-white/70"
                                 )}
                               >
-                                <div className={cn("border-2 border-current rounded-sm mb-1.5 shrink-0", item.style)} />
+                                <div className={cn("border-2 border-current rounded-sm shrink-0", item.style)} />
                                 <span className="text-[10px] font-medium leading-none">{item.label}</span>
                               </button>
                             ))}
@@ -1079,7 +1088,7 @@ function HomeWorkspace({ entry }: { entry: any }) {
                         <Mic className="w-4 h-4" />
                       </button>
                       <button onClick={handleGenerate}
-                        className="workspace-generate workspace-generate-video flex items-center justify-center gap-1 px-2.5 py-1.5 md:px-4 md:py-2 rounded-xl text-[11px] sm:text-sm font-semibold transition-all duration-200 hover:scale-105 active:scale-95 shrink-0">
+                        className="workspace-generate workspace-generate-video flex items-center justify-center gap-1 px-2.5 py-1.5 md:px-4 md:py-2 rounded-xl text-[11px] sm:text-sm font-semibold transition-colors duration-200 hover:brightness-110 shrink-0">
                         <Play className="w-3.5 h-3.5 fill-current" />
                         <span className="sm:hidden">生成</span>
                         <span className="hidden sm:inline">AI视频生成</span>
@@ -1386,16 +1395,16 @@ function HomeWorkspace({ entry }: { entry: any }) {
                                 type="button"
                                 onClick={() => updateImgResolution(item.label === '1:1' ? '1024x1024' : item.label === '2:3' ? '1024x1536' : '1536x1024', imgQuality, item.label)}
                                 className={cn(
-                                  "flex flex-col items-center justify-center p-1.5 rounded-xl border transition-all duration-200 h-14",
+                                  "flex flex-col items-center justify-center rounded-xl border transition-all duration-200 h-8",
                                   imgAspect === item.label
                                     ? "bg-white/15 text-white border-white/20"
                                     : "bg-white/5 text-white/40 border-transparent hover:bg-white/10 hover:text-white/70"
                                 )}
                               >
                                 {item.style === 'Auto' ? (
-                                  <Sparkles className="w-3.5 h-3.5 text-pink-400 mb-1 shrink-0" />
+                                  <Sparkles className="w-3.5 h-3.5 text-pink-400 shrink-0" />
                                 ) : (
-                                  <div className={cn("border-2 border-current rounded-sm mb-1 shrink-0", item.style)} />
+                                  <div className={cn("border-2 border-current rounded-sm shrink-0", item.style)} />
                                 )}
                                 <span className="text-[10px] font-medium leading-none">{item.label}</span>
                               </button>
@@ -1443,7 +1452,7 @@ function HomeWorkspace({ entry }: { entry: any }) {
                       disabled={referenceBusy || !imgPrompt.trim() || !referenceRights && imgMode !== 'generate'
                         || imageSettingsBusy || imgMode !== 'generate' && (!preparedImageEdit || imageCost === null
                           || !imgConfig?.image_capabilities?.mask || !imgConfig?.version_id)}
-                      className="workspace-generate workspace-generate-image flex items-center justify-center gap-1 px-2.5 py-1.5 md:px-4 md:py-2 rounded-xl text-[11px] sm:text-sm font-semibold transition-all duration-200 enabled:hover:scale-105 enabled:active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed shrink-0">
+                      className="workspace-generate workspace-generate-image flex items-center justify-center gap-1 px-2.5 py-1.5 md:px-4 md:py-2 rounded-xl text-[11px] sm:text-sm font-semibold transition-colors duration-200 enabled:hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed shrink-0">
                       <ImageIcon className="w-3.5 h-3.5" />
                       <span className="sm:hidden">生成</span>
                       <span className="hidden sm:inline">生成图片</span>
@@ -1522,14 +1531,14 @@ function HomeWorkspace({ entry }: { entry: any }) {
               {/* 右侧工具卡片（移动端缩小高度与字体） */}
               <div className="lg:col-span-3 grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3">
                 {QUICK_TOOLS.map(tool => (
-                  <button key={tool.id} onClick={() => navigate(tool.path)}
+                  <Link key={tool.id} to={tool.path}
                     className={cn('workspace-tool relative rounded-xl border border-white/15 bg-gradient-to-br overflow-hidden group min-h-[104px] flex items-center p-3 sm:p-4 text-left transition-all duration-200 hover:brightness-110 hover:border-white/30', tool.gradient)}>
                     <tool.icon aria-hidden="true" className="absolute right-3 top-3 w-8 h-8 text-white/15" />
                     <div className="relative z-10">
                       <p className="text-xs sm:text-sm font-semibold text-[#f9f5ff]">{tool.label}</p>
                       <p className="text-xs text-[#e8dcf5] leading-relaxed mt-1">{tool.sub}</p>
                     </div>
-                  </button>
+                  </Link>
                 ))}
               </div>
             </div>

@@ -2,6 +2,8 @@
 
 类型：tutorial。读者：新加入的开发者与维护者。责任：开发维护者。核验：2026-11-01。来源：package.json、pnpm-lock.yaml、Vite配置、infra/development/compose.yaml、scripts/dev_environment.py。工具链或路径变更时复核；干净检出无法按步骤启动/构建即过期。
 
+介绍页素材位于 `apps/web/public/inspiration`，使用 `apps/web/src/lib/inspirationAssets.json` 登记摘要/裁剪/提示词，通过 `inspirationAssets.ts` 读取。六个重构组件和 `InspirationGallery` 由 `LandingPage` 调用。新增素材不能直接复制到旧演示目录；更新衍生图与摘要后执行 `pnpm lint` 和 `pnpm test:asset-reuse-ui`。完整映射和归档再生成步骤见 [素材复用记录](../releases/ASSET_REUSE_20261101.md)。
+
 ## 固定开发入口与环境矩阵
 
 | 环境 | 启动与身份 | 用途 |
@@ -34,6 +36,8 @@ pnpm dev
 ```
 
 公开配置是URL/anon或publishable key及正式条款/隐私URL；支持服务端用户名登录时设置VITE_USERNAME_LOGIN=true，只表达能力，不包含身份值。service_role、模型/支付/Worker/主密钥只进入服务端受控配置。
+
+新自托管公开配置使用 `__AIGC_RUNTIME__`，前端兼容读取已有部署的旧全局变量。所有用户请求回执经 `projectStorageKey` 写入 `aigc:*`；旧键迁移保留原UUID和参数，写入失败继续原键。不得用清空浏览器或换请求键处理改名；详见 [清理记录](../releases/SOURCE_CLEANUP_20261101.md)。
 
 ## 修改入口
 

@@ -5,7 +5,7 @@ const Footer = () => {
     <div className="container-custom">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
         <div className="col-span-1 md:col-span-2">
-          <h3 className="text-xl font-bold mb-4 text-scriptgenius-blue">视频生成平台</h3>
+          <h3 className="text-xl font-bold mb-4 text-scriptgenius-blue">内容创作平台</h3>
           <p className="text-sm text-muted-foreground mb-4">从分镜脚本和 AI 视频生成，到素材剪辑、配音与作品发布，连接每一步创作。</p>
 
         </div>

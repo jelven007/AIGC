@@ -1,11 +1,7 @@
-# Git远端与文档交付
+# 历史 Git 交付说明
 
-更新：2026-10-21。当前仓库origin为原作者xiaoye66/shoproai，用户远端aigcp为jelven007/aigcp，github为jelven007/AIGC；实际地址/分支以git remote -v与git status为准，不用远端名称推断已完成同步。
+2026-11-01 勘误：旧源仓库远端说明已退出当前交付流程。当前源码仓库是 `aigc`；工作区外层另一个 Git 仓库不是应用发布仓库。
 
-修改后先审阅差异与范围，本地中文提交；确认远端归属与内容再推送。存在并行开发时显式暂存本轮文件，不使用git add .混入未完成源码/Secrets。凭据/本地部署文件受Git忽略，但仍核对跟踪列表。
+应用当前用户远端为 `github`（GitHub AIGC）及 `aigcp`（用户 Gitee 仓库），实际状态通过 `git remote -v` 和 `git branch -vv` 核对。仅获明确提交/推送指令后逐项审阅、暂存和执行，不混入并行开发、Secrets 或私有运行材料。
 
-只读状态命令：git status --short --branch、git log -5 --oneline、git remote -v。远端更新用git ls-remote aigcp；远端为空或尚未推送，不宣称本地提交已经同步。当前master跟踪origin/master，不直接用裸git push把变更发给原作者。
-
-本轮只读确认aigcp/master位于ce90bfe，尚未包含本轮文档提交；不据此推断github分支相同。后续同步指定用户远端和本地分支，不采用旧教程的双pushurl自动写两个仓库。
-
-仅在获授权后向用户远端明确推送本地分支；本轮文档更新采用本地提交并确认远端状态。Git提交规范见 [AGENTS](../../../AGENTS.md)，文档入口见 [README](../../README.md)。
+本文属于归档，不是当前发布指南。现行规范见 [AGENTS](../../../AGENTS.md)、[版本管理](../../releases/VERSION_MANAGEMENT.md) 和 [源内容清理记录](../../releases/SOURCE_CLEANUP_20261101.md)。

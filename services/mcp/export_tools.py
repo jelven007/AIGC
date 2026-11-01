@@ -3,7 +3,7 @@ import argparse
 import asyncio
 import json
 from pathlib import Path
-from mcp_shopro_server import mcp
+from mcp_aigc_server import mcp
 
 
 async def main():

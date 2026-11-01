@@ -43,7 +43,7 @@ payload=AESGCM(ring["keys"]["current"]).encrypt(nonce,data["plain"].encode(),aad
 print(json.dumps({"cipher":".".join(("v2","current",base64.b64encode(nonce).decode(),base64.b64encode(payload).decode()))}))
 `;
   const result = spawnSync('docker', ['run', '--rm', '-i', '--network', 'none', '--read-only',
-    '--tmpfs', '/tmp:rw,size=16m', '--entrypoint', 'sh', 'shoproai-backup:local', '-c',
+    '--tmpfs', '/tmp:rw,size=16m', '--entrypoint', 'sh', 'aigc-backup:local', '-c',
     'mkdir /tmp/interop && tar -xf - -C /tmp/interop && python -c "$1"', 'sh', python],
   { input: archive.stdout, maxBuffer: 1024 * 1024, timeout: 30000 });
   assert.equal(result.status, 0, result.stderr?.toString());

@@ -1,5 +1,6 @@
+name: aigc-mcp
 services:
-  shopro-mcp:
+  mcp:
     build:
       context: .
       dockerfile: Dockerfile.mcp

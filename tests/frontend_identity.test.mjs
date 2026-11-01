@@ -75,8 +75,8 @@ test('已发送创建请求后切换账号不能清除原账号恢复回执', as
   reset('create');
   await assert.rejects(audio.synthesizeSpeech({ input: '商品台词' }), /账号|会话/);
   assert.equal(calls.filter(isCreation)[0].owner, 'account-a');
-  assert.ok(values.has('shopro:media-receipt:account-a'));
-  assert.equal(values.has('shopro:media-receipt:account-b'), false);
+  assert.ok(values.has('aigc:media-receipt:account-a'));
+  assert.equal(values.has('aigc:media-receipt:account-b'), false);
 });
 test('视频查询固定原身份且拒绝切换后的迟到响应', async () => {
   reset('video-read');
@@ -89,7 +89,7 @@ test('素材登记响应期间切换账号保留原上传回执', async () => {
   const result = await material.recoverMaterialUploads('account-a');
   assert.equal(result.restored, 0);
   assert.equal(result.pending, 1);
-  assert.equal(JSON.parse(values.get('shopro:material-uploads:account-a')).length, 1);
+  assert.equal(JSON.parse(values.get('aigc:material-uploads:account-a')).length, 1);
 });
 test('商品事务固定原身份且不接受切换后的保存结果', async () => {
   reset('product-read');

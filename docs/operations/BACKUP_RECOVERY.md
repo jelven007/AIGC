@@ -1,11 +1,13 @@
 # 备份与隔离恢复操作
 
-更新：2026-10-27，当前`00068/probe24/render4/edit2`。最终锁依赖备份镜像、加密归档上传/拉回及双PG16隔离恢复已在本地通过；目标备份调度/独立故障域、托管系统迁移及生产容量仍须独立验收。
+类型：how-to，operational。读者：备份与恢复维护者。责任：运维维护者。核验：2026-11-01。来源：scripts/backup_restore.py、scripts/backup_archive.py、scripts/self_hosted_snapshot.py与当轮回归。每次恢复/依赖变更或30天复核；命令路径、身份、归档或目标版本不符即过期。
+
+本手册说明独立数据库/Storage归档工具，当前契约`00068/probe24/render4/edit2`。自托管整机冷快照与原用户名身份恢复使用[升级恢复手册](../deployment/SELF_HOSTED_ECS_RUNBOOK.md)。固定依赖备份镜像、加密归档上传/拉回及双PG16隔离恢复有测试覆盖；目标备份调度、独立故障域与托管系统迁移须单独验收。
 
 本地流程已在双PG16和HTTP对象服务执行，详见 [迭代29](../archive/iterations/ITERATION_29_ALERTS_RECOVERY.md)。目标平台尚未执行备份调度或恢复验收，不承诺生产RPO/RTO。
 
 1. 核对实际平台、数据库直连、PG主版本、Storage URL、迁移回执和凭据负责人。使用PG16镜像只处理支持的源/目标版本；官方托管平台Auth/Storage系统迁移另走官方流程。
-2. 将 [配置模板](../../infra/backup/config.example.json)复制为deploy/backup/config.json并设0600，secrets目录0700、每个文件0600。备份加密密钥为独立32字节hex；使用单主密钥时保留model_master_key并移除尚不存在的model_keyring项，使用版本目录时备份完整model_keyring。轮换与只读历史预检见 [密钥轮换](KEY_ROTATION.md)。将商户证书/私钥、签名Key、历史主密钥等所有运行必需材料按secrets名称加入，归档不替代凭据系统。
+2. 将 [配置模板](../../infra/backup/config.example.json)复制到源码外私有目录的config.json并设0600；`BACKUP_CONFIG_DIR`指定该绝对目录。目录/secrets为0700，每个私有文件0600。备份加密密钥为独立32字节hex；使用单主密钥时保留model_master_key并移除尚不存在的model_keyring项，使用版本目录时备份完整model_keyring。轮换与只读历史预检见 [密钥轮换](KEY_ROTATION.md)。将商户证书/私钥、签名Key、历史主密钥等所有运行必需材料按secrets名称加入，归档不替代凭据系统。
 3. 停止对象上传/覆盖/删除和清理派发，等在途请求结束。数据库使用导出快照，Storage必须保证备份窗口内对象不变；变化或大小不符整份拒绝。unknown与原现金交易证据完整保留。
 4. 执行backup和verify，结果保管到独立受控存储；备份密钥另存，不与归档一起上传。定期调度由目标运维系统执行此命令，只有退出码0/verify通过才算成功，失败纳入值班流程。
 5. 恢复必须准备新空隔离PG及隔离Storage，isolated=true并核对域名，源生产配置不能用于restore。认证材料后恢复扩展/DB/Storage，核对回执/内容/历史解密；FAILED存在时保持环境隔离，另建空目标排查，不直接重放到部分恢复库。
@@ -13,18 +15,19 @@
 
 当前归档还须覆盖：00055原阶段UUID/依赖/预算流水、00056/57团队归因/工单内部消息/租户版本/风险/供应商现金账本、00058原对象告警/接手事件、00059头像引用、00060邀请版本/验证唯一奖励/活动回执、00061权益/周期、00062图片原价/版本/私有原图掩码及checkpoint。原收银/微信商户期限/退款申请、对象引用/墓碑/声纹历史版本不能漏备。
 
-恢复验收按 [测试计划](../testing/TEST_PLAN.md) AT-20/28核对这些数据与Storage实物，先保持隔离和停派发，再对渠道/供应商恢复点后的真实交易。两个Git历史标签只用于源码恢复，不能代替数据库/实物/历史密钥，见 [版本管理](../releases/VERSION_MANAGEMENT.md)。
+恢复验收按 [测试计划](../testing/TEST_PLAN.md)核对原身份、数据、Storage实物与历史凭据，先保持隔离和停派发，再核对渠道/供应商恢复点后的真实交易。Git历史标签只用于源码恢复，不能代替数据库/实物/历史密钥，见 [版本管理](../releases/VERSION_MANAGEMENT.md)。
 
 构建与执行示例：
 
 ```sh
-docker build -t shoproai-backup:local -f infra/backup/Dockerfile .
+export BACKUP_CONFIG_DIR=/absolute/path/backup-private
+docker build -t aigc-backup:local -f infra/backup/Dockerfile .
 docker run --rm --read-only --tmpfs /tmp:rw,noexec,nosuid,size=16m \
-  -v "$PWD/deploy/backup:/run/backup:ro" -v "$PWD/backups:/backups" \
-  shoproai-backup:local backup --config /run/backup/config.json --output /backups/发布前归档
+  -v "$BACKUP_CONFIG_DIR:/run/backup:ro" -v "$PWD/backups:/backups" \
+  aigc-backup:local backup --config /run/backup/config.json --output /backups/发布前归档
 docker run --rm --read-only --tmpfs /tmp:rw,noexec,nosuid,size=16m \
-  -v "$PWD/deploy/backup:/run/backup:ro" -v "$PWD/backups:/backups:ro" \
-  shoproai-backup:local verify --config /run/backup/config.json --artifact /backups/发布前归档
+  -v "$BACKUP_CONFIG_DIR:/run/backup:ro" -v "$PWD/backups:/backups:ro" \
+  aigc-backup:local verify --config /run/backup/config.json --artifact /backups/发布前归档
 ```
 
 容器以65534运行，backups目录须事先授予该运行身份写权限。模板路径/run/secrets应映射至实际只读凭据文件，示例目录映射本身不会创建密钥。verify会临时解密数据库/对象，请配置足够的受控临时盘，16MB仅是小样本示例，正式容量按备份大小设置。
@@ -33,9 +36,9 @@ docker run --rm --read-only --tmpfs /tmp:rw,noexec,nosuid,size=16m \
 
 ```sh
 docker run --rm --read-only --tmpfs /tmp:rw,noexec,nosuid,size=16m \
-  -v "$PWD/deploy/backup:/run/backup:ro" -v "$PWD/backups:/backups:ro" \
+  -v "$BACKUP_CONFIG_DIR:/run/backup:ro" -v "$PWD/backups:/backups:ro" \
   -v "$PWD/restore-results:/restore-results" \
-  shoproai-backup:local restore --config /run/backup/target.json \
+  aigc-backup:local restore --config /run/backup/target.json \
   --artifact /backups/发布前归档 --output /restore-results/本次演练
 ```
 
@@ -47,13 +50,13 @@ docker run --rm --read-only --tmpfs /tmp:rw,noexec,nosuid,size=16m \
 
 ```sh
 docker run --rm --entrypoint python \
-  -v "$PWD/deploy/backup:/run/backup:ro" -v "$PWD/backups:/backups" \
-  shoproai-backup:local /app/scripts/backup_archive.py upload \
+  -v "$BACKUP_CONFIG_DIR:/run/backup:ro" -v "$PWD/backups:/backups" \
+  aigc-backup:local /app/scripts/backup_archive.py upload \
   --config /run/backup/config.json --artifact /backups/发布前归档 \
   --receipt /backups/归档回执.json
 docker run --rm --entrypoint python \
-  -v "$PWD/deploy/backup:/run/backup:ro" -v "$PWD/backups:/backups" \
-  shoproai-backup:local /app/scripts/backup_archive.py pull \
+  -v "$BACKUP_CONFIG_DIR:/run/backup:ro" -v "$PWD/backups:/backups" \
+  aigc-backup:local /app/scripts/backup_archive.py pull \
   --config /run/backup/config.json --receipt /backups/归档回执.json --output /backups/异地拉回
 ```
 

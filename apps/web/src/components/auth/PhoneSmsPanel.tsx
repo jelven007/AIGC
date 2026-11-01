@@ -32,7 +32,7 @@ export default function PhoneSmsPanel({ inviteCode, register }: { inviteCode: st
   const [agreed, setAgreed] = useState(false), [error, setError] = useState('');
   const abort = useRef(new AbortController());
   const [smsAuth] = useState(() => createClient(backendUrl, backendAnonKey, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: `shopro-sms-${crypto.randomUUID()}` },
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: `aigc-sms-${crypto.randomUUID()}` },
     global: { fetch: (input, init) => fetch(input, { ...init,
       signal: AbortSignal.any([abort.current.signal, AbortSignal.timeout(15000), ...(init?.signal ? [init.signal] : [])]) }) },
   }).auth);

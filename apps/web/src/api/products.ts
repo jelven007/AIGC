@@ -1,3 +1,4 @@
+import { projectStorageKey } from '@/lib/projectStorage';
 import { canonicalMediaTree } from '@/lib/privateMedia';
 import { authenticatedEdgeJSON, EdgeRequestError } from '@/lib/edgeRequest';
 import { uploadAccountObject } from './accountSession';
@@ -53,7 +54,7 @@ export async function fetchProducts(options: { userId?: string; category?: strin
     return { data: listed.products, error: null };
   });
 }
-export function pendingProductKey(uid: string) { return `shopro-product-mutation-${uid}`; }
+export function pendingProductKey(uid: string) { return projectStorageKey('product-mutation', uid); }
 export function storeProductMutation(uid: string, request: ProductMutation) {
   writeTaskReceipt(pendingProductKey(uid), canonicalMediaTree(request));
 }

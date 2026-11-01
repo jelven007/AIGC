@@ -104,8 +104,8 @@ function WorksLibrary({ userId }: { userId: string }) {
     const channel = supabase.channel(`works-library-${userId}-${tab}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: tab === 'works' ? 'video_projects' : 'materials', filter: `user_id=eq.${userId}` }, reload).subscribe();
     const onVisible = () => { if (document.visibilityState === 'visible') reload(); };
-    window.addEventListener('shopro:works-updated', reload); window.addEventListener('focus', onVisible); document.addEventListener('visibilitychange', onVisible);
-    return () => { clearTimeout(timer); void supabase.removeChannel(channel); window.removeEventListener('shopro:works-updated', reload);
+    window.addEventListener('aigc:works-updated', reload); window.addEventListener('focus', onVisible); document.addEventListener('visibilitychange', onVisible);
+    return () => { clearTimeout(timer); void supabase.removeChannel(channel); window.removeEventListener('aigc:works-updated', reload);
       window.removeEventListener('focus', onVisible); document.removeEventListener('visibilitychange', onVisible); };
   }, [userId, tab, load]);
   const items: Item[] = tab === 'works' ? projects.map(value => ({ kind: 'work', value })) : materials.map(value => ({ kind: 'material', value }));

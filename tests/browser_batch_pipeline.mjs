@@ -13,7 +13,7 @@ globalThis.Deno = { env: { get: key => key === 'SUPABASE_URL' ? backend : undefi
 const { pipelinePayload } = await loadEdge('supabase/functions/_shared/batch-pipeline.ts', 'pipeline-browser-source');
 mkdirSync('.volcengine-build', { recursive: true });
 const videoBytes = execFileSync('docker', ['run', '--rm', '--entrypoint', 'ffmpeg',
-  'shoproai-render-worker:local', '-v', 'error', '-f', 'lavfi', '-i', 'color=c=red:s=160x284:r=24:d=10',
+  'aigc-render-worker:local', '-v', 'error', '-f', 'lavfi', '-i', 'color=c=red:s=160x284:r=24:d=10',
   '-c:v', 'libx264', '-movflags', 'frag_keyframe+empty_moov', '-f', 'mp4', 'pipe:1'], { timeout: 45000, maxBuffer: 20 * 1024 * 1024 });
 writeFileSync('.volcengine-build/pipeline-preview.mp4', videoBytes);
 const audioBytes = Buffer.alloc(44 + 16000 * 6.3 * 2);
@@ -32,7 +32,7 @@ try {
   await context.addInitScript(() => {
     const original = Storage.prototype.setItem;
     Storage.prototype.setItem = function(key, value) {
-      if (window.__blockBatchReceipt && key.startsWith('shoproai:batch-request:')) throw new DOMException('storage blocked');
+      if (window.__blockBatchReceipt && key.startsWith('aigc:batch-request:')) throw new DOMException('storage blocked');
       return original.call(this, key, value);
     };
   });

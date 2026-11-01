@@ -1,3 +1,4 @@
+import { projectStorageKey } from '@/lib/projectStorage';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Loader2 } from 'lucide-react';
@@ -31,7 +32,7 @@ export function UrlProductImportDialog({ open, onOpenChange, onSuccess, zIndexCl
   const [mutation, setMutation] = useState<ProductMutation | null>(null);
   const [mutationStorageError, setMutationStorageError] = useState('');
   const owner = useRef(user?.id); owner.current = user?.id;
-  const extractionKey = `shopro-product-extraction-${user?.id || ''}`;
+  const extractionKey = projectStorageKey('product-extraction', user?.id || '');
   const client = useQueryClient();
   const { value: pending, write: saveReceipt, error: storageError } = useTaskReceipt<Extraction>(user ? extractionKey : '',
     value => value?.action === 'extract' && typeof value.request_key === 'string' && typeof value.input?.content === 'string');

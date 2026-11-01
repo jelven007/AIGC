@@ -1,89 +1,32 @@
-import React from "react";
-import GlassCard from "./ui/GlassCard";
-interface Testimonial {
-  name: string;
-  role: string;
-  content: string;
-  platform: string;
-  metrics: string;
-  avatar: string;
-}
-const testimonials: Testimonial[] = [{
-  name: "张明轩",
-  role: "科技博主",
-  content: "借助本平台，我能够用有效的钩子构建我的视频。结果：我的留存率提高了24%，收入也随之增长！",
-  platform: "抖音",
-  metrics: "观看时长+38%",
-  avatar: "张"
-}, {
-  name: "李雅晴",
-  role: "生活方式内容创作者",
-  content: "AI为我的TikTok内容建议了一个我从未想过要探索的原创角度。我的参与率爆炸式增长，我再也离不开它了！",
-  platform: "TikTok",
-  metrics: "一个月内300万+观看",
-  avatar: "李"
-}, {
-  name: "王商杰",
-  role: "商业教练",
-  content: "我过去花费数小时编写脚本。该系统为我节省了宝贵时间，同时让我的视频更加动态和引人入胜。",
-  platform: "Instagram",
-  metrics: "3个月内粉丝+64%",
-  avatar: "王"
-}];
-const TestimonialSection: React.FC = () => {
-  return <section id="testimonials" className="section-padding bg-scriptgenius-white">
-      <div className="container-custom">
-        <div className="text-center mb-12">
-          <span className="px-3 py-1 text-sm font-medium text-scriptgenius-blue bg-scriptgenius-blue/10 rounded-full mb-3 inline-block">
-            用户评价
-          </span>
-          <h2 className="heading-2 mb-4">
-            提升<span className="text-gradient">表现</span>的创作者
-          </h2>
-          <p className="text-lg text-scriptgenius-black/70 max-w-2xl mx-auto">
-            了解像您一样的创作者如何通过本系统转变内容并增加受众
-          </p>
-        </div>
+import { Link } from 'react-router-dom';
+import { ArrowRight } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { inspirationAsset, marketingDestination } from '@/lib/inspirationAssets';
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {testimonials.map((testimonial, index) => <GlassCard key={index} className="h-full flex flex-col" hover="lift">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center">
-                  <div className="w-12 h-12 rounded-full bg-scriptgenius-blue text-white flex items-center justify-center font-medium text-lg mr-3">
-                    {testimonial.avatar}
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-scriptgenius-black">
-                      {testimonial.name}
-                    </h4>
-                    <p className="text-sm text-scriptgenius-black/60">
-                      {testimonial.role}
-                    </p>
-                  </div>
-                </div>
-                
-              </div>
-              
-              <div className="flex-1">
-                <p className="text-scriptgenius-black/80 mb-4 italic">
-                  "{testimonial.content}"
-                </p>
-              </div>
-              
-              <div className="mt-auto pt-4 border-t border-gray-100">
-                <div className="flex items-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-sm font-medium text-green-600">
-                    {testimonial.metrics}
-                  </span>
-                </div>
-              </div>
-            </GlassCard>)}
+const personas = [
+  { title: '个人创作者', text: '从一个主题开始，整理脚本、人物出镜和配音，逐步形成自己的内容风格。', image: 'ref-08', cover: 'ref-19', path: '/video/create?inspiration=ref-08' },
+  { title: '商品与品牌团队', text: '整理产品事实与使用场景，用分镜和商品特写讲清特点，制作不同创意版本。', image: 'ref-09', cover: 'ref-24', path: '/video/create?inspiration=ref-09' },
+  { title: '内容机构', text: '围绕同一份创作资料协作，分工处理脚本、剪辑和发布，按任务记录核对进展。', image: 'ref-02', cover: 'ref-25', path: '/video/create?inspiration=ref-02' },
+];
+/** 保留旧三栏用户模块的职责，以可核对的使用场景替代固定客户评价。 */
+export default function TestimonialSection() {
+  const { user } = useAuth();
+  return <section id="场景" className="max-w-7xl mx-auto px-5 md:px-8 py-16 md:py-24">
+    <div className="space-y-3 mb-10"><p className="text-sm text-orange-300">为不同创作方式而设计</p>
+      <h2 className="text-3xl md:text-4xl font-semibold">一个工作台，多种创作场景</h2>
+      <p className="text-white/65">以下为使用场景与视觉示意。</p></div>
+    <div className="grid md:grid-cols-3 gap-8">{personas.map(persona => {
+      const image = inspirationAsset(persona.image)!, cover = inspirationAsset(persona.cover)!;
+      return <article key={persona.title} className="space-y-4 min-w-0">
+        <div className="relative pb-5 pr-5">
+          <img src={image.src} alt={image.title} width={image.width} height={image.height} loading="lazy" className="w-full aspect-[3/2] object-cover rounded-xl" />
+          <img src={cover.src} alt={cover.title} width={cover.width} height={cover.height} loading="lazy"
+            className="absolute bottom-0 right-0 w-2/5 aspect-video object-cover rounded-lg border-4 border-background" />
         </div>
-        
-      </div>
-    </section>;
-};
-export default TestimonialSection;
+        <h3 className="text-xl font-semibold">{persona.title}</h3><p className="text-sm text-white/65 leading-relaxed">{persona.text}</p>
+        <Link to={marketingDestination(persona.path, !!user)} className="inline-flex items-center gap-2 text-sm text-orange-300 hover:underline">
+          从这个场景开始 <ArrowRight className="w-4 h-4" /></Link>
+      </article>;
+    })}</div>
+  </section>;
+}

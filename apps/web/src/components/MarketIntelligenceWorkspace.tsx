@@ -1,3 +1,4 @@
+import { projectStorageKey } from '@/lib/projectStorage';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -34,7 +35,7 @@ export default function MarketIntelligenceWorkspace({ mode, request = intelligen
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const locked = useRef(false), owner = useRef(user?.id); owner.current = user?.id;
-  const storageKey = user ? `shopro:intelligence:${mode}:${user.id}` : '';
+  const storageKey = user ? projectStorageKey(`intelligence:${mode}`, user.id) : '';
   const client = useQueryClient();
   const { value: pending, write: saveReceipt, error: storageError } = useTaskReceipt<Receipt>(storageKey,
     value => value && typeof value.request_key === 'string' && ['save_target', 'collect', 'schedule'].includes(value.action));

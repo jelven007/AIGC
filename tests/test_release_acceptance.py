@@ -46,7 +46,7 @@ if os.environ.get("ACCEPTANCE_TEST_INNER") != "true":
                     "-C", str(fixture), "baseline.sql", "upgrade.sql", "release.json"], cwd=ROOT,
                     capture_output=True, check=True, timeout=30).stdout
                 result = subprocess.run(["docker", "run", "--rm", "-i", "--network", network, "--user", "0:0",
-                    "-e", "ACCEPTANCE_TEST_INNER=true", "--entrypoint", "sh", "shoproai-backup:local",
+                    "-e", "ACCEPTANCE_TEST_INNER=true", "--entrypoint", "sh", "aigc-backup:local",
                     "-c", "mkdir /tmp/workspace && tar -xf - -C /tmp/workspace && python /tmp/workspace/tests/test_release_acceptance.py"],
                     input=archive, capture_output=True, timeout=120)
                 self.assertEqual(result.returncode, 0, result.stdout.decode() + result.stderr.decode())

@@ -1,10 +1,12 @@
 /** 仅公开连接信息进入浏览器；平台密钥由 Edge Functions 管理。 */
 declare global {
   interface Window {
+    __AIGC_RUNTIME__?: { deployment?: string; backendUrl?: string; backendAnonKey?: string; usernameLogin?: boolean };
+    /** 读取已有部署的公开配置，不用于新发布写入。 */
     __SHOPRO_RUNTIME__?: { deployment?: string; backendUrl?: string; backendAnonKey?: string; usernameLogin?: boolean };
   }
 }
-const runtime = typeof window === 'undefined' ? undefined : window.__SHOPRO_RUNTIME__;
+const runtime = typeof window === 'undefined' ? undefined : window.__AIGC_RUNTIME__ ?? window.__SHOPRO_RUNTIME__;
 export const backendUrl = String(runtime?.backendUrl || import.meta.env.VITE_SUPABASE_URL || '').replace(/\/+$/, '');
 export const backendAnonKey = String(runtime?.backendAnonKey || import.meta.env.VITE_SUPABASE_ANON_KEY || '');
 export const usernameLoginEnabled = runtime

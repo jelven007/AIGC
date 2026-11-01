@@ -1,3 +1,4 @@
+import { projectStorageKey } from '@/lib/projectStorage';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
@@ -52,7 +53,7 @@ export default function PublishPage() {
   const activeUser = useRef(user?.id);
   activeUser.current = user?.id;
   const submitting = useRef(false);
-  const storageKey = user ? `shopro:publish:${user.id}` : '';
+  const storageKey = user ? projectStorageKey('publish', user.id) : '';
   const accounts = useQuery({ queryKey: ['publish-accounts', user?.id], enabled: !!user, staleTime: 300000, retry: false,
     queryFn: ({ signal }) => platformRequest<{ connections: PlatformConnection[]; platforms: { id: string; name: string; enabled: boolean }[] }>(
       'platform-accounts', { action: 'list' }, user!.id, signal) });

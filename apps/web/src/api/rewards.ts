@@ -1,5 +1,6 @@
 import { supabase } from '@/db/supabase';
 import { accountRequest } from './accountSession';
+import { projectStorageKey } from '@/lib/projectStorage';
 
 export interface InvitationRecord {
   id: string;
@@ -58,7 +59,7 @@ export async function fetchActivities(signal: AbortSignal): Promise<RewardActivi
   return data.items;
 }
 interface PendingReward { activityId: string; key: string; title: string }
-const storageKey = (userId: string) => `shoproai:pending-rewards:${userId}`;
+const storageKey = (userId: string) => projectStorageKey('pending-rewards', userId);
 export function readPendingRewards(userId: string): PendingReward[] {
   try {
     const list = JSON.parse(localStorage.getItem(storageKey(userId)) || '[]');

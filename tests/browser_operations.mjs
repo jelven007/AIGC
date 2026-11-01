@@ -60,7 +60,7 @@ try {
   await page.getByRole('button', { name: '确认并提交', exact: true }).click();
   await page.getByText('退款受理待确认', { exact: true }).waitFor();
   assert.equal(refunds.length, 1); assert.equal(refunds[0].refund_amount, '3.33');
-  assert.equal(await page.evaluate(uid => JSON.parse(localStorage.getItem(`shopro-operator-request-${uid}`)).channel, uid), channel);
+  assert.equal(await page.evaluate(uid => JSON.parse(localStorage.getItem(`aigc:operator-request:${uid}`)).channel, uid), channel);
   assert.equal(await page.getByRole('button', { name: '确认并提交', exact: true }).isEnabled(), false);
   await page.reload(); failRefund = false;
   await page.getByRole('button', { name: '按原参数恢复', exact: true }).click();
@@ -71,7 +71,7 @@ try {
   await page.getByRole('button', { name: '核对原退款', exact: true }).click();
   await page.getByText('退款已到账，权益回收已入账', { exact: true }).waitFor();
   assert.equal(refunds[2].request_key, refunds[0].request_key);
-  assert.equal(await page.evaluate(uid => localStorage.getItem(`shopro-operator-request-${uid}`), uid), null);
+  assert.equal(await page.evaluate(uid => localStorage.getItem(`aigc:operator-request:${uid}`), uid), null);
   console.log('PASS 退款503锁定参数，刷新后同UUID恢复；未知不允许新申请，核对成功清理原回执');
 
   await page.getByRole('button', { name: '客户与预算', exact: true }).click();
@@ -96,7 +96,7 @@ try {
   await page.getByRole('button', { name: '确认并提交', exact: true }).click();
   await page.getByText('预算版本已变化，请刷新后重试', { exact: true }).waitFor();
   await page.getByRole('dialog').waitFor({ state: 'detached' });
-  assert.equal(await page.evaluate(uid => localStorage.getItem(`shopro-operator-request-${uid}`), uid), null);
+  assert.equal(await page.evaluate(uid => localStorage.getItem(`aigc:operator-request:${uid}`), uid), null);
   assert.equal(await page.getByRole('button', { name: '设置日预算', exact: true }).first().isEnabled(), true);
   console.log('PASS 预算确定拒绝后释放本地申请锁，保持原服务器预算并允许刷新后重试');
   rejectBudget = false; rateBudget = true;
@@ -105,7 +105,7 @@ try {
   await page.getByRole('button', { name: '确认并提交', exact: true }).click();
   await page.getByText('操作过于频繁', { exact: true }).waitFor();
   await page.getByRole('dialog').waitFor({ state: 'detached' });
-  assert.equal(await page.evaluate(uid => localStorage.getItem(`shopro-operator-request-${uid}`), uid), null);
+  assert.equal(await page.evaluate(uid => localStorage.getItem(`aigc:operator-request:${uid}`), uid), null);
   rateBudget = false; emptyBudget = true;
   await page.getByRole('button', { name: '设置日预算', exact: true }).first().click();
   await page.getByLabel('日积分预算', { exact: true }).fill('28');

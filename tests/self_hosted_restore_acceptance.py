@@ -16,9 +16,13 @@ INITIAL_IDENTITY = read_initial_admin()
 
 require(os.environ.get("SELF_HOSTED_ISOLATED_ACCEPTANCE") == "true", "需要隔离实例")
 values = dict(line.split("=", 1) for line in Path("/state/runtime.env").read_text().splitlines() if line and not line.startswith("#"))
-seed = json.loads(Path("/state/receipts/recovery-seed.json").read_text())
+seed = json.loads(Path(os.environ.get("SELF_HOSTED_RECOVERY_SEED",
+                                     "/state/receipts/recovery-seed.json")).read_text())
 token = login(INITIAL_IDENTITY["email"], INITIAL_IDENTITY["password"])
 require(token["user"]["id"] == seed["uid"], "恢复后管理员UUID变化")
+username_session = api("/functions/v1/username-login", body={
+    "username": INITIAL_IDENTITY["username"], "password": INITIAL_IDENTITY["password"]})
+require(username_session.get("user", {}).get("id") == seed["uid"], "恢复后用户名登录未恢复原账号")
 with psycopg.connect(host="db", dbname="postgres", user="supabase_admin",
                      password=os.environ["POSTGRES_PASSWORD"], autocommit=True, row_factory=dict_row) as db:
     balance = db.execute("SELECT credits_total,credits_used FROM public.user_plans WHERE user_id=%s", (seed["uid"],)).fetchone()
@@ -40,5 +44,6 @@ require(url and url.startswith(BASE + "/storage/v1/"), "恢复后成片未在本
 content = api(url.removeprefix(BASE), token=token["access_token"], binary=True)
 require(len(content) == result["size"] and b"ftyp" in content[:32], "恢复后Storage实物不符")
 print(json.dumps({"passed": True, "original_admin_uuid": True, "original_balance": True,
+    "original_username_login": True,
     "original_completed_job": True, "private_video_download_bytes": len(content),
     "historical_credentials": credentials, "restored_origin": BASE}))

@@ -21,10 +21,11 @@ def ensure_subnet_unused(subnet):
 
 
 def health(state):
+    expected = 10 + int(read_env(state / "runtime.env").get("RENDERER_REPLICAS", "1"))
     rows = [json.loads(line) for line in compose(state / "runtime.env",
         ["--profile", "execution", "ps", "--format", "json"]).splitlines() if line.strip()]
-    if len(rows) != 26 or any(row["Health"] != "healthy" for row in rows):
-        raise RuntimeError("容量实例必须有26个健康常驻容器")
+    if len(rows) != expected or any(row["Health"] != "healthy" for row in rows):
+        raise RuntimeError(f"实例必须有{expected}个健康常驻容器")
     return len(rows)
 
 
@@ -35,6 +36,7 @@ def main():
     parser.add_argument("--project", required=True)
     parser.add_argument("--subnet", required=True)
     parser.add_argument("--resume", action="store_true", help="继续已认证导入的新恢复实例，不覆盖或重新导入数据")
+    parser.add_argument("--initial-admin-file", type=Path, help="仅旧快照缺少身份材料时显式补充")
     args = parser.parse_args()
     state, target = args.state_dir, args.target_dir
     values = read_env(state / "runtime.env")
@@ -65,7 +67,8 @@ def main():
             report["restarted_services_healthy"] = health(state)
             print(json.dumps({"phase": "cold_backup_and_restart", **report["backup"]}), flush=True)
             report["restore"] = restore(state, args.key_file, args.artifact, target, args.project,
-                values["PUBLIC_ORIGIN"], args.subnet, dev_tls=True, bind="0.0.0.0")
+                values["PUBLIC_ORIGIN"], args.subnet, dev_tls=True, bind=values["BIND_ADDRESS"],
+                initial_admin_file=args.initial_admin_file)
         compose(state / "runtime.env", ["--profile", "execution", "stop"], timeout=300)
         command(["python3", str(ROOT / "scripts/self_hosted.py"), "up", "--state-dir", str(target)], timeout=600)
         result = compose(target / "runtime.env", ["--profile", "setup", "run", "--rm",

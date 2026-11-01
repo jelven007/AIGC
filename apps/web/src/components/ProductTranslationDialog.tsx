@@ -1,3 +1,4 @@
+import { projectStorageKey } from '@/lib/projectStorage';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Download, Copy } from 'lucide-react';
@@ -25,7 +26,7 @@ export function ProductTranslationDialog({ open, onOpenChange, product, onApply,
   const [selected, setSelected] = useState('');
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const lock = useRef(false), owner = useRef(user?.id); owner.current = user?.id;
-  const storageKey = `shopro:product-translation:${user?.id || ''}`;
+  const storageKey = projectStorageKey('product-translation', user?.id || '');
   const client = useQueryClient();
   const { value: pending, write: saveReceipt, error: storageError } = useTaskReceipt<Receipt>(user ? storageKey : '',
     value => value?.action === 'translate' && typeof value.request_key === 'string' && value.input?.product_id);

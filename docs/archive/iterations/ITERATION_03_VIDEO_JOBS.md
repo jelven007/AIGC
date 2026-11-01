@@ -33,14 +33,14 @@
 6. 平台支持 pg_cron、pg_net、Vault 时，可采用 `supabase/ops/video_worker_schedule.sql`。先在 Vault 创建 `supabase_url` 与 `video_worker_secret`，再安装调度；默认每 10 秒检查，全局最多 4 个未完成请求，只在有到期任务时派发，支持响应摘要、过期回收、重复安装与只读状态 SQL。调度 SQL 不自动随迁移执行；本地已用平台替身验证 SQL 行为，尚未在云端安装这些扩展。
 7. 逐模型验收提交、排队、失败退款、成片转存、刷新恢复、关闭页面后后台结算。Storage 使用已有公开 `materials` 桶；未实现私有视频及限时下载授权。
 
-| 模型 | 服务端密钥 | 默认 Base URL |
+| 模型 | 历史服务端密钥 | 当前地址说明（旧默认演示网关已移除） |
 | --- | --- | --- |
-| MiniMax H3 | `OPENAI_NEXT_API_KEY`，兼容 `MINIMAX_API_KEY` | `https://api.openai-next.com` |
-| Seedance Mini | `SEEDANCE_MINI_API_KEY`，兼容共用 `TOKENDANCE_API_KEY` | `https://tokendance.space` |
-| Wan3 | `WAN3_API_KEY`，兼容共用 `TOKENDANCE_API_KEY` | `https://tokendance.space` |
-| HappyHorse | `HAPPYHORSE_API_KEY`，兼容共用 `TOKENDANCE_API_KEY` | `https://tokendance.space` |
-| Cdance/Seedance | `CDANCE_API_KEY`，兼容 `VECTRUST_API_KEY` | `https://ai.dxkp.com/v1` |
-| Kling | `KLING_API_KEY`，兼容 `INTEGRATIONS_API_KEY` | 保留原 appmiaoda create/query 网关 |
+| MiniMax H3 | `OPENAI_NEXT_API_KEY`，兼容 `MINIMAX_API_KEY` | 管理员显式配置完整服务地址 |
+| Seedance Mini | `SEEDANCE_MINI_API_KEY`，兼容共用 `TOKENDANCE_API_KEY` | 管理员显式配置完整服务地址 |
+| Wan3 | `WAN3_API_KEY`，兼容共用 `TOKENDANCE_API_KEY` | 管理员显式配置完整服务地址 |
+| HappyHorse | `HAPPYHORSE_API_KEY`，兼容共用 `TOKENDANCE_API_KEY` | 管理员显式配置完整服务地址 |
+| Cdance/Seedance | `CDANCE_API_KEY`，兼容 `VECTRUST_API_KEY` | 管理员显式配置完整服务地址 |
+| Kling | `KLING_API_KEY`，兼容 `INTEGRATIONS_API_KEY` | 管理员显式配置创建/查询地址 |
 
 前五类分别支持同前缀的 `*_BASE_URL`。升级后曾通过 `VITE_*` 发布过的视频密钥应在供应商侧轮换，再将新值配置到服务端。其他文本、图片、音频的既有直连与模拟逻辑不属于本轮，仍需后续迁移。
 

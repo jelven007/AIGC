@@ -1,3 +1,4 @@
+import { projectStorageKey } from '@/lib/projectStorage';
 import { accessRequest } from './accessControl';
 import { mediaPreview } from './media';
 import { EdgeRequestError } from '@/lib/edgeRequest';
@@ -6,7 +7,7 @@ import { requireAccountSession, uploadAccountObject } from './accountSession';
 
 export type EditorMaterial = Pick<Material, 'id' | 'name' | 'url' | 'type'> & Partial<Pick<Material, 'duration_sec' | 'tags' | 'user_id'>>;
 interface UploadReceipt { request_key: string; input: Record<string, unknown> }
-const receiptKey = (userId: string) => `shopro:material-uploads:${userId}`;
+const receiptKey = (userId: string) => projectStorageKey('material-uploads', userId);
 function receipts(userId: string): UploadReceipt[] {
   try { return JSON.parse(localStorage.getItem(receiptKey(userId)) || '[]'); } catch { return []; }
 }

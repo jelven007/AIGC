@@ -19,6 +19,7 @@ const suites = [
   'tests/browser_script_notices.mjs',
   'tests/browser_catalog_layout.mjs',
   'tests/browser_page_headers.mjs',
+  'tests/browser_asset_reuse.mjs',
 ];
 let server;
 try {

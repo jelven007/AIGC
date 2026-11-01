@@ -199,7 +199,7 @@ export default function DashboardPage() {
       accent: 'bg-orange-500/15 text-orange-500',
     },
     {
-      icon: Copy, title: '爆款视频复刻', to: '/style-copy',
+      icon: Copy, title: '爆款风格复刻', to: '/style-copy',
       desc: 'AI分析爆款视频，提取并复制风格',
       accent: 'bg-pink-500/15 text-pink-500', tag: 'AI',
     },
@@ -243,7 +243,7 @@ export default function DashboardPage() {
           <div className="min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-xs font-medium text-primary bg-primary/10 px-2.5 py-1 rounded-md border border-primary/20">
-                视频生成平台
+                内容创作平台
               </span>
             </div>
             <h1 className="text-xl md:text-2xl font-semibold text-foreground text-balance leading-snug">
