@@ -61,7 +61,7 @@ def collect(config, release):
 
     def database():
         expected = {item["version"]: item["sha256"] for item in release["migrations"]}
-        if not expected or max(expected) != contract["required_migration"]:
+        if contract["required_migration"] not in expected:
             return False
         if any(source["files"].get(name) != digest for name, digest in {
             name: expected[name.split("/")[-1].split("_")[0]]

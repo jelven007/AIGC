@@ -140,10 +140,10 @@ class RealMigrationGuardTest(unittest.TestCase):
                                "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-At"],
                               input=statement, text=True, capture_output=True, timeout=60)
 
-    def test_verified_baseline_appends_three_migrations_in_one_transaction(self):
+    def test_verified_baseline_appends_pending_migrations_in_one_transaction(self):
         result = self.sql(deploy.guarded_migration_sql(snapshot(self.baseline), self.upgrade))
         self.assertEqual(result.returncode, 0, result.stderr[-2000:])
-        self.assertEqual(self.sql("SELECT count(*) FROM shopro_deploy.schema_migrations;").stdout.strip(), "66")
+        self.assertEqual(self.sql("SELECT count(*) FROM shopro_deploy.schema_migrations;").stdout.strip(), str(len(self.files)))
 
     def test_concurrent_ledger_change_prevents_every_pending_migration(self):
         state = snapshot(self.baseline)

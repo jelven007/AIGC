@@ -134,7 +134,7 @@ else:
                 self.assertEqual(connection.execute("SELECT count(*) FROM shopro_deploy.schema_migrations").fetchone()[0], len(self.release["migrations"]))
                 self.assertEqual(connection.execute("SELECT count(*) FROM credit_logs WHERE user_id=%s AND amount<0", (self.user,)).fetchone()[0], 1)
 
-        def test_b_cli_verifies_matching_stack_without_business_writes(self):
+        def test_b_cli_accepts_additional_migrations_without_business_writes(self):
             self.assertIsNotNone(acceptance, "read-only release acceptance implementation missing")
             config = self.directory / "acceptance-config.json"
             config.write_text(json.dumps(self.config)); config.chmod(0o600)
@@ -146,6 +146,7 @@ else:
             self.assertTrue(receipt["technical_ready"])
             self.assertEqual(receipt["environment"], "isolated_fixture")
             self.assertFalse(receipt["production_accepted"])
+            self.assertEqual(receipt["details"]["database"]["migration_count"], len(self.release["migrations"]))
             print(json.dumps(receipt))
 
         def test_c_mismatched_sources_public_storage_and_ledger_fail_acceptance(self):

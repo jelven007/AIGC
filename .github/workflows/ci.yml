@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   frontend-and-api:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
       VITE_SUPABASE_URL: https://ui-fixture.example
@@ -45,7 +45,7 @@ jobs:
       - run: python3 tests/test_final_contract.py
       - run: python3 scripts/deploy_volcengine.py prepare --skip-build
   browser:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
