@@ -24,6 +24,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm check:structure
       - run: python3 scripts/check_sensitive_content.py
+      - run: python3 tests/test_version_policy.py
+      - run: python3 tests/test_custom_model_configs.py
       - run: python3 -m unittest discover -s tests -p 'test_sensitive_content.py'
       - run: python3 -m unittest discover -s tests -p 'test_initial_admin_config.py'
       - run: pnpm lint

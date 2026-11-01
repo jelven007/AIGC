@@ -4,40 +4,33 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { AlertCircle, CheckCircle2, Loader2, RefreshCw, Save, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
-import { configurationSlots, RETIRED_MODELS, defaultSettings, modelSettingsErrorMessage, modelSettingsRequest, type ModelConfigView, type ConfigurationScope } from '@/api/modelSettings';
+import { configurationSlots, defaultSettings, modelSettingsErrorMessage, modelSettingsRequest, type ModelConfigView, type ConfigurationScope } from '@/api/modelSettings';
 import { cn } from '@/lib/utils';
 import PageHeader from '@/components/common/PageHeader';
+import CreateModelConfigDialog from '@/components/CreateModelConfigDialog';
 
 const categories = [
-  { id: 'text', label: '文本', description: '脚本、提示词优化、分析与翻译共用主备模型。' },
-  { id: 'embedding', label: '向量模型', description: '配置 OpenAI 兼容的 Embeddings API，用于知识索引与语义检索。更新模型后需重新建索引。' },
-  { id: 'intelligence', label: '市场情报', description: 'YouTube用Google API Key；eBay用Base64编码的应用ID:应用密钥。其他平台需已获授权的数据商及intelligence-v1契约。' },
+  { id: 'text', label: '文本', description: '脚本、提示词优化、分析与翻译使用文本模型。' },
   { id: 'video', label: '视频', description: '选择供应商协议，提交与查询地址分别配置。' },
   { id: 'image', label: '图片', description: '绘图与封面共用此模型。GPT Image配置编辑地址后可使用参考图、扩图和局部重绘；其他协议以实际能力为准。' },
   { id: 'audio', label: '音频', description: '语音合成与识别分别设置模型和接口。' },
+  { id: 'embedding', label: '向量', description: '配置 OpenAI 兼容的 Embeddings API，用于知识索引与语义检索。更新模型后需重新建索引。' },
   { id: 'avatar', label: '数字人', description: '照片口播与视频口型同步使用独立供应商，音频需先上传或生成。' },
+  { id: '3d', label: '3D', description: '配置 3D 模型的调用地址、模型与密钥。' },
+  { id: 'intelligence', label: '市场情报', description: 'YouTube用Google API Key；eBay用Base64编码的应用ID:应用密钥。其他平台需已获授权的数据商及intelligence-v1契约。' },
   { id: 'reader', label: '网页读取', description: '读取商品网页后交给文本模型提炼卖点。' },
 ];
-export function RetiredModels() {
-  return <details className="text-sm text-muted-foreground border rounded-lg p-4 my-5">
-    <summary className="cursor-pointer">已退役模型说明</summary>
-    {RETIRED_MODELS.map(model => <p key={model.id}>{model.reason}
-      <a href={model.source} target="_blank" rel="noreferrer" className="underline ml-2">查看官方退役说明（{model.retired_on}）</a>
-    </p>)}
-  </details>;
-}
 export default function ServiceConfigEditor({ scope, request = modelSettingsRequest }: {
   scope: ConfigurationScope; request?: typeof modelSettingsRequest;
 }) {
-  const slots = configurationSlots(scope);
-  const groups = categories.filter(group => slots.some(item => item.category === group.id));
+  const initialSlots = configurationSlots(scope);
   const models = scope === 'models';
-  const [configs, setConfigs] = useState<ModelConfigView[]>(() => slots.map(item => ({
+  const [configs, setConfigs] = useState<ModelConfigView[]>(() => initialSlots.map(item => ({
     slot: item.id, settings: defaultSettings(item.id), enabled: false, version_id: null, has_key: false,
   })));
-  const [slot, setSlot] = useState<string>(slots[0].id);
+  const [slot, setSlot] = useState<string>(initialSlots[0].id);
   const [draft, setDraft] = useState<ModelConfigView>(() => ({
-    slot: slots[0].id, settings: defaultSettings(slots[0].id), enabled: false, version_id: null, has_key: false,
+    slot: initialSlots[0].id, settings: defaultSettings(initialSlots[0].id), enabled: false, version_id: null, has_key: false,
   }));
   const [apiKey, setApiKey] = useState('');
   const [loading, setLoading] = useState(true);
@@ -45,23 +38,30 @@ export default function ServiceConfigEditor({ scope, request = modelSettingsRequ
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [dirty, setDirty] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const slots = configurationSlots(scope, configs.map(item => item.slot)).map(item => ({
+    ...item, name: item.id.startsWith('custom.') ? configs.find(config => config.slot === item.id)?.settings.name || item.name : item.name,
+  }));
+  const groups = categories.filter(group => slots.some(item => item.category === group.id));
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string; latency_ms: number } | null>(null);
-  const load = async (preserveDraft = false) => {
+  const load = async (preserveDraft = false, selectedSlot = slot) => {
     setLoading(true); setError('');
     try {
       const result = await request<{ configs: ModelConfigView[] }>({ action: 'list', scope });
       if (!Array.isArray(result.configs)) throw new Error('模型配置响应不完整，请重试加载。');
-      const next = slots.map(item => {
+      const next = configurationSlots(scope, result.configs.map(item => item.slot)).map(item => {
         const saved = result.configs.find(config => config.slot === item.id);
         return { slot: item.id, enabled: saved?.enabled ?? false, version_id: saved?.version_id ?? null,
           has_key: saved?.has_key ?? false, settings: { ...defaultSettings(item.id), ...saved?.settings } };
       });
       setConfigs(next);
-      const saved = next.find(item => item.slot === slot)!;
+      const saved = next.find(item => item.slot === selectedSlot) || next[0];
+      setSlot(saved.slot);
       setDraft(previous => preserveDraft ? { ...saved, settings: previous.settings, enabled: previous.enabled } : saved);
       setLoaded(true);
       if (!preserveDraft) { setDirty(false); setApiKey(''); setTestResult(null); }
-    } catch (e) { setLoaded(false); setError(modelSettingsErrorMessage(e)); }
+      return true;
+    } catch (e) { setLoaded(false); setError(modelSettingsErrorMessage(e)); return false; }
     finally { setLoading(false); }
   };
   useEffect(() => { void load(); }, []);
@@ -118,16 +118,21 @@ export default function ServiceConfigEditor({ scope, request = modelSettingsRequ
   return (
     <div className="service-config-page p-4 md:p-6 text-foreground">
       <PageHeader className="mb-6" title={models ? '模型接口' : '第三方集成'} description={models
-            ? '配置文本、向量与多模态模型 API 的协议、调用地址和供应商密钥。'
+            ? '配置调用地址、模型、密钥，密钥保存在服务端。更新只影响新任务，旧任务使用原配置。'
             : '配置市场情报、网页读取服务和发布平台应用。'} actions={<>
           <Button variant="outline" disabled={!!busy || loading || dirty} onClick={() => void load()}><RefreshCw className="mr-2 h-4 w-4" />刷新</Button>
-          <Button variant="outline" disabled={!!busy || loading || !loaded} onClick={() => void importLegacy()}>导入旧{models ? '模型' : '数据服务'}配置</Button>
+          {models ? <Button variant="outline" disabled={!!busy || loading || !loaded} onClick={() => {
+            if (dirty && !window.confirm('当前配置尚未保存，是否放弃修改？')) return;
+            setCreating(true);
+          }}>新建模型配置</Button> : <Button variant="outline" disabled={!!busy || loading || !loaded} onClick={() => void importLegacy()}>导入旧数据服务配置</Button>}
         </>} />
-      <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 flex gap-3 mb-6 text-sm">
+      {!models && <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 flex gap-3 mb-6 text-sm">
         <ShieldCheck className="h-5 w-5 shrink-0 text-primary" />
         <p className="text-muted-foreground">密钥加密保存在服务端。更新或禁用配置只影响新任务，已创建的任务继续使用原配置版本。</p>
-      </div>
-      {models && <RetiredModels />}
+      </div>}
+      {creating && <CreateModelConfigDialog request={request} onClose={() => setCreating(false)} onCreated={async config => {
+        if (!await load(false, config.slot)) throw new Error('配置已创建，暂时无法重新加载，请重试。');
+      }} />}
       {!models && <h2 className="text-lg font-semibold mb-4">数据服务接口</h2>}
       {error && <div role="alert" className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm flex flex-wrap items-center gap-2"><AlertCircle className="h-4 w-4 shrink-0" /><span className="flex-1">{error}</span>
         {!loaded && <Button type="button" variant="outline" size="sm" disabled={!!busy || loading} onClick={() => void load(dirty)}>重试加载</Button>}

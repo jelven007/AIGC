@@ -2,7 +2,7 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { beginModelAttempt, trackedModelResponse } from './model-context.ts';
 export { withModelContext } from './model-context.ts';
 import { createServiceClient } from './auth.ts';
-import { MODEL_SLOTS, defaultSettings, type ModelSettings } from './model-catalog.ts';
+import { modelSlotDefinition, defaultSettings, type ModelSettings } from './model-catalog.ts';
 import { GPT_IMAGE_EDIT_MODELS } from './image-contract.ts';
 
 export class ConfigError extends Error {}
@@ -44,7 +44,7 @@ export async function validateEndpoint(value: string): Promise<string> {
   return url.href;
 }
 export async function validateSettings(slot: string, raw: unknown, enabled: boolean): Promise<ModelSettings> {
-  const definition = MODEL_SLOTS.find(item => item.id === slot);
+  const definition = modelSlotDefinition(slot);
   if (!definition || !raw || typeof raw !== 'object') throw new ConfigError('配置格式不正确');
   const input = raw as Record<string, unknown>;
   const result = defaultSettings(slot);
@@ -164,7 +164,7 @@ export interface ResolvedModel {
   headers: Record<string, string>;
 }
 export async function resolveModel(slot: string, db: SupabaseClient = createServiceClient(), versionId?: string): Promise<ResolvedModel> {
-  if (!MODEL_SLOTS.some(item => item.id === slot)) throw new ConfigError('不支持的模型配置项');
+  if (!modelSlotDefinition(slot)) throw new ConfigError('不支持的模型配置项');
   let id = versionId;
   if (!id) {
     const { data, error } = await db.from('model_configs').select('current_version_id,enabled').eq('slot', slot).maybeSingle();

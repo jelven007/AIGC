@@ -12,16 +12,29 @@ const configs: ModelConfigView[] = MODEL_SLOTS.map(item => ({
 }));
 const mode = new URLSearchParams(location.search).get('failure');
 const scope = new URLSearchParams(location.search).get('scope');
-const requests: Array<{ action: unknown; scope: unknown; slot: unknown }> = [];
+const storageKey = `custom-model-fixture-${mode || 'default'}`;
+configs.push(...JSON.parse(localStorage.getItem(storageKey) || '[]'));
+const persist = () => localStorage.setItem(storageKey, JSON.stringify(configs.filter(item => item.slot.startsWith('custom.'))));
+const requests: Array<{ action: unknown; scope: unknown; slot: unknown; id: unknown }> = [];
 Object.assign(window, { settingsFixtureRequests: requests });
 let listCalls = 0;
+let createCalls = 0;
 const request = (async (body: Record<string, unknown>) => {
-  requests.push({ action: body.action, scope: body.scope, slot: body.slot });
+  requests.push({ action: body.action, scope: body.scope, slot: body.slot, id: body.id });
   if (body.action === 'list') {
     listCalls++;
     if (mode === 'offline' || mode === 'recover' && listCalls <= 2) throw new TypeError('Failed to fetch');
     if (mode === 'empty') return { configs: [] };
     return { configs: structuredClone(configs) };
+  }
+  if (body.action === 'create') {
+    createCalls++;
+    if (mode === 'create' && createCalls === 1) throw new TypeError('Failed to fetch');
+    const slot = `custom.${body.category}.${body.id}`;
+    const config = { slot, settings: { ...defaultSettings(slot), name: String(body.name) }, enabled: false,
+      version_id: crypto.randomUUID(), has_key: false };
+    configs.push(config); persist();
+    return { config: structuredClone(config) };
   }
   if (body.action === 'save') {
     if (mode === 'save') throw new TypeError('Failed to fetch');
@@ -29,6 +42,7 @@ const request = (async (body: Record<string, unknown>) => {
     if (body.enabled && !body.api_key && !item.has_key) throw new Error('启用前请填写 API Key');
     Object.assign(item, { settings: body.settings, enabled: body.enabled, version_id: crypto.randomUUID(),
       has_key: item.has_key || !!body.api_key });
+    persist();
     return { version_id: item.version_id };
   }
   if (body.action === 'test') return { ok: true, latency_ms: 12, message: '只读接口连接成功，模型权限需实际业务验收' };

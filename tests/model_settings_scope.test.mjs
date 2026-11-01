@@ -27,7 +27,8 @@ const call = async body => {
   return response.json();
 };
 const models = (await call({ action: 'list', scope: 'models' })).configs;
-assert.equal(models.length, 16, '模型接口列表只返回模型 API');
+assert.equal(models.length, 13, '模型接口隐藏备用文本、MiniMax和Seedance网关');
+assert.ok(models.every(item => !['text.fallback', 'video.MiniMax', 'video.Seedance'].includes(item.slot)));
 assert.ok(models.every(item => !/^(intelligence|reader)\./.test(item.slot)));
 const integrations = (await call({ action: 'list', scope: 'integrations' })).configs;
 assert.deepEqual(integrations.map(item => item.slot).sort(),
@@ -35,7 +36,7 @@ assert.deepEqual(integrations.map(item => item.slot).sort(),
 assert.equal((await call({ action: 'catalog' })).configs.length, 20, '业务目录继续兼容全部原配置');
 
 await call({ action: 'import', scope: 'models' });
-assert.deepEqual(writes, ['text.primary', 'text.fallback'], '模型页导入不能写入网页读取凭据');
+assert.deepEqual(writes, ['text.primary'], '模型页导入不能写入隐藏模型或网页读取凭据');
 writes.length = 0;
 await call({ action: 'import', scope: 'integrations' });
 assert.deepEqual(writes, ['reader.primary'], '集成页导入不能写入模型凭据');
@@ -48,5 +49,5 @@ assert.equal(writes.length, 0, '非法范围或跨范围保存不写入配置');
 user = { id: 'ordinary', app_metadata: {}, user_metadata: { role: 'admin' } };
 assert.equal((await handleModelSettings(request({ action: 'list', scope: 'integrations' }))).status, 403);
 assert.equal((await handleModelSettings(request({ action: 'import', scope: 'integrations' }))).status, 403);
-assert.equal((await call({ action: 'catalog', scope: 'models' })).configs.length, 16);
+assert.equal((await call({ action: 'catalog', scope: 'models' })).configs.length, 13);
 console.log('PASS 模型与集成目录、历史导入隔离、旧业务兼容和管理员权限');

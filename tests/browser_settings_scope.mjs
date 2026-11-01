@@ -15,18 +15,21 @@ try {
   if (process.env.SETTINGS_BASELINE_SCREENSHOT) await page.screenshot({
     path: process.env.SETTINGS_BASELINE_SCREENSHOT, fullPage: true,
   });
-  assert.equal(await page.getByRole('navigation', { name: '模型类别' }).getByRole('button').count(), 16,
-    '模型接口只展示16项模型API，不包含统计、商品搜索或网页读取');
+  assert.equal(await page.getByRole('navigation', { name: '模型类别' }).getByRole('button').count(), 13,
+    '模型接口展示13项内置模型API');
   for (const name of ['市场情报', '网页读取', '发布平台应用']) {
     assert.equal(await page.getByRole('heading', { name, exact: true }).count(), 0);
   }
-  await page.getByRole('button', { name: /知识库 Embedding/ }).click();
+  await page.getByRole('navigation', { name: '模型类别' }).getByRole('heading', { name: '向量', exact: true })
+    .locator('..').getByRole('button', { name: /主模型/ }).click();
   assert.equal(await page.getByLabel('模型 ID', { exact: true }).count(), 1);
   assert.match(await page.getByLabel('完整调用地址').getAttribute('placeholder'), /embeddings$/);
-  await page.getByRole('button', { name: /照片数字人口播/ }).click();
+  await page.getByRole('button', { name: /照片口播/ }).click();
   assert.equal(await page.getByLabel('任务查询地址').count(), 1);
-  await page.getByRole('button', { name: '导入旧模型配置', exact: true }).click();
-  await page.getByText('已导入 0 项，跳过 0 项', { exact: false }).waitFor();
+  await page.getByRole('button', { name: '新建模型配置', exact: true }).click();
+  assert.deepEqual(await page.getByRole('dialog').getByLabel('模型类型').locator('option').allTextContents(),
+    ['文本', '视频', '图片', '音频', '3D', '向量']);
+  await page.getByRole('dialog').getByRole('button', { name: '取消', exact: true }).click();
   assert.ok(await page.evaluate(() => window.settingsFixtureRequests.every(item => item.scope === 'models')));
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);

@@ -1,5 +1,5 @@
 import { authenticateRequest, createServiceClient } from '../_shared/auth.ts';
-import { configurationSlots, defaultSettings } from '../_shared/model-catalog.ts';
+import { CUSTOM_MODEL_TYPES, configurationSlots, defaultSettings, modelSlotDefinition } from '../_shared/model-catalog.ts';
 import { ConfigError, encryptKey, resolveModel, validateEndpoint, validateSettings } from '../_shared/model-registry.ts';
 import { legacyModelConfigs } from '../_shared/model-env-import.ts';
 import { imageCapabilities } from '../_shared/image-contract.ts';
@@ -24,17 +24,19 @@ export async function handleModelSettings(req: Request): Promise<Response> {
     if (body.scope !== undefined && !['models', 'integrations'].includes(body.scope)) {
       return reply({ error: '不支持的配置范围' }, 400);
     }
-    const slots = configurationSlots(body.scope);
+    let slots = configurationSlots(body.scope);
     if (body.action === 'catalog' || body.action === 'list') {
       if (body.action === 'list' && !admin) return reply({ error: '仅平台管理员可管理模型接口' }, 403);
       const { data, error } = await db.from('model_configs')
         .select('slot,enabled,current_version_id,updated_at,model_config_versions!model_current_version(settings,key_ciphertext)');
       if (error) throw new Error('读取失败');
+      slots = configurationSlots(body.scope, data?.map(item => item.slot) || []);
       const configs = slots.map(definition => {
         const row = data?.find(item => item.slot === definition.id);
         const version = row?.model_config_versions as unknown as { settings: ReturnType<typeof defaultSettings>; key_ciphertext?: string } | null;
         if (body.action === 'catalog') return {
-          slot: definition.id, name: version?.settings?.name || definition.name, category: definition.category,
+          slot: definition.id, name: body.scope === 'models' && !definition.id.startsWith('custom.')
+            ? definition.name : version?.settings?.name || definition.name, category: definition.category,
           enabled: row?.enabled ?? false, provider: definition.category === 'video' ? definition.protocols[0] : undefined,
           ...(definition.category === 'image' ? { version_id: row?.current_version_id || null,
             image_capabilities: imageCapabilities(version?.settings) } : {}),
@@ -45,8 +47,27 @@ export async function handleModelSettings(req: Request): Promise<Response> {
       return reply({ configs, admin });
     }
     if (!admin) return reply({ error: '仅平台管理员可管理模型接口' }, 403);
+    if (body.action === 'create') {
+      const type = CUSTOM_MODEL_TYPES.find(item => item.id === body.category);
+      const slot = `custom.${body.category}.${body.id}`;
+      if (body.scope !== 'models' || !type || !modelSlotDefinition(slot)
+        || typeof body.name !== 'string' || !body.name.trim() || body.name.length > 200) {
+        return reply({ error: '请选择有效类型并填写模型名称' }, 400);
+      }
+      const settings = { ...defaultSettings(slot), name: body.name.trim() };
+      const { data, error } = await db.rpc('create_custom_model_config', {
+        p_slot: slot, p_settings: settings, p_actor: auth.user.id,
+      });
+      if (error) {
+        if (error.message.includes('创建标识已被使用')) return reply({ error: '创建标识已被使用，请重新新建配置' }, 409);
+        throw new Error('创建失败');
+      }
+      return reply({ config: { slot, settings, enabled: false, version_id: data, has_key: false } });
+    }
     if (['save', 'test'].includes(body.action) && body.scope !== undefined
-      && !slots.some(item => item.id === body.slot)) return reply({ error: '配置项不属于当前设置范围' }, 400);
+      && !configurationSlots(body.scope, [body.slot]).some(item => item.id === body.slot)) {
+      return reply({ error: '配置项不属于当前设置范围' }, 400);
+    }
     if (body.action === 'save') {
       if (typeof body.enabled !== 'boolean' || (body.version_id !== null
         && (typeof body.version_id !== 'string' || !/^[0-9a-f-]{36}$/i.test(body.version_id)))) {

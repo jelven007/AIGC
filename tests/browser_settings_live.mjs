@@ -51,11 +51,11 @@ try {
       path: `${process.env.SETTINGS_SCREENSHOT_DIR}/模型接口-优化前-桌面-20261031.png`, fullPage: true,
     });
   } else {
-    assert.equal(results[0].model_slots, 16);
+    assert.equal(results[0].model_slots, Number(process.env.SETTINGS_EXPECTED_COUNT || 13));
     assert.equal(results[0].unrelated_data_headings, 0);
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
-      await page.getByRole('button', { name: /知识库 Embedding/ }).click();
+      await models.getByRole('heading', { name: '向量', exact: true }).locator('..').getByRole('button', { name: /主模型/ }).click();
       assert.equal(await page.getByLabel('模型 ID', { exact: true }).count(), 1);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
       if (process.env.SETTINGS_SCREENSHOT_DIR) await page.screenshot({
@@ -75,7 +75,8 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     results.push({ route: '/settings/integrations', data_slots: 4, publishing_apps: 2 });
     if (!process.env.SETTINGS_CANDIDATE_DIR) {
-      assert.ok(apiReceipts.some(item => item.action === 'list' && item.scope === 'models' && item.slots === 16));
+      assert.ok(apiReceipts.some(item => item.action === 'list' && item.scope === 'models'
+        && item.slots === Number(process.env.SETTINGS_EXPECTED_COUNT || 13)));
       assert.ok(apiReceipts.some(item => item.action === 'list' && item.scope === 'integrations' && item.slots === 4));
     }
     for (const width of [390, 1440]) {

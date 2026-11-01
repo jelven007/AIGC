@@ -43,7 +43,9 @@ pnpm dev
 
 前端在apps/web/src，@/映射到此目录；页面按业务域，API/lib/types不反向依赖UI。媒体在services/media-worker，工具在services/mcp，基础设施在infra。Node/Deno只共享显式纯契约，不从服务端导入执行能力。数据库变更加新迁移，不能改已应用SQL。
 
-统一标题、操作区、控件与提醒遵循[页面规范](UI_STANDARDS.md)。脚本草稿校验原账号/版本与有效内容，通知走浮层；旧异步结果不得在账号切换后写入。模型接口16槽与第三方集成4槽独立展示，保留服务端只读权限。
+统一标题、操作区、控件与提醒遵循[页面规范](UI_STANDARDS.md)。脚本草稿校验原账号/版本与有效内容，通知走浮层；旧异步结果不得在账号切换后写入。模型页13个内置入口与自建项、第三方集成4槽独立展示，普通用户只读目录。
+
+新增模型配置的源码链为`CreateModelConfigDialog`→`model-settings create(scope=models)`→00069 `create_custom_model_config`。类型与协议来自共享纯目录；六类创建UUID在失败重试时保持，名称或类型变化时重新生成。创建默认关闭；后续保存带当前版本ID，冲突409重新读取。旧任务继续使用绑定的不可变版本。修改时运行`pnpm test:models`、`pnpm test:custom-model-db`和`pnpm test:browser`；细节见[模型配置](MODEL_SETTINGS.md)。
 
 ## 验证与提交
 

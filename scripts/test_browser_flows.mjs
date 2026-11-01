@@ -12,7 +12,7 @@ const env = { ...process.env, VITE_SUPABASE_URL: 'https://ui-fixture.example',
   VITE_SUPABASE_ANON_KEY: 'fixture', VITE_TERMS_URL: 'https://legal-fixture.example/terms',
   VITE_PRIVACY_URL: 'https://legal-fixture.example/privacy', UI_TEST_URL: base };
 const suites = [
-  'tests/browser_model_settings.mjs', 'tests/browser_platform_settings.mjs',
+  'tests/browser_model_settings.mjs', 'tests/browser_custom_model_settings.mjs', 'tests/browser_settings_scope.mjs', 'tests/browser_platform_settings.mjs',
   'tests/browser_editor_state.mjs', 'tests/browser_editor_assets.mjs', 'tests/browser_edit_analysis.mjs',
   'tests/browser_image_editing.mjs', 'tests/browser_account_credits.mjs',
   'tests/browser_storyboard_style.mjs',

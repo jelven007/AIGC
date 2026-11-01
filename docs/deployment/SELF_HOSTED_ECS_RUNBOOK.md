@@ -13,19 +13,19 @@
 先使用当前已接受发布目录中的快照脚本；完成备份后，在封存并验证的新交付根执行升级。兼容修复版按目标 SOURCE_DIR 解析新旧 Compose 布局；修复前脚本固定绑定自身目录，不可混用跨布局版本。参数仅示例，快照目录必须新建；密钥为源码外0600普通文件：
 
 ```sh
-python3 /opt/shopro/releases/current/scripts/self_hosted_snapshot.py backup   --state-dir /opt/shopro/state --key-file /opt/shopro/private/snapshot.key   --output /opt/shopro/backups/before-v1.2.0
+python3 /opt/shopro/releases/current/scripts/self_hosted_snapshot.py backup   --state-dir /opt/shopro/state --key-file /opt/shopro/private/snapshot.key   --output /opt/shopro/backups/before-v1.2.1-publication
 python3 scripts/self_hosted.py upgrade   --release "$PWD" --state-dir /opt/shopro/state
 python3 scripts/self_hosted.py check --state-dir /opt/shopro/state
 python3 scripts/self_hosted.py status --state-dir /opt/shopro/state
 ```
 
-升级验证完整文件清单、镜像ID/架构及实际服务源码；保留原前端/Edge和runtime.env回退副本，更新SOURCE_DIR与镜像，保持身份/容量/数据卷。bootstrap只核对已应用迁移摘要并追加缺失项，不重置管理员、账务或旧任务。本轮迁移/业务协议不变。
+升级验证完整文件清单、镜像ID/架构及实际服务源码；保留原前端/Edge和runtime.env回退副本，更新SOURCE_DIR与镜像，保持身份/容量/数据卷。bootstrap只核对已应用迁移摘要并追加缺失项，不重置管理员、账务或旧任务。v1.2.1新增00069自建模型配置，生产迁移为67条；已部署00069的实例仅核对摘要，执行任务协议保持00068/probe24/render4/edit2。
 
 先本地接受再线上晋级同一前端/Edge。各环境比较升级前后原UUID、权威余额、原完成任务/私有视频SHA256、JWT与历史密钥摘要、容量和全部健康容器；读取HTTPS release-identity.json并与冻结文件逐项比较。真实登录验证桌面/手机关键页面和操作区。ECS保持DB240、Auth20、REST48、Edge8CPU/16GiB、16渲染器。
 
 所有接受通过后原子更新releases/current，再核对活动/停止容器挂载与镜像依赖，保留当前加最多两份历史交付。更早代码/重复包/失败候选可清理；业务卷、私有配置、历史密钥与认证加密快照独立保管。
 
-v1.2.0发布使用新空目录构建前端/43Edge并封存完整清单，两架构各核对原生镜像实际源码。命名变化不重命名生产项目、state、schema、Cron或卷；MCP新入口与旧镜像文件清理同时核验。35张公开参考图须比较实际HTTPS字节与登记摘要。新版本接受后保留compat/buttons两个历史回退目录；具体范围见[发布方案](../plan/RELEASE_V1_2_0.md)。
+v1.2.1正式发布从固定提交使用新空目录构建前端/43Edge并封存完整清单，两架构核对原生镜像实际源码。SOURCE_DIR和current必须指向同一已接受交付；Git SHA、source_sha256及页面实际响应分别核对。新版本接受后保留v1.2.0及最新已接受v1.1.0兼容交付两个历史，移除同版本未提交候选、旧buttons目录和重复临时包；操作顺序见[发布方案](../plan/RELEASE_V1_2_1.md)。
 
 ## 回退与恢复
 
@@ -79,7 +79,7 @@ python3 scripts/self_hosted.py up --state-dir /opt/shopro/state
 docker compose --env-file /opt/shopro/state/runtime.env   -f "$SOURCE_DIR/infra/self-hosted/compose.yaml" --profile execution stop
 ```
 
-check核对66迁移摘要、Auth/权限/权益、43入口、probe24/render4/edit2、RLS与真实Storage往返。业务写入测试仅限新隔离实例显式SELF_HOSTED_ISOLATED_ACCEPTANCE=true。全停机必须包含execution profile；快照工具会停全部常驻组件并恢复。
+check核对67迁移摘要、Auth/权限/权益、43入口、probe24/render4/edit2、RLS与真实Storage往返。业务写入测试仅限新隔离实例显式SELF_HOSTED_ISOLATED_ACCEPTANCE=true。全停机必须包含execution profile；快照工具会停全部常驻组件并恢复。
 
 初始化文件仅源码外普通0600，字段username/password/email，Linux副本归属固定bootstrap身份65534。重复初始化不重置密码/角色/禁用/赠分。明确更新邮箱才用--sync-initial-email；保留原UUID与资产。配置原子更新后重建functions刷新挂载，尤其Docker Desktop。
 

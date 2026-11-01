@@ -1,17 +1,18 @@
 # 接口与数据契约
 
-类型：reference。读者：接口/数据维护者。责任：开发维护者。核验：2026-11-01。来源：apps/web/src/api、supabase/functions/_shared及68迁移。每次字段、权限或状态变化复核；正文与源码不符即过期。
+类型：reference。读者：接口/数据维护者。责任：开发维护者。核验：2026-11-01。来源：apps/web/src/api、supabase/functions/_shared及69迁移。每次字段、权限或状态变化复核；正文与源码不符即过期。
 
-当前契约00068/probe24/render4/edit2、66生产迁移、43生产入口、16模型+4集成槽、MCP59/19。v1.1.0目录变更不改变API URL/数据库协议；前端客户端在apps/web/src/api，MCP在services/mcp，基础设施在infra。用户名登录为受限网关能力，私有映射由infra/self-hosted/main/username_login.ts读取。
+当前执行契约00068/probe24/render4/edit2、67生产迁移、43生产入口、20个内部服务槽与自建配置、MCP59/19。00069提供管理员自建模型RPC；模型页13个内置入口及六类自建配置，接口细节见[模型设置](MODEL_SETTINGS.md)。前端客户端在apps/web/src/api，MCP在services/mcp，基础设施在infra。用户名登录为受限网关能力，私有映射由infra/self-hosted/main/username_login.ts读取。
 
 分镜页面按账号/版本校验草稿有效内容，空/无效数据不提示已恢复；原脚本保存/受理未知仍恢复原UUID。所有价格、权限、租约与财务不变量保持。后文“历史协议增量”保留各轮版本，当前最新定义由源码与本段优先。
 
-更新：2026-10-27，当前00068/probe24/render4/edit2、66生产迁移、MCP59/19。当前新增契约见下表，历史迭代保留当时版本；本地证据见[实施台账](../archive/reviews/OPTIMIZATION_IMPLEMENTATION_20261027.md)。
+以下表格含2026-10-27以来的协议增量，当前计数和执行契约以上方2026-11-01核验为准；历史实施证据见[实施台账](../archive/reviews/OPTIMIZATION_IMPLEMENTATION_20261027.md)。
 
 ## 本轮新增契约
 
 | 入口/数据 | 当前约定 |
 | --- | --- |
+| `model-settings create` / 00069 | 管理员、scope=models、六类类型/名称/UUID；创建默认关闭；同请求重试不新增、不覆盖后续保存；目录不返回密钥 |
 | `ai-assistant`脚本 | `request_key`绑定原账号/规范输入/扣费；严格结构校验，返回原request/script ID；保存失败恢复原结果，unknown不重调 |
 | `model_attempts` | 每次文本/Reader尝试的原配置/usage/供应商ID；开始失败零调用，结案未知不走fallback；现金登记使用原attempt和原账单 |
 | `product-management list` | 可选时间倒序游标含完整微秒和UUID；禁止混用OFFSET/其他排序，后续页不重复精确计数；旧OFFSET兼容 |

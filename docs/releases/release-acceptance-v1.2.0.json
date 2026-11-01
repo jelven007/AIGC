@@ -319,11 +319,12 @@
         "state": "uploaded"
       }
     ],
-    "history_count": 2,
+    "history_count": 1,
     "history": [
-      "v1.1.0",
-      "v1.0.1"
+      "v1.1.0"
     ],
+    "retention_verified_on": "2026-11-01",
+    "retention_note": "Earlier release and associated tag removed by subsequent user instruction; original artifact acceptance unchanged",
     "public_tag_moved": false
   },
   "ci": {

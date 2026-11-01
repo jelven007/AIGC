@@ -123,10 +123,10 @@ def create(state, output):
         raise SelfHostError("交付镜像CPU架构不一致")
     command(["docker", "save", "-o", str(payload / "images.tar"), *[item["image"] for item in images]], timeout=600)
     files = {str(path.relative_to(output)): digest(path) for path in sorted(output.rglob("*")) if path.is_file()}
+    from deploy_volcengine import migration_files, release_manifest
     value = {"format": 1, "platform": platforms.pop(), "images": images, "files": files,
              "initial_admin": "operator-provided-private-file",
-             "migrations": 66, "edge_functions": 43, "mcp_tools": 59}
-    from deploy_volcengine import release_manifest
+             "migrations": len(migration_files()), "edge_functions": 43, "mcp_tools": 59}
     value["release"] = release_manifest()
     (output / "release-manifest.json").write_text(json.dumps(value, ensure_ascii=False, indent=2))
     verify(output)

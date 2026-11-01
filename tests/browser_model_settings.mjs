@@ -23,8 +23,8 @@ try {
   };
   await open('offline');
   assert.equal(await page.getByLabel('显示名称').count(), 1, '加载失败后模型编辑表单仍应显示');
-  assert.equal(await page.getByRole('button', { name: /主文本模型 未读取/ }).count(), 1);
-  await page.getByRole('button', { name: /MiniMax 视频/ }).click();
+  assert.equal(await page.getByRole('button', { name: /主模型 未读取/ }).count(), 2);
+  await page.getByRole('button', { name: /Seedance2.5/ }).click();
   await page.getByLabel('显示名称').fill('待恢复的真实配置');
   assert.equal(await page.getByRole('button', { name: '保存配置', exact: true }).isDisabled(), true,
     '无法读取原版本时不能以null覆盖配置');
@@ -46,8 +46,8 @@ try {
   console.log('PASS 后端恢复后能读取原版本、保留草稿并提交服务端保存');
 
   await open('empty');
-  assert.equal(await page.getByLabel('显示名称').inputValue(), '主文本模型');
-  await page.getByRole('button', { name: /图片与封面/ }).click();
+  assert.equal(await page.getByLabel('显示名称').inputValue(), '主模型');
+  await page.getByRole('button', { name: /Seedream5.0flash/ }).click();
   assert.equal(await page.getByLabel('完整调用地址').count(), 1);
   console.log('PASS 空配置列表的全部模型槽可首次配置');
 

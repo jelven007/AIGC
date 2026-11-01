@@ -1,6 +1,6 @@
 import { authenticatedEdgeJSON, EdgeRequestError } from '@/lib/edgeRequest';
-export { MODEL_SLOTS, RETIRED_MODELS, defaultSettings, configurationSlots } from '../../../../supabase/functions/_shared/model-catalog';
-export type { ModelConfigView, ModelSettings, ConfigurationScope } from '../../../../supabase/functions/_shared/model-catalog';
+export { MODEL_SLOTS, RETIRED_MODELS, CUSTOM_MODEL_TYPES, defaultSettings, configurationSlots, modelSlotDefinition } from '../../../../supabase/functions/_shared/model-catalog';
+export type { ModelConfigView, ModelSettings, ConfigurationScope, CustomModelType } from '../../../../supabase/functions/_shared/model-catalog';
 export interface ModelCatalogEntry {
   slot: string; name: string; category: string; enabled: boolean; provider?: string;
   version_id?: string | null; image_capabilities?: { reference: boolean; mask: boolean };

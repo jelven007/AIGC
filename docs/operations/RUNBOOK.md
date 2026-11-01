@@ -2,7 +2,7 @@
 
 类型：how-to，operational。读者：运行、值班与发布维护者。责任：运维维护者。核验：2026-11-01。来源：scripts/self_hosted.py、scripts/runtime-contract.json、infra/self-hosted/compose.yaml和当轮环境接受。每次部署、故障或30天复核；服务、协议、容量或挂载变化未同步即过期。
 
-实际版本从受控SOURCE_DIR和HTTPS公开身份核对，以[当前状态](../CURRENT_STATE.md)和[生产基线](../releases/PRODUCTION_BASELINE.md)为准；协议00068/probe24/render4/edit2、66生产迁移、43Edge、MCP59工具/19权限保持。本地11服务，ECS26容器含16渲染器。v1.2.0接受顺序见[发布方案](../plan/RELEASE_V1_2_0.md)。原官方Supabase独立保留，各环境版本和原业务数据须单独验收。
+实际版本从受控SOURCE_DIR和HTTPS公开身份核对，以[当前状态](../CURRENT_STATE.md)和[生产基线](../releases/PRODUCTION_BASELINE.md)为准；协议00068/probe24/render4/edit2、67生产迁移（最新00069）、43Edge、MCP59工具/19权限保持。本地11服务，ECS26容器含16渲染器。v1.2.1接受顺序见[发布方案](../plan/RELEASE_V1_2_1.md)。原官方Supabase独立保留，各环境版本和原业务数据须单独验收。
 
 ## 日常检查与身份
 
@@ -15,7 +15,7 @@ python3 /opt/shopro/releases/current/scripts/self_hosted.py status --state-dir /
 python3 /opt/shopro/releases/current/scripts/self_hosted.py check --state-dir /opt/shopro/state
 ```
 
-status核对运行组件；check核对66迁移摘要、43入口、Auth/RLS/Storage、权益和完整worker契约。检查公开release-identity.json与固定交付一致，再核对本人原任务和资产。技术探针通过不表示真实经营模型、支付或SMS送达已接受。业务写入测试只在新隔离实例显式启用SELF_HOSTED_ISOLATED_ACCEPTANCE=true。
+status核对运行组件；check核对67迁移摘要、43入口、Auth/RLS/Storage、权益和完整worker契约。检查公开release-identity.json与固定交付一致，再核对本人原任务和资产。模型页目录应为13个内置入口及已保存自建项；普通用户只有只读目录，00069创建RPC仅服务角色执行且校验管理员。技术探针通过不表示真实经营模型、支付或SMS送达已接受。业务写入测试只在新隔离实例显式启用SELF_HOSTED_ISOLATED_ACCEPTANCE=true。
 
 监控数据库连接、Auth/REST池、Edge和渲染器CPU/内存/PID、媒体磁盘、队列等待/租约/UNKNOWN、告警spool与归档结果。ECS保持DB240、Auth20、REST48、Edge8CPU/16GiB及16渲染器；本地使用原小实例配置，不能套用100人profile。历史压测见[容量回执](../testing/SELF_HOSTED_CAPACITY_100_20261031.md)，不能据此新增SLA。
 
@@ -46,4 +46,4 @@ status核对运行组件；check核对66迁移摘要、43入口、Auth/RLS/Stora
 
 每环境保留current及最近最多两个已接受历史交付。清理前核对全部活动/停止容器bind挂载及当前/历史镜像依赖；业务卷、私有配置、素材、历史密钥与加密快照独立保管。不得全局prune、删卷或重写Git历史，见[版本管理](../releases/VERSION_MANAGEMENT.md)。
 
-运行与回退由运维维护者接手；发布维护者提供固定身份和接受回执。当前入口采用自签CA，正式域名证书、经营接入、外部值班与异地备份调度按[待办](../PENDING_CHANGES.md)独立接受。最迟2026-12-01或相关变更时复核本手册。原历史增量保留在[归档](../archive/before-v1.1.0/docs/operations/RUNBOOK.md)，旧probe和旧目标状态不用于当前操作。
+运行与回退由运维维护者接手；发布维护者提供固定身份和接受回执。当前入口采用自签CA，正式域名证书、经营接入、外部值班与异地备份调度按[待办](../PENDING_CHANGES.md)独立接受。最迟2026-12-01或相关变更时复核本手册。历史接受证据见[v1.1.0回执](../releases/V1_1_0_EXECUTION_20261101.md)，旧probe和旧目标状态不用于当前操作。

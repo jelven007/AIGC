@@ -6,7 +6,7 @@
 
 | 门禁 | 执行入口 | 依赖与覆盖 |
 | --- | --- | --- |
-| 目录/文档/源码 | pnpm check:structure、pnpm typecheck、pnpm lint、pnpm build | 固定Node22/pnpm10.34.5；223模块、8纯契约、链接/生命周期、规则与生产编译 |
+| 目录/文档/源码 | pnpm check:structure、pnpm typecheck、pnpm lint、pnpm build | 固定Node22/pnpm10.34.5；224模块、8纯契约、链接/生命周期、规则与生产编译 |
 | Node契约 | for suite in tests/*.test.mjs; do node "$suite" || exit; done | 锁定依赖；原UUID/资金/权限/任务/页面规则；Excel往返另需Python |
 | 发布闭包 | pnpm test:release | Python；新目录、指纹、静态文件、迁移/Edge/源码交付 |
 | Python/数据库 | tests/test_*.py按模块执行 | Docker隔离PG；真实事务、旧库升级、幂等、账务/租约/权限/配置 |
@@ -22,7 +22,13 @@
 
 素材复用门禁增加35张衍生图的存在、摘要和目录完整性检查。`pnpm test:asset-reuse-ui` 覆盖1440/390/844px全部图加载、五类筛选、预览/复制/Escape/焦点恢复，以及参考、套餐、支持的登录恢复；确认参考选择未上传素材或创建任务。发布前分别核对开发、本地构建、自托管及线上载荷，证据见 [复用记录](../releases/ASSET_REUSE_20261101.md)。
 
-## v1.2.0当轮门禁
+## v1.2.1当轮门禁
+
+模型页专项运行`pnpm test:models`、`pnpm test:custom-model-db`，浏览器总入口包含`browser_custom_model_settings.mjs`。覆盖13个内置入口、分类/文案、六类创建/保存/刷新、手机弹窗、失败稳定UUID重试、管理员权限、并发创建幂等、创建后修改再重试、旧版本保留与跨scope拒绝。CI显式运行版本策略与真实PostgreSQL自建配置测试。
+
+固定提交构建后先发布，再按[本轮方案](../plan/RELEASE_V1_2_1.md)本地升级接受、ECS晋级同一载荷。三环境分别验证1440px/390px页面与实际响应摘要；线上创建SQL用事务回滚，生产不持久化验收配置，不触发付费供应商任务。成功创建/保存API的夹具覆盖与线上事务覆盖分别标明，不能把夹具结果说成生产真实写入。
+
+## v1.2.0历史门禁
 
 `pnpm test:browser`统一执行12组流程，包含新增图库；按钮高度、数字人工具栏、原回执恢复另作受影响专项。所有Node契约逐文件执行，Excel往返必须有Python，不得跳过。Python通过`tests/run_python_regressions.py --group host|media|mcp --output-dir <已存在目录>`分别运行；宿主组需要Docker/PG/备份镜像，媒体/MCP组使用对应锁定镜像。
 
@@ -50,7 +56,7 @@
 
 1. 从固定Git提交核对源码摘要、版本、依赖锁与架构镜像中的真实Python源码。
 2. 分别捕获本地与ECS原账号UUID、权威余额、原完成任务、私有成片字节/SHA256、JWT/历史密钥摘要、容量和挂载，生成新的加密快照。
-3. 先本地升级，再用同一前端/Edge晋级ECS。执行self_hosted.py check；核对66迁移摘要、43入口、Auth/RLS/Storage、probe24/render4/edit2及11/26健康服务。
+3. 先本地升级，再用同一前端/Edge晋级ECS。执行self_hosted.py check；核对67生产迁移摘要（最新00069）、43入口、Auth/RLS/Storage、probe24/render4/edit2及11/26健康服务。
 4. 各环境真实登录后检查工作台、商品、分镜、模型接口、第三方集成、剪辑与运营；桌面/手机分别检查页头和控件，不用静态截图替代交互。
 5. 比较HTTPS实际文件与冻结载荷、公开release-identity.json及原业务数据；保持线上16渲染器和原容量。失败停止后续晋级与清理。
 6. GitHub发布独立读回标签/提交/附件摘要后清理更早历史，再复核健康与原数据。

@@ -26,7 +26,7 @@ try {
   await page.goto(origin + '/settings/models');
   await page.getByText('平台管理员负责模型 API 配置。', { exact: false }).waitFor();
   await page.getByRole('status').filter({ hasText: '正在读取模型目录' }).waitFor({ state: 'hidden' });
-  assert.equal(await page.locator('main .divide-y > div').count(), 16);
+  assert.equal(await page.locator('main .divide-y > div').count(), Number(process.env.SETTINGS_EXPECTED_COUNT || 13));
   assert.equal(await page.getByLabel('API Key', { exact: false }).count(), 0);
   assert.equal(await page.getByRole('alert').count(), 0);
   await page.goto(origin + '/settings/integrations');
@@ -34,5 +34,5 @@ try {
   assert.equal(await page.getByLabel('Client Key', { exact: true }).count(), 0);
   assert.ok(actions.every(action => action === 'catalog'));
   assert.deepEqual(errors, []);
-  console.log('PASS 模拟普通用户视图：16项只读模型目录，无模型/发布应用编辑表单，仅请求catalog');
+  console.log('PASS 模拟普通用户视图：只读模型目录，无模型/发布应用编辑表单，仅请求catalog');
 } finally { await browser.close(); }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import ServiceConfigEditor, { RetiredModels } from '@/components/ServiceConfigEditor';
+import ServiceConfigEditor from '@/components/ServiceConfigEditor';
 import { configurationSlots, modelSettingsErrorMessage, modelSettingsRequest, type ModelCatalogEntry } from '@/api/modelSettings';
 import PageHeader from '@/components/common/PageHeader';
 
@@ -21,7 +21,7 @@ export default function ModelSettingsPage() {
     modelSettingsRequest<{ configs: ModelCatalogEntry[] }>({ action: 'catalog', scope: 'models' }, user?.id, controller.signal)
       .then(result => {
         if (!Array.isArray(result.configs)) throw new Error('模型目录响应不完整，请刷新重试。');
-        const slots = configurationSlots('models');
+        const slots = configurationSlots('models', result.configs.map(item => item.slot));
         if (!controller.signal.aborted) setCatalog(result.configs.filter(item => slots.some(slot => slot.id === item.slot)));
       })
       .catch(e => { if (!controller.signal.aborted) setError(modelSettingsErrorMessage(e)); })
@@ -31,7 +31,6 @@ export default function ModelSettingsPage() {
   if (admin) return <ModelSettingsEditor key={user.id} />;
   return <div className="p-4 md:p-6">
     <PageHeader className="mb-6" title="模型接口" description="平台管理员负责模型 API 配置。这里显示文本、向量与多模态模型的启用状态。" />
-    <RetiredModels />
     {loading && <p role="status" className="text-muted-foreground">正在读取模型目录…</p>}
     {error && <p role="alert" className="text-destructive">{error}</p>}
     <div className="divide-y divide-border">{catalog.map(item => <div key={item.slot} className="flex justify-between gap-4 py-4">

@@ -9,7 +9,7 @@
 | 组件 | 源码 | 职责 |
 | --- | --- | --- |
 | 前端 | apps/web/src、apps/web/public | 48页面/13领域；原账号缓存/请求恢复、真实预览、统一页头与操作区 |
-| 业务平台 | supabase/functions、supabase/migrations、supabase/ops | 43生产入口、68文件/66生产迁移；RLS、幂等账务、租约、范围和模型配置 |
+| 业务平台 | supabase/functions、supabase/migrations、supabase/ops | 43生产入口、69文件/67生产迁移；RLS、幂等账务、租约、范围和模型配置 |
 | 媒体 | services/media-worker | Python/FFmpeg、字幕/音频/人物蒙版、可信下载、磁盘边界；render4/edit2 |
 | 调度与维护 | scripts/run_video_worker.py、infra/video-scheduler | probe24、持久公平预算、原未知请求核对、独立维护与告警spool |
 | 工具网关 | services/mcp | 按请求身份隔离、Host白名单、同API权限、并发/正文/超时预算 |
@@ -22,6 +22,8 @@
 前端共享层不依赖pages，API/lib/db/types不依赖UI；八个Node/Deno纯契约位于supabase/functions/_shared，显式白名单、无环境/网络能力。页面动态加载，Vite应用根为apps/web，仓库输出为dist。根pnpm锁与工具配置保持单一来源。
 
 运行契约00068/probe24/render4/edit2不变；迁移18/19为演示数据并排除生产，历史SQL不改写。任务绑定原配置与价格，确定失败原流水返还，未知受理不得重提或盲退；积分与现金账分别记录。
+
+00069追加自建模型配置RPC。管理员创建`custom.<type>.<UUID>`，数据库以创建请求和操作者校验幂等，保存继续生成不可变配置版本；浏览器只接收密钥存在状态。模型页显示13个内置入口及六类自建配置，集成页保留4槽，无scope业务目录保留原20槽。自建项不自动替换原生成路由，3D目前仅管理调用配置；入口与版本边界见[模型配置](../development/MODEL_SETTINGS.md)。
 
 当前浏览器统一 `aigc:*` 请求键与事件，新公开配置使用 `__AIGC_RUNTIME__`，统一迁移模块兼容两代旧前缀及已有部署配置。旧网关地址只允许管理员显式提供后导入，不作为运行默认值。许可证、数据库/卷/历史回执的标识不因源码清理改写，详见 [清理记录](../releases/SOURCE_CLEANUP_20261101.md)。
 

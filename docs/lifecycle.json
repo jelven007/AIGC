@@ -3,6 +3,55 @@
   "verified_on": "2026-11-01",
   "documents": [
     {
+      "path": "docs/plan/RELEASE_V1_2_1.md",
+      "owner": "发布维护者",
+      "verified_on": "2026-11-01",
+      "review_trigger": "每个发布阶段、输入、门禁或回退目标变化",
+      "sources": [
+        "package.json",
+        "scripts/version_policy.py",
+        "scripts/self_hosted_release.py",
+        "scripts/self_hosted.py",
+        "docs/releases/VERSION_MANAGEMENT.md"
+      ],
+      "quadrant": "how-to",
+      "cadence": "每个发布阶段",
+      "staleness_signal": "固定身份、执行顺序或保留目标变化未同步"
+    },
+    {
+      "path": "docs/releases/V1_2_1_EXECUTION_20261101.md",
+      "owner": "发布维护者",
+      "verified_on": "2026-11-01",
+      "review_trigger": "本轮执行证据补充或事实勘误",
+      "sources": [
+        "docs/plan/RELEASE_V1_2_1.md",
+        "docs/releases/MODEL_SETTINGS_20261101.md",
+        "scripts/self_hosted.py",
+        "scripts/self_hosted_release.py",
+        "tests/test_custom_model_configs.py"
+      ],
+      "quadrant": "reference",
+      "cadence": "每个发布阶段及事实勘误",
+      "staleness_signal": "没有当轮证据或引用的运行身份变化未同步"
+    },
+    {
+      "path": "docs/releases/MODEL_SETTINGS_20261101.md",
+      "owner": "开发与发布维护者",
+      "verified_on": "2026-11-01",
+      "review_trigger": "模型页目录、新建配置或本轮环境回执变化",
+      "sources": [
+        "apps/web/src/components/ServiceConfigEditor.tsx",
+        "apps/web/src/components/CreateModelConfigDialog.tsx",
+        "supabase/functions/model-settings/index.ts",
+        "supabase/migrations/00069_custom_model_configs.sql",
+        "tests/browser_custom_model_settings.mjs",
+        "tests/test_custom_model_configs.py"
+      ],
+      "quadrant": "reference",
+      "cadence": "本次交付与事实勘误",
+      "staleness_signal": "目录、配置版本、环境身份或验证范围变化未同步"
+    },
+    {
       "path": "docs/releases/V1_2_0_EXECUTION_20261101.md",
       "owner": "发布维护者",
       "verified_on": "2026-11-01",
@@ -127,7 +176,7 @@
       "verified_on": "2026-11-01",
       "review_trigger": "每次发布或运行环境晋级",
       "sources": [
-        "docs/releases/release-acceptance-v1.1.0.json",
+        "docs/releases/V1_2_1_EXECUTION_20261101.md",
         "scripts/runtime-contract.json",
         "package.json"
       ],
@@ -257,6 +306,8 @@
       "review_trigger": "每次版本变动",
       "sources": [
         "package.json",
+        "scripts/version_policy.py",
+        "tests/test_version_policy.py",
         "scripts/self_hosted_release.py",
         "scripts/deploy_volcengine.py"
       ],

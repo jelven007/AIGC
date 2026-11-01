@@ -65,7 +65,7 @@ try {
   await page.getByText(name, { exact: true }).waitFor({ state: 'detached' });
   checks.push({ real_product_save_reload_delete: true });
   await page.goto(values.PUBLIC_ORIGIN + '/settings/models');
-  await page.getByText('主文本模型', { exact: true }).last().waitFor();
+  await page.getByText('主模型', { exact: true }).last().waitFor();
   await page.screenshot({ path: `${state}/receipts/browser-desktop.png`, fullPage: false });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(values.PUBLIC_ORIGIN + '/products');
