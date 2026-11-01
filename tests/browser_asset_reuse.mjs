@@ -42,6 +42,32 @@ async function fixture(width, height, signedIn = false) {
   return { page, requests, errors, close: async () => { await context.close(); await browser.close(); } };
 }
 
+async function decodedImage(image) {
+  await image.evaluate(node => new Promise((resolve, reject) => {
+    if (node.complete && node.naturalWidth > 0) { resolve(); return; }
+    node.addEventListener('load', resolve, { once: true });
+    node.addEventListener('error', () => reject(new Error('参考图加载失败')), { once: true });
+  }));
+  await image.evaluate(node => node.decode());
+}
+
+test('等待尚未进入视口的懒加载参考图实际加载后再解码', async () => {
+  const f = await fixture(390, 844), page = f.page;
+  try {
+    await page.goto(`${base}/landing`);
+    const src = await page.getByRole('region', { name: '视觉参考图库' }).locator('img').first().getAttribute('src');
+    await page.setContent('<div style="height:20000px"></div><img loading="lazy" width="100" height="100">');
+    const image = page.locator('img');
+    assert.equal(await image.evaluate(node => node.naturalWidth), 0);
+    const decoding = decodedImage(image).then(() => null, error => error);
+    await page.evaluate(() => new Promise(requestAnimationFrame));
+    await image.evaluate((node, url) => { node.src = url; }, `${base}${src}?lazy-regression`);
+    await image.scrollIntoViewIfNeeded();
+    assert.equal(await decoding, null);
+    assert.ok(await image.evaluate(node => node.complete && node.naturalWidth > 0));
+  } finally { await f.close(); }
+});
+
 for (const [width, height] of [[1440, 1000], [390, 844], [844, 390]]) {
   test(`35个视觉参考可加载、筛选、预览和复制：${width}px`, async () => {
     const f = await fixture(width, height), page = f.page;
@@ -54,7 +80,7 @@ for (const [width, height] of [[1440, 1000], [390, 844], [844, 390]]) {
       for (let i = 0; i < 35; i++) {
         const img = gallery.locator('img').nth(i);
         await img.scrollIntoViewIfNeeded();
-        await img.evaluate(image => image.decode());
+        await decodedImage(img);
         assert.ok(await img.evaluate(image => image.naturalWidth > 0));
       }
       await gallery.getByRole('button', { name: '商品构图', exact: true }).click();
