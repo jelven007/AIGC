@@ -45,6 +45,7 @@ async function fixture(width, height, signedIn = false) {
 async function decodedImage(image) {
   await image.evaluate(node => new Promise((resolve, reject) => {
     if (node.complete && node.naturalWidth > 0) { resolve(); return; }
+    if (node.complete && node.currentSrc) { reject(new Error('参考图加载失败')); return; }
     node.addEventListener('load', resolve, { once: true });
     node.addEventListener('error', () => reject(new Error('参考图加载失败')), { once: true });
   }));
@@ -65,6 +66,20 @@ test('等待尚未进入视口的懒加载参考图实际加载后再解码', as
     await image.scrollIntoViewIfNeeded();
     assert.equal(await decoding, null);
     assert.ok(await image.evaluate(node => node.complete && node.naturalWidth > 0));
+  } finally { await f.close(); }
+});
+
+test('已经加载失败的图片必须报错，不能等待不会再出现的load事件', { timeout: 5000 }, async () => {
+  const f = await fixture(390, 844), page = f.page;
+  try {
+    await page.goto(`${base}/landing`);
+    await page.setContent('<img width="100" height="100">');
+    const image = page.locator('img');
+    await image.evaluate(node => new Promise(resolve => {
+      node.addEventListener('error', resolve, { once: true });
+      node.src = 'data:image/png;base64,aW52YWxpZA==';
+    }));
+    await assert.rejects(decodedImage(image), /参考图加载失败/);
   } finally { await f.close(); }
 });
 
