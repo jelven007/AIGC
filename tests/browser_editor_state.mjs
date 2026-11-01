@@ -51,6 +51,9 @@ async function fixture({ draft = null, lostCreate = false } = {}) {
       } else if (request.method() === 'PATCH') { state.writes.push({ id, body }); Object.assign(state.project, body); data = [state.project]; }
       else if (url.searchParams.has('id')) { state.reads++; data = id === uid ? [state.project] : []; }
     }
+    // Let the existing draft debounce run while the create response is unknown.
+    if (lostCreate && request.method() === 'POST' && path.includes('/rest/v1/video_projects')
+      && state.creates.length === 1) await page.clock.runFor(350);
     await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data),
       headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*' } });
   });
@@ -147,6 +150,7 @@ test('batch account switch clears selected products and old form', async () => {
 });
 test('lost create restores original UUID and keeps its saved timeline', async () => {
   const f = await fixture({ lostCreate: true });
+  await f.page.clock.install();
   try {
     await f.page.goto(`${base}/video/edit`);
     await f.page.getByRole('button', { name: /文本.*T|字幕.*T/ }).click();
@@ -156,9 +160,14 @@ test('lost create restores original UUID and keeps its saved timeline', async ()
     await f.page.getByRole('button', { name: '保存项目', exact: true }).click();
     await f.page.getByRole('alert').getByText('工程创建响应待核对', { exact: true }).waitFor();
     const original = f.state.creates[0].id;
+    await f.page.reload();
+    // Reload executes the pagehide flush; assert the durable recovery receipt.
+    await f.page.waitForFunction(({ uid, original }) => {
+      const saved = JSON.parse(localStorage.getItem(`video-editor-draft-${uid}`));
+      return saved?.importId === original && saved.pendingCreate === true;
+    }, { uid, original });
     const receipt = await f.page.evaluate(uid => JSON.parse(localStorage.getItem(`video-editor-draft-${uid}`)), uid);
     assert.equal(receipt.importId, original); assert.equal(receipt.pendingCreate, true);
-    await f.page.reload();
     await f.page.getByRole('button', { name: '保存项目', exact: true }).click();
     await f.page.getByText('新剪辑项目已创建并成功保存', { exact: true }).waitFor();
     assert.equal(f.state.creates.length, 2);

@@ -1,0 +1,603 @@
+{
+  "format": 1,
+  "verified_on": "2026-11-01",
+  "version": "1.2.1",
+  "git_sha": "bf1a4bb505e236cfd94b5cbaae1211355bf85f05",
+  "source_sha256": "50076cdaf017f0ffa0d04ede3f5db68d90b87a8dcd0184946a4db57c6f8479cc",
+  "worktree_changes": false,
+  "delivery": "v1.2.1-50076cdaf017",
+  "source_files": 555,
+  "sealed_files_per_architecture": 1196,
+  "environments": {
+    "local": {
+      "accepted": true,
+      "version": "1.2.1",
+      "delivery": "v1.2.1-50076cdaf017",
+      "origin": "https://shopro.test:8443",
+      "healthy_containers": 11,
+      "original_state_preserved": true,
+      "original_username_login": true,
+      "preserved": [
+        "account",
+        "balance",
+        "completed_video_sha256",
+        "JWT",
+        "keyring",
+        "initial_identity",
+        "capacity"
+      ],
+      "historical_credentials_checked": 4,
+      "snapshot": {
+        "authenticated_objects": 5,
+        "cold_consistent": true,
+        "new_volume_restore_tested": false
+      },
+      "tls": "strict CA and hostname verification",
+      "payload_files": {
+        "frontend": 199,
+        "edge": 44
+      },
+      "served_frontend_files": 10,
+      "migration_ledger": {
+        "count": 67,
+        "latest": "00069",
+        "custom_rpc": true,
+        "user_rpc": false
+      },
+      "api": {
+        "builtin_models": 13,
+        "integrations": 4,
+        "legacy_business_catalog": 20,
+        "unauthenticated_rejected": true,
+        "invalid_creation_rejected": true,
+        "no_secrets_returned": true
+      },
+      "sql": {
+        "six_types_create_save_retry": true,
+        "transaction_rolled_back": true,
+        "persisted_qa_configs": 0
+      },
+      "browser": {
+        "viewports": [
+          1440,
+          390
+        ],
+        "model_switches": 26,
+        "six_type_dialog": true,
+        "refresh_reload": true,
+        "page_errors": 0,
+        "failed_responses": 0,
+        "persisted_qa_configs": 0
+      },
+      "production_successful_create_save_api_tested": false
+    },
+    "ecs": {
+      "accepted": true,
+      "version": "1.2.1",
+      "delivery": "v1.2.1-50076cdaf017",
+      "origin": "https://118.196.122.161",
+      "healthy_containers": 26,
+      "original_state_preserved": true,
+      "original_username_login": true,
+      "preserved": [
+        "account",
+        "balance",
+        "completed_video_sha256",
+        "JWT",
+        "keyring",
+        "initial_identity",
+        "capacity"
+      ],
+      "historical_credentials_checked": 2,
+      "snapshot": {
+        "authenticated_objects": 5,
+        "cold_consistent": true,
+        "new_volume_restore_tested": false
+      },
+      "tls": "strict CA and hostname verification",
+      "payload_files": {
+        "frontend": 199,
+        "edge": 44
+      },
+      "served_frontend_files": 10,
+      "migration_ledger": {
+        "count": 67,
+        "latest": "00069",
+        "custom_rpc": true,
+        "user_rpc": false
+      },
+      "api": {
+        "builtin_models": 13,
+        "integrations": 4,
+        "legacy_business_catalog": 20,
+        "unauthenticated_rejected": true,
+        "invalid_creation_rejected": true,
+        "no_secrets_returned": true
+      },
+      "sql": {
+        "six_types_create_save_retry": true,
+        "transaction_rolled_back": true,
+        "persisted_qa_configs": 0
+      },
+      "browser": {
+        "viewports": [
+          1440,
+          390
+        ],
+        "model_switches": 26,
+        "six_type_dialog": true,
+        "refresh_reload": true,
+        "page_errors": 0,
+        "failed_responses": 0,
+        "persisted_qa_configs": 0
+      },
+      "production_successful_create_save_api_tested": false
+    }
+  },
+  "development": {
+    "accepted": true,
+    "source_files_verified": 555,
+    "viewports": [
+      1440,
+      390
+    ],
+    "model_switches": 26,
+    "page_errors": 0,
+    "failed_responses": 0
+  },
+  "cross_platform": {
+    "passed": true,
+    "identical_frontend_edge": true,
+    "allowed_differences": [
+      "runtime-images.json"
+    ],
+    "source_sha256": "50076cdaf017f0ffa0d04ede3f5db68d90b87a8dcd0184946a4db57c6f8479cc"
+  },
+  "contracts": {
+    "database_minimum": "00068",
+    "migration_latest": "00069",
+    "production_migrations": 67,
+    "production_edge": 43,
+    "probe": 24,
+    "render": 4,
+    "edit": 2,
+    "mcp_tools": 59,
+    "mcp_scopes": 19
+  },
+  "github": {
+    "passed": true,
+    "release_url": "https://github.com/jelven007/AIGC/releases/tag/v1.2.1",
+    "release_id": 430512013,
+    "tag": "v1.2.1",
+    "tag_object": "4064cf487a1361bfda48daeaff02893eb0a678ca",
+    "build_commit": "bf1a4bb505e236cfd94b5cbaae1211355bf85f05",
+    "annotated": true,
+    "public_tag_moved": false,
+    "assets": [
+      {
+        "name": "build-verification.json",
+        "bytes": 1793,
+        "digest": "sha256:7ced389e978ab69a0bb9275cba175818b1d5261645fa5bd5a24de93ca8d70b45"
+      },
+      {
+        "name": "runtime-images-linux-amd64.json",
+        "bytes": 4378,
+        "digest": "sha256:d5d8aa1c59f1198510b10922d3ebfeeae6a025d967496b4e3a82ebffae1eebb7"
+      },
+      {
+        "name": "runtime-images-linux-arm64.json",
+        "bytes": 4280,
+        "digest": "sha256:b8fd50b656127fb1fe9902cb97bf55c864bc350857f2b4c84885a5440a74c071"
+      },
+      {
+        "name": "SHA256SUMS",
+        "bytes": 694,
+        "digest": "sha256:029b8ff6bd96072af291a109ab36b205371bbaf2c63462e79bbc5e2f7666e893"
+      },
+      {
+        "name": "source-manifest-linux-amd64.json",
+        "bytes": 204431,
+        "digest": "sha256:20269bb6fcdd9a855f3b173e0e854770b4ee4642444ae901f9bb74834ef3ab7a"
+      },
+      {
+        "name": "source-manifest-linux-arm64.json",
+        "bytes": 204431,
+        "digest": "sha256:5593a974943559a428545a91d7e700311cc012d24e23cbb18dfb224d2e2cc021"
+      },
+      {
+        "name": "v1.2.1-50076cdaf017-linux-amd64.tar.gz",
+        "bytes": 29671813,
+        "digest": "sha256:e2d21354ab47391cf23ca1aeecd8195db40dd934a4d9d4287c137a45e076d585"
+      },
+      {
+        "name": "v1.2.1-50076cdaf017-linux-arm64.tar.gz",
+        "bytes": 29669705,
+        "digest": "sha256:025436401c845175a98b2119b6656b1e1fb6e50f4375bc1b456646647f2100af"
+      }
+    ],
+    "history": [
+      "v1.2.0",
+      "v1.1.0"
+    ],
+    "history_count": 2
+  },
+  "download_verification": {
+    "passed": true,
+    "downloaded_assets": 8,
+    "verified_checksums": 8,
+    "assets": [
+      {
+        "name": "build-verification.json",
+        "bytes": 1793,
+        "sha256": "7ced389e978ab69a0bb9275cba175818b1d5261645fa5bd5a24de93ca8d70b45"
+      },
+      {
+        "name": "runtime-images-linux-amd64.json",
+        "bytes": 4378,
+        "sha256": "d5d8aa1c59f1198510b10922d3ebfeeae6a025d967496b4e3a82ebffae1eebb7"
+      },
+      {
+        "name": "runtime-images-linux-arm64.json",
+        "bytes": 4280,
+        "sha256": "b8fd50b656127fb1fe9902cb97bf55c864bc350857f2b4c84885a5440a74c071"
+      },
+      {
+        "name": "SHA256SUMS",
+        "bytes": 694,
+        "sha256": "029b8ff6bd96072af291a109ab36b205371bbaf2c63462e79bbc5e2f7666e893"
+      },
+      {
+        "name": "source-manifest-linux-amd64.json",
+        "bytes": 204431,
+        "sha256": "20269bb6fcdd9a855f3b173e0e854770b4ee4642444ae901f9bb74834ef3ab7a"
+      },
+      {
+        "name": "source-manifest-linux-arm64.json",
+        "bytes": 204431,
+        "sha256": "5593a974943559a428545a91d7e700311cc012d24e23cbb18dfb224d2e2cc021"
+      },
+      {
+        "name": "v1.2.1-50076cdaf017-linux-amd64.tar.gz",
+        "bytes": 29671813,
+        "sha256": "e2d21354ab47391cf23ca1aeecd8195db40dd934a4d9d4287c137a45e076d585"
+      },
+      {
+        "name": "v1.2.1-50076cdaf017-linux-arm64.tar.gz",
+        "bytes": 29669705,
+        "sha256": "025436401c845175a98b2119b6656b1e1fb6e50f4375bc1b456646647f2100af"
+      }
+    ],
+    "source": "independent authenticated GitHub CLI 206 asset range downloads",
+    "verified_ranges": 114,
+    "previously_downloaded_small_assets_reverified": [
+      "build-verification.json",
+      "runtime-images-linux-amd64.json",
+      "runtime-images-linux-arm64.json",
+      "SHA256SUMS",
+      "source-manifest-linux-amd64.json",
+      "source-manifest-linux-arm64.json"
+    ],
+    "partial_archive_not_used": true,
+    "published_assets_modified": false,
+    "bytes_downloaded": 59761525
+  },
+  "ci": [
+    {
+      "id": 41297672173,
+      "url": "https://github.com/jelven007/AIGC/actions/runs/41297672173",
+      "sha": "bf1a4bb505e236cfd94b5cbaae1211355bf85f05",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "name": "browser",
+          "conclusion": "success"
+        },
+        {
+          "name": "frontend-and-api",
+          "conclusion": "success"
+        },
+        {
+          "name": "edge",
+          "conclusion": "success"
+        },
+        {
+          "name": "media-and-mcp",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "id": 41297670028,
+      "url": "https://github.com/jelven007/AIGC/actions/runs/41297670028",
+      "sha": "bf1a4bb505e236cfd94b5cbaae1211355bf85f05",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "name": "browser",
+          "conclusion": "success"
+        },
+        {
+          "name": "media-and-mcp",
+          "conclusion": "success"
+        },
+        {
+          "name": "frontend-and-api",
+          "conclusion": "success"
+        },
+        {
+          "name": "edge",
+          "conclusion": "success"
+        }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "phase": "initial CI",
+      "result": "failed",
+      "runs": [
+        41296272720,
+        41296272663
+      ],
+      "causes": [
+        "hardcoded production migration count",
+        "minimum migration confused with newest ledger",
+        "Ubuntu 26.04 unsupported by pinned Playwright dependency installer"
+      ]
+    },
+    {
+      "phase": "correction",
+      "result": "passed",
+      "commit": "bf1a4bb505e236cfd94b5cbaae1211355bf85f05",
+      "evidence": "acceptance red-green-reverse-red-final-green and official PostgreSQL migration regression"
+    },
+    {
+      "phase": "Git transport",
+      "result": "TLS terminated",
+      "recovery": "same exact Git objects synced using gh API without force"
+    },
+    {
+      "phase": "promotion",
+      "result": "passed",
+      "order": [
+        "formal release",
+        "local",
+        "ecs"
+      ]
+    },
+    {
+      "phase": "extra tag CI",
+      "result": "failure",
+      "run": 41298289638,
+      "cause": "editor test reads transient draft before pagehide flush",
+      "resolution": "deterministic clock red/green/reverse-red/final-green; assertion verifies actual reload, original UUID and timeline",
+      "production_build_inputs_changed": false,
+      "tag_moved": false
+    }
+  ],
+  "artifact_scope": "source/frontend/Edge and native runtime image identities; no runtime image binaries",
+  "verification_limits": [
+    "no paid provider call",
+    "no successful create/save API persisted in production",
+    "SQL create/save/idempotence checked with rollback; browser fixture independently covers form persistence",
+    "five-object snapshot authentication does not assert a new-volume restore drill",
+    "single-host acceptance does not establish multi-host availability or measured SLA"
+  ],
+  "retention": {
+    "local": {
+      "passed": true,
+      "executed": true,
+      "current": "v1.2.1-50076cdaf017",
+      "history_count": 2,
+      "history": [
+        "v1.1.0-compat-ed48a11e4025",
+        "v1.2.0-2f41cdaa817a"
+      ],
+      "historical_versions": [
+        "1.2.0",
+        "1.1.0"
+      ],
+      "containers_checked": 26,
+      "bind_mounts_checked": 28,
+      "required_images_preserved": 13,
+      "removed": [
+        {
+          "name": "v1.1.0-buttons-16bdbae9248f",
+          "bytes": 149040907
+        },
+        {
+          "name": "v1.2.1-4ad1f6a30142",
+          "bytes": 70279288
+        },
+        {
+          "name": "v1.2.1-e966216b307b-linux-arm64.tar.gz",
+          "bytes": 29669421
+        },
+        {
+          "name": "v1.2.1-e966216b307b",
+          "bytes": 70296024
+        }
+      ],
+      "bytes_reclaimed": 319285640,
+      "volumes_removed": false,
+      "snapshots_removed": false,
+      "private_config_removed": false
+    },
+    "ecs": {
+      "passed": true,
+      "executed": true,
+      "current": "v1.2.1-50076cdaf017",
+      "history_count": 2,
+      "history": [
+        "v1.1.0-compat-ed48a11e4025",
+        "v1.2.0-2f41cdaa817a"
+      ],
+      "historical_versions": [
+        "1.2.0",
+        "1.1.0"
+      ],
+      "containers_checked": 52,
+      "bind_mounts_checked": 22,
+      "required_images_preserved": 12,
+      "removed": [
+        {
+          "name": "v1.2.1-4ad1f6a30142",
+          "bytes": 70325642
+        },
+        {
+          "name": "v1.1.0-buttons-16bdbae9248f",
+          "bytes": 149086294
+        },
+        {
+          "name": "v1.2.1-e966216b307b-linux-amd64.tar.gz",
+          "bytes": 29671689
+        },
+        {
+          "name": "v1.2.1-e966216b307b",
+          "bytes": 70342378
+        }
+      ],
+      "bytes_reclaimed": 319426003,
+      "volumes_removed": false,
+      "snapshots_removed": false,
+      "private_config_removed": false
+    }
+  },
+  "transport_cleanup": {
+    "local": {
+      "passed": true,
+      "environment": "local",
+      "removed": [
+        {
+          "path": "/private/tmp/aigc-v121-publication-20261101/final/ecs-transport.tar.gz",
+          "bytes": 29669687,
+          "sha256": "90445151328d25c915d9586088ce0b28b1ffe9a361f8c308d5778c4569ac9036"
+        },
+        {
+          "path": "/private/tmp/aigc-v121-publication-20261101/ecs-transport.tar.gz",
+          "bytes": 29669403,
+          "sha256": "fd4447fcaec38399d0562eed179ddead8f5b68df57b94f5841140d7b05d97f2a"
+        }
+      ],
+      "bytes_reclaimed": 59339090,
+      "volumes_removed": false,
+      "snapshots_removed": false,
+      "private_config_removed": false,
+      "canonical_release_archives_preserved": true,
+      "failed_ci_evidence_preserved": true
+    },
+    "ecs": {
+      "passed": true,
+      "environment": "ecs",
+      "removed": [
+        {
+          "path": "/opt/shopro/private/v121-final/ecs-transport.tar.gz",
+          "bytes": 29669687,
+          "sha256": "90445151328d25c915d9586088ce0b28b1ffe9a361f8c308d5778c4569ac9036"
+        },
+        {
+          "path": "/opt/shopro/private/v121-publication/ecs-transport.tar.gz",
+          "bytes": 29669403,
+          "sha256": "fd4447fcaec38399d0562eed179ddead8f5b68df57b94f5841140d7b05d97f2a"
+        },
+        {
+          "path": "/opt/shopro/private/v121-final/github-api-downloads",
+          "bytes": 8489589
+        },
+        {
+          "path": "/opt/shopro/private/v121-final/github-range-downloads",
+          "bytes": 59761525
+        },
+        {
+          "path": "/opt/shopro/private/v121-final/publish.git",
+          "bytes": 59490258
+        },
+        {
+          "path": "/opt/shopro/private/v121-publication/publish.git",
+          "bytes": 59488084
+        },
+        {
+          "path": "/opt/shopro/private/v121-final/assets/v1.2.1-50076cdaf017-linux-amd64.tar.gz",
+          "bytes": 29671813,
+          "sha256": "e2d21354ab47391cf23ca1aeecd8195db40dd934a4d9d4287c137a45e076d585"
+        },
+        {
+          "path": "/opt/shopro/private/v121-final/assets/v1.2.1-50076cdaf017-linux-arm64.tar.gz",
+          "bytes": 29669705,
+          "sha256": "025436401c845175a98b2119b6656b1e1fb6e50f4375bc1b456646647f2100af"
+        },
+        {
+          "path": "/opt/shopro/private/v121-publication/assets/v1.2.1-e966216b307b-linux-arm64.tar.gz",
+          "bytes": 29669421,
+          "sha256": "b95aa74b055b866876729adff07488ed6a2d627f6d6f27f13c093c40f6d3dc15"
+        },
+        {
+          "path": "/opt/shopro/private/v121-publication/assets/v1.2.1-e966216b307b-linux-amd64.tar.gz",
+          "bytes": 29671689,
+          "sha256": "b66764ab5ea1ebcc03c16ad0c1bd2540c807dffe8b34432a14fb91cb327c4871"
+        }
+      ],
+      "bytes_reclaimed": 365251174,
+      "volumes_removed": false,
+      "snapshots_removed": false,
+      "private_config_removed": false,
+      "canonical_release_archives_preserved": true,
+      "failed_ci_evidence_preserved": true
+    }
+  },
+  "additional_tag_ci": [
+    {
+      "id": 41298289638,
+      "url": "https://github.com/jelven007/AIGC/actions/runs/41298289638",
+      "conclusion": "failure",
+      "jobs": [
+        {
+          "name": "media-and-mcp",
+          "conclusion": "success"
+        },
+        {
+          "name": "browser",
+          "conclusion": "failure"
+        },
+        {
+          "name": "edge",
+          "conclusion": "success"
+        },
+        {
+          "name": "frontend-and-api",
+          "conclusion": "success"
+        }
+      ]
+    }
+  ],
+  "browser_ci_correction": {
+    "passed": true,
+    "results": [
+      {
+        "phase": "red",
+        "exit": 1,
+        "expected": 1
+      },
+      {
+        "phase": "green",
+        "exit": 0,
+        "expected": 0
+      },
+      {
+        "phase": "reverse-red",
+        "exit": 1,
+        "expected": 1
+      },
+      {
+        "phase": "final-green",
+        "exit": 0,
+        "expected": 0
+      }
+    ],
+    "root_cause": "CI asserts the draft before the pagehide flush while a 300ms memo snapshot timer can still replace its transient id",
+    "production_recovery": "reload invokes existing pagehide flush, preserving exact UUID and pending-create flag",
+    "test_change": "assert persisted identity after actual reload, then verify idempotent create and timeline save",
+    "production_source_changed": false,
+    "clock": "advance 350ms while first create response is pending"
+  }
+}
