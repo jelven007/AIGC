@@ -3,6 +3,21 @@
   "verified_on": "2026-11-01",
   "documents": [
     {
+      "path": "docs/releases/V1_2_0_EXECUTION_20261101.md",
+      "owner": "发布维护者",
+      "verified_on": "2026-11-01",
+      "review_trigger": "本次发布事件补充或事实勘误",
+      "sources": [
+        "docs/releases/release-acceptance-v1.2.0.json",
+        "docs/plan/RELEASE_V1_2_0.md",
+        "scripts/self_hosted.py",
+        "tests/browser_asset_reuse.mjs"
+      ],
+      "quadrant": "reference",
+      "cadence": "本次发布完成与事实勘误",
+      "staleness_signal": "固定时点回执不得外推为之后运行状态"
+    },
+    {
       "path": "docs/plan/RELEASE_V1_2_0.md",
       "owner": "发布维护者",
       "verified_on": "2026-11-01",

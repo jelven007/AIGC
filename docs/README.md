@@ -4,7 +4,7 @@
 
 每个系统只有一个权威位置。重复说明指向主文档；历史资料在 archive 中标明原核验时点，不作为当前操作依据。完整登记见[lifecycle.json](lifecycle.json)。
 
-项目目录与包名统一为 `aigc`，平台名称为「内容创作平台」。v1.2.0整合命名、来源、素材复用、控件与兼容恢复，当前晋级阶段见[当前状态](CURRENT_STATE.md)，执行条件见[发布方案](plan/RELEASE_V1_2_0.md)。各专项记录保留原核验时点。
+项目目录与包名统一为 `aigc`，平台名称为「内容创作平台」。v1.2.0整合命名、来源、素材复用、控件与兼容恢复，本地及ECS已升级接受；身份与发布回读见[当前状态](CURRENT_STATE.md)、[执行回执](releases/V1_2_0_EXECUTION_20261101.md)，执行条件见[发布方案](plan/RELEASE_V1_2_0.md)。各专项记录保留原核验时点。
 
 原源仓库远端、演示服务、固定账号和公开截图的清理，以及许可证/任务回执/持久数据标识的保留边界，见 [源内容清理记录](releases/SOURCE_CLEANUP_20261101.md)。源码清理与线上发布分开验收。
 
@@ -17,7 +17,7 @@
 | 需求 | [PRD](prd/PRD.md) | 功能范围、接受条件、经营接入与未交付项 |
 | 方案 | [架构](architecture/TECHNICAL_ARCHITECTURE.md)、[目录](development/PROJECT_STRUCTURE.md) | 边界、依赖、持久状态、协议与迁移责任 |
 | 开发 | [指南](development/DEVELOPMENT_GUIDE.md)、[API](development/API_AND_DATA.md)、[页面规范](development/UI_STANDARDS.md) | 固定环境、源码入口、接口和页面一致性 |
-| 测试 | [计划](testing/TEST_PLAN.md)、[目录迁移证据](development/DIRECTORY_MIGRATION_V1_1_0.md)、[环境接受回执](releases/V1_1_0_EXECUTION_20261101.md) | 受影响门禁、依赖、真实页面与数据验收 |
+| 测试 | [计划](testing/TEST_PLAN.md)、[目录迁移证据](development/DIRECTORY_MIGRATION_V1_1_0.md)、[环境接受回执](releases/V1_2_0_EXECUTION_20261101.md) | 受影响门禁、依赖、真实页面与数据验收 |
 | 运营 | [手册](operations/OPERATIONS_GUIDE.md)、[支付](plan/支付.md) | 用户培训、工单、原任务/账务核对、指标口径 |
 | 运维 | [ECS升级恢复](deployment/SELF_HOSTED_ECS_RUNBOOK.md)、[运行](operations/RUNBOOK.md) | 身份、容量、快照、升级、回退与处置 |
 | 发布 | [当前状态](CURRENT_STATE.md)、[生产基线](releases/PRODUCTION_BASELINE.md)、[版本管理](releases/VERSION_MANAGEMENT.md) | 固定版本身份、两环境晋级和保留 |
