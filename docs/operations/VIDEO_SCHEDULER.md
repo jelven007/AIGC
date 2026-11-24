@@ -34,7 +34,7 @@ production-worker新增knowledge_index/search轮转执行，与现有视频/图�
 
 官方历史Cron仅旧视频，最近成功证据00031/三函数；管理401后尚未重新确认实时状态。新production轮转依赖常驻调度，火山ECS方案尚未运行验收；扩展Cron需目标确认。
 
-历史2026-10-21官方Supabase `aigcp`视频Cron已启用并有退款验收记录，见[部署记录](../releases/DEPLOYMENT_AIGCP.md)；2026-10-22管理401后未重新核验，不能据此认定当前Cron健康。生产全栈依赖常驻Docker生产/维护进程及独立FFmpeg，仍待目标部署。
+历史2026-10-21 AIGC 官方Supabase视频Cron已启用并有退款验收记录，见[部署记录](../releases/DEPLOYMENT_AIGC.md)；2026-10-22管理401后未重新核验，不能据此认定当前Cron健康。生产全栈依赖常驻Docker生产/维护进程及独立FFmpeg，仍待目标部署。
 
 新增媒体队列要求00040与production-worker版本2，开启既有production调度后轮转视频/图片/发布/TTS/ASR/即时克隆/照片口播/口型，不需要独立数字人调度器。旧视频Cron仅覆盖视频，不能据其运行推断媒体后台已启用。probe要求voice_clones/五计费项，真实关页、配置变更与原受理未知验收见 [迭代11](../archive/iterations/ITERATION_11_AUDIO_AVATAR_JOBS.md)；云端最近记录仍是00031/旧函数。
 

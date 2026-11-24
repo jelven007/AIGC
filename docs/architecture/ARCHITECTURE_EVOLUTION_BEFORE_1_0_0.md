@@ -236,4 +236,4 @@ MCP HTTP使用每请求JWT/受限Key和ContextVar隔离。59工具/19权限、�
 - 图片、网页 Reader、Kling 等必须在统一设置页配置兼容协议的 HTTPS 地址；运行时不回退旧网关环境变量。部分历史 AI 业务模拟逻辑保留且需要后续治理。
 - 单机运行不依赖BaaS管理权限；真实模型、SMTP/短信、商户、平台授权和正式域名证书需经营方配置。
 
-当前ECS运行与恢复见[单机手册](../deployment/SELF_HOSTED_ECS_RUNBOOK.md)，最新验证见[单机验收](../testing/SELF_HOSTED_ACCEPTANCE_20261031.md)。原官方历史记录见[DEPLOYMENT_AIGCP](../releases/DEPLOYMENT_AIGCP.md)，可选托管迁移见[火山部署指南](../releases/VOLCENGINE_DEPLOYMENT.md)，接口/状态见[API_AND_DATA](../development/API_AND_DATA.md)。
+当前ECS运行与恢复见[单机手册](../deployment/SELF_HOSTED_ECS_RUNBOOK.md)，最新验证见[单机验收](../testing/SELF_HOSTED_ACCEPTANCE_20261031.md)。原官方历史记录见[DEPLOYMENT_AIGC](../releases/DEPLOYMENT_AIGC.md)，可选托管迁移见[火山部署指南](../releases/VOLCENGINE_DEPLOYMENT.md)，接口/状态见[API_AND_DATA](../development/API_AND_DATA.md)。

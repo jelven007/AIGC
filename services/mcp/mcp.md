@@ -77,4 +77,4 @@ Docker：docker compose -f docker-compose.mcp.yml up -d --build；端口绑定 1
 
 构建`docker build -t aigc-mcp:local -f services/mcp/Dockerfile.mcp services/mcp`后根目录`npm run test:mcp`检查SDK59工具/19权限、并发身份、媒体/编辑/编排/商品/知识/发布载荷、原UUID与错误/传输。`test:access`核验真实PG撤销/归属/限流。MCP当前图片工具保留生成/参考参数，网页掩码编辑不是新增独立MCP工具；目标需匹配00062、TLS/真实JWT/模型/平台与后台运行。
 
-接口状态见 [API_AND_DATA](../../docs/development/API_AND_DATA.md)，真实验收见 [TEST_PLAN](../../docs/testing/TEST_PLAN.md)，部署见 [火山指南](../../docs/releases/VOLCENGINE_DEPLOYMENT.md) 或 [官方记录](../../docs/releases/DEPLOYMENT_AIGCP.md)。MCP 与前端同版本/同后端，不能用工具绕过配置/计费。
+接口状态见 [API_AND_DATA](../../docs/development/API_AND_DATA.md)，真实验收见 [TEST_PLAN](../../docs/testing/TEST_PLAN.md)，部署见 [火山指南](../../docs/releases/VOLCENGINE_DEPLOYMENT.md) 或 [官方记录](../../docs/releases/DEPLOYMENT_AIGC.md)。MCP 与前端同版本/同后端，不能用工具绕过配置/计费。

@@ -1,4 +1,4 @@
-# aigcp 环境部署记录
+# AIGC 官方环境部署记录
 
 命名勘误（2026-11-01）：当前项目目录/包为 `aigc`，开发容器为 `aigc-web`，使用 `scripts/dev_environment.py` 与 TRAE Run；下文 `shoproai-web` 等名称仅为历史证据。当前操作见 [命名记录](PROJECT_RENAME_20261101.md)，不直接执行旧容器命令。
 
@@ -46,7 +46,7 @@
 
 记录性质：以下为2026-10-21成功部署与只读复核证据，对应当时源码阶段。当前00068/probe24全栈未部署，不能据旧回执认定实时健康；以[当前状态](../CURRENT_STATE.md)判断差距。
 
-2026-10-21 已在用户 `jelven007` 的官方 Supabase 免费组织 `aigcp` 创建并接入项目。项目为亚太区域、nano 算力，未开通付费升级。
+2026-10-21 已在用户 `jelven007` 的官方 Supabase 免费组织创建并接入项目。项目为亚太区域、nano 算力，未开通付费升级。
 
 - 项目地址：`https://bbqqhkukgbgpebqpesub.supabase.co`
 - 控制台：`https://supabase.com/dashboard/project/bbqqhkukgbgpebqpesub`

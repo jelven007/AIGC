@@ -2,7 +2,7 @@
 
 # 项目目录规范与迁移说明
 
-核验：2026-10-31。项目根为 `AIGCP/shoproai`，与外层独立Git仓库区分。当前48页面/13领域；生产基线与数据迁移见[发布记录](../../../../releases/PRODUCTION_BASELINE.md)。
+核验：2026-10-31。项目根为 `AIGC/shoproai`，与外层独立Git仓库区分。当前48页面/13领域；生产基线与数据迁移见[发布记录](../../../../releases/PRODUCTION_BASELINE.md)。
 
 ## 目录职责
 

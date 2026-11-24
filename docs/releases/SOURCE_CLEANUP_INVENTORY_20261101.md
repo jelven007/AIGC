@@ -75,7 +75,7 @@
 图片原件与摘要清单位于：
 
 ```text
-AIGCP/.local/shopro-production/evidence/source-cleanup-20261101/
+AIGC/.local/shopro-production/evidence/source-cleanup-20261101/
 ├── assets.json
 └── apps/web/public/...
 ```

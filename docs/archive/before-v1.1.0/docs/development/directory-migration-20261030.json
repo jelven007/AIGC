@@ -177,8 +177,8 @@
       "before_sha256": "083c20a85121d4f67f2b798ed2394794e2721c93fdb8f62da50c226e6af7f35d",
       "after_sha256": "8cd981172e50f87422fb912ba0fc43d8e7de86826005c9ca5dbd7003cbb1d7b6"
     },
-    "docs/DEPLOYMENT_AIGCP.md": {
-      "path": "docs/releases/DEPLOYMENT_AIGCP.md",
+    "docs/DEPLOYMENT_AIGC.md": {
+      "path": "docs/releases/DEPLOYMENT_AIGC.md",
       "before_sha256": "450b4957f45a45a02d2f24af7fa3518e7f470a3b4e09f6a059c638e3a81ddf1e",
       "after_sha256": "61c4621259998479afcc2333260bee73803ba559fb0dada27188b2cbd67cf193"
     },
@@ -976,7 +976,7 @@
     "docs/prd/PRD.md",
     "docs/prd/竞品.md",
     "docs/prd/计划书.md",
-    "docs/releases/DEPLOYMENT_AIGCP.md",
+    "docs/releases/DEPLOYMENT_AIGC.md",
     "docs/releases/RELEASE_ACCEPTANCE.md",
     "docs/releases/REPRODUCIBLE_RELEASE.md",
     "docs/releases/VERSION_MANAGEMENT.md",

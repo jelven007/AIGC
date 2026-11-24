@@ -18,9 +18,9 @@
   "local": {
     "execution": {
       "passed": true,
-      "original_source": "/Users/bytedance/Documents/trae_projects/AIGCP/.local/shopro-production/releases/v1.1.0-buttons-16bdbae9248f",
-      "candidate_source": "/Users/bytedance/Documents/trae_projects/AIGCP/.local/shopro-production/releases/v1.1.0-compat-ed48a11e4025",
-      "backup": "/Users/bytedance/Documents/trae_projects/AIGCP/.local/shopro-production/backups/before-compat-ed48a11e4025",
+      "original_source": "/Users/bytedance/Documents/trae_projects/AIGC/.local/shopro-production/releases/v1.1.0-buttons-16bdbae9248f",
+      "candidate_source": "/Users/bytedance/Documents/trae_projects/AIGC/.local/shopro-production/releases/v1.1.0-compat-ed48a11e4025",
+      "backup": "/Users/bytedance/Documents/trae_projects/AIGC/.local/shopro-production/backups/before-compat-ed48a11e4025",
       "before_health": 11,
       "cold_backup": {
         "backed_up": true,

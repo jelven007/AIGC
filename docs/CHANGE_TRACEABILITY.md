@@ -51,7 +51,7 @@
 | 79afcfb | CREDITS-AUTHORITY-01/AUTH-SMS-01/LEGAL-RESOURCE-01/NOTIFICATION-IDENTITY-01 | 00061，权威权益/SMS隔离/正式协议；[33](archive/iterations/ITERATION_33_CREDITS_SMS.md) | 故障不降级，原手机/回执 |
 | d7e3d38 | IMAGE-EDIT-01/TOOL-ENTRY-01 | 00062，扩图/矩形重绘/原价版本/入口；[34](archive/iterations/ITERATION_34_IMAGE_EDITING.md) | probe22，固定JWT/迟到隔离 |
 
-继承基线：原始`dd8fcab`；`374914b/4d707f2`资金/类型，`1928a72`视频队列，`712c8b7`调度，`276208c`官方接入，`5ba7466`火山适配，`ce90bfe`加密不可变模型配置。对应证据在 [01](archive/iterations/ITERATION_01_FINANCE.md)、[02](archive/iterations/ITERATION_02_TYPECHECK.md)、[03](archive/iterations/ITERATION_03_VIDEO_JOBS.md)、[官方记录](releases/DEPLOYMENT_AIGCP.md)和历史架构报告。
+继承基线：原始`dd8fcab`；`374914b/4d707f2`资金/类型，`1928a72`视频队列，`712c8b7`调度，`276208c`官方接入，`5ba7466`火山适配，`ce90bfe`加密不可变模型配置。对应证据在 [01](archive/iterations/ITERATION_01_FINANCE.md)、[02](archive/iterations/ITERATION_02_TYPECHECK.md)、[03](archive/iterations/ITERATION_03_VIDEO_JOBS.md)、[官方记录](releases/DEPLOYMENT_AIGC.md)和历史架构报告。
 
 ## 2. 六领域同步关系
 
