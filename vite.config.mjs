@@ -46,7 +46,7 @@ export default defineConfig(({ mode }) => {
       output: {
         manualChunks(id) {
           if (!id.includes('/node_modules/')) return;
-          if (/\/(?:react|react-dom|scheduler)\/|\/@remix-run\/router\/|\/react-router(?:-dom)?\//.test(id)) return 'react-core';
+          if (/\/node_modules\/(?:react|react-dom|scheduler)\/|\/@remix-run\/router\/|\/node_modules\/react-router(?:-dom)?\//.test(id)) return 'react-core';
           if (id.includes('/@supabase/')) return 'supabase';
           if (id.includes('/@tanstack/')) return 'query';
           if (id.includes('/framer-motion/') || id.includes('/motion-')) return 'motion';

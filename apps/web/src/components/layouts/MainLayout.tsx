@@ -56,6 +56,7 @@ const navGroups = [
     label: '',
     items: [
       { path: '/video/create', label: '工作台', icon: Video },
+      { path: '/canvas', label: '创作画布', icon: LayoutGrid },
       { path: '/product-selection', label: '智能选品', icon: ShoppingBag },
       { path: '/products', label: '商品管理', icon: Package },
       { path: '/avatars', label: '数字人库', icon: Users2 },
@@ -80,7 +81,7 @@ const navGroups = [
 ];
 
 function pageArea(path: string) {
-  if (/^\/(video|avatars|script|style-copy|live-highlight|emotion-analysis|multilang|batch-create|templates|prompt-templates|ai-toolbox|personalize|task-queue|export-formats)(\/|$)/.test(path)) return 'creation';
+  if (/^\/(canvas|video|avatars|script|style-copy|live-highlight|emotion-analysis|multilang|batch-create|templates|prompt-templates|ai-toolbox|personalize|task-queue|export-formats)(\/|$)/.test(path)) return 'creation';
   if (/^\/(works|materials|products|knowledge|llm-cache)(\/|$)/.test(path)) return 'library';
   if (/^\/(analytics|data-feedback|data-dashboard|ab-test|competitor|product-selection|trending-patterns|open-api|settings)(\/|$)/.test(path)) return 'insights';
   return 'account';
@@ -573,6 +574,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   // 判断是否为生成视频界面
   const isVideoCreatePage = location.pathname.startsWith('/video/create');
   const isVideoEditPage = location.pathname.startsWith('/video/edit');
+  const isCanvasEditor = /^\/canvas\/[^/]+/.test(location.pathname);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -694,7 +696,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         })()}
 
         {/* 页面内容 */}
-        <main id="main-content" tabIndex={-1} className="app-content flex-1 min-w-0 overflow-x-hidden" data-layout={isVideoEditPage ? 'editor' : isVideoCreatePage ? 'workspace' : 'page'}>
+        <main id="main-content" tabIndex={-1} className="app-content flex-1 min-w-0 overflow-x-hidden" data-layout={isCanvasEditor ? 'canvas' : isVideoEditPage ? 'editor' : isVideoCreatePage ? 'workspace' : 'page'}>
           {children}
         </main>
       </div>

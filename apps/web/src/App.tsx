@@ -47,6 +47,7 @@ const LiveHighlightPage      = lazy(() => import("@/pages/production/LiveHighlig
 const PromptTemplatesPage    = lazy(() => import("@/pages/production/PromptTemplatesPage"));
 const OrderDetailPage        = lazy(() => import("@/pages/billing/OrderDetailPage"));
 const VideoEditPage          = lazy(() => import("@/pages/production/VideoEditPage"));
+const CanvasPage             = lazy(() => import("@/pages/production/CanvasPage"));
 const ActivitiesPage         = lazy(() => import("@/pages/account/ActivitiesPage"));
 const InvitePage             = lazy(() => import("@/pages/account/InvitePage"));
 // Phase 2 新增页面
@@ -260,6 +261,8 @@ function AppRoutes() {
                   <Route path="/home" element={<RedirectWithState to="/video/create" />} />
                   <Route path="/" element={<RedirectWithState to="/video/create" />} />
                   <Route path="/video/create" element={<HomePage />} />
+                  <Route path="/canvas" element={<CanvasPage />} />
+                  <Route path="/canvas/:canvasId" element={<CanvasPage />} />
                   <Route path="/video/create/:projectId" element={<HomePage />} />
                   <Route path="/works" element={<WorksPage />} />
                   <Route path="/analytics" element={<AnalyticsPage />} />

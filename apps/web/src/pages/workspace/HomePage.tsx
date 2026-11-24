@@ -33,6 +33,9 @@ import ImageEditCanvas, { type PreparedImageEdit } from '@/components/ImageEditC
 import type { ImageMode } from '../../../../../supabase/functions/_shared/image-contract';
 import { useCredits } from '@/hooks/useCredits';
 import { inspirationAsset } from '@/lib/inspirationAssets';
+import { verifyCanvasMedia } from '@/api/canvasProjects';
+import { emptyCanvasDocument, newCanvasNode } from '@/lib/canvasDocument';
+import { mediaPreview } from '@/api/media';
 
 
 
@@ -377,6 +380,23 @@ function HomeWorkspace({ entry }: { entry: any }) {
   // 新增参考图片、视频、首尾帧的图片上传状态
   const [refImage, setRefImage] = useState<string | null>(null);
   const [refVideo, setRefVideo] = useState<string | null>(null);
+  useEffect(() => {
+    const media = location.state?.canvasMedia;
+    if (!media || !user) return;
+    let cancelled = false;
+    void (async () => {
+      if (media.userId !== user.id || !['image', 'video'].includes(media.type) || typeof media.url !== 'string') throw new Error('画布素材不属于当前账号');
+      const document = emptyCanvasDocument();
+      document.nodes = [{ ...newCanvasNode(media.type), data: { name: '画布素材', url: media.url } }];
+      await verifyCanvasMedia(document, user.id);
+      const url = await mediaPreview(media.url, user.id);
+      if (!cancelled && workspaceActive.current) {
+        if (media.type === 'image') setRefImage(url); else setRefVideo(url);
+        setMainTab('视频生成'); setInputTab('参考');
+      }
+    })().catch(cause => { if (!cancelled) toast.error(cause instanceof Error ? cause.message : '画布素材读取失败'); });
+    return () => { cancelled = true; };
+  }, [location.state?.canvasMedia, user?.id]);
   const [firstFrame, setFirstFrame] = useState<string | null>(null);
   const [lastFrame, setLastFrame] = useState<string | null>(null);
 
@@ -828,6 +848,7 @@ function HomeWorkspace({ entry }: { entry: any }) {
                         <img src={refImage} alt="Ref Image" className="w-full h-full object-cover" />
                         <button
                           type="button"
+                          aria-label="移除视频参考图片"
                           onClick={() => setRefImage(null)}
                           className="absolute top-1 right-1 w-4 h-4 rounded-full bg-black/60 hover:bg-black/80 flex items-center justify-center text-white"
                         >
@@ -840,6 +861,7 @@ function HomeWorkspace({ entry }: { entry: any }) {
                         <Video className="w-6 h-6 text-white/40" />
                         <button
                           type="button"
+                          aria-label="移除视频参考视频"
                           onClick={() => setRefVideo(null)}
                           className="absolute top-1 right-1 w-4 h-4 rounded-full bg-black/60 hover:bg-black/80 flex items-center justify-center text-white"
                         >

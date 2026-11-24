@@ -1,7 +1,7 @@
 {
   "name": "aigc",
   "private": true,
-  "version": "1.2.1",
+  "version": "1.2.3",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -71,6 +71,8 @@
     "lint": "pnpm run check:structure && pnpm run typecheck && biome lint && bash .rules/check.sh && tailwindcss -i ./apps/web/src/index.css -o /dev/null && bash .rules/testBuild.sh",
     "test:safety": "node tests/ai_safety.test.mjs && node tests/frontend_identity.test.mjs && node --test tests/project_storage.test.mjs",
     "test:editor": "node --test tests/editor_state.test.mjs",
+    "test:canvas": "node --test tests/canvas_document.test.mjs tests/canvas_persistence.test.mjs tests/canvas_image_task.test.mjs",
+    "test:canvas-ui": "node --test tests/browser_canvas.mjs",
     "test:editor-ui": "node --test tests/browser_editor_state.mjs tests/browser_editor_assets.mjs tests/browser_edit_analysis.mjs",
     "test:release": "python3 tests/test_production_layout.py && python3 tests/test_release_manifest.py && python3 tests/test_volcengine_deploy.py && python3 tests/test_production_release.py",
     "test:official-deploy": "python3 tests/test_deploy_supabase.py"
@@ -107,6 +109,7 @@
     "@supabase/supabase-js": "2.103.1",
     "@tanstack/react-query": "^5.56.2",
     "@types/qrcode": "^1.5.6",
+    "@xyflow/react": "^13.0.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",

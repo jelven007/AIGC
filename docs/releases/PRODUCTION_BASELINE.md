@@ -1,8 +1,10 @@
 # 生产版本基线
 
-类型：reference。读者：发布、测试与运维维护者。责任：发布维护者。核验：2026-11-01。权威来源：固定Git版本、封存交付与各环境回执。每次晋级更新；没有当轮身份/业务/载荷证据不能标记完成。
+类型：reference。读者：发布、测试与运维维护者。责任：发布维护者。核验：2026-11-18。权威来源：固定Git版本、封存交付与各环境回执。每次晋级更新；没有当轮身份/业务/载荷证据不能标记完成。
 
-当前两环境均运行正式v1.2.1-50076cdaf017，SOURCE_DIR与current一致。固定构建提交bf1a4bb505e236cfd94b5cbaae1211355bf85f05，源码SHA256为50076cdaf017f0ffa0d04ede3f5db68d90b87a8dcd0184946a4db57c6f8479cc，worktree_changes=false。master已合并；注释标签v1.2.1及[正式发布](https://github.com/jelven007/AIGC/releases/tag/v1.2.1)固定于该构建，测试/文档后续提交不移动标签。八项附件独立下载并校验通过。实际事件见[执行回执](V1_2_1_EXECUTION_20261101.md)，机器可读证据见[接受回执](release-acceptance-v1.2.1.json)。
+当前两环境前端为v1.2.3，源码摘要 `5e5cf2173ed1432a0fa49a85a943a280faf5de4801786958232c1e5a41300749`；迁移账本最新00070、68项。开发/本地/ECS分别通过1440px/390px真实画布流程；两处各205个HTTP文件摘要及目标运行配置接受。前端由未提交源码冻结，`worktree_changes=true`，没有新增Git标签或GitHub发布；v1.2.2中间版本身份保留，分组避让修复另发v1.2.3。后端与全栈`SOURCE_DIR/current`仍为v1.2.1，服务健康、执行契约未变。详情及回退范围见[画布发布回执](CANVAS_RELEASE_20261118.md)。
+
+以下为继续承载后端的v1.2.1正式全栈基线：两环境运行目录v1.2.1-50076cdaf017，SOURCE_DIR与current一致。固定构建提交bf1a4bb505e236cfd94b5cbaae1211355bf85f05，源码SHA256为50076cdaf017f0ffa0d04ede3f5db68d90b87a8dcd0184946a4db57c6f8479cc，worktree_changes=false。master已合并；注释标签v1.2.1及[正式发布](https://github.com/jelven007/AIGC/releases/tag/v1.2.1)固定于该构建，测试/文档后续提交不移动标签。八项附件独立下载并校验通过。实际事件见[执行回执](V1_2_1_EXECUTION_20261101.md)，机器可读证据见[接受回执](release-acceptance-v1.2.1.json)。
 
 开发5173、本地HTTPS8443与ECS分别通过1440px/390px模型页验收：分类和名称、13个配置切换、六类新建弹窗、取消、刷新与重载，零页面异常与失败响应。555个源码文件及前端/Edge部署和HTTP字节核验一致；两架构各1196封存文件。69迁移文件中67生产迁移已应用，最新00069；43生产Edge健康；执行契约仍00068/probe24/render4/edit2。六类创建、保存、幂等重试和旧版本保留在两端数据库事务内通过后回滚；线上成功创建/保存API未直接产生验收配置，表单持久流程由隔离浏览器及独立真实PostgreSQL覆盖。
 
